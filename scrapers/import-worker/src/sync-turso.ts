@@ -13,8 +13,8 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
         // 1. Sync Medias
         const allMedias = await neon.select().from(medias);
         if (allMedias.length > 0) {
-            // Bulk upsert logic for SQLite (Turso)
             for (const m of allMedias) {
+                const { id, ...rest } = m;
                 await turso.insert(tursoMedias).values({
                     ...m,
                     rating: m.rating?.toString(),
@@ -24,7 +24,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                     updatedAt: new Date(m.updatedAt!)
                 }).onConflictDoUpdate({
                     target: tursoMedias.id,
-                    set: { ...m, rating: m.rating?.toString(), updatedAt: new Date() }
+                    set: { ...rest, rating: m.rating?.toString(), updatedAt: new Date() }
                 });
             }
         }
@@ -33,12 +33,13 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
         const allEpisodes = await neon.select().from(episodes);
         if (allEpisodes.length > 0) {
             for (const e of allEpisodes) {
+                const { id, ...rest } = e;
                 await turso.insert(tursoEpisodes).values({
                     ...e,
                     airDate: e.airDate ? new Date(e.airDate) : null
                 }).onConflictDoUpdate({
                     target: tursoEpisodes.id,
-                    set: { ...e }
+                    set: { ...rest }
                 });
             }
         }
@@ -47,13 +48,14 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
         const allLiens = await neon.select().from(liens);
         if (allLiens.length > 0) {
             for (const l of allLiens) {
+                const { id, ...rest } = l;
                 await turso.insert(tursoLiens).values({
                     ...l,
                     lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
                     scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null
                 }).onConflictDoUpdate({
                     target: tursoLiens.id,
-                    set: { ...l }
+                    set: { ...rest }
                 });
             }
         }
