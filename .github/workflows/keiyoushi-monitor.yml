@@ -102,14 +102,11 @@ jobs:
               gh issue comment "$EXISTING" \
                 --body "Nouveaux changements: [${LAST_CHECKED}...${HEAD_SHA}](https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA})"
             else
-              BODY="Des changements critiques ont ete detectes.
-**Compare**: https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA}
-**Branche**: ${DEFAULT_BRANCH}
-Consulte le workflow run #${RUN_ID}.
-**Extensions**: ${CRITICAL_COUNT} critique(s), ${REMOVED_COUNT} supprimee(s), ${NEW_COUNT} nouvelle(s)."
+              printf 'Des changements critiques ont ete detectes.\n\n**Compare**: https://github.com/keiyoushi/extensions-source/compare/%s...%s\n**Branche**: %s\n\nConsulte le workflow run #%s.\n\n**Extensions**: %s critique(s), %s supprimee(s), %s nouvelle(s).\n' \
+                "${LAST_CHECKED}" "${HEAD_SHA}" "${DEFAULT_BRANCH}" "${RUN_ID}" "${CRITICAL_COUNT}" "${REMOVED_COUNT}" "${NEW_COUNT}" > /tmp/issue_body.md
               gh issue create \
                 --title "[Keiyoushi] Changements critiques detectes ($(date +'%d/%m/%Y'))" \
                 --label "keiyoushi-upstream" \
-                --body "$BODY"
+                --body-file /tmp/issue_body.md
             fi
           fi
