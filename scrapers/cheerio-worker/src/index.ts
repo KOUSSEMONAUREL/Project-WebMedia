@@ -1,15 +1,15 @@
-import * as dotenv from 'dotenv';
 import axios from 'axios';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { eq } from 'drizzle-orm';
 
-dotenv.config();
-
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const NEON_URL = process.env.NEON_DATABASE_URL || '';
 const SUPABASE_URL = process.env.SUPABASE_DATABASE_URL || '';
+
+if (!NEON_URL) console.error('⚠️ NEON_DATABASE_URL non défini');
+if (!SUPABASE_URL) console.error('⚠️ SUPABASE_DATABASE_URL non défini');
 
 // Neon client pour lire les infos media
 const neonSql = postgres(NEON_URL, { prepare: false });
@@ -141,6 +141,10 @@ export async function startWorker() {
 
     } catch (err: any) {
       console.error('💥 Erreur worker:', err.message);
+      if (err.message?.includes('password authentication')) {
+        console.error('   → Vérifie SUPABASE_DATABASE_URL dans les secrets GitHub (doit être l\'URL du pooler :6543, pas la directe :5432)');
+        break;
+      }
     }
   }
 }
