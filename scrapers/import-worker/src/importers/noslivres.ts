@@ -13,8 +13,8 @@ export async function importNosLivres(databaseUrl: string) {
         // IMPORTANT: Téléchargement en arraybuffer pour gérer manuellement l'encodage
         const response = await axios.get(NOSLIVRES_URL, { responseType: 'arraybuffer' });
         
-        // Le fichier semble être en UTF-16LE, on le convertit
-        const text = Buffer.from(response.data).toString('utf16le');
+        // Le fichier est en UTF-16BE (BOM FE FF), on le convertit
+        const text = new TextDecoder('utf-16be').decode(Buffer.from(response.data));
         const lines = text.split('\n');
         
         let importedCount = 0;
