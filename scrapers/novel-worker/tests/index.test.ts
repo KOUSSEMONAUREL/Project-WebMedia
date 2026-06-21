@@ -30,6 +30,6 @@ test('novel worker CI has python + pip install lncrawl', async () => {
     'utf-8'
   );
   assert.ok(ci.includes('setup-python'), 'Python setup step exists');
-  assert.ok(ci.includes('pip install lncrawl'), 'pip install lncrawl step exists');
+  assert.ok(ci.includes('pip install lightnovel-crawler'), 'pip install lightnovel-crawler step exists');
   assert.ok(ci.includes('LNCRAWL_PATH'), 'LNCRAWL_PATH env var set in CI');
 });

@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install lncrawl
-        run: pip install lncrawl
+        run: pip install lightnovel-crawler
       - name: Install dependencies
         run: cd scrapers/novel-worker && npm install
       - name: Run Novel Worker
