@@ -1,0 +1,78 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Paramètres">
+  <div class="container mx-auto px-6 py-10">
+    <header class="mb-12">
+      <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+        PARAMÈTRES
+      </h1>
+      <p class="mt-2 text-muted-foreground">Gérez votre compte et vos préférences.</p>
+    </header>
+
+    <div class="max-w-2xl space-y-6">
+      <div class="bg-card border border-border rounded-xl p-6">
+        <h3 class="text-lg font-bold text-white mb-1">Profil</h3>
+        <p class="text-sm text-muted-foreground mb-4" id="settings-email">Connectez-vous pour gérer votre profil.</p>
+        <div class="flex gap-3">
+          <button id="btn-logout" class="bg-destructive text-destructive-foreground px-4 py-2 rounded-md text-sm font-bold hover:bg-destructive/90 transition-colors hidden">
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-card border border-border rounded-xl p-6">
+        <h3 class="text-lg font-bold text-white mb-1">Thème</h3>
+        <p class="text-sm text-muted-foreground">Le thème sombre est activé par défaut.</p>
+      </div>
+
+      <div class="bg-card border border-border rounded-xl p-6">
+        <h3 class="text-lg font-bold text-white mb-1">À propos</h3>
+        <p class="text-sm text-muted-foreground">WebMedia — Plateforme de découverte de médias. Version 1.0.0</p>
+      </div>
+
+      <div class="bg-card border border-border rounded-xl p-6">
+        <h3 class="text-lg font-bold text-white mb-1">Données locales</h3>
+        <p class="text-sm text-muted-foreground mb-4">Gérez vos données sauvegardées dans ce navigateur.</p>
+        <div class="flex gap-3">
+          <button id="btn-clear-favs" class="bg-secondary text-foreground px-4 py-2 rounded-md text-sm font-bold border border-border hover:bg-secondary/80 transition-colors">
+            Vider les favoris
+          </button>
+          <button id="btn-clear-wl" class="bg-secondary text-foreground px-4 py-2 rounded-md text-sm font-bold border border-border hover:bg-secondary/80 transition-colors">
+            Vider la watchlist
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedUser = localStorage.getItem('webmedia_user');
+      const emailEl = document.getElementById('settings-email');
+      const logoutBtn = document.getElementById('btn-logout');
+
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (emailEl) emailEl.textContent = `Connecté en tant que ${user.email}`;
+        if (logoutBtn) {
+          logoutBtn.classList.remove('hidden');
+          logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('webmedia_user');
+            window.location.reload();
+          });
+        }
+      }
+
+      document.getElementById('btn-clear-favs')?.addEventListener('click', () => {
+        localStorage.removeItem('webmedia_favorites');
+        alert('Favoris vidés !');
+      });
+      document.getElementById('btn-clear-wl')?.addEventListener('click', () => {
+        localStorage.removeItem('webmedia_watchlist');
+        alert('Watchlist vidée !');
+      });
+    });
+  </script>
+</Layout>

@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  /* Premium Elegant Palette */
+  --color-background: #090a0f;
+  --color-foreground: #f3f4f6;
+  --color-card: #11131a;
+  --color-card-foreground: #ffffff;
+  --color-primary: #d4af37; /* Elegant Gold */
+  --color-primary-foreground: #000000;
+  --color-secondary: #1a1d27;
+  --color-secondary-foreground: #e5e7eb;
+  --color-muted: #1f2230;
+  --color-muted-foreground: #9ca3af;
+  --color-accent: #d4af37;
+  --color-accent-foreground: #000000;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #262938;
+  --color-input: #1a1d27;
+  --color-ring: #d4af37;
+  
+  /* Elegant soft edges */
+  --radius: 0.75rem;
+
+  /* Custom Fonts */
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Playfair Display', serif;
+}
+
+/* Base styles for a dark theme */
+:root {
+  color-scheme: dark;
+}
+
+/* Styles de base */
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}

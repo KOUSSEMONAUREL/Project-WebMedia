@@ -1,0 +1,56 @@
+{
+  "name": "webmedia-backend",
+  "version": "1.0.0",
+  "description": "Backend API pour WebMedia - Plateforme de recommandations médias",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node dist/server.js",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node24 --outfile=dist/server.js --format=esm --packages=external",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "test:db": "tsx test-db.ts"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "hono",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@hono/node-server": "^2.0.4",
+    "@hono/zod-validator": "^0.7.6",
+    "@libsql/client": "^0.17.3",
+    "axios": "^1.7.8",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.4.0",
+    "jose": "^5.2.0",
+    "mongodb": "^7.3.0",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.31.10",
+    "esbuild": "0.28.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.7",
+    "wrangler": "^4.100.0"
+  },
+  "overrides": {
+    "esbuild": "0.28.1",
+    "ws": "^8.21.0"
+  }
+}

@@ -1,0 +1,34 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const mainGenres = [
+  "Action", "Aventure", "Comédie", "Drame", "Fantastique", 
+  "Horreur", "Mystère", "Romance", "Science-Fiction", "Thriller",
+  "Animation", "Documentaire", "Crime", "Famille"
+];
+---
+
+<Layout title="Genres">
+    <div class="container mx-auto px-6 py-10">
+        <header class="mb-12">
+            <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+                EXPLORER PAR GENRES
+            </h1>
+            <p class="mt-2 text-muted-foreground">Trouvez du contenu par catégorie selon vos envies.</p>
+        </header>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {mainGenres.map((genre) => (
+                <a 
+                    href={`/genres/${genre.toLowerCase()}`}
+                    class="group relative h-32 flex items-center justify-center rounded-xl bg-card border border-border overflow-hidden transition-all hover:border-primary hover:scale-[1.02]"
+                >
+                    <div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <span class="text-lg font-bold uppercase italic tracking-wider transition-colors group-hover:text-primary">
+                        {genre}
+                    </span>
+                </a>
+            ))}
+        </div>
+    </div>
+</Layout>

@@ -1,0 +1,120 @@
+name: Keiyoushi Upstream Monitor
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+env:
+  TSBASE: ${{ github.workspace }}/scrapers/webtoons/definitions/webtoons
+  ANALYZER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_analyze.py
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore last checked commit from cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/keiyoushi_last_commit
+          key: keiyoushi-commit-${{ steps.monitor.outputs.head_sha }}
+          restore-keys: |
+            keiyoushi-commit-
+
+      - name: Check upstream for changes
+        id: monitor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATE_FILE="/tmp/keiyoushi_last_commit"
+          REPO_API="https://api.github.com/repos/keiyoushi/extensions-source"
+          GH_HEADER="Authorization: Bearer $GH_TOKEN"
+
+          curl -sL -H "$GH_HEADER" "$REPO_API" -o /tmp/repo.json
+          python3 -c "import json; d=json.load(open('/tmp/repo.json')); assert 'default_branch' in d" 2>/dev/null || { echo "Error: invalid repo API response"; cat /tmp/repo.json; exit 1; }
+          DEFAULT_BRANCH=$(python3 -c "import json; print(json.load(open('/tmp/repo.json'))['default_branch'])")
+
+          curl -sL -H "$GH_HEADER" "$REPO_API/branches/$DEFAULT_BRANCH" -o /tmp/branch.json
+          python3 -c "import json; d=json.load(open('/tmp/branch.json')); assert 'commit' in d" 2>/dev/null || { echo "Error: invalid branch API response"; cat /tmp/branch.json; exit 1; }
+          HEAD_SHA=$(python3 -c "import json; print(json.load(open('/tmp/branch.json'))['commit']['sha'])")
+
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "default_branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+          echo "HEAD distant: ${HEAD_SHA:0:8}"
+
+          LAST_CHECKED=""
+          [ -f "$STATE_FILE" ] && LAST_CHECKED=$(cat "$STATE_FILE")
+
+          if [ -z "$LAST_CHECKED" ]; then
+            echo "$HEAD_SHA" > "$STATE_FILE"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "Premier check HEAD ${HEAD_SHA:0:8} enregistre"
+            exit 0
+          fi
+
+          if [ "$LAST_CHECKED" = "$HEAD_SHA" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "Aucun changement (toujours ${HEAD_SHA:0:8})"
+            exit 0
+          fi
+
+          echo "Nouveaux commits: ${LAST_CHECKED:0:8} -> ${HEAD_SHA:0:8}"
+          echo "last_checked=$LAST_CHECKED" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          curl -sL -H "$GH_HEADER" "$REPO_API/compare/$LAST_CHECKED...$HEAD_SHA" -o /tmp/compare.json
+          python3 -c "import json; d=json.load(open('/tmp/compare.json')); assert 'files' in d" 2>/dev/null || { echo "Error: invalid compare API response"; cat /tmp/compare.json; exit 1; }
+          python3 "$ANALYZER" /tmp/compare.json "$LAST_CHECKED" "$HEAD_SHA"
+
+          echo "$HEAD_SHA" > "$STATE_FILE"
+
+      - name: Save last checked commit to cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/keiyoushi_last_commit
+          key: keiyoushi-commit-${{ steps.monitor.outputs.head_sha }}
+
+      - name: Create issue if critical changes found
+        if: steps.monitor.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAST_CHECKED: ${{ steps.monitor.outputs.last_checked }}
+          HEAD_SHA: ${{ steps.monitor.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ steps.monitor.outputs.default_branch }}
+          CRITICAL_COUNT: ${{ env.CRITICAL_CHANGED }}
+          REMOVED_COUNT: ${{ env.REMOVED_CHANGED }}
+          NEW_COUNT: ${{ env.NEW_CHANGED }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ "${CRITICAL_COUNT:-0}" -gt 0 ]; then
+            EXISTING=$(gh issue list \
+              --label "keiyoushi-upstream" \
+              --state open \
+              --json number,title \
+              --jq '.[] | select(.title | startswith("[Keiyoushi]")) | .number' \
+              | head -1)
+
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" \
+                --body "Nouveaux changements: [${LAST_CHECKED}...${HEAD_SHA}](https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA})"
+            else
+              cat > /tmp/issue_body.md << BODYEOF
+              Des changements critiques ont ete detectes.
+
+              **Compare**: https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA}
+              **Branche**: ${DEFAULT_BRANCH}
+
+              Consulte le workflow run #${RUN_ID}.
+
+              **Extensions**: ${CRITICAL_COUNT} critique(s), ${REMOVED_COUNT} supprimee(s), ${NEW_COUNT} nouvelle(s).
+              BODYEOF
+              gh issue create \
+                --title "[Keiyoushi] Changements critiques detectes ($(date +'%d/%m/%Y'))" \
+                --label "keiyoushi-upstream" \
+                --body-file /tmp/issue_body.md
+            fi
+          fi

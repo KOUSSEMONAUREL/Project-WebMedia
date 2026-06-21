@@ -1,0 +1,23 @@
+{
+  "name": "webmedia-proxy",
+  "version": "1.0.0",
+  "description": "Smart Proxy & Cache Layer for WebMedia",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.4.0",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.95.0"
+  },
+  "overrides": {
+    "esbuild": "0.28.1",
+    "ws": "^8.21.0"
+  }
+}

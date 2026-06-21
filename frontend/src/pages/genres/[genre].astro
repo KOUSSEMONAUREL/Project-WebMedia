@@ -1,0 +1,49 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { MediaGrid } from '../../components/MediaGrid';
+import { allMockData, type Media } from '../../lib/api';
+
+export function getStaticPaths() {
+  const genres = ["action", "aventure", "comedie", "drame", "fantastique", "horreur", "mystere", "romance", "science-fiction", "thriller", "animation", "documentaire", "crime", "famille", "western", "rpg", "arts-martiaux"];
+  return genres.map(g => ({ params: { genre: g } }));
+}
+
+const { genre } = Astro.params;
+
+const genreMap: Record<string, string[]> = {
+  action: ["Action"],
+  aventure: ["Aventure"],
+  comedie: ["Comédie"],
+  drame: ["Drame"],
+  fantastique: ["Fantastique"],
+  horreur: ["Horreur"],
+  mystere: ["Mystère"],
+  romance: ["Romance"],
+  "science-fiction": ["Science-Fiction"],
+  thriller: ["Thriller"],
+  animation: ["Animation"],
+  documentaire: ["Documentaire"],
+  crime: ["Crime"],
+  famille: ["Famille"],
+  western: ["Western"],
+  rpg: ["RPG"],
+  "arts-martiaux": ["Arts Martiaux"],
+};
+
+const genreNames = genreMap[genre || ''] || [];
+const filtered = allMockData.filter(m => m.genres?.some(g => genreNames.includes(g)));
+
+const displayName = genre ? genre.charAt(0).toUpperCase() + genre.slice(1).replace(/-/g, ' ') : '';
+---
+
+<Layout title={displayName}>
+  <div class="container mx-auto px-6 py-10">
+    <header class="mb-12">
+      <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+        {displayName}
+      </h1>
+      <p class="mt-2 text-muted-foreground">{filtered.length} résultat{filtered.length > 1 ? 's' : ''}</p>
+    </header>
+    <MediaGrid title={displayName} items={filtered} />
+  </div>
+</Layout>

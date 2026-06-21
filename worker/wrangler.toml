@@ -1,0 +1,22 @@
+name = "webmedia-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-02-08"
+compatibility_flags = ["nodejs_compat"]
+
+# Ton cache edge
+[[kv_namespaces]]
+binding = "KV"
+id = "c8ad78e7136a40b885547396a971ca5a"
+
+[vars]
+BACKEND_URL = "https://api-webmedia.onrender.com"
+ENVIRONMENT = "production"
+UPSTASH_REDIS_REST_URL="https://dear-marmot-137652.upstash.io"
+
+#Observability & logs
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true

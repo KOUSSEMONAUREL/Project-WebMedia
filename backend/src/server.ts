@@ -1,0 +1,84 @@
+/**
+ * server.ts — Entry point for Render (Node.js)
+ * Ce fichier remplace l'export Cloudflare Workers de index.ts
+ * pour un vrai serveur HTTP Node.js.
+ */
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
+import { prettyJSON } from 'hono/pretty-json';
+import 'dotenv/config';
+import { rateLimitServer } from './middleware/ratelimit-server';
+
+// Import des routes (même routes que le CF Worker)
+import authRoutes from './routes/auth';
+import userRoutes from './routes/user';
+import mediaRoutes from './routes/media';
+import searchRoutes from './routes/search';
+import reviewRoutes from './routes/reviews';
+import staticRoutes from './routes/static';
+import internalRoutes from './routes/internal';
+import webtoonRoutes from './routes/webtoon';
+
+const app = new Hono();
+
+// ========== MIDDLEWARES ==========
+app.use('*', logger());
+app.use('*', prettyJSON());
+
+const allowedOrigins = [
+    'https://app.webmedia.com',
+    'https://webmedia.com',
+    'http://localhost:3000',
+];
+
+app.use('*', cors({
+    origin: (origin) => {
+        if (!origin || allowedOrigins.includes(origin)) return origin;
+        return null;
+    },
+    credentials: true,
+}));
+
+app.use('/api/*', async (c, next) => {
+  if (process.env.ENVIRONMENT === 'development' || process.env.ENVIRONMENT === 'test') return next();
+  const path = c.req.path;
+  const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
+  return rateLimitServer(isSensitive ? 60 : 200, 60)(c, next);
+});
+
+// ========== ROUTES ==========
+app.route('/api/auth', authRoutes);
+app.route('/api/user', userRoutes);
+app.route('/api/media', mediaRoutes);
+app.route('/api/search', searchRoutes);
+app.route('/api/reviews', reviewRoutes);
+app.route('/api/static', staticRoutes);
+app.route('/api/internal', internalRoutes);
+app.route('/api/webtoon', webtoonRoutes);
+
+// Health check
+app.get('/', (c) => {
+    return c.json({
+        status: 'ok',
+        service: 'WebMedia Backend API (Render)',
+        environment: process.env.ENVIRONMENT || 'development',
+    });
+});
+
+// ========== ERREURS ==========
+app.notFound((c) => c.json({ error: 'Not Found', path: c.req.path }, 404));
+app.onError((err, c) => {
+    console.error(err);
+    if (process.env.ENVIRONMENT === 'production') {
+        return c.json({ error: 'Internal Server Error' }, 500);
+    }
+    return c.json({ error: err.message }, 500);
+});
+
+// ========== DÉMARRAGE ==========
+const port = parseInt(process.env.PORT || '3000', 10);
+serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
+    console.log(`🚀 WebMedia Backend démarré sur le port ${info.port} (0.0.0.0)`);
+});

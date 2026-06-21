@@ -1,0 +1,57 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { MediaGrid } from '../components/MediaGrid';
+import { getTrending, getMediaByType, type Media } from '../lib/api';
+
+let trending: Media[] = [];
+let films: Media[] = [];
+let series: Media[] = [];
+let animes: Media[] = [];
+let games: Media[] = [];
+let webtoons: Media[] = [];
+let books: Media[] = [];
+let novels: Media[] = [];
+
+try {
+  const [tr, fr, sr, ar, gr, wr, br, nr] = await Promise.all([
+    getTrending(),
+    getMediaByType('film'),
+    getMediaByType('serie'),
+    getMediaByType('anime'),
+    getMediaByType('jeu'),
+    getMediaByType('webtoon'),
+    getMediaByType('book'),
+    getMediaByType('novel'),
+  ]);
+  trending = tr.data || [];
+  films = fr.data || [];
+  series = sr.data || [];
+  animes = ar.data || [];
+  games = gr.data || [];
+  webtoons = wr.data || [];
+  books = br.data || [];
+  novels = nr.data || [];
+} catch {}
+---
+
+<Layout title="Découvrir">
+  <div class="container mx-auto px-6 pt-28 pb-16">
+    <header class="mb-16 flex flex-col items-center text-center space-y-4">
+      <h1 class="text-5xl md:text-7xl font-display font-bold text-white">
+        Découvrir
+      </h1>
+      <p class="text-lg text-muted-foreground max-w-xl">
+        Explorez tous les contenus disponibles sur WebMedia.
+      </p>
+    </header>
+
+    <MediaGrid title="Tendances" items={trending} viewAllHref="/trending" />
+    <MediaGrid title="Films" items={films} viewAllHref="/films" />
+    <MediaGrid title="Séries" items={series} viewAllHref="/series" />
+    <MediaGrid title="Animés" items={animes} viewAllHref="/animes" />
+    <MediaGrid title="Jeux Vidéo" items={games} viewAllHref="/games" />
+    <MediaGrid title="Webtoons" items={webtoons} viewAllHref="/webtoons" />
+    <MediaGrid title="Livres" items={books} viewAllHref="/books" />
+    <MediaGrid title="Light Novels" items={novels} viewAllHref="/novels" />
+  </div>
+</Layout>

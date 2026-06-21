@@ -1,0 +1,23 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { MediaGrid } from '../components/MediaGrid';
+import { getTrending, type Media } from '../lib/api';
+
+let trending: Media[] = [];
+try {
+  const res = await getTrending();
+  trending = res.data || [];
+} catch {}
+---
+
+<Layout title="Tendances">
+  <div class="container mx-auto px-6 py-10">
+    <header class="mb-12">
+      <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+        TENDANCES
+      </h1>
+      <p class="mt-2 text-muted-foreground">Les contenus les plus populaires du moment.</p>
+    </header>
+    <MediaGrid title="Tendances du moment" items={trending} />
+  </div>
+</Layout>

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Production
+dist
+build
+.next
+.astro
+
+# Secrets & Environment
+.env
+.env.*
+*.env
+*.env.*
+*.pem
+.wrangler
+.dev.vars
+
+# IDEs
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Project specifics
+Structure.md
+backend/src/index.ts.updated
+fix_http.js
+PROD_CONFIG.md
+node_modules
+**/node_modules/

@@ -1,0 +1,41 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { MediaGrid } from '../components/MediaGrid';
+import { searchMedia, type Media } from '../lib/api';
+
+const query = Astro.url.searchParams.get('q') || '';
+const typeFilter = Astro.url.searchParams.get('type') || 'all';
+
+let results: Media[] = [];
+let error = '';
+
+if (query) {
+  try {
+    const res = await searchMedia(query, { type: typeFilter as any });
+    results = res.data || [];
+  } catch (e) {
+    error = "Erreur lors de la recherche.";
+  }
+}
+---
+
+<Layout title={query ? `Recherche: ${query}` : 'Recherche'}>
+  <div class="container mx-auto px-6 pt-28 pb-16">
+    <header class="mb-12">
+      <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+        RECHERCHE
+      </h1>
+      {query && <p class="mt-2 text-muted-foreground">Résultats pour "{query}" ({results.length} trouvés)</p>}
+    </header>
+
+    {error && <p class="text-red-500">{error}</p>}
+
+    {query ? (
+      <MediaGrid title={`Résultats pour "${query}"`} items={results} />
+    ) : (
+      <div class="flex flex-col items-center justify-center min-h-[40vh] text-center">
+        <p class="text-muted-foreground text-lg">Utilisez la barre de recherche pour trouver du contenu.</p>
+      </div>
+    )}
+  </div>
+</Layout>

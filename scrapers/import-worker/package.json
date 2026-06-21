@@ -1,0 +1,32 @@
+{
+  "name": "import-worker",
+  "version": "1.0.0",
+  "description": "Worker pour l'import de données TMDB et synchronisation Turso",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@fsoc/royalroadl-api": "^0.16.3",
+    "@libsql/client": "^0.17.3",
+    "axios": "^1.7.8",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
+    "fast-xml-parser": "^5.9.2",
+    "node-cron": "^4.2.1",
+    "postgres": "^3.4.4",
+    "tsx": "^4.22.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "@types/node-cron": "^3.0.11",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.4.5"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}

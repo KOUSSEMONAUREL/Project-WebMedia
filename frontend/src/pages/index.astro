@@ -1,0 +1,55 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { MediaGrid } from '../components/MediaGrid';
+import { getTrending, getMediaByType, type Media } from '../lib/api';
+
+// Fetch data from API (which falls back to mockData internally if backend is down)
+let trending: Media[] = [];
+let popularFilms: Media[] = [];
+let topSeries: Media[] = [];
+let bestAnimes: Media[] = [];
+let popularBooks: Media[] = [];
+let topNovels: Media[] = [];
+
+try {
+  const [trendingRes, filmsRes, seriesRes, animesRes, booksRes, novelsRes] = await Promise.all([
+    getTrending(),
+    getMediaByType('film'),
+    getMediaByType('serie'),
+    getMediaByType('anime'),
+    getMediaByType('book'),
+    getMediaByType('novel'),
+  ]);
+
+  trending = trendingRes.data || [];
+  popularFilms = filmsRes.data || [];
+  topSeries = seriesRes.data || [];
+  bestAnimes = animesRes.data || [];
+  popularBooks = booksRes.data || [];
+  topNovels = novelsRes.data || [];
+} catch (error) {
+  console.error("Erreur lors du chargement des données sur l'accueil:", error);
+}
+---
+
+<Layout title="Accueil">
+    <div class="container mx-auto px-6 pt-28 pb-16">
+        <!-- Hero Section -->
+        <header class="mb-24 flex flex-col items-center text-center space-y-6">
+            <h1 class="text-5xl md:text-7xl lg:text-8xl font-display font-semibold text-white leading-tight max-w-5xl mx-auto">
+                Tout le divertissement,<br/>
+                <span class="text-primary italic">un seul endroit.</span>
+            </h1>
+             <p class="text-lg md:text-xl text-muted-foreground max-w-xl font-light leading-relaxed">
+                Films, séries, animés, jeux, livres & light novels — votre bibliothèque ultime.
+            </p>
+        </header>
+
+        <MediaGrid title="Tendances du moment" items={trending} viewAllHref="/trending" client:load />
+        <MediaGrid title="Films Populaires" items={popularFilms} viewAllHref="/films" client:load />
+        <MediaGrid title="Séries à ne pas manquer" items={topSeries} viewAllHref="/series" client:load />
+        <MediaGrid title="Top Animés" items={bestAnimes} viewAllHref="/animes" client:load />
+        <MediaGrid title="Livres Populaires" items={popularBooks} viewAllHref="/books" client:load />
+        <MediaGrid title="Light Novels" items={topNovels} viewAllHref="/novels" client:load />
+    </div>
+</Layout>

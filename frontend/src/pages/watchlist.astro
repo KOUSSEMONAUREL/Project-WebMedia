@@ -1,0 +1,73 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { allMockData } from '../lib/api';
+import type { Media } from '../lib/api';
+
+type MediaMap = Record<string, Media>;
+const mediaMap: MediaMap = {};
+for (const m of allMockData) mediaMap[m.id] = m;
+---
+
+<Layout title="À voir plus tard">
+  <div class="container mx-auto px-6 py-10">
+    <header class="mb-12">
+      <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
+        À VOIR PLUS TARD
+      </h1>
+      <p class="mt-2 text-muted-foreground">Votre liste de lecture personnelle.</p>
+    </header>
+
+    <div id="watchlist-content">
+      <p class="text-muted-foreground text-center py-20">Chargement...</p>
+    </div>
+  </div>
+</Layout>
+
+<script define:vars={{ mediaMap }}>
+  const savedUser = localStorage.getItem('webmedia_user');
+  const container = document.getElementById('watchlist-content');
+
+  if (!savedUser) {
+    container.innerHTML = `
+      <div class="flex flex-col items-center justify-center min-h-[40vh] text-center">
+        <div class="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mb-6 text-primary">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-2">Connectez-vous</h2>
+        <p class="text-muted-foreground mb-6">Connectez-vous pour gérer votre liste.</p>
+        <a href="/" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-full font-bold text-sm">Retour à l'accueil</a>
+      </div>
+    `;
+  } else {
+    const stored = localStorage.getItem('webmedia_watchlist');
+    const wlIds = stored ? JSON.parse(stored) : [];
+
+    if (wlIds.length === 0) {
+      container.innerHTML = `
+        <div class="flex flex-col items-center justify-center min-h-[40vh] text-center">
+          <p class="text-muted-foreground text-lg mb-4">Votre liste est vide.</p>
+          <a href="/discover" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-full font-bold text-sm">Découvrir du contenu</a>
+        </div>
+      `;
+    } else {
+      let html = '<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">';
+      wlIds.forEach(id => {
+        const item = (mediaMap as any)[id];
+        if (!item) return;
+        html += `
+          <a href="/${item.type}/${item.slug}" class="group flex flex-col gap-3 transition-all duration-500 hover:-translate-y-2">
+            <div class="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg border border-white/5 group-hover:shadow-primary/20 group-hover:shadow-2xl transition-all duration-500">
+              <img src="${item.posterUrl}" alt="${item.title}" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" onerror="this.src='https://via.placeholder.com/300x450?text=?'"/>
+            </div>
+            <div class="flex flex-col gap-1 px-1">
+              <h3 class="font-display font-semibold text-lg text-foreground group-hover:text-primary line-clamp-2">${item.title}</h3>
+              <p class="text-xs text-muted-foreground">${item.year}</p>
+            </div>
+          </a>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+  }
+</script>

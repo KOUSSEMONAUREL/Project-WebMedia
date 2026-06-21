@@ -1,0 +1,157 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Mon Profil">
+  <div class="container mx-auto px-6 py-10">
+    <!-- Profile Header -->
+    <div class="relative mb-8">
+      <div class="h-48 bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10 rounded-2xl"></div>
+      <div class="absolute -bottom-12 left-8 flex items-end gap-6">
+        <div id="profile-avatar" class="h-28 w-28 rounded-full bg-card border-4 border-background flex items-center justify-center text-4xl font-bold text-primary">
+          ?
+        </div>
+        <div class="mb-4">
+          <h1 id="profile-name" class="text-3xl font-black text-white">Connectez-vous</h1>
+          <p id="profile-email" class="text-muted-foreground">Pour voir votre profil</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-card border border-border rounded-xl p-5 text-center">
+        <div class="flex items-center justify-center gap-2 text-blue-500 mb-2">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+          <span id="stat-films" class="text-2xl font-black">0</span>
+        </div>
+        <p class="text-sm text-muted-foreground">Favoris</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5 text-center">
+        <div class="flex items-center justify-center gap-2 text-purple-500 mb-2">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <span id="stat-series" class="text-2xl font-black">0</span>
+        </div>
+        <p class="text-sm text-muted-foreground">Dans la liste</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5 text-center">
+        <div class="flex items-center justify-center gap-2 text-pink-500 mb-2">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <span id="stat-animes" class="text-2xl font-black">0</span>
+        </div>
+        <p class="text-sm text-muted-foreground">Catégories explorées</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5 text-center">
+        <div class="flex items-center justify-center gap-2 text-green-500 mb-2">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span id="stat-time" class="text-2xl font-black">--</span>
+        </div>
+        <p class="text-sm text-muted-foreground">Membre depuis</p>
+      </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- Recent Activity -->
+      <div class="md:col-span-2 bg-card border border-border rounded-xl p-6">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <svg class="h-5 w-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Mes listes
+        </h2>
+        <div class="grid grid-cols-2 gap-4">
+          <a href="/favorites" class="p-4 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors">
+            <p class="text-lg font-bold text-white">❤️ Favoris</p>
+            <p id="fav-count" class="text-sm text-muted-foreground">0 éléments</p>
+          </a>
+          <a href="/watchlist" class="p-4 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors">
+            <p class="text-lg font-bold text-white">📋 À voir</p>
+            <p id="wl-count" class="text-sm text-muted-foreground">0 éléments</p>
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="space-y-4">
+        <div class="bg-card border border-border rounded-xl p-6">
+          <h2 class="text-xl font-bold mb-4">Actions rapides</h2>
+          <div class="space-y-2">
+            <a href="/favorites" class="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors">
+              <span class="h-10 w-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold text-lg">♥</span>
+              <div>
+                <p class="font-medium">Mes Favoris</p>
+                <p id="fav-count-2" class="text-xs text-muted-foreground">0 éléments</p>
+              </div>
+            </a>
+            <a href="/watchlist" class="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors">
+              <span class="h-10 w-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center text-lg">📋</span>
+              <div>
+                <p class="font-medium">À voir</p>
+                <p id="wl-count-2" class="text-xs text-muted-foreground">0 éléments</p>
+              </div>
+            </a>
+            <a href="/settings" class="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors">
+              <span class="h-10 w-10 rounded-full bg-gray-500/20 text-gray-500 flex items-center justify-center text-lg">⚙️</span>
+              <div>
+                <p class="font-medium">Paramètres</p>
+                <p class="text-xs text-muted-foreground">Gérer mon compte</p>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-6">
+          <h3 class="text-lg font-bold mb-2">Passez Premium ✨</h3>
+          <p class="text-sm text-muted-foreground mb-4">Téléchargements illimités, pas de pubs, contenu exclusif.</p>
+          <button class="w-full py-2 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary/90 transition-colors">
+            Découvrir
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function updateProfile() {
+      const savedUser = localStorage.getItem('webmedia_user');
+
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        const avatarEl = document.getElementById('profile-avatar');
+        const nameEl = document.getElementById('profile-name');
+        const emailEl = document.getElementById('profile-email');
+
+        if (avatarEl && user.avatar) {
+          avatarEl.innerHTML = `<img src="${user.avatar}" alt="${user.name}" class="h-full w-full rounded-full object-cover"/>`;
+        } else if (avatarEl) {
+          avatarEl.textContent = user.name.charAt(0).toUpperCase();
+        }
+        if (nameEl) nameEl.textContent = user.name;
+        if (emailEl) emailEl.textContent = user.email;
+      } else {
+        const nameEl = document.getElementById('profile-name');
+        const emailEl = document.getElementById('profile-email');
+        if (nameEl) nameEl.textContent = 'Non connecté';
+        if (emailEl) emailEl.textContent = 'Connectez-vous pour accéder à votre profil';
+      }
+
+      // Compter les favoris et la watchlist
+      const favs: string[] = JSON.parse(localStorage.getItem('webmedia_favorites') || '[]');
+      const wl: string[] = JSON.parse(localStorage.getItem('webmedia_watchlist') || '[]');
+
+      const favCount = favs.length;
+      const wlCount = wl.length;
+
+      for (const el of [document.getElementById('stat-films'), document.getElementById('fav-count'), document.getElementById('fav-count-2')]) {
+        if (el) el.textContent = String(favCount);
+      }
+      for (const el of [document.getElementById('stat-series'), document.getElementById('wl-count'), document.getElementById('wl-count-2')]) {
+        if (el) el.textContent = String(wlCount);
+      }
+
+      const timeEl = document.getElementById('stat-time');
+      if (timeEl) timeEl.textContent = '2025';
+    }
+
+    document.addEventListener('DOMContentLoaded', updateProfile);
+  </script>
+</Layout>

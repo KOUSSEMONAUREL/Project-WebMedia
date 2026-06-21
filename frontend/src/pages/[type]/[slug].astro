@@ -1,0 +1,155 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getMediaDetails, getMediaByType, type Media } from '../../lib/api';
+
+export async function getStaticPaths() {
+  const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
+  let paths: { params: { type: string; slug: string } }[] = [];
+
+  for (const t of types) {
+    try {
+      const res = await getMediaByType(t);
+      if (res.data) {
+        const typePaths = res.data.map(media => ({
+          params: { type: media.type, slug: media.slug || media.id }
+        }));
+        paths = [...paths, ...typePaths];
+      }
+    } catch {
+      console.log(`Erreur lors de la génération des chemins pour ${t}`);
+    }
+  }
+
+  return paths;
+}
+
+const { type, slug } = Astro.params;
+
+let media: Media | null = null;
+let error: string | null = null;
+
+try {
+  const response = await getMediaDetails(type!, slug!);
+  if (response.success && response.data) {
+    media = response.data;
+  } else {
+    error = "Média non trouvé.";
+  }
+} catch (e: any) {
+  error = e.message || "Erreur lors du chargement des détails.";
+}
+---
+
+<Layout title={media ? media.title : 'Détails'}>
+  {error ? (
+    <div class="container mx-auto px-6 py-20 text-center">
+      <h1 class="text-4xl text-red-500 font-bold mb-4">Erreur</h1>
+      <p class="text-white text-lg">{error}</p>
+      <a href="/" class="text-primary mt-6 inline-block hover:underline">Retour à l'accueil</a>
+    </div>
+  ) : media ? (
+    <div class="relative min-h-[80vh]">
+      <div class="absolute inset-0 z-0 h-[60vh] w-full">
+        <div class="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent z-10"></div>
+        <img src={media.posterUrl} alt={media.title} class="w-full h-full object-cover opacity-30" />
+      </div>
+
+      <div class="container relative z-10 mx-auto px-6 pt-32 pb-20">
+        <div class="flex flex-col md:flex-row gap-12 items-start">
+          <div class="w-64 md:w-80 shrink-0 border border-white/10 group shadow-2xl rounded-2xl overflow-hidden">
+            <img src={media.posterUrl} alt={media.title} class="w-full h-auto transition-transform duration-700 group-hover:scale-[1.03]" />
+          </div>
+
+          <div class="flex-1 text-white">
+            <h1 class="text-5xl md:text-7xl font-display font-bold leading-none mb-6">
+              {media.title}
+            </h1>
+
+            <div class="flex flex-wrap items-center gap-4 text-sm font-medium mb-8">
+              <span class="bg-primary/20 text-primary border border-primary/30 rounded-full px-4 py-1 uppercase">
+                {media.type}
+              </span>
+              <span class="text-muted-foreground">{media.year}</span>
+              <span class="flex items-center gap-1 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                {media.rating}/10
+              </span>
+            </div>
+
+            {media.genres && (
+              <div class="flex flex-wrap gap-2 mb-6">
+                {media.genres.map(g => (
+                  <a href={`/genres/${g.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`}
+                     class="border border-white/20 px-3 py-1 rounded text-xs text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors cursor-pointer">
+                    {g}
+                  </a>
+                ))}
+              </div>
+            )}
+
+            <div class="mb-8">
+              <h3 class="text-xl font-bold mb-3">Synopsis</h3>
+              <p class="text-lg text-muted-foreground leading-relaxed max-w-3xl">
+                {media.synopsis || "Aucun synopsis disponible."}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-4" id="detail-actions">
+              <button data-action="favorite" data-id={media.id}
+                class="bg-white/10 hover:bg-red-500/30 text-white px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 border border-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                Favoris
+              </button>
+              <button data-action="watchlist" data-id={media.id}
+                class="bg-white/10 hover:bg-blue-500/30 text-white px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 border border-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                À voir plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null}
+
+  <script>
+    const mediaId = '{media?.id}';
+    const favBtn = document.querySelector('[data-action="favorite"]');
+    const wlBtn = document.querySelector('[data-action="watchlist"]');
+
+    function toggleList(key: string, id: string) {
+      const stored = localStorage.getItem(key);
+      const list: string[] = stored ? JSON.parse(stored) : [];
+      const idx = list.indexOf(id);
+      if (idx === -1) list.push(id); else list.splice(idx, 1);
+      localStorage.setItem(key, JSON.stringify(list));
+      updateButtons();
+    }
+
+    function isInList(key: string, id: string) {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored).includes(id) : false;
+    }
+
+    function updateButtons() {
+      if (favBtn) {
+        const inFav = isInList('webmedia_favorites', mediaId);
+        favBtn.innerHTML = inFav ? '♥ Favori' : '♡ Favoris';
+        favBtn.className = inFav
+          ? 'bg-red-500/30 text-red-400 px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2'
+          : 'bg-white/10 hover:bg-red-500/30 text-white px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 border border-white/10';
+      }
+      if (wlBtn) {
+        const inWl = isInList('webmedia_watchlist', mediaId);
+        wlBtn.innerHTML = inWl ? '📋 Dans la liste' : '📋 À voir plus tard';
+        wlBtn.className = inWl
+          ? 'bg-blue-500/30 text-blue-400 px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2'
+          : 'bg-white/10 hover:bg-blue-500/30 text-white px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 border border-white/10';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', updateButtons);
+    favBtn?.addEventListener('click', () => toggleList('webmedia_favorites', mediaId));
+    wlBtn?.addEventListener('click', () => toggleList('webmedia_watchlist', mediaId));
+  </script>
+</Layout>

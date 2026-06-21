@@ -1,0 +1,43 @@
+---
+import '../styles/global.css';
+import { Sidebar } from '../components/Sidebar';
+import { Navbar } from '../components/Navbar';
+
+interface Props {
+    title: string;
+    description?: string;
+}
+
+const { title, description = 'Découvrez les meilleurs films, séries, animés, jeux et webtoons' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="description" content={description} />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="generator" content={Astro.generator} />
+        
+        <!-- SEO -->
+        <title>{title} | WebMedia</title>
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:type" content="website" />
+
+        <!-- Google Fonts: Inter & Playfair Display -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    </head>
+    <body class="flex min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 selection:text-primary">
+        <Sidebar client:load />
+        <div class="flex-1 flex flex-col min-w-0">
+            <Navbar client:load />
+            <main class="flex-1 overflow-x-hidden">
+                <slot />
+            </main>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,30 @@
+name: Novel Scraper
+on:
+  schedule:
+    - cron: '0 * * * *' # Run every hour
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lncrawl
+        run: pip install lncrawl
+      - name: Install dependencies
+        run: cd scrapers/novel-worker && npm install
+      - name: Run Novel Worker
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          LNCRAWL_PATH: lncrawl
+        run: cd scrapers/novel-worker && npx tsx src/index.ts

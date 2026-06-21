@@ -1,0 +1,41 @@
+name = "webmedia-backend"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Variables d'environnement
+[vars]
+ENVIRONMENT = "development"
+# Secrets gérés via le dashboard Cloudflare
+
+# Triggers pour l'automatisation (Cron à 07:00 et 19:00 UTC)
+[triggers]
+crons = ["0 7,19 * * *"]
+
+# Configuration pour le développement local
+[dev]
+port = 8787
+
+# KV Namespace pour le cache
+[[kv_namespaces]]
+binding = "KV"
+id = "c8ad78e7136a40b885547396a971ca5a"
+
+# Database D1
+[[d1_databases]]
+binding = "DB"
+database_name = "webmedia"
+database_id = "230597cc-b868-4034-989a-4db18adfc21b"
+
+# Hyperdrive for Neon (PostgreSQL connection pooling)
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "e397a82e281245e8a41535b79ae3a239"
+
+#Observability logs
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true

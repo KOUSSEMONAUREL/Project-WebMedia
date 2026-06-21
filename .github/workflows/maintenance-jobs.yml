@@ -1,0 +1,36 @@
+name: Weekly Maintenance
+
+on:
+#  schedule:
+#    - cron: '0 4 * * 0' # Tous les dimanches à 4h UTC
+  workflow_dispatch: # Manuel aussi possible
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Install dependencies
+        run: cd backend && npm install
+        
+      - name: Run Dead Link Checker
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: cd backend && npx tsx src/jobs/check-links.ts
+        
+      - name: Run DB Reconciliation
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: cd backend && npx tsx src/jobs/reconcile-db.ts
+        
+      - name: Cleanup MongoDB Logs
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: cd backend && npx tsx src/jobs/cleanup-logs.ts
