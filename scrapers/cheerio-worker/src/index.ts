@@ -80,73 +80,72 @@ async function handleWebtoon(mediaId: string, title: string, metadataSource?: st
   }
 }
 
-// ========== BOUCLE PRINCIPALE ==========
+// ========== BOUCLE PRINCIPALE (One-Shot) ==========
 export async function startWorker() {
-  console.log('🚀 Cheerio Worker démarré');
+  console.log('🚀 Cheerio Worker (One-Shot)');
 
-  while (true) {
-    try {
-      const [job] = await supabaseSql`
-        UPDATE scraping_jobs
-        SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
-        WHERE id = (
-          SELECT id FROM scraping_jobs
-          WHERE status = 'pending' AND worker_type = 'cheerio'
-          ORDER BY priority DESC, created_at ASC
-          LIMIT 1
-          FOR UPDATE SKIP LOCKED
-        )
-        RETURNING id, media_id, media_type, title, slug, attempts
-      `;
+  try {
+    const [job] = await supabaseSql`
+      UPDATE scraping_jobs
+      SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
+      WHERE id = (
+        SELECT id FROM scraping_jobs
+        WHERE status = 'pending' AND worker_type = 'cheerio'
+        ORDER BY priority DESC, created_at ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, media_id, media_type, title, slug, attempts
+    `;
 
-      if (!job) {
-        await new Promise(r => setTimeout(r, 5000));
-        continue;
-      }
+    if (!job) {
+      console.log('No cheerio jobs found.');
+      process.exit(0);
+    }
 
-      const { id: jobId, media_id: mediaId, media_type: mediaType, title, slug, attempts } = job;
-      console.log(`\n🎯 [${mediaType}] ${title} (${mediaId})`);
+    const { id: jobId, media_id: mediaId, media_type: mediaType, title, slug, attempts } = job;
+    console.log(`🎯 [${mediaType}] ${title} (${mediaId})`);
 
-      // Récupérer les infos du media depuis Neon
-      const [media] = await neonSql`
-        SELECT tmdb_id, anilist_id, metadata_source
-        FROM medias WHERE id = ${mediaId}
-      `;
+    // Récupérer les infos du media depuis Neon
+    const [media] = await neonSql`
+      SELECT tmdb_id, anilist_id, metadata_source
+      FROM medias WHERE id = ${mediaId}
+    `;
 
-      let savedLinks = 0;
+    let savedLinks = 0;
 
-      if (['webtoon', 'comic', 'manga'].includes(mediaType)) {
-        savedLinks = await handleWebtoon(mediaId, title, media?.metadata_source);
-      } else if (['film', 'serie', 'anime'].includes(mediaType)) {
-        savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id);
-      } else if (mediaType === 'book') {
-        console.log('  ℹ️ Book: liens déjà sauvegardés pendant l\'import');
-        savedLinks = 1;
+    if (['webtoon', 'comic', 'manga'].includes(mediaType)) {
+      savedLinks = await handleWebtoon(mediaId, title, media?.metadata_source);
+    } else if (['film', 'serie', 'anime'].includes(mediaType)) {
+      savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id);
+    } else if (mediaType === 'book') {
+      console.log('  ℹ️ Book: liens déjà sauvegardés pendant l\'import');
+      savedLinks = 1;
+    } else {
+      console.log(`  ⏭️ Type non géré: ${mediaType}`);
+    }
+
+    if (savedLinks > 0) {
+      await supabaseSql`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${jobId}`;
+      console.log(`✅ ${savedLinks} lien(s) sauvé(s)`);
+    } else {
+      if (attempts >= 3) {
+        await supabaseSql`UPDATE scraping_jobs SET status = 'failed', last_error = 'No links found', updated_at = NOW() WHERE id = ${jobId}`;
+        console.log(`❌ Échec (${attempts}/3 tentatives)`);
       } else {
-        console.log(`  ⏭️ Type non géré: ${mediaType}`);
-      }
-
-      if (savedLinks > 0) {
-        await supabaseSql`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${jobId}`;
-        console.log(`  ✅ ${savedLinks} lien(s) sauvé(s)`);
-      } else {
-        if (attempts >= 3) {
-          await supabaseSql`UPDATE scraping_jobs SET status = 'failed', last_error = 'No links found', updated_at = NOW() WHERE id = ${jobId}`;
-          console.log(`  ❌ Échec (${attempts}/3 tentatives)`);
-        } else {
-          await supabaseSql`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${jobId}`;
-          console.log(`  ⏳ Nouvelle tentative (${attempts}/3)`);
-        }
-      }
-
-    } catch (err: any) {
-      console.error('💥 Erreur worker:', err.message);
-      if (err.message?.includes('password authentication')) {
-        console.error('   → Vérifie SUPABASE_DATABASE_URL dans les secrets GitHub (doit être l\'URL du pooler :6543, pas la directe :5432)');
-        break;
+        await supabaseSql`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${jobId}`;
+        console.log(`⏳ Nouvelle tentative (${attempts}/3)`);
       }
     }
+
+  } catch (err: any) {
+    console.error('💥 Erreur worker:', err.message);
+    if (err.message?.includes('password authentication')) {
+      console.error('   → Vérifie SUPABASE_DATABASE_URL dans les secrets GitHub (URL du pooler :6543)');
+    }
   }
+
+  process.exit(0);
 }
 
 if (process.argv[1]?.endsWith('index.ts')) {
