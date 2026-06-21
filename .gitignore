@@ -30,6 +30,9 @@ build
 *.sln
 *.sw?
 
+# Logs
+*.log
+
 # Project specifics
 Structure.md
 backend/src/index.ts.updated
