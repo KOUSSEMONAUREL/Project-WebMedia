@@ -11,7 +11,8 @@ export async function importGutenberg(databaseUrl: string) {
 
     try {
         const response = await axios.get(GUTENDEX_API, {
-            params: { sort: 'popular' }
+            params: { sort: 'popular' },
+            headers: { 'User-Agent': 'WebMedia/1.0 (Metadata Import Worker)' }
         });
 
         const results = response.data.results;
@@ -55,5 +56,6 @@ export async function importGutenberg(databaseUrl: string) {
         console.log(`✅ Gutendex import complete: ${importedCount} added.`);
     } catch (error: any) {
         console.error('❌ Gutendex Import Error:', error.message);
+        if (error.response) console.error('   Status:', error.response.status, 'Data:', JSON.stringify(error.response.data).slice(0, 200));
     }
 }
