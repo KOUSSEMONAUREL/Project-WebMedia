@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 
 const NOSLIVRES_URL = 'http://efele.net/ebooks/efele_catalogue_commun.txt';
 
-export async function importNosLivres(databaseUrl: string) {
+export async function importNosLivres(databaseUrl: string, maxCount: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     console.log(`🚀 Starting NosLivres.net Massive Import...`);
 
@@ -54,6 +54,7 @@ export async function importNosLivres(databaseUrl: string) {
                         language: 'FR'
                     });
                     importedCount++;
+                    if (importedCount >= maxCount) break;
                 }
             }
         }
