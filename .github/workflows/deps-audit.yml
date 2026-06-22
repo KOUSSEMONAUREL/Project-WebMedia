@@ -1,0 +1,33 @@
+name: Daily Audit Fix
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Audit fix all packages
+        continue-on-error: true
+        run: |
+          for dir in backend frontend scrapers/cheerio-worker scrapers/import-worker scrapers/novel-worker scrapers/webtoons; do
+            if [ -f "$dir/package.json" ]; then
+              echo "=== Auditing $dir ==="
+              cd "$dir" && npm audit fix --no-fund 2>&1 || true
+              cd "$GITHUB_WORKSPACE"
+            fi
+          done
+
+      - name: Commit and push fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: npm audit fix — daily"
+          commit_user_name: "audit-bot"
+          commit_user_email: "audit-bot@webmedia"
