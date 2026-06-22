@@ -13,7 +13,7 @@
     "@fsoc/royalroadl-api": "^0.16.3",
     "@libsql/client": "^0.17.3",
     "axios": "^1.7.8",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.9.2",
     "node-cron": "^4.2.1",
