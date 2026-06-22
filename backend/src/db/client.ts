@@ -30,12 +30,11 @@ export type NeonClient = ReturnType<typeof createNeonClient>;
 export type TursoClient = ReturnType<typeof createTursoClient>;
 
 // Rétrocompat (à supprimer progressivement)
-export function createDbClient(connectionString: string, type: 'neon' | 'supabase', env?: any): any {
-    if (type === 'turso') return createTursoClient(connectionString, env?.TURSO_AUTH_TOKEN);
+export function createDbClient(connectionString: string, type: 'neon' | 'supabase' | 'turso', env?: any): any {
     if (type === 'supabase') {
         const client = postgres(connectionString, { prepare: false });
         return drizzlePg(client, { schema: supabaseSchema });
     }
-    // Utilise l'objet env pour Hyperdrive si fourni
+    if (type === 'turso') return createTursoClient(connectionString, env?.TURSO_AUTH_TOKEN);
     return createNeonClient(connectionString, env?.HYPERDRIVE).db;
 }

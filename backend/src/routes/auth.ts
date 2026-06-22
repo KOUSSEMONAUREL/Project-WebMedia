@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createDbClient } from '../db/client';
+import { getSupabaseClient } from '../db/singleton';
 import { users } from '../db/supabase/schema';
 import { eq } from 'drizzle-orm';
 import { SignJWT } from 'jose';
@@ -30,7 +30,7 @@ authRoutes.post('/register', zValidator('json', registerSchema as any), async (c
     const jwtSecret = getVar(c, 'JWT_SECRET');
 
     try {
-        const db = createDbClient(dbUrl, 'supabase');
+        const db = getSupabaseClient(dbUrl);
 
         const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
         if (existing.length > 0) {
@@ -74,7 +74,7 @@ authRoutes.post('/login', zValidator('json', loginSchema as any), async (c) => {
     const jwtSecret = getVar(c, 'JWT_SECRET');
 
     try {
-        const db = createDbClient(dbUrl, 'supabase');
+        const db = getSupabaseClient(dbUrl);
 
         const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
         if (result.length === 0) {

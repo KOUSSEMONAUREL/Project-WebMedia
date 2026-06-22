@@ -67,6 +67,14 @@ CREATE POLICY "favorites_delete_own" ON favorites
 
 
 -- ============================================================
+-- INDEX MANQUANTS — performances
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_reviews_media_id ON reviews(media_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_media ON reviews(user_id, media_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_scraping_jobs_status_type ON scraping_jobs(status, worker_type) WHERE status = 'pending';
+
+-- ============================================================
 -- 4. TABLES FUTURES (watch_history, watchlists, notifications)
 -- À appliquer quand tu crées ces tables.
 -- ============================================================

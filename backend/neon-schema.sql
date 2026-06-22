@@ -62,6 +62,17 @@ CREATE TABLE IF NOT EXISTS liens (
     scraped_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Index existants
 CREATE INDEX IF NOT EXISTS idx_medias_tmdb ON medias(tmdb_id);
 CREATE INDEX IF NOT EXISTS idx_medias_anilist ON medias(anilist_id);
 CREATE INDEX IF NOT EXISTS idx_liens_media ON liens(media_id);
+
+-- Index manquants — hot paths
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_episodes_media_id ON episodes(media_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_liens_media_active ON liens(media_id, is_active) WHERE is_active = true;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_medias_type_slug ON medias(type, slug);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_medias_type_updated ON medias(type, updated_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_medias_updated_at ON medias(updated_at) WHERE updated_at IS NOT NULL;
+
+-- Index unique pour UPSERT liens (évite les doublons scrapers)
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_liens_media_url ON liens(media_id, url);

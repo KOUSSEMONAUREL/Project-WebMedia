@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createDbClient } from '../db/client';
+import { getSupabaseClient } from '../db/singleton';
 import { users, reviews, favorites } from '../db/supabase/schema';
 import { eq, and } from 'drizzle-orm';
 import { jwt } from 'hono/jwt';
@@ -28,7 +28,7 @@ userRoutes.get('/profile/:id', async (c) => {
     const userId = c.req.param('id');
     const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
     try {
-        const db = createDbClient(dbUrl, 'supabase');
+        const db = getSupabaseClient(dbUrl);
 
         const result = await db.select({
             id: users.id,
@@ -69,7 +69,7 @@ userRoutes.get('/favorites', async (c) => {
     const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
 
     try {
-        const db = createDbClient(dbUrl, 'supabase');
+        const db = getSupabaseClient(dbUrl);
 
         const userFavorites = await db.select()
             .from(favorites)

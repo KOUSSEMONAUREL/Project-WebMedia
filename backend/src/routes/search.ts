@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createDbClient } from '../db/client';
+import { getNeonDb } from '../db/singleton';
 import { medias } from '../db/neon/schema';
-import { ilike, and, eq, or } from 'drizzle-orm';
+import { ilike, and, eq, or, sql, getTableColumns } from 'drizzle-orm';
 
 type Bindings = {
     NEON_DATABASE_URL: string;
@@ -31,7 +31,7 @@ searchRoutes.get(
         const dbUrl = getVar(c, 'NEON_DATABASE_URL');
 
         try {
-            const db = createDbClient(dbUrl, 'neon');
+            const db = getNeonDb(dbUrl);
 
             let searchFilters = [
                 or(
@@ -48,7 +48,10 @@ searchRoutes.get(
                 searchFilters.push(eq(medias.year, year));
             }
 
-            const results = await db.select()
+            const results = await db.select({
+                    ...getTableColumns(medias),
+                    total: sql<number>`COUNT(*) OVER()`
+                })
                 .from(medias)
                 .where(and(...searchFilters))
                 .limit(limit)
@@ -57,8 +60,10 @@ searchRoutes.get(
             return c.json({
                 success: true,
                 query: q,
-                count: results.length,
-                data: results
+                count: results[0]?.total ?? 0,
+                data: results,
+                limit,
+                offset
             });
         } catch (error: any) {
             console.error('Erreur recherche:', error.message);

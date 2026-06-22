@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createDbClient } from '../db/client';
+import { getSupabaseClient } from '../db/singleton';
 import { reviews } from '../db/supabase/schema';
 import { eq, desc } from 'drizzle-orm';
 import { jwt } from 'hono/jwt';
@@ -28,7 +28,7 @@ reviewRoutes.get('/:mediaId', async (c) => {
     const mediaId = c.req.param('mediaId');
     const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
     try {
-        const db = createDbClient(dbUrl, 'supabase');
+        const db = getSupabaseClient(dbUrl);
 
         const mediaReviews = await db.select()
             .from(reviews)
@@ -71,7 +71,7 @@ reviewRoutes.post(
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
 
         try {
-            const db = createDbClient(dbUrl, 'supabase');
+            const db = getSupabaseClient(dbUrl);
 
             const result = await db.insert(reviews).values({
                 ...data,

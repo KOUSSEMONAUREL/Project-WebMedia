@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createDbClient } from '../db/client';
+import { getNeonDb } from '../db/singleton';
 import { medias, episodes, liens } from '../db/neon/schema';
 import { eq, and } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
@@ -69,8 +69,9 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
     }
 
     try {
-        const connStr = c.env?.HYPERDRIVE?.connectionString || getVar(c, 'NEON_DATABASE_URL');
-        const db = createDbClient(connStr, 'neon') as any;
+        const connStr = getVar(c, 'NEON_DATABASE_URL');
+        const hyperdrive = c.env?.HYPERDRIVE;
+        const db = getNeonDb(connStr, hyperdrive) as any;
         const inserted = await db.insert(liens).values(
             safeLinks.map(link => ({
                 sourceSite: link.source_site,

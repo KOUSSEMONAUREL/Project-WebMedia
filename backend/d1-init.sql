@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS sources (
   avg_links_found REAL DEFAULT 0.0
 );
 
+-- Index pour l'orchestrateur (next_scrape est le filtre principal)
+CREATE INDEX IF NOT EXISTS idx_media_state_next_scrape ON media_state(next_scrape);
+
 -- Mapping des IDs (Fribb/anime-lists)
 CREATE TABLE IF NOT EXISTS id_mapping (
   tmdb_id         INTEGER,

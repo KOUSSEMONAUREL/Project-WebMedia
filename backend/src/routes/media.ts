@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { createNeonClient, createTursoClient, createDbClient } from '../db/client';
+import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
 import { eq, desc, and } from 'drizzle-orm';
@@ -19,15 +19,15 @@ const mediaRoutes = new Hono<{ Bindings: Bindings }>();
 // Helper universel pour les variables d'env (Cloudflare + Node.js)
 const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
 
-// Helpers typés
+// Helpers typés (singleton — réutilise les connexions)
 const getTursoDb = (c: any) => {
     const url = getVar(c, 'TURSO_DATABASE_URL');
     const token = getVar(c, 'TURSO_AUTH_TOKEN');
-    return createTursoClient(url, token);
+    return getTursoClient(url, token);
 };
 
-const getNeonDb = (c: any) => {
-    return createDbClient(getVar(c, 'NEON_DATABASE_URL'), 'neon', c.env);
+const getNeonWriteDb = (c: any) => {
+    return getNeonDbSingleton(getVar(c, 'NEON_DATABASE_URL'), c.env?.HYPERDRIVE);
 };
 
 // ========== GET /api/media/trending ==========
@@ -128,17 +128,18 @@ mediaRoutes.get('/:type/:slug', async (c) => {
 
         const media = result[0];
 
-        let mediaEpisodes: (typeof episodes.$inferSelect)[] = [];
-        if (type === 'serie' || type === 'anime') {
-            mediaEpisodes = await db.select()
-                .from(episodes)
-                .where(eq(episodes.mediaId, media.id))
-                .orderBy(episodes.seasonNumber, episodes.episodeNumber);
-        }
-
-        const mediaLiens = await db.select()
-            .from(liens)
-            .where(eq(liens.mediaId, media.id));
+        const hasEpisodes = type === 'serie' || type === 'anime';
+        const [mediaEpisodes, mediaLiens] = await Promise.all([
+            hasEpisodes
+                ? db.select()
+                    .from(episodes)
+                    .where(eq(episodes.mediaId, media.id))
+                    .orderBy(episodes.seasonNumber, episodes.episodeNumber)
+                : Promise.resolve([] as (typeof episodes.$inferSelect)[]),
+            db.select()
+                .from(liens)
+                .where(eq(liens.mediaId, media.id))
+        ]);
 
         const finalData = {
             ...media,
@@ -181,7 +182,7 @@ mediaRoutes.post('/', async (c, next) => {
 }, zValidator('json', createMediaSchema as any), async (c) => {
     const data = c.req.valid('json' as any);
     try {
-        const db = getNeonDb(c);
+        const db = getNeonWriteDb(c);
         const slug = data.title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
 
         const result = await db.insert(neonMedias).values({
