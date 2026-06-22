@@ -15,7 +15,7 @@
     "axios": "^1.7.8",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.2",
-    "fast-xml-parser": "^5.9.2",
+    "fast-xml-parser": "^5.9.3",
     "node-cron": "^4.2.1",
     "pg": "^8.13.1",
     "postgres": "^3.4.4",
