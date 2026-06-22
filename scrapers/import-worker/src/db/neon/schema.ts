@@ -62,6 +62,13 @@ export const liens = pgTable('liens', {
     scrapedAt: timestamp('scraped_at').defaultNow(),
 });
 
+// ========== TABLE IMPORT OFFSETS ==========
+export const importOffsets = pgTable('import_offsets', {
+    key: varchar('key', { length: 50 }).primaryKey(),
+    value: integer('value').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 // ========== RELATIONS ==========
 export const mediaRelations = relations(medias, ({ many }) => ({
     episodes: many(episodes),

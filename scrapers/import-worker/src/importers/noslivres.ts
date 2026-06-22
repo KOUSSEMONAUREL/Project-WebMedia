@@ -1,69 +1,70 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
+import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
-const NOSLIVRES_URL = 'http://efele.net/ebooks/efele_catalogue_commun.txt';
+const NOSLIVRES_API = 'https://api.noslivres.fr/api/v1';
+const KEY = 'noslivres';
 
-export async function importNosLivres(databaseUrl: string, maxCount: number = 20) {
+export async function importPopularBooksFR(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting NosLivres.net Massive Import...`);
+    console.log(`🚀 Starting NosLivres Import (limit=${limit})...`);
 
     try {
-        const response = await axios.get(NOSLIVRES_URL, { responseType: 'arraybuffer' });
-        const text = new TextDecoder('utf-16be').decode(Buffer.from(response.data));
-        const lines = text.split('\n');
+        const page = await getOffset(KEY, databaseUrl, 1);
+        const response = await axios.get(`${NOSLIVRES_API}/books/popular`, {
+            params: { page, pageSize: limit },
+            headers: { 'User-Agent': 'WebMedia/1.0' }
+        });
 
-        const existingSlugs = new Set(
-            (await db.select({ slug: medias.slug }).from(medias).where(eq(medias.metadataSource, 'noslivres')))
-                .map(r => r.slug)
-        );
-        console.log(`📦 ${existingSlugs.size} déjà en base, analyse du catalogue...`);
-
-        const newEntries: { titre: string; auteur: string; url: string; slug: string }[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-            if (newEntries.length >= maxCount) break;
-            const parts = lines[i].split('\t');
-            if (parts.length < 3) continue;
-
-            const [auteur, titre, url] = parts;
-            if (!titre || !url) continue;
-
-            const slug = `book-nl-${titre.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
-            if (!existingSlugs.has(slug)) {
-                newEntries.push({ titre, auteur, url, slug });
-            }
+        const results = response.data?.data || response.data || [];
+        if (!Array.isArray(results) || results.length === 0) {
+            await setOffset(KEY, 1, databaseUrl);
+            console.log('📄 Fin catalogue NosLivres, retour page 1');
+            return 0;
         }
 
+        // Batch check slugs
+        const slugs = results.map((book: any) =>
+            `nl-${book.id}-${book.attributes?.title?.toLowerCase().substring(0, 60).replace(/[^a-z0-9]+/g, '-') || book.id}`
+        );
+        const existingSlugs = await batchCheckExisting(db, medias.slug, slugs);
+
         let importedCount = 0;
-        for (const entry of newEntries) {
+        for (let i = 0; i < results.length; i++) {
+            const book = results[i];
+            if (existingSlugs.has(slugs[i])) continue;
+
+            const title = book.attributes?.title || 'Titre inconnu';
+            const externalId = `nl-${book.id}`;
+            const slug = slugs[i];
+
             try {
                 const [media] = await db.insert(medias).values({
-                    type: 'novel',
-                    title: entry.titre,
-                    originalTitle: entry.titre,
-                    synopsis: `Auteur: ${entry.auteur}`,
-                    slug: entry.slug,
-                    metadataSource: 'noslivres',
-                    metadataFreshAt: new Date()
+                    type: 'novel', title, slug, externalId,
+                    synopsis: book.attributes?.description,
+                    posterUrl: book.attributes?.cover,
+                    metadataSource: 'noslivres', metadataFreshAt: new Date()
                 }).returning({ id: medias.id });
 
                 if (media) {
+                    const bookUrl = book.attributes?.url || `https://noslivres.fr/livres/${book.id}`;
                     await db.insert(liens).values({
-                        mediaId: media.id,
-                        sourceSite: 'noslivres',
-                        url: entry.url,
-                        quality: 'original',
-                        language: 'FR'
-                    });
+                        mediaId: media.id, sourceSite: 'noslivres',
+                        url: bookUrl, quality: 'original', language: 'FR',
+                    }).onConflictDoNothing().catch(() => {});
                     importedCount++;
                 }
-            } catch { }
+            } catch {}
         }
 
-        console.log(`✅ NosLivres.net import complete: ${importedCount} added.`);
+        await setOffset(KEY, page + 1, databaseUrl);
+        console.log(`✅ NosLivres: ${importedCount} ajoutés (page ${page})`);
+        return importedCount;
     } catch (error: any) {
-        console.error('❌ NosLivres.net Import Error:', error.message);
+        console.error('NosLivres Import Error:', error.message);
+        throw error;
     }
 }

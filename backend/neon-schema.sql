@@ -76,3 +76,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_medias_updated_at ON medias(updated_
 
 -- Index unique pour UPSERT liens (évite les doublons scrapers)
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_liens_media_url ON liens(media_id, url);
+
+-- Table offsets import (10 lignes, ~200 octets)
+CREATE TABLE IF NOT EXISTS import_offsets (
+    key VARCHAR(50) PRIMARY KEY,
+    value INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);

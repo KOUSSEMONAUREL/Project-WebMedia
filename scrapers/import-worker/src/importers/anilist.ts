@@ -1,104 +1,75 @@
-import axios from 'axios';
 import { createDbClient } from '../db/client.js';
-import { medias, liens } from '../db/neon/schema.js';
-import { eq } from 'drizzle-orm';
-import { generateEmbeds } from '../utils/embed-generator.js';
+import { medias } from '../db/neon/schema.js';
+import { eq, inArray } from 'drizzle-orm';
+import axios from 'axios';
+import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
-async function pool(tasks: (() => Promise<any>)[], concurrency: number) {
-    const results: any[] = [];
-    const executing: Promise<any>[] = [];
-    for (const task of tasks) {
-        const p = task();
-        results.push(p);
-        if (concurrency <= tasks.length) {
-            const e: any = p.then(() => executing.splice(executing.indexOf(e), 1));
-            executing.push(e);
-            if (executing.length >= concurrency) await Promise.race(executing);
-        }
+const ANILIST_API = 'https://graphql.anilist.co';
+const KEY = 'anilist';
+
+const POPULAR_QUERY = `
+  query ($page: Int, $perPage: Int) {
+    Page(page: $page, perPage: $perPage) {
+      pageInfo { hasNextPage }
+      media(sort: POPULARITY_DESC, type: ANIME) {
+        id idMal title { romaji english native } format episodes
+        description coverImage { large } genres averageScore startDate { year }
+      }
     }
-    return Promise.all(results);
-}
+  }
+`;
 
-export async function importAniList(databaseUrl: string, type: 'ANIME' | 'MANGA', format: string | null = null, internalApiUrl: string | null = null, internalApiKey: string | null = null, pages: number = 2) {
+export async function importAnime(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting AniList Import (${type} - ${format || 'ALL'})...`);
+    console.log(`🚀 Starting AniList Import (limit=${limit})...`);
 
-    const query = `query ($page: Int, $type: MediaType, $format: MediaFormat, $sort: [MediaSort]) { Page(page: $page, perPage: 50) { media(type: $type, format: $format, sort: $sort) { id title { romaji english native } description startDate { year } coverImage { extraLarge } bannerImage averageScore status } } }`;
+    try {
+        const page = await getOffset(KEY, databaseUrl, 1);
+        const response = await axios.post(ANILIST_API, {
+            query: POPULAR_QUERY,
+            variables: { page, perPage: limit }
+        }, { headers: { 'User-Agent': 'WebMedia/1.0' } });
 
-    const sorts = ['POPULARITY_DESC', 'TRENDING_DESC'];
-
-    for (const sort of sorts) {
-        for (let page = 1; page <= pages; page++) {
-            try {
-                const response = await axios.post('https://graphql.anilist.co', { query, variables: { page, type, format, sort: [sort] } });
-                const mediaList = response.data.data?.Page?.media;
-                if (!mediaList) continue;
-
-                const tasks = mediaList.map((a: any) => async () => {
-                    try {
-                        const existing = await db.select().from(medias).where(eq(medias.anilistId, a.id)).limit(1);
-                        if (existing.length > 0) return;
-
-                        const title = a.title.english || a.title.romaji || a.title.native;
-                        const mediaType = format === 'NOVEL' ? 'novel' : type.toLowerCase();
-
-                        const [media] = await db.insert(medias).values({
-                            anilistId: a.id,
-                            type: mediaType as any,
-                            title: title,
-                            originalTitle: a.title.native,
-                            slug: `${mediaType}-${a.id}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
-                            synopsis: a.description,
-                            year: a.startDate?.year,
-                            posterUrl: a.coverImage?.extraLarge,
-                            backdropUrl: a.bannerImage,
-                            rating: a.averageScore ? (a.averageScore / 10).toString() : "0",
-                            status: a.status,
-                            metadataSource: 'anilist',
-                            metadataFreshAt: new Date()
-                        }).onConflictDoNothing().returning();
-
-                        if (media && type === 'ANIME') {
-                            // GÉNÉRATION DÉTERMINISTE DES LIENS
-                            const embeds = generateEmbeds('anime', a.id.toString(), 1, 1);
-                            
-                            await db.insert(liens).values(embeds.map((e: any) => ({
-                                mediaId: media.id,
-                                sourceSite: e.site,
-                                playerHost: e.site,
-                                url: e.url,
-                                quality: e.quality,
-                                language: 'VOSTFR'
-                            })));
-                        }
-
-                        // 📡 NOTIFIER LE CERVEAU (D1)
-                        if (media && internalApiUrl && internalApiKey) {
-                            try {
-                                await axios.post(`${internalApiUrl}/ingest/media`, {
-                                    id: media.id,
-                                    type: mediaType as any,
-                                    metadata_ok: 1
-                                }, {
-                                    headers: { 'X-Internal-API-Key': internalApiKey }
-                                });
-                            } catch (e: any) {
-                                console.error(`⚠️ Failed to notify Brain for ${title}: ${e.message}`);
-                            }
-                        }
-
-                        console.log(`✅ [${mediaType.toUpperCase()}] Imported: ${title}`);
-                    } catch (err) { }
-                });
-
-                await pool(tasks, 5);
-                await new Promise(r => setTimeout(r, 1000)); // Rate limit safety
-            } catch (err: any) {
-                if (err.response?.status === 429) {
-                    console.warn("AniList Rate Limit hit. Waiting...");
-                    await new Promise(r => setTimeout(r, 15000));
-                }
-            }
+        const entries = response.data?.data?.Page?.media || [];
+        if (entries.length === 0) {
+            await setOffset(KEY, 1, databaseUrl);
+            console.log('📄 Fin catalogue AniList, retour page 1');
+            return 0;
         }
+
+        const externalIds = entries.map((m: any) => `al-${m.id}`);
+        const existing = await batchCheckExisting(db, medias.externalId, externalIds);
+
+        let importedCount = 0;
+        for (const entry of entries) {
+            const externalId = `al-${entry.id}`;
+            if (existing.has(externalId)) continue;
+
+            const title = entry.title?.romaji || entry.title?.english || entry.title?.native || 'Unknown';
+            const synopsis = entry.description?.replace(/<[^>]*>/g, '').slice(0, 2000);
+
+            try {
+                const [inserted] = await db.insert(medias).values({
+                    type: 'anime', title, originalTitle: entry.title?.native,
+                    slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                    synopsis, posterUrl: entry.coverImage?.large,
+                    externalId, year: entry.startDate?.year,
+                    metadataSource: 'anilist', metadataFreshAt: new Date()
+                }).onConflictDoNothing().returning();
+
+                if (inserted) {
+                    importedCount++;
+                    console.log(`✅ [ANIME] ${title}`);
+                }
+            } catch {}
+        }
+
+        await setOffset(KEY, page + 1, databaseUrl);
+        console.log(`✅ AniList: ${importedCount} ajoutés (page ${page})`);
+        return importedCount;
+    } catch (error: any) {
+        console.error('AniList Import Error:', error.message);
+        throw error;
     }
 }

@@ -1,92 +1,74 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { eq, and, ilike } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
+import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
+const KEY = 'googlebooks';
 
-function normalizeTitle(title: string): string {
-  return title.toLowerCase().trim().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-}
-
-function buildSlug(externalId: string, title: string): string {
-  return `novel-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490);
-}
-
-export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null) {
+export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     const categories = ['fiction', 'fantasy', 'thriller', 'romance', 'science fiction'];
+    console.log(`🚀 Starting Google Books Import (limit=${limit})...`);
 
-    console.log("🚀 Starting Google Books Import...");
-
+    let totalImported = 0;
     for (const cat of categories) {
         try {
-            console.log(`🔍 Searching Books in: ${cat}`);
+            const startIndex = await getOffset(`${KEY}:${cat}`, databaseUrl, 0);
+            console.log(`🔍 ${cat} (startIndex=${startIndex})`);
+
             const response = await axios.get(GOOGLE_BOOKS_URL, {
-                params: {
-                    q: `subject:${cat}`,
-                    orderBy: 'newest',
-                    maxResults: 20,
-                    key: apiKey,
-                    langRestrict: 'fr'
-                }
+                params: { q: `subject:${cat}`, orderBy: 'newest', maxResults: limit, startIndex, key: apiKey, langRestrict: 'fr' }
             });
 
-            if (!response.data.items) continue;
+            const items = response.data.items || [];
+            if (items.length === 0) {
+                await setOffset(`${KEY}:${cat}`, 0, databaseUrl);
+                continue;
+            }
 
-            for (const item of response.data.items) {
-                const info = item.volumeInfo;
+            const externalIds = items.map((i: any) => i.id);
+            const existing = await batchCheckExisting(db, medias.externalId, externalIds);
+
+            for (const item of items) {
                 const externalId = item.id;
+                if (existing.has(externalId)) continue;
+
+                const info = item.volumeInfo;
                 const title = info.title;
-                const authors = info.authors || [];
-                const firstAuthor = authors[0] || '';
-
                 try {
-                    // Dédup par externalId (Google Books volume ID)
-                    const existing = await db.select().from(medias).where(eq(medias.externalId, externalId)).limit(1);
-                    if (existing.length > 0) continue;
-
                     const [inserted] = await db.insert(medias).values({
-                        type: 'novel',
-                        title,
-                        originalTitle: info.title,
-                        slug: buildSlug(externalId, title),
-                        synopsis: info.description,
-                        year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
-                        posterUrl: info.imageLinks?.thumbnail,
-                        metadataSource: 'google-books',
-                        metadataFreshAt: new Date(),
-                        externalId,
+                        type: 'novel', title, originalTitle: info.title,
+                        slug: `novel-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
+                        synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
+                        posterUrl: info.imageLinks?.thumbnail, externalId,
+                        metadataSource: 'google-books', metadataFreshAt: new Date()
                     }).onConflictDoNothing().returning();
 
                     if (!inserted) continue;
 
                     const bookUrl = info.previewLink || info.infoLink;
                     if (bookUrl) {
-                      await db.insert(liens).values({
-                        mediaId: inserted.id, sourceSite: 'google-books',
-                        url: bookUrl, quality: 'original', language: 'FR',
-                      }).onConflictDoNothing().catch(() => {});
+                        await db.insert(liens).values({
+                            mediaId: inserted.id, sourceSite: 'google-books',
+                            url: bookUrl, quality: 'original', language: 'FR',
+                        }).onConflictDoNothing().catch(() => {});
                     }
 
-                    if (internalApiUrl && internalApiKey) {
-                      try {
-                          await axios.post(`${internalApiUrl}/ingest/media`, {
-                              id: inserted.id, type: 'novel', metadata_ok: 1
-                          }, {
-                              headers: { 'X-Internal-API-Key': internalApiKey }, timeout: 5000,
-                          });
-                      } catch (err) {
-                          console.error(`Failed to sync imported book ${inserted.id} to internal API: ${err instanceof Error ? err.message : err}`);
-                      }
-                    }
-
-                    console.log(`✅ [NOVEL] Imported: ${title}`);
-
-                } catch (err) { /* skip item */ }
+                    await notifyBrain(inserted.id, 'novel', internalApiUrl!, internalApiKey!);
+                    totalImported++;
+                    console.log(`✅ [NOVEL] ${title}`);
+                } catch {}
             }
+
+            await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
         } catch (err: any) {
-            console.error(`Google Books Error for ${cat}: `, err.message);
+            console.error(`Google Books Error for ${cat}:`, err.message);
         }
     }
+
+    console.log(`✅ Google Books: ${totalImported} ajoutés`);
+    return totalImported;
 }

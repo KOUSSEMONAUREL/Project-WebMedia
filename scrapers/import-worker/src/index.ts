@@ -1,6 +1,5 @@
 import http from 'http';
 
-// 1. PORT IMMÉDIAT (Sauf sur GitHub Actions)
 const port = parseInt(process.env.PORT || '8080', 10);
 if (!process.env.GITHUB_ACTIONS) {
   const server = http.createServer((req, res) => {
@@ -12,24 +11,22 @@ if (!process.env.GITHUB_ACTIONS) {
       res.end();
     }
   });
-
   server.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 [STARTUP] Master Worker Port ${port} Open.`);
+    console.log(`[STARTUP] Master Worker Port ${port} Open.`);
   });
 }
 
-// 2. CHARGEMENT ASYNCHRONE DES MOTEURS
 async function startApp() {
-  console.log('📦 [STARTUP] Initializing Elite Engines...');
+  console.log('[STARTUP] Initializing Engines...');
   try {
     const { default: cron } = await import('node-cron');
-    const { importTrending } = await import('./importers/tmdb.js');
-    const { importAniList } = await import('./importers/anilist.js');
+    const { importTMDB } = await import('./importers/tmdb.js');
+    const { importAnime } = await import('./importers/anilist.js');
     const { importComics } = await import('./importers/comics.js');
     const { importPopularBooks } = await import('./importers/books.js');
     const { importGutenberg } = await import('./importers/gutendex.js');
     const { importOpenLibrary } = await import('./importers/open-library.js');
-    const { importNosLivres } = await import('./importers/noslivres.js');
+    const { importPopularBooksFR } = await import('./importers/noslivres.js');
     const { importTrendingGames } = await import('./importers/igdb.js');
     const { importRoyalRoad } = await import('./importers/royalroad.js');
     const { syncNeonToTurso } = await import('./sync-turso.js');
@@ -37,7 +34,6 @@ async function startApp() {
 
     config();
 
-    // API Keys
     const tmdbKey = process.env.TMDB_API_KEY || '';
     const cvKey = process.env.COMICVINE_API_KEY || '';
     const gbKey = process.env.GOOGLE_BOOKS_API_KEY || '';
@@ -51,47 +47,44 @@ async function startApp() {
     const internalApiUrl = process.env.INTERNAL_API_URL || '';
     const internalApiKey = process.env.INTERNAL_API_KEY || '';
 
-    console.log('✅ [STARTUP] All Engines Operational. Setting up Automation...');
+    const LIMIT = parseInt(process.env.IMPORT_LIMIT || '20', 10);
 
-    // MODE GITHUB ACTIONS (One-shot)
+    console.log(`[STARTUP] Engines ready. Limit=${LIMIT}`);
+
     if (process.env.GITHUB_ACTIONS) {
-      console.log('⚡ Running in One-Shot mode (GitHub Actions)...');
+      console.log('One-Shot mode (GitHub Actions)...');
 
-      // On lance les plus importants en priorité
       if (tmdbKey) {
-        console.log('🎬 Importing Trending TMDB...');
-        await importTrending(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, 1);
+        console.log('TMDB...');
+        await importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
       }
 
-      console.log('🔄 Syncing Neon to Turso...');
+      console.log('Syncing Neon to Turso...');
       await syncNeonToTurso(databaseUrl, tursoUrl, tursoToken);
 
-      // On peut aussi lancer IGDB s'il est configuré
       if (twitchId && twitchSecret) {
-        console.log('🎮 Importing Games...');
-        await importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey);
+        console.log('IGDB...');
+        await importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
       }
 
-      console.log('📖 Importing Books & Comics...');
-      if (gbKey) await importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey);
-      await importGutenberg(databaseUrl);
-      await importOpenLibrary(databaseUrl);
-      await importNosLivres(databaseUrl);
-      
-      if (cvKey) await importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey);
+      console.log('Books & Comics...');
+      if (gbKey) await importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
+      await importGutenberg(databaseUrl, LIMIT);
+      await importOpenLibrary(databaseUrl, 'popular', LIMIT);
+      await importPopularBooksFR(databaseUrl, LIMIT);
+      if (cvKey) await importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
 
-      console.log('📚 Importing RoyalRoad novels...');
-      await importRoyalRoad(databaseUrl);
+      console.log('RoyalRoad...');
+      await importRoyalRoad(databaseUrl, LIMIT);
 
-      console.log('⛩️ Importing Anime/Manga...');
-      await importAniList(databaseUrl, 'ANIME', 'TV', internalApiUrl, internalApiKey, 1);
+      console.log('AniList...');
+      await importAnime(databaseUrl, LIMIT);
 
-      console.log('✅ One-Shot run completed.');
+      console.log('One-Shot run completed.');
       process.exit(0);
     }
-    
   } catch (err) {
-    console.error('💥 [STARTUP] Fatal error during initialization:', err);
+    console.error('[STARTUP] Fatal error:', err);
   }
 }
 

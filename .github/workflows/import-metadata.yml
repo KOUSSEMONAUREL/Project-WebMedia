@@ -13,13 +13,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          
+
+      - name: Restore import offsets cache
+        id: cache-offsets
+        uses: actions/cache@v4
+        with:
+          path: /tmp/import_offsets.json
+          key: import-offsets-${{ github.run_id }}
+          restore-keys: import-offsets-
+
       - name: Install dependencies
         run: cd scrapers/import-worker && npm install
-        
+
       - name: Build
         run: cd scrapers/import-worker && npm run build
-        
+
       - name: Run Importers
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
