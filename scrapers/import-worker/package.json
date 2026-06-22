@@ -16,7 +16,7 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.9.2",
-    "node-cron": "^4.2.1",
+    "node-cron": "^4.5.0",
     "pg": "^8.13.1",
     "postgres": "^3.4.4",
     "tsx": "^4.22.3"
