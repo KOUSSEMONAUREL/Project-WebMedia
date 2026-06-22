@@ -7,8 +7,9 @@ import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 const KEY = 'googlebooks';
+const PER_CATEGORY = 5;
 
-export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
+export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = PER_CATEGORY) {
     const db = createDbClient(databaseUrl, 'neon');
     const categories = ['fiction', 'fantasy', 'thriller', 'romance', 'science fiction'];
     console.log(`🚀 Starting Google Books Import (limit=${limit})...`);

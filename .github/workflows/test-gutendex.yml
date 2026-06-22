@@ -1,0 +1,39 @@
+name: Test Gutendex API
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # toutes les heures pour tester
+
+jobs:
+  test-gutendex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Gutendex avec User-Agent basique
+        run: |
+          curl -v "https://gutendex.com/books?page=1&sort=popular" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            -H "Accept: application/json" \
+            --max-time 10
+
+      - name: Test Gutendex sans User-Agent
+        run: |
+          curl -v "https://gutendex.com/books?page=1&sort=popular" \
+            -H "Accept: application/json" \
+            --max-time 10
+
+      - name: Test via Node/axios (simule le worker)
+        run: |
+          node -e "
+            const axios = require('axios');
+            axios.get('https://gutendex.com/books', {
+              params: { page: 1, sort: 'popular' },
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+              timeout: 10000
+            }).then(r => console.log('OK:', r.data.results?.length, 'livres'))
+            .catch(e => console.error('ERR:', e.response?.status, e.response?.statusText));
+          "
+
+      - name: Test avec IP publique visible
+        run: |
+          curl -v "https://api.ipify.org?format=json" && echo "IP publique ci-dessus"
