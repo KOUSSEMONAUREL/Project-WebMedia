@@ -7,7 +7,7 @@
 ██║ █╗ ██║█████╗  ██████╔╝██╔████╔██║█████╗  ██║  ██║██║ ███████║
 ██║███╗██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ██║  ██║██║ ██╔══██║
 ╚███╔███╔╝███████╗██████╔╝██║ ╚═╝ ██║███████╗██████╔╝██║ ██║  ██║
- ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝     ╚═╝╚══════╝╚═════╝ ╚═╝ ╚═╝╚═╝╚═╝
+ ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝     ╚═╝╚══════╝╚═════╝ ╚═╝ ╚═╚═╝╚═╝
 ```
 
 **WebMedia — Distributed Media Archiver & Recommendation Engine**
@@ -15,7 +15,7 @@
 <br/>
 
 ![Neon](https://img.shields.io/badge/Master-Neon_Postgres-336791?style=flat-square&logo=postgresql)
-![Cloudflare](https://img.shields.io/badge/Edge-Cloudflare_D1_|_KV-F6821F?style=flat-square&logo=cloudflare)
+![Turso](https://img.shields.io/badge/Edge-Turso_SQLite-4FC08D?style=flat-square&logo=sqlite)
 ![Astro](https://img.shields.io/badge/Frontend-Astro_+_React-FF5D01?style=flat-square&logo=astro)
 ![GitHub](https://img.shields.io/badge/Scraping-GitHub_Actions-181717?style=flat-square&logo=github)
 ![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript)
@@ -26,94 +26,134 @@
 
 ---
 
-> **WebMedia is a high-efficiency media recommendation and archival platform.**
-> Built with a hybrid-cloud, event-driven architecture, it leverages edge computing and distributed scraping to manage large media catalogs at near-zero infrastructure cost.
+> **WebMedia** is a distributed media recommendation and archival platform. It scrapes metadata from 12+ external APIs (TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, MangaDex, Comic Vine, etc.) and 188+ webtoon sources across 3 languages. Data flows into Neon Postgres (source of truth) with a Turso SQLite edge replica for low-latency reads.
 
 ---
 
-## 🏗️ Architecture Overview
-
-WebMedia is designed as a decoupled, asynchronous micro-service stack. By separating data concerns (Storage vs. Edge Cache vs. Task Queue), the system achieves extreme resilience and cost-efficiency.
+## Architecture
 
 ```mermaid
 graph TD
-    A[Frontend: Astro/React] -->|Edge Read| B[Cloudflare KV]
-    B -->|Fallback| C[Cloudflare D1]
-    
-    D[Backend API: Hono] -->|Write/Truth| E[(Neon Postgres)]
-    D -->|Ingest State| F[Cloudflare D1]
-    
-    G[Scrapers: GitHub Actions] -->|Ingest| D
-    H[Orchestrator: CF Worker] -->|Queue| I[(Supabase)]
-    I -->|Pull Job| G
+    subgraph Import[Import Pipeline - GitHub Actions Daily]
+        IW[Import Worker] -->|batch INSERT| NEON[(Neon Postgres)]
+        IW -->|batch UPSERT| TURSO[(Turso SQLite)]
+        IW --> OFFSET[Offset Tracking]
+    end
+
+    subgraph Scrape[Scraping Pipeline - GitHub Actions 2x/day]
+        ORC[Orchestrator CF Worker] -->|queue stale jobs| SUPABASE[(Supabase)]
+        CW[Cheerio Worker] -->|pull jobs| SUPABASE
+        PW[Playwright Worker] -->|pull jobs| SUPABASE
+        NW[Novel Worker] -->|pull jobs| SUPABASE
+        WT[Webtoon Workers 188+] -->|pull jobs| SUPABASE
+        CW & PW & NW & WT -->|POST /ingest| BA
+    end
+
+    subgraph API[Backend API - Render]
+        BA[Backend Hono API] -->|write| NEON
+        BA -->|edge read| TURSO
+        BA --> Routes[Auth / Media / Search / Reviews / Webtoon]
+    end
+
+    subgraph FE[Frontend - Astro/React]
+        FB[Frontend] -->|reads| TURSO
+        FB -->|writes via| BA
+    end
+
+    REC[Recommender - Python] -->|ML recommendations| NEON
 ```
 
-### Component Reference
+## Components
 
-| Component | Technology | Responsibility |
+| Component | Technology | Role |
 | :--- | :--- | :--- |
-| **Source of Truth** | Neon (Postgres) | Persistent storage for media, metadata, and user data. |
-| **Edge Brain** | Cloudflare D1 | Orchestration state, scheduling, media state tracking. |
-| **Queue & Auth** | Supabase | Asynchronous job queue management and user authentication. |
-| **Cache (L1)** | Workers KV | Global cache for media metadata to minimize DB queries. |
-| **Orchestrator** | CF Worker (Cron) | Intelligent cycle triggering with KV-backoff and batching. |
-| **Scrapers** | GitHub Actions | Distributed extraction (Cheerio/Playwright) on free compute. |
-| **Connection Pool** | Hyperdrive | Low-latency connection pooling to Neon. |
+| **Backend API** | Hono (TypeScript) | API REST — ingestion, auth, search, media CRUD |
+| **Source of Truth** | Neon (Postgres) | Catalogue médias, métadonnées, utilisateurs |
+| **Edge Replica** | Turso (SQLite) | Read replica edge — lectures frontend |
+| **Queue & Auth** | Supabase (Postgres) | File scraping jobs + auth utilisateurs |
+| **Orchestrateur** | Cloudflare Worker | Cron 2x/jour, préparation file |
+| **Import Worker** | GitHub Actions | Import metadata externe (12 sources) |
+| **Scrapers** | GitHub Actions | Cheerio, Playwright, Novel, 188+ webtoon defs |
+| **Recommender** | Python (Flask) | ML-based recommendations |
 
----
+## Type System (8 media types)
 
-## ⚙️ Optimization Strategy
+```
+film | serie | anime | manga | comic | book | novel | jeu
+```
 
-To maintain sustainability, WebMedia utilizes a "Batch-and-Buffer" strategy to minimize request overhead.
+Each type has dedicated importer(s), scraper(s), and frontend pages.
 
-### 1. Request Minimization
-*   **Batching Ingestion**: Scrapers buffer link findings and submit them to the Backend API in singular batch `POST` requests rather than per-item calls.
-*   **Orchestration Batching**: The Orchestrator processes media in batches (50+ items) to reduce D1 query count.
+## Import Worker
 
-### 2. Intelligent Caching (Workers KV)
-*   **Stateful Orchestration**: The Orchestrator queries `Workers KV` before proceeding. If a cycle was completed within the last 30 minutes, it exits early, eliminating redundant DB load and costs.
-*   **Edge Caching**: Frontend metadata is cached in KV, providing sub-millisecond responses and shielding D1/Neon from repetitive read traffic.
+Exécuté quotidiennement (GitHub Actions `import-metadata.yml`). Importe via APIs externes :
 
-### 3. Smart Scheduling
-The platform follows a synchronized lifecycle to ensure freshness while keeping the CI/CD and Cloudflare costs at zero:
-
-| Job | Cadence (UTC) | Purpose |
+| Source | Types | Rate Limit / Volume |
 | :--- | :--- | :--- |
-| **Maintenance** | Sunday 04:00 | System health, log cleanup. |
-| **Metadata Import** | Daily 03:00 | Sync with external providers (TMDB, AniList). |
-| **Orchestration** | 07:00 & 19:00 | Prepares scraping queue. |
-| **Scraping** | 08:00 & 20:00 | Executes extraction of media sources. |
+| **TMDB** (movie, series) | film, serie | ~40/day (free tier) |
+| **AniList** (anime) | anime | ∞ (no auth) |
+| **Comic Vine** (comics) | comic | 200/day |
+| **Google Books** | book | ∞ |
+| **Gutenberg** (Project Gutenberg) | book | RapidAPI |
+| **OpenLibrary** | book | ∞ |
+| **NosLivres** (French books) | book | ∞ |
+| **IGDB** (games) | jeu | 4 req/s OAuth |
+| **RoyalRoad** (web novels) | novel | 200/min |
+| **MangaDex** (manga) | manga | ∞ |
+| **Fribb** (fan fiction) | book | ∞ |
 
----
+### Optimisations
 
-## Technical Flow
+- **Batch dedup** : `batchCheckExisting` → 1 `SELECT IN()` au lieu de N requêtes
+- **Offset tracking** : progression persistée dans `import_offsets` (Neon + cache GH Actions)
+- **CLOUD** : `LIMIT` par source (défaut 20/run), évite dépassement taux
+- **Retry 3x** : backoff exponentiel 1s, 2s, 4s sur erreurs 5xx/réseau
 
-### The Pipeline Lifecycle
-1. **Queueing**: The Orchestrator runs (Twice daily), queries `media_state` (D1) for stale content, and queues new tasks in Supabase.
-2. **Execution**: GitHub Actions Workers (Cheerio/Playwright) trigger, pull pending jobs from Supabase, and scrape.
-3. **Ingestion**: Results are batched and sent via `POST /api/internal/ingest/media` to the Backend API.
-4. **Finalization**: The Backend updates Neon Postgres, closes connections using `Hyperdrive`, and pushes state updates to D1.
+## Webtoon Scrapers
 
----
+188+ définitions de scrapers organisées par langue :
 
-## Deployment & Setup
+| Locale | Count | Examples |
+| :--- | :--- | :--- |
+| **en/** | 110 | Mangadex, AsuraScans, MangaBuddy, VizShonenJump, Webtoons |
+| **fr/** | 16 | ScantradUnion, PhenixScans, PoseidonScans, AnimesSama |
+| **all/** | 62 | e-hentai (multi-lang), Komga, XKCD, Cubari |
 
-### Requirements
-- Node.js 20+
-- Cloudflare Wrangler CLI
-- Database credentials (Supabase/Neon/D1)
+**Engines** : `Madara`, `MangaThemesia`, `MangaHub`, `MangaCatalog`, `KeyoApp`, `Iken` — templates de scraping paramétrables.
 
-### Development
+## Frontend (Astro + React)
+
+Pages par type : `animes.astro`, `films.astro`, `books.astro`, `novels.astro`, `games.astro`, `webtoons.astro`, `series.astro`, plus `discover.astro`, `trending.astro`, `search.astro`, `favorites.astro`, `watchlist.astro`.
+
+## Recommender (Python)
+
+Flask app avec embeddings ML. Analyse le catalogue Neon pour recommandations personnalisées.
+
+## Scheduling
+
+| Job | Cadence (UTC) | Action |
+| :--- | :--- | :--- |
+| **Metadata Import** | Daily 03:00 | Import worker (12 sources) |
+| **Orchestration** | 07:00 & 19:00 | Queue stale media for scraping |
+| **Cheerio/Playwright/Novel** | 08:00 & 20:00 | Execute scraping jobs |
+| **Webtoon Scrapers** | 08:00 & 20:00 | Execute webtoon scraping |
+| **Maintenance** | Sunday 04:00 | Health checks, cleanup |
+
+## Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/KOUSSEMON-Aurel/Project-WebMedia.git
 
-# Install dependencies (backend)
+# Backend
 cd backend && npm install
-
-# Run local development environment with emulated bindings
 npx wrangler dev
+
+# Frontend
+cd frontend && npm install
+npm run dev
+
+# Test environment
+cd test && docker-compose up
 ```
 
 ---
