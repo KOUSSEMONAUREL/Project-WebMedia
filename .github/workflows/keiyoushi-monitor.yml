@@ -17,7 +17,7 @@ jobs:
 
       - name: Restore last checked commit from cache
         id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /tmp/keiyoushi_last_commit
           key: keiyoushi-commit-${{ steps.monitor.outputs.head_sha }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Save last checked commit to cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: /tmp/keiyoushi_last_commit
           key: keiyoushi-commit-${{ steps.monitor.outputs.head_sha }}
