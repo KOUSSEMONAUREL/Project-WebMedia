@@ -25,7 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@hono/node-server": "^2.0.4",
+    "@hono/node-server": "^2.0.5",
     "@hono/zod-validator": "^0.7.6",
     "@libsql/client": "^0.17.3",
     "axios": "^1.7.8",
