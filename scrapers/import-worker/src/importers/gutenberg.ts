@@ -45,7 +45,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
                 const [media] = await db.insert(medias).values({
                     type: 'novel', title, originalTitle: title,
                     synopsis: `Auteur(s): ${authors}`,
-                    posterUrl: item.cover_image ? `https:${item.cover_image}` : undefined,
+                    posterUrl: item.cover_image || undefined,
                     externalId, slug,
                     metadataSource: 'gutenberg', metadataFreshAt: new Date()
                 }).returning({ id: medias.id });
