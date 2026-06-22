@@ -28,7 +28,7 @@
     "@hono/node-server": "^2.0.4",
     "@hono/zod-validator": "^0.7.6",
     "@libsql/client": "^0.17.3",
-    "axios": "^1.7.8",
+    "axios": "^1.18.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.45.2",
