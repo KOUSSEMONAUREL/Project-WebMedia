@@ -1,0 +1,44 @@
+name: Test Gutenberg API (RapidAPI)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-gutenberg:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test RapidAPI - Books endpoint
+        run: |
+          echo "=== Books (q=popular) ==="
+          curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://project-gutenberg-free-books-api1.p.rapidapi.com/books?q=popular&page_size=3" \
+            -H "X-RapidAPI-Key: ${{ secrets.GUTENBERG_API_KEY }}" \
+            -H "X-RapidAPI-Host: project-gutenberg-free-books-api1.p.rapidapi.com" \
+            --max-time 10
+
+      - name: Test RapidAPI - French books
+        run: |
+          echo "=== French books (q=français) ==="
+          curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://project-gutenberg-free-books-api1.p.rapidapi.com/books?q=francais&page_size=3" \
+            -H "X-RapidAPI-Key: ${{ secrets.GUTENBERG_API_KEY }}" \
+            -H "X-RapidAPI-Host: project-gutenberg-free-books-api1.p.rapidapi.com" \
+            --max-time 10
+
+      - name: Test RapidAPI - Book by ID
+        run: |
+          echo "=== Book ID 1513 ==="
+          curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://project-gutenberg-free-books-api1.p.rapidapi.com/books/1513" \
+            -H "X-RapidAPI-Key: ${{ secrets.GUTENBERG_API_KEY }}" \
+            -H "X-RapidAPI-Host: project-gutenberg-free-books-api1.p.rapidapi.com" \
+            --max-time 10
+
+      - name: Test RapidAPI - Subjects
+        run: |
+          echo "=== Subjects ==="
+          curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://project-gutenberg-free-books-api1.p.rapidapi.com/subjects" \
+            -H "X-RapidAPI-Key: ${{ secrets.GUTENBERG_API_KEY }}" \
+            -H "X-RapidAPI-Host: project-gutenberg-free-books-api1.p.rapidapi.com" \
+            --max-time 10
