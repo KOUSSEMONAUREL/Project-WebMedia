@@ -9,31 +9,64 @@ jobs:
   test-gutendex:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Gutendex avec User-Agent basique
-        run: |
-          curl -v "https://gutendex.com/books?page=1&sort=popular" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            -H "Accept: application/json" \
-            --max-time 10
+      - name: IP publique GitHub Actions
+        run: curl -s "https://api.ipify.org?format=json"
 
-      - name: Test Gutendex sans User-Agent
+      - name: Test Gutendex - User-Agent Chrome
         run: |
-          curl -v "https://gutendex.com/books?page=1&sort=popular" \
-            -H "Accept: application/json" \
-            --max-time 10
+          echo "=== User-Agent Chrome ==="
+          STATUS=$(curl -s -o /tmp/gd_chrome.json -w "%{http_code}" \
+            "https://gutendex.com/books?page=1&sort=popular" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" \
+            -H "Accept: application/json, text/plain, */*" \
+            --max-time 15)
+          echo "Status: $STATUS"
+          echo "Body (200 premiers):"
+          head -c 200 /tmp/gd_chrome.json
+          echo ""
 
-      - name: Test via Node/axios (simule le worker)
+      - name: Test Gutendex - User-Agent Worker
         run: |
-          node -e "
-            const axios = require('axios');
-            axios.get('https://gutendex.com/books', {
-              params: { page: 1, sort: 'popular' },
-              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-              timeout: 10000
-            }).then(r => console.log('OK:', r.data.results?.length, 'livres'))
-            .catch(e => console.error('ERR:', e.response?.status, e.response?.statusText));
-          "
+          echo "=== User-Agent Worker ==="
+          STATUS=$(curl -s -o /tmp/gd_worker.json -w "%{http_code}" \
+            "https://gutendex.com/books?page=1&sort=popular" \
+            -H "User-Agent: WebMedia/1.0 (Metadata Import Worker)" \
+            -H "Accept: application/json, text/plain, */*" \
+            --max-time 15)
+          echo "Status: $STATUS"
+          echo "Body (200 premiers):"
+          head -c 200 /tmp/gd_worker.json
+          echo ""
 
-      - name: Test avec IP publique visible
+      - name: Test Gutendex - Sans User-Agent
         run: |
-          curl -v "https://api.ipify.org?format=json" && echo "IP publique ci-dessus"
+          echo "=== Sans User-Agent ==="
+          STATUS=$(curl -s -o /tmp/gd_noua.json -w "%{http_code}" \
+            "https://gutendex.com/books?page=1&sort=popular" \
+            -H "Accept: application/json, text/plain, */*" \
+            --max-time 15)
+          echo "Status: $STATUS"
+          echo "Body (200 premiers):"
+          head -c 200 /tmp/gd_noua.json
+          echo ""
+
+      - name: Test Gutendex - Referer + Origin
+        run: |
+          echo "=== Referer + Origin ==="
+          STATUS=$(curl -s -o /tmp/gd_referer.json -w "%{http_code}" \
+            "https://gutendex.com/books?page=1&sort=popular" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" \
+            -H "Accept: application/json, text/plain, */*" \
+            -H "Referer: https://gutendex.com/" \
+            -H "Origin: https://gutendex.com" \
+            --max-time 15)
+          echo "Status: $STATUS"
+          echo "Body (200 premiers):"
+          head -c 200 /tmp/gd_referer.json
+          echo ""
+
+      - name: Résumé
+        run: |
+          echo "========== RÉSUMÉ =========="
+          echo "Si tous les status sont 403, c'est l'IP GH Actions qui est bloquée par Cloudflare."
+          echo "Si 1 passe avec le bon UA, on adaptera le worker."
