@@ -38,7 +38,7 @@ jobs:
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
           COMICVINE_API_KEY: ${{ secrets.COMICVINE_API_KEY }}
           GOOGLE_BOOKS_API_KEY: ${{ secrets.GOOGLE_BOOKS_API_KEY }}
-           INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
+          INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           GUTENBERG_API_KEY: ${{ secrets.GUTENBERG_API_KEY }}
         run: cd scrapers/import-worker && npm start
