@@ -5,7 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
-const PG_API = 'https://www.gutenberg.org/ebooks/search.json';
+const PG_API = 'https://project-gutenberg-free-books-api1.p.rapidapi.com/books';
 const KEY = 'gutenberg';
 
 export async function importGutenberg(databaseUrl: string, limit: number = 20) {
@@ -15,8 +15,11 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
         const response = await axios.get(PG_API, {
-            params: { query: 'popular', per_page: limit, page },
-            headers: { 'User-Agent': 'WebMedia/1.0 (Metadata Import Worker)' }
+            params: { q: 'popular', page_size: limit, page },
+            headers: {
+                'X-RapidAPI-Key': process.env.GUTENBERG_API_KEY || '',
+                'X-RapidAPI-Host': 'project-gutenberg-free-books-api1.p.rapidapi.com'
+            }
         });
 
         const results = (response.data.results || []).slice(0, limit);
