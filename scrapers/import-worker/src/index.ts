@@ -24,7 +24,7 @@ async function startApp() {
     const { importAnime } = await import('./importers/anilist.js');
     const { importComics } = await import('./importers/comics.js');
     const { importPopularBooks } = await import('./importers/books.js');
-    const { importGutenberg } = await import('./importers/gutendex.js');
+    const { importGutenberg } = await import('./importers/gutenberg.js');
     const { importOpenLibrary } = await import('./importers/open-library.js');
     const { importPopularBooksFR } = await import('./importers/noslivres.js');
     const { importTrendingGames } = await import('./importers/igdb.js');

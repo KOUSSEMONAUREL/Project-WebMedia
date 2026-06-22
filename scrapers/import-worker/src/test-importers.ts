@@ -1,4 +1,4 @@
-import { importGutenberg } from './importers/gutendex.js';
+import { importGutenberg } from './importers/gutenberg.js';
 import { importOpenLibrary } from './importers/open-library.js';
 import { importPopularBooksFR } from './importers/noslivres.js';
 
