@@ -30,7 +30,7 @@
     "@libsql/client": "^0.17.3",
     "axios": "^1.7.8",
     "bcryptjs": "^3.0.3",
-    "dotenv": "^16.4.0",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.4.0",
     "jose": "^5.2.0",
