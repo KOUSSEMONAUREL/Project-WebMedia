@@ -25,9 +25,12 @@ jobs:
             fi
           done
 
-      - name: Commit and push fixes
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v7
         with:
-          commit_message: "chore: npm audit fix — daily"
-          commit_user_name: "audit-bot"
-          commit_user_email: "audit-bot@webmedia"
+          commit-message: "chore: npm audit fix — daily"
+          title: "chore: npm audit fix — daily"
+          body: "Automatic `npm audit fix` run across all sub-projects."
+          branch: "audit/daily-fix"
+          base: "main"
+          labels: "dependencies"
