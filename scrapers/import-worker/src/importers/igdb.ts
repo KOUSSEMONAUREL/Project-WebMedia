@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
@@ -10,9 +10,9 @@ const TWITCH_TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
 const KEY = 'igdb';
 
 async function getTwitchToken(clientId: string, clientSecret: string) {
-    const response = await axios.post(TWITCH_TOKEN_URL, null, {
+    const response = await withRetry(() => axios.post(TWITCH_TOKEN_URL, null, {
         params: { client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }
-    });
+    }));
     return response.data.access_token;
 }
 
@@ -24,10 +24,10 @@ export async function importTrendingGames(clientId: string, clientSecret: string
         const offset = await getOffset(KEY, databaseUrl, 0);
         const token = await getTwitchToken(clientId, clientSecret);
 
-        const response = await axios.post(IGDB_URL,
+        const response = await withRetry(() => axios.post(IGDB_URL,
             `fields name,summary,cover.url,first_release_date,total_rating; sort total_rating desc; limit ${limit}; offset ${offset}; where total_rating != null;`,
             { headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` } }
-        );
+        ));
 
         const results = response.data || [];
         if (results.length === 0) {

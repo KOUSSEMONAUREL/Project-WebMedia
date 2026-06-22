@@ -1,7 +1,5 @@
-import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { inArray } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 
 export async function batchCheckExisting(
   db: any,
@@ -33,4 +31,21 @@ export async function notifyBrain(
       timeout: 5000,
     });
   } catch {}
+}
+
+export async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const isServerError = status >= 500 && status < 600;
+      const isNetworkError = !err?.response && ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'].includes(err?.code);
+      if (i === retries - 1 || (!isServerError && !isNetworkError)) throw err;
+      const delay = 1000 * Math.pow(2, i);
+      console.log(`⚠️ Retry ${i + 1}/${retries - 1} dans ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Unreachable');
 }

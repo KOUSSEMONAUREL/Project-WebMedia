@@ -2,7 +2,7 @@ import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import axios from 'axios';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const ANILIST_API = 'https://graphql.anilist.co';
@@ -26,10 +26,10 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
-        const response = await axios.post(ANILIST_API, {
+        const response = await withRetry(() => axios.post(ANILIST_API, {
             query: POPULAR_QUERY,
             variables: { page, perPage: limit }
-        }, { headers: { 'User-Agent': 'WebMedia/1.0' } });
+        }, { headers: { 'User-Agent': 'WebMedia/1.0' } }));
 
         const entries = response.data?.data?.Page?.media || [];
         if (entries.length === 0) {

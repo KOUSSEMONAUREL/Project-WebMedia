@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const OPEN_LIBRARY_API = 'https://openlibrary.org';
@@ -14,9 +14,9 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
-        const response = await axios.get(`${OPEN_LIBRARY_API}/search.json`, {
+        const response = await withRetry(() => axios.get(`${OPEN_LIBRARY_API}/search.json`, {
             params: { q: search, page, limit }
-        });
+        }));
 
         const results = (response.data.docs || []).slice(0, limit);
         if (results.length === 0) {
@@ -39,7 +39,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
 
             try {
                 const [media] = await db.insert(medias).values({
-                    type: 'novel', title, originalTitle: title,
+                    type: 'book', title, originalTitle: title,
                     synopsis: item.first_sentence ? item.first_sentence[0] : '',
                     posterUrl: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : undefined,
                     externalId, slug, metadataSource: 'openlibrary', metadataFreshAt: new Date()

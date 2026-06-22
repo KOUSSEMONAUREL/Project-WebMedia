@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const PG_API = 'https://project-gutenberg-free-books-api1.p.rapidapi.com/books';
@@ -14,13 +14,13 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
-        const response = await axios.get(PG_API, {
+        const response = await withRetry(() => axios.get(PG_API, {
             params: { q: 'popular', page_size: limit, page },
             headers: {
                 'X-RapidAPI-Key': process.env.GUTENBERG_API_KEY || '',
                 'X-RapidAPI-Host': 'project-gutenberg-free-books-api1.p.rapidapi.com'
             }
-        });
+        }));
 
         const results = (response.data.results || []).slice(0, limit);
         if (results.length === 0) {
@@ -43,7 +43,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
             try {
                 const [media] = await db.insert(medias).values({
-                    type: 'novel', title, originalTitle: title,
+                    type: 'book', title, originalTitle: title,
                     synopsis: `Auteur(s): ${authors}`,
                     posterUrl: item.cover_image || undefined,
                     externalId, slug,

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const COMICVINE_URL = 'https://comicvine.gamespot.com/api/volumes';
@@ -14,12 +14,12 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
 
     try {
         const offset = await getOffset(KEY, databaseUrl, 0);
-        const response = await axios.get(COMICVINE_URL, {
+        const response = await withRetry(() => axios.get(COMICVINE_URL, {
             params: {
                 api_key: apiKey, format: 'json', sort: 'date_added:desc',
                 limit, offset, field_list: 'id,name,description,image,start_year,deck'
             }
-        });
+        }));
 
         const results = response.data.results || [];
         if (results.length === 0) {

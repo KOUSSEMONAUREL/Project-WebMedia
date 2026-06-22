@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
@@ -20,9 +20,9 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             const startIndex = await getOffset(`${KEY}:${cat}`, databaseUrl, 0);
             console.log(`🔍 ${cat} (startIndex=${startIndex})`);
 
-            const response = await axios.get(GOOGLE_BOOKS_URL, {
+            const response = await withRetry(() => axios.get(GOOGLE_BOOKS_URL, {
                 params: { q: `subject:${cat}`, orderBy: 'newest', maxResults: limit, startIndex, key: apiKey, langRestrict: 'fr' }
-            });
+            }));
 
             const items = response.data.items || [];
             if (items.length === 0) {
@@ -41,8 +41,8 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
                 const title = info.title;
                 try {
                     const [inserted] = await db.insert(medias).values({
-                        type: 'novel', title, originalTitle: info.title,
-                        slug: `novel-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
+                        type: 'book', title, originalTitle: info.title,
+                        slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
                         synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
                         posterUrl: info.imageLinks?.thumbnail, externalId,
                         metadataSource: 'google-books', metadataFreshAt: new Date()
@@ -58,7 +58,7 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
                         }).onConflictDoNothing().catch(() => {});
                     }
 
-                    await notifyBrain(inserted.id, 'novel', internalApiUrl!, internalApiKey!);
+                    await notifyBrain(inserted.id, 'book', internalApiUrl!, internalApiKey!);
                     totalImported++;
                     console.log(`✅ [NOVEL] ${title}`);
                 } catch {}

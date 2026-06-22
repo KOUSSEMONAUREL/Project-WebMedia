@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const NOSLIVRES_API = 'https://api.noslivres.fr/api/v1';
@@ -14,10 +14,10 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
-        const response = await axios.get(`${NOSLIVRES_API}/books/popular`, {
+        const response = await withRetry(() => axios.get(`${NOSLIVRES_API}/books/popular`, {
             params: { page, pageSize: limit },
             headers: { 'User-Agent': 'WebMedia/1.0' }
-        });
+        }));
 
         const results = response.data?.data || response.data || [];
         if (!Array.isArray(results) || results.length === 0) {
@@ -43,7 +43,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
             try {
                 const [media] = await db.insert(medias).values({
-                    type: 'novel', title, slug, externalId,
+                    type: 'book', title, slug, externalId,
                     synopsis: book.attributes?.description,
                     posterUrl: book.attributes?.cover,
                     metadataSource: 'noslivres', metadataFreshAt: new Date()
