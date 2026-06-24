@@ -67,6 +67,7 @@ def _env_from_url():
     env['PGDATABASE'] = parts['dbname']
     env['PGUSER'] = parts['user']
     env['PGPASSWORD'] = parts['password']
+    env['PGCONNECT_TIMEOUT'] = '10'
     return env
 
 def cmd_write(sha):
@@ -78,22 +79,44 @@ def cmd_write(sha):
         "VALUES ('last_checked_commit', :sha, NOW()) "
         "ON CONFLICT (key) DO UPDATE SET value = :sha, updated_at = NOW()"
     ).replace(':sha', f"'{sha}'")
-    r = subprocess.run(['psql', '-c', sql, '-t', '-A'], env=env, capture_output=True, text=True)
-    if r.returncode != 0:
-        err = r.stderr.strip()[:200]
-        print(f"Warning: Supabase persist failed ({r.returncode}): {err}", file=sys.stderr)
+    try:
+        r = subprocess.run(['psql', '-c', sql, '-t', '-A'], env=env, capture_output=True, text=True, timeout=20)
+        if r.returncode != 0:
+            err = r.stderr.strip()[:200]
+            print(f"Warning: Supabase persist failed ({r.returncode}): {err}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("Warning: Supabase persist timed out after 20s", file=sys.stderr)
 
 def cmd_read():
     env = _env_from_url()
     if not env:
         return ''
-    r = subprocess.run(
-        ['psql', '-c', "SELECT value FROM keiyoushi_state WHERE key='last_checked_commit'", '-t', '-A'],
-        env=env, capture_output=True, text=True
-    )
-    if r.returncode == 0:
-        return r.stdout.strip()
+    try:
+        r = subprocess.run(
+            ['psql', '-c', "SELECT value FROM keiyoushi_state WHERE key='last_checked_commit'", '-t', '-A'],
+            env=env, capture_output=True, text=True, timeout=20
+        )
+        if r.returncode == 0:
+            return r.stdout.strip()
+    except subprocess.TimeoutExpired:
+        print("Warning: Supabase read timed out after 20s", file=sys.stderr)
     return ''
+
+def cmd_test():
+    env = _env_from_url()
+    if not env:
+        print("❌ Cannot parse URL")
+        sys.exit(1)
+    try:
+        r = subprocess.run(['psql', '-c', 'SELECT 1', '-t', '-A'], env=env, capture_output=True, text=True, timeout=15)
+        if r.returncode == 0:
+            print(f"✅ Supabase connected (host={env.get('PGHOST','?')})")
+        else:
+            print(f"❌ psql error ({r.returncode}): {r.stderr.strip()[:200]}")
+            sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print("❌ Connection timed out after 15s")
+        sys.exit(1)
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -105,3 +128,5 @@ if __name__ == '__main__':
         val = cmd_read()
         if val:
             print(val)
+    elif op == 'test':
+        cmd_test()
