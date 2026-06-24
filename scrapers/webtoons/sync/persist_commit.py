@@ -1,24 +1,62 @@
-import sys, os, re, subprocess
+import sys, os, re, subprocess, urllib.parse
 
 def _parse_pg_url(url):
-    m = re.match(r'^postgres(?:ql)?://(?:([^:@]+)(?::([^@]*))?@)?([^:/]+)(?::(\d+))?/(\S+?)(?:\?.*)?$', url)
-    if not m:
+    if not url:
         return None
-    return {
-        'user': m.group(1) or '',
-        'password': m.group(2) or '',
-        'host': m.group(3) or '',
-        'port': m.group(4) or '5432',
-        'dbname': m.group(5) or '',
-    }
+
+    m = re.match(r'^postgres(?:ql)?://(?:([^:@]+)(?::([^@]*))?@)?([^:/]+)(?::(\d+))?/(\S+?)(?:\?.*)?$', url)
+    if m:
+        return {
+            'user': m.group(1) or '',
+            'password': m.group(2) or '',
+            'host': m.group(3) or '',
+            'port': m.group(4) or '5432',
+            'dbname': m.group(5) or '',
+        }
+
+    try:
+        p = urllib.parse.urlparse(url)
+        if p.hostname and p.scheme:
+            return {
+                'user': p.username or '',
+                'password': p.password or '',
+                'host': p.hostname or '',
+                'port': str(p.port) if p.port else '5432',
+                'dbname': p.path.lstrip('/') if p.path else '',
+            }
+    except Exception:
+        pass
+
+    # Peut-être en format key=value (libpq)
+    kv = dict(kv.split('=', 1) for kv in url.split() if '=' in kv)
+    if 'host' in kv and 'dbname' in kv:
+        return {
+            'user': kv.get('user', ''),
+            'password': kv.get('password', ''),
+            'host': kv['host'],
+            'port': kv.get('port', '5432'),
+            'dbname': kv['dbname'],
+        }
+
+    # Peut-être sans le prefixe postgresql://
+    if not url.startswith('postgres'):
+        return _parse_pg_url('postgresql://' + url)
+
+    return None
 
 def _env_from_url():
     db_url = os.environ.get('SUPABASE_DATABASE_URL', '')
     if not db_url:
+        print("Warning: SUPABASE_DATABASE_URL not set", file=sys.stderr)
         return None
     parts = _parse_pg_url(db_url)
     if not parts:
-        print("Warning: cannot parse SUPABASE_DATABASE_URL", file=sys.stderr)
+        # Debug : montrer les premiers caracteres (safe)
+        safe = db_url[:20] + '...' if len(db_url) > 20 else db_url
+        print(f"Warning: cannot parse SUPABASE_DATABASE_URL ({safe})", file=sys.stderr)
+        return None
+    if not parts['host'] or not parts['dbname']:
+        print(f"Warning: parsed URL missing host or dbname ({parts})", file=sys.stderr)
         return None
     env = os.environ.copy()
     env['PGHOST'] = parts['host']
@@ -31,22 +69,25 @@ def _env_from_url():
 def cmd_write(sha):
     env = _env_from_url()
     if not env or not sha:
-        print("Warning: no Supabase URL or SHA, skipping write", file=sys.stderr)
         return
-    sql = f"""
-        INSERT INTO keiyoushi_state (key, value, updated_at)
-        VALUES ('last_checked_commit', '{sha}', NOW())
-        ON CONFLICT (key) DO UPDATE SET value = '{sha}', updated_at = NOW()
-    """
+    sql = (
+        "INSERT INTO keiyoushi_state (key, value, updated_at) "
+        "VALUES ('last_checked_commit', :sha, NOW()) "
+        "ON CONFLICT (key) DO UPDATE SET value = :sha, updated_at = NOW()"
+    ).replace(':sha', f"'{sha}'")
     r = subprocess.run(['psql', '-c', sql, '-t', '-A'], env=env, capture_output=True, text=True)
     if r.returncode != 0:
-        print(f"Warning: Supabase persist failed ({r.returncode}): {r.stderr.strip()}", file=sys.stderr)
+        err = r.stderr.strip()[:200]
+        print(f"Warning: Supabase persist failed ({r.returncode}): {err}", file=sys.stderr)
 
 def cmd_read():
     env = _env_from_url()
     if not env:
         return ''
-    r = subprocess.run(['psql', '-c', "SELECT value FROM keiyoushi_state WHERE key='last_checked_commit'", '-t', '-A'], env=env, capture_output=True, text=True)
+    r = subprocess.run(
+        ['psql', '-c', "SELECT value FROM keiyoushi_state WHERE key='last_checked_commit'", '-t', '-A'],
+        env=env, capture_output=True, text=True
+    )
     if r.returncode == 0:
         return r.stdout.strip()
     return ''
