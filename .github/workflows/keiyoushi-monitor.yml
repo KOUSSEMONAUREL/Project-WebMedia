@@ -80,6 +80,7 @@ jobs:
           if [ "$LAST_CHECKED" = "$HEAD_SHA" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "Aucun changement (toujours ${HEAD_SHA:0:8})"
+            persist_supabase "$HEAD_SHA"
             exit 0
           fi
 
