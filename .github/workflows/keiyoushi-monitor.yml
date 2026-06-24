@@ -26,6 +26,9 @@ jobs:
           key: keiyoushi-commit-${{ github.run_id }}
           restore-keys: keiyoushi-commit-
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
       - name: Check upstream for changes
         id: monitor
         env:
@@ -45,7 +48,7 @@ jobs:
                 INSERT INTO keiyoushi_state (key, value, updated_at)
                 VALUES ('last_checked_commit', '$sha', NOW())
                 ON CONFLICT (key) DO UPDATE SET value = '$sha', updated_at = NOW()
-              " 2>/dev/null || echo "Warning: Supabase persist failed"
+              " 2>&1 || echo "Warning: Supabase persist failed ($?)"
             fi
           }
 
