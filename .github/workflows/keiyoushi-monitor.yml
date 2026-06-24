@@ -23,7 +23,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/keiyoushi_last_commit
-          key: keiyoushi-commit-latest
+          key: keiyoushi-commit-${{ github.run_id }}
+          restore-keys: keiyoushi-commit-
 
       - name: Check upstream for changes
         id: monitor
@@ -77,7 +78,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: /tmp/keiyoushi_last_commit
-          key: keiyoushi-commit-latest
+          key: keiyoushi-commit-${{ github.run_id }}
 
       - name: Create issue if critical changes found
         if: steps.monitor.outputs.has_changes == 'true'
