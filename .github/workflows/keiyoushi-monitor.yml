@@ -32,12 +32,6 @@ jobs:
           sudo apt-get update -qq 2>/dev/null || true
           sudo apt-get install -y -qq postgresql-client
 
-      - name: Test Supabase connection
-        env:
-          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
-        run: |
-          python3 "$PERSIST" test 2>&1 || echo "⚠️ Supabase connection test failed, will retry later"
-
       - name: Check upstream for changes
         id: monitor
         env:

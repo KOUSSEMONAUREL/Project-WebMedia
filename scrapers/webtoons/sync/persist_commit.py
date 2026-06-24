@@ -52,15 +52,6 @@ def _env_from_url():
         return None
     parts = _parse_pg_url(db_url)
     if not parts:
-        safe = db_url[:30] + '...' if len(db_url) > 30 else db_url
-        print(f"Warning: cannot parse SUPABASE_DATABASE_URL (len={len(db_url)}, start={safe!r})", file=sys.stderr)
-        try:
-            import urllib.parse as up
-            p = up.urlparse(url)
-            port_str = str(p.port) if p.port else 'None'
-            print(f"  urlparse: scheme={p.scheme!r} hostname={p.hostname!r} port={port_str} path={p.path!r}", file=sys.stderr)
-        except Exception as e:
-            print(f"  urlparse error: {e}", file=sys.stderr)
         return None
     if not parts['host'] or not parts['dbname']:
         print(f"Warning: parsed URL missing host or dbname ({parts})", file=sys.stderr)
@@ -106,22 +97,6 @@ def cmd_read():
         print("Warning: Supabase read timed out after 20s", file=sys.stderr)
     return ''
 
-def cmd_test():
-    env = _env_from_url()
-    if not env:
-        print("❌ Cannot parse URL")
-        sys.exit(1)
-    try:
-        r = subprocess.run(['psql', '-c', 'SELECT 1', '-t', '-A'], env=env, capture_output=True, text=True, timeout=15)
-        if r.returncode == 0:
-            print(f"✅ Supabase connected (host={env.get('PGHOST','?')})")
-        else:
-            print(f"❌ psql error ({r.returncode}): {r.stderr.strip()[:200]}")
-            sys.exit(1)
-    except subprocess.TimeoutExpired:
-        print("❌ Connection timed out after 15s")
-        sys.exit(1)
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         sys.exit(0)
@@ -132,5 +107,3 @@ if __name__ == '__main__':
         val = cmd_read()
         if val:
             print(val)
-    elif op == 'test':
-        cmd_test()
