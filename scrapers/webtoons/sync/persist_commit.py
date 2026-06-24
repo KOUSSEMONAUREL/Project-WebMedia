@@ -54,9 +54,13 @@ def _env_from_url():
     if not parts:
         safe = db_url[:30] + '...' if len(db_url) > 30 else db_url
         print(f"Warning: cannot parse SUPABASE_DATABASE_URL (len={len(db_url)}, start={safe!r})", file=sys.stderr)
-        import urllib.parse as up
-        p = up.urlparse(db_url.strip())
-        print(f"  urlparse: scheme={p.scheme!r} hostname={p.hostname!r} port={p.port!r} path={p.path!r}", file=sys.stderr)
+        try:
+            import urllib.parse as up
+            p = up.urlparse(url)
+            port_str = str(p.port) if p.port else 'None'
+            print(f"  urlparse: scheme={p.scheme!r} hostname={p.hostname!r} port={port_str} path={p.path!r}", file=sys.stderr)
+        except Exception as e:
+            print(f"  urlparse error: {e}", file=sys.stderr)
         return None
     if not parts['host'] or not parts['dbname']:
         print(f"Warning: parsed URL missing host or dbname ({parts})", file=sys.stderr)
