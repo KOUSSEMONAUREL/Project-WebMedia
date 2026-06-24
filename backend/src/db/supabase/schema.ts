@@ -50,6 +50,13 @@ export const scrapingJobs = pgTable('scraping_jobs', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// ========== TABLE KEiyoushi_STATE (persistance cache monitor) ==========
+export const keiyoushiState = pgTable('keiyoushi_state', {
+    key: varchar('key', { length: 50 }).primaryKey(),
+    value: text('value').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 // ========== RELATIONS ==========
 export const userRelations = relations(users, ({ many }) => ({
     reviews: many(reviews),

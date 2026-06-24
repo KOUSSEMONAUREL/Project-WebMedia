@@ -30,10 +30,24 @@ jobs:
         id: monitor
         env:
           GH_TOKEN: ${{ github.token }}
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
         run: |
           STATE_FILE="/tmp/keiyoushi_last_commit"
           REPO_API="https://api.github.com/repos/keiyoushi/extensions-source"
           GH_HEADER="Authorization: Bearer $GH_TOKEN"
+          DB_URL="$SUPABASE_DATABASE_URL"
+
+          persist_supabase() {
+            local sha="$1"
+            echo "$sha" > "$STATE_FILE"
+            if [ -n "$DB_URL" ]; then
+              psql "$DB_URL" -c "
+                INSERT INTO keiyoushi_state (key, value, updated_at)
+                VALUES ('last_checked_commit', '$sha', NOW())
+                ON CONFLICT (key) DO UPDATE SET value = '$sha', updated_at = NOW()
+              " 2>/dev/null || echo "Warning: Supabase persist failed"
+            fi
+          }
 
           curl -sL -H "$GH_HEADER" "$REPO_API" -o /tmp/repo.json
           python3 -c "import json; d=json.load(open('/tmp/repo.json')); assert 'default_branch' in d" 2>/dev/null || { echo "Error: invalid repo API response"; cat /tmp/repo.json; exit 1; }
@@ -50,8 +64,14 @@ jobs:
           LAST_CHECKED=""
           [ -f "$STATE_FILE" ] && LAST_CHECKED=$(cat "$STATE_FILE")
 
+          # Fallback Supabase si cache manquant
+          if [ -z "$LAST_CHECKED" ] && [ -n "$DB_URL" ]; then
+            LAST_CHECKED=$(psql "$DB_URL" -t -A -c "SELECT value FROM keiyoushi_state WHERE key='last_checked_commit'" 2>/dev/null || echo "")
+            [ -n "$LAST_CHECKED" ] && echo "Restored from Supabase: ${LAST_CHECKED:0:8}"
+          fi
+
           if [ -z "$LAST_CHECKED" ]; then
-            echo "$HEAD_SHA" > "$STATE_FILE"
+            persist_supabase "$HEAD_SHA"
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "Premier check HEAD ${HEAD_SHA:0:8} enregistre"
             exit 0
@@ -71,7 +91,7 @@ jobs:
           python3 -c "import json; d=json.load(open('/tmp/compare.json')); assert 'files' in d" 2>/dev/null || { echo "Error: invalid compare API response"; cat /tmp/compare.json; exit 1; }
           python3 "$ANALYZER" /tmp/compare.json "$LAST_CHECKED" "$HEAD_SHA"
 
-          echo "$HEAD_SHA" > "$STATE_FILE"
+          persist_supabase "$HEAD_SHA"
 
       - name: Save last checked commit to cache
         if: always()

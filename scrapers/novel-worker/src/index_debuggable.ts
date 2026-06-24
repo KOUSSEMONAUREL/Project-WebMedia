@@ -7,7 +7,7 @@ import * as dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { scrapingJobs } from './db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 dotenv.config();
 
@@ -95,20 +95,20 @@ async function startWorker() {
     
     while (true) {
         try {
-            const pendingJobs = await sb.select()
-                .from(scrapingJobs)
-                .where(and(
-                    eq(scrapingJobs.workerType, 'novel'),
-                    eq(scrapingJobs.status, 'pending')
-                ))
-                .limit(5);
+            const [job] = await supabaseClient`
+                UPDATE scraping_jobs
+                SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
+                WHERE id = (
+                    SELECT id FROM scraping_jobs
+                    WHERE status = 'pending' AND worker_type = 'novel'
+                    ORDER BY priority DESC, created_at ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING id, media_id, media_type, title, slug, attempts
+            `;
 
-            for (const job of pendingJobs) {
-                // Optimistic locking
-                await sb.update(scrapingJobs)
-                    .set({ status: 'processing', lockedAt: new Date() })
-                    .where(eq(scrapingJobs.id, job.id));
-                
+            if (job) {
                 await processJob(job);
             }
         } catch (err: any) {

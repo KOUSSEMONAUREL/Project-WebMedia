@@ -67,6 +67,26 @@ CREATE POLICY "favorites_delete_own" ON favorites
 
 
 -- ============================================================
+-- 4. TABLE: scraping_jobs (file d'attente interne)
+-- Lecture publique (comme reviews), écriture par service_role.
+-- Les workers en connexion directe (postgres) contournent RLS.
+-- ============================================================
+ALTER TABLE scraping_jobs ENABLE ROW LEVEL SECURITY;
+
+-- Lecture : tout le monde peut voir les jobs (comme reviews_select_public)
+CREATE POLICY "scraping_jobs_select" ON scraping_jobs
+  FOR SELECT USING (true);
+
+-- Insertion : réservé au backend (service_role)
+CREATE POLICY "scraping_jobs_insert_service_role" ON scraping_jobs
+  FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
+-- Mise à jour : réservé au backend (service_role)
+CREATE POLICY "scraping_jobs_update_service_role" ON scraping_jobs
+  FOR UPDATE USING (auth.role() = 'service_role');
+
+
+-- ============================================================
 -- INDEX MANQUANTS — performances
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_reviews_media_id ON reviews(media_id);
@@ -74,8 +94,19 @@ CREATE INDEX IF NOT EXISTS idx_reviews_user_media ON reviews(user_id, media_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_scraping_jobs_status_type ON scraping_jobs(status, worker_type) WHERE status = 'pending';
 
+
 -- ============================================================
--- 4. TABLES FUTURES (watch_history, watchlists, notifications)
+-- 5. TABLE: keiyoushi_state (persistance cache keiyoushi-monitor)
+-- Accès direct par connexion PostgreSQL (pas de RLS nécessaire)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS keiyoushi_state (
+    key VARCHAR(50) PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 6. TABLES FUTURES (watch_history, watchlists, notifications)
 -- À appliquer quand tu crées ces tables.
 -- ============================================================
 

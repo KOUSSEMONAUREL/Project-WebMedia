@@ -8,7 +8,6 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { scrapingJobs } from './db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
 
 dotenv.config();
 
@@ -103,13 +102,21 @@ async function processJob(job: any) {
 async function runOneShot() {
     console.log('🤖 Novel Worker One-Shot Debug Mode...');
     try {
-        const job = await sb.select()
-            .from(scrapingJobs)
-            .where(eq(scrapingJobs.workerType, 'novel'))
-            .limit(1);
+        const [job] = await supabaseClient`
+            UPDATE scraping_jobs
+            SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
+            WHERE id = (
+                SELECT id FROM scraping_jobs
+                WHERE status = 'pending' AND worker_type = 'novel'
+                ORDER BY priority DESC, created_at ASC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, media_id, media_type, title, slug, attempts
+        `;
 
-        if (job.length > 0) {
-            await processJob(job[0]);
+        if (job) {
+            await processJob(job);
         } else {
             console.log('No novel jobs found.');
         }
