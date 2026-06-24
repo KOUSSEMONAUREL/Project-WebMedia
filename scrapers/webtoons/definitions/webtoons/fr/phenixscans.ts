@@ -63,8 +63,8 @@ interface ChapterContentDto {
 
 export class PhenixscansScraper extends BaseScraper {
     readonly name = 'PhenixScans';
-    readonly baseUrl = 'https://phenix-scans.com';
-    readonly apiBaseUrl = 'https://phenix-scans.com/api';
+    readonly baseUrl = 'https://phenix-scans.co';
+    readonly apiBaseUrl = 'https://api.phenix-scans.co/api';
     readonly lang = 'fr';
 
     async getPopular(page = 1): Promise<SearchResult> {
