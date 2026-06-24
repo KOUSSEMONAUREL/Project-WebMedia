@@ -1,6 +1,7 @@
 import sys, os, re, subprocess, urllib.parse
 
-def _parse_pg_url(url):
+def _parse_pg_url(raw):
+    url = raw.strip() if raw else ''
     if not url:
         return None
 
@@ -51,9 +52,11 @@ def _env_from_url():
         return None
     parts = _parse_pg_url(db_url)
     if not parts:
-        # Debug : montrer les premiers caracteres (safe)
-        safe = db_url[:20] + '...' if len(db_url) > 20 else db_url
-        print(f"Warning: cannot parse SUPABASE_DATABASE_URL ({safe})", file=sys.stderr)
+        safe = db_url[:30] + '...' if len(db_url) > 30 else db_url
+        print(f"Warning: cannot parse SUPABASE_DATABASE_URL (len={len(db_url)}, start={safe!r})", file=sys.stderr)
+        import urllib.parse as up
+        p = up.urlparse(db_url.strip())
+        print(f"  urlparse: scheme={p.scheme!r} hostname={p.hostname!r} port={p.port!r} path={p.path!r}", file=sys.stderr)
         return None
     if not parts['host'] or not parts['dbname']:
         print(f"Warning: parsed URL missing host or dbname ({parts})", file=sys.stderr)
