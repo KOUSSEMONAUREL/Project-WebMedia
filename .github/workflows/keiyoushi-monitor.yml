@@ -9,6 +9,9 @@ env:
   TSBASE: ${{ github.workspace }}/scrapers/webtoons/definitions/webtoons
   ANALYZER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_analyze.py
 
+permissions:
+  issues: write
+
 jobs:
   check-upstream:
     runs-on: ubuntu-latest
