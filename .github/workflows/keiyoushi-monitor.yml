@@ -28,7 +28,9 @@ jobs:
           restore-keys: keiyoushi-commit-
 
       - name: Install PostgreSQL client
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+        run: |
+          sudo apt-get update -qq 2>/dev/null || true
+          sudo apt-get install -y -qq postgresql-client
 
       - name: Check upstream for changes
         id: monitor
