@@ -213,6 +213,17 @@ def process_jobs():
     # 9. RomsFun (WordPress, needs article navigation)
     # 10. Games4U (WordPress, needs article navigation)
 
+    # Pré-check : si aucun job en attente, on sort tout de suite
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM scraping_jobs WHERE status = 'pending' AND worker_type = 'playwright'")
+    row = cur.fetchone()
+    total = row[0] if row else 0
+    if total == 0:
+        print("✅ Aucun job playwright en attente. Fin.")
+        conn.close()
+        return
+    print(f"📦 {total} job(s) playwright en attente.")
+
     print("🐍 Playwright Worker active (Supabase + Sweep Mode)")
 
     jobs_processed = 0
