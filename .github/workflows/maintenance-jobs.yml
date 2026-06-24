@@ -1,8 +1,8 @@
 name: Weekly Maintenance
 
 on:
-#  schedule:
-#    - cron: '0 4 * * 0' # Tous les dimanches à 4h UTC
+  schedule:
+    - cron: '0 4 * * 0' # Tous les dimanches à 4h UTC
   workflow_dispatch: # Manuel aussi possible
 
 jobs:
