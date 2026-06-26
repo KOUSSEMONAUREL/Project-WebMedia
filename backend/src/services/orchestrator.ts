@@ -57,23 +57,37 @@ export class OrchestratorService {
         const mediaIds = [...new Set(readyMedia.map(m => m.media_id))];
 
         // 2. UNE seule query Supabase : vérifie les jobs existants pour tous les media_ids
-        const existingJobs = await this.supabase.select({ mediaId: scrapingJobs.mediaId })
-            .from(scrapingJobs)
-            .where(and(
-                inArray(scrapingJobs.mediaId, mediaIds),
-                inArray(scrapingJobs.status, ['pending', 'processing'])
-            ));
+        let existingJobs: any[];
+        try {
+            existingJobs = await this.supabase.select({ mediaId: scrapingJobs.mediaId })
+                .from(scrapingJobs)
+                .where(and(
+                    inArray(scrapingJobs.mediaId, mediaIds),
+                    inArray(scrapingJobs.status, ['pending', 'processing'])
+                ));
+        } catch (e) {
+            console.error("❌ Supabase query failed, mediaIds count:", mediaIds.length);
+            console.error(JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
+            throw e;
+        }
 
         const existingMediaIds = new Set(existingJobs.map((j: any) => j.mediaId));
 
         // 3. UNE seule query Neon : récupère les infos de tous les médias
-        const mediaInfos = await this.neon.select({
-            id: medias.id,
-            title: medias.title,
-            slug: medias.slug
-        })
-            .from(medias)
-            .where(inArray(medias.id, mediaIds));
+        let mediaInfos: any[];
+        try {
+            mediaInfos = await this.neon.select({
+                id: medias.id,
+                title: medias.title,
+                slug: medias.slug
+            })
+                .from(medias)
+                .where(inArray(medias.id, mediaIds));
+        } catch (e) {
+            console.error("❌ Neon query failed, mediaIds count:", mediaIds.length);
+            console.error(JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
+            throw e;
+        }
 
         const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>(mediaInfos.map((m: any) => [m.id, m]));
 
