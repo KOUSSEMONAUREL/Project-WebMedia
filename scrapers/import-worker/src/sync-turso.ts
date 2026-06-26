@@ -23,6 +23,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                     slug: m.slug,
                     synopsis: m.synopsis,
                     year: m.year,
+                    author: m.author,
                     posterUrl: m.posterUrl,
                     backdropUrl: m.backdropUrl,
                     rating: m.rating?.toString(),
