@@ -256,20 +256,7 @@ internalRoutes.post('/orchestrate', async (c) => {
         return c.json({ success: true, ...result });
     } catch (error: any) {
         await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, getVar(c, 'MONGODB_URI'));
-        const allProps: Record<string, any> = {};
-        let proto = error;
-        while (proto) {
-            for (const key of Object.getOwnPropertyNames(proto)) {
-                if (key === 'stack') continue;
-                allProps[key] = proto[key];
-            }
-            proto = Object.getPrototypeOf(proto);
-            if (proto === Object.prototype) break;
-        }
-        allProps.message = error.message;
-        allProps.stack = error.stack?.split('\n').slice(0, 4).join('\n');
-        if (error.cause) allProps.cause = String(error.cause);
-        return c.json({ success: false, ...allProps }, 500);
+        return c.json({ success: false, error: error.message }, 500);
     }
 });
 
