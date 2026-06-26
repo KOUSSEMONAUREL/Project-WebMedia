@@ -256,7 +256,14 @@ internalRoutes.post('/orchestrate', async (c) => {
         return c.json({ success: true, ...result });
     } catch (error: any) {
         await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, getVar(c, 'MONGODB_URI'));
-        return c.json({ success: false, error: error.message }, 500);
+        return c.json({
+            success: false,
+            error: error.message,
+            code: error.code,
+            severity: error.severity,
+            detail: error.detail,
+            hint: error.hint
+        }, 500);
     }
 });
 
