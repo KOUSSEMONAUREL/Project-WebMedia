@@ -2,7 +2,7 @@ name: Dynamic Scraper (Scrapling)
 
 on:
   schedule:
-    - cron: '0 8,20 * * *' # Deux fois par jour
+    - cron: '20 8,20 * * *'
   workflow_dispatch:
 
 jobs:

@@ -62,9 +62,9 @@ graph TD
 |------------|-------------|--------|--------|
 | GitHub Actions | **03:00** quotidien | `import-metadata` | 12 sources : TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, Comic Vine, NosLivres, RoyalRoad |
 | GitHub Actions | **08:00 / 20:00** | `cheerio-scraper` | Scrape liens vidéo |
-| GitHub Actions | **08:00 / 20:00** | `playwright-scraper` | Scrape jeux (7 sites) |
-| GitHub Actions | **08:00 / 20:00** | `novel-scraper` | Scrape romans/novels |
-| GitHub Actions | **08:00 / 20:00** | `webtoon-scraper` | Scrape 188+ définitions webtoon |
+| GitHub Actions | **08:20 / 20:20** | `playwright-scraper` | Scrape jeux (7 sites) |
+| GitHub Actions | **08:40 / 20:40** | `novel-scraper` | Scrape romans/novels |
+| GitHub Actions | **09:00 / 21:00** | `webtoon-scraper` | Scrape 188+ définitions webtoon |
 | GitHub Actions | **06:00** quotidien | `keiyoushi-monitor` | Surveille màj upstream des définitions |
 | GitHub Actions | **Dimanche 04:00** | `maintenance-jobs` | Dead link checker → sync Neon→Turso |
 | Cloudflare Worker | **07:00 / 19:00** | `orchestrator` | Résout les médias périmés (media_state D1) |
