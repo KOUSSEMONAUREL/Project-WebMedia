@@ -92,6 +92,7 @@ export class OrchestratorService {
             const workerType =
                 (type === 'game' || type === 'jeu') ? 'playwright' :
                 type === 'novel' ? 'novel' :
+                (type === 'webtoon' || type === 'comic' || type === 'manga') ? 'webtoon' :
                 'cheerio';
 
             insertValues.push({

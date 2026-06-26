@@ -72,7 +72,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
           SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
           WHERE id = (
             SELECT id FROM scraping_jobs
-            WHERE status = 'pending' AND worker_type = 'cheerio'
+            WHERE status = 'pending' AND worker_type = 'webtoon'
               AND media_type IN ('webtoon', 'comic', 'manga')
             ORDER BY priority DESC, created_at ASC
             LIMIT 1
