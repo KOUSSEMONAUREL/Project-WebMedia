@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 import crypto from 'crypto';
 
@@ -25,10 +25,10 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
     try {
         const start = await getOffset(KEY, databaseUrl, 0);
 
-        const response = await axios.post(API,
+        const response = await withRetry(() => axios.post(API,
             `draw=1&start=${start}&length=${limit}&columns[0][data]=0&columns[1][data]=1&columns[2][data]=2&columns[3][data]=3&columns[4][data]=4`,
-            { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
+            { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 20000 }
+        ));
 
         const total = response.data.recordsTotal ?? 0;
         const rows: string[][] = response.data.data ?? [];

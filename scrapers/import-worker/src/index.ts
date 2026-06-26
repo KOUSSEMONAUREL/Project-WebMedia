@@ -59,9 +59,6 @@ async function startApp() {
         await importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
       }
 
-      console.log('Syncing Neon to Turso...');
-      await syncNeonToTurso(databaseUrl, tursoUrl, tursoToken);
-
       if (twitchId && twitchSecret) {
         console.log('IGDB...');
         await importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
@@ -79,6 +76,9 @@ async function startApp() {
 
       console.log('AniList...');
       await importAnime(databaseUrl, LIMIT);
+
+      console.log('Syncing Neon to Turso...');
+      await syncNeonToTurso(databaseUrl, tursoUrl, tursoToken);
 
       console.log('One-Shot run completed.');
       process.exit(0);
