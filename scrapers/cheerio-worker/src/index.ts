@@ -69,17 +69,6 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
   return links.length;
 }
 
-async function handleWebtoon(mediaId: string, title: string, metadataSource?: string | null): Promise<number> {
-  try {
-    const { processMedia } = await import('../../webtoons/src/worker');
-    const result = await processMedia({ id: mediaId, title, slug: '', type: 'webtoon', metadataSource: metadataSource || undefined });
-    return result.chaptersSaved;
-  } catch (err: any) {
-    console.error(`  ❌ Webtoon pipeline error: ${err.message}`);
-    return 0;
-  }
-}
-
 // ========== BOUCLE PRINCIPALE (One-Shot) ==========
 export async function startWorker() {
   console.log('🚀 Cheerio Worker (One-Shot)');
@@ -113,12 +102,10 @@ export async function startWorker() {
 
       let savedLinks = 0;
 
-      if (['webtoon', 'comic', 'manga'].includes(mediaType)) {
-        savedLinks = await handleWebtoon(mediaId, title, media?.metadata_source);
-      } else if (['film', 'serie', 'anime'].includes(mediaType)) {
+      if (['film', 'serie', 'anime'].includes(mediaType)) {
         savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id);
-      } else if (mediaType === 'book') {
-        console.log('  ℹ️ Book: liens déjà sauvegardés pendant l\'import');
+      } else if (['webtoon', 'comic', 'manga', 'book'].includes(mediaType)) {
+        console.log(`  ℹ️ ${mediaType}: liens déjà sauvegardés pendant l'import`);
         savedLinks = 1;
       } else {
         console.log(`  ⏭️ Type non géré: ${mediaType}`);
