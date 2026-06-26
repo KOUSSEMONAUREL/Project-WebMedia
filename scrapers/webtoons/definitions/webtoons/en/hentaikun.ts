@@ -13,8 +13,8 @@ export class HentaikunScraper extends BaseScraper {
       const title = anchor.text();
       const url = this.absUrl(anchor.attr('href') || '');
       const thumbHtml = anchor.attr('title') || '';
-      const $thumb = this.$(thumbHtml);
-      const thumbnailUrl = this.absUrl($thumb.find('img').attr('src') || '');
+      const $thumb = thumbHtml ? this.$(thumbHtml) : null;
+      const thumbnailUrl = $thumb ? this.absUrl($thumb('img').attr('src') || '') : '';
       return { title, url, thumbnailUrl, lang: 'en' };
     }).filter(m => m.title);
   }
@@ -87,9 +87,9 @@ export class HentaikunScraper extends BaseScraper {
     if (!firstImageUrl) throw new Error('Could not find any images for this chapter.');
     const totalPages = $('label:contains(Page) + select option').length || $('select[onchange]').last().find('option').length || 0;
     if (totalPages === 0) return [{ index: 0, imageUrl: firstImageUrl }];
-    const basePath = firstImageUrl.substringBeforeLast('/') + '/';
-    const fileName = firstImageUrl.substringAfterLast('/').substringBeforeLast('.');
-    const ext = firstImageUrl.substringAfterLast('.');
+    const basePath = firstImageUrl.replace(/\/[^/]*$/, '') + '/';
+    const fileName = firstImageUrl.split('/').pop()?.replace(/\.[^.]+$/, '') || '';
+    const ext = firstImageUrl.split('.').pop() || '';
     const prefix = fileName.replace(/\d+$/, '');
     const numberPart = fileName.substring(prefix.length);
     const padLength = numberPart.length;

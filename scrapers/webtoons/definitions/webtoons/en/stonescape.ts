@@ -1,20 +1,22 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
+const j = (d: any) => typeof d === 'string' ? JSON.parse(d) : d;
+
 export class StoneScapeScraper extends BaseScraper {
   readonly name = 'StoneScape';
   readonly baseUrl = 'https://stonescape.xyz';
   readonly lang = 'en';
-  private readonly apiUrl = '$baseUrl/api';
+  private readonly apiUrl = `${this.baseUrl}/api`;
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.apiUrl}/series/popular?page=$page&period=week&contentType=manhwa&limit=24`);
-    const data = JSON.parse(res.data);
+    const res = await this.get(`${this.apiUrl}/series/popular?page=${page}&period=week&contentType=manhwa&limit=24`);
+    const data = j(res.data);
     const mangaList = data.data || [];
     const mangas: Manga[] = mangaList.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
+      title: item.title || "",
+      url: `/series/${item.slug}`,
+      thumbnailUrl: this.absUrl(item.coverUrl || item.cover_url || ""),
       lang: this.lang,
     }));
     const hasNextPage = false;
@@ -22,18 +24,18 @@ export class StoneScapeScraper extends BaseScraper {
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.apiUrl}/series?page=$page&limit=24&contentType=manhwa`);
-    const data = JSON.parse(res.data);
+    const res = await this.get(`${this.apiUrl}/series?page=${page}&limit=24&contentType=manhwa`);
+    const data = j(res.data);
     const mangaList = data.data || [];
-    const sorted = [...mangaList].sort((a, b) => {
-      const dateA = a.updated_at || a.updatedAt || "";
-      const dateB = b.updated_at || b.updatedAt || "";
+    const sorted = [...mangaList].sort((a: any, b: any) => {
+      const dateA = a.updatedAt || a.updated_at || "";
+      const dateB = b.updatedAt || b.updated_at || "";
       return dateB.localeCompare(dateA);
     });
     const mangas: Manga[] = sorted.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
+      title: item.title || "",
+      url: `/series/${item.slug}`,
+      thumbnailUrl: this.absUrl(item.coverUrl || item.cover_url || ""),
       lang: this.lang,
     }));
     const hasNextPage = false;
@@ -45,37 +47,40 @@ export class StoneScapeScraper extends BaseScraper {
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
+    const slug = mangaUrl.split('/').filter(Boolean).pop() || '';
+    const res = await this.get(`${this.apiUrl}/series/by-slug/${slug}`);
+    const data = j(res.data);
     return {
-      title: detail?.name || detail?.title || detail?.postTitle || "",
+      title: data?.title || data?.name || "",
       url: mangaUrl,
-      thumbnailUrl: this.absUrl(detail?.cover || detail?.cover_url || detail?.thumbnail_url || detail?.featuredImage || ""),
-      description: (detail?.summary || detail?.description || detail?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: detail?.author || undefined,
+      thumbnailUrl: this.absUrl(data?.coverUrl || data?.cover || data?.thumbnail_url || ""),
+      description: (data?.description || data?.summary || "").replace(/<[^>]*>/g, "").trim() || undefined,
+      author: data?.author || data?.artist || undefined,
       lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
-    const chapters = data?.chapters || data?.data || [];
+    const slug = mangaUrl.split('/').filter(Boolean).pop() || '';
+    const res = await this.get(`${this.apiUrl}/series/by-slug/${slug}/chapters`);
+    const data = j(res.data);
+    const chapters = data?.chapters || [];
     return (Array.isArray(chapters) ? chapters : []).map((ch: any) => ({
-      name: ch.name || ch.title || `Chapter ${ch.chapter_number || ch.number || ""}`,
-      url: ch.url || ch.id?.toString() || ch.slug || "",
-      chapterNumber: ch.chapter_number || ch.number || undefined,
-      dateUpload: ch.created_at || ch.published || ch.date_upload ? new Date(ch.created_at || ch.published || ch.date_upload).getTime() : undefined,
+      name: ch.title || `Chapter ${ch.chapterNumber || ""}`,
+      url: `#${ch.chapterId}`,
+      chapterNumber: ch.chapterNumber ? parseFloat(ch.chapterNumber) : undefined,
+      dateUpload: ch.createdAt ? new Date(ch.createdAt).getTime() : undefined,
     }));
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(chapterUrl);
-    const data = JSON.parse(res.data);
-    const pages = data?.pages || data?.data || [];
-    return (Array.isArray(pages) ? pages : []).map((url: string, index: number) => ({
-      index,
-      imageUrl: this.absUrl(typeof url === "string" ? url : url.url || url.imageUrl || ""),
+    const chapterId = chapterUrl.substring(1);
+    const res = await this.get(`${this.apiUrl}/chapters/${chapterId}/pages`);
+    const data = j(res.data);
+    const pages = data?.allPages || data?.pages || data?.data || [];
+    return (Array.isArray(pages) ? pages : []).map((page: any, index: number) => ({
+      index: page.pageNumber ? page.pageNumber - 1 : index,
+      imageUrl: this.absUrl(page.url || page.imageUrl || ""),
     }));
   }
 }

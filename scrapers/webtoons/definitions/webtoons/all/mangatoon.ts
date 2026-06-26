@@ -21,8 +21,8 @@ export class MangaToonScraper extends BaseScraper {
 
   async getPopular(page: number): Promise<SearchResult> {
     const path = 'hot';
-    const html = await this.get(`${this.baseUrl}/en/genre/${path}?type=1&page=${page - 1}`);
-    const $ = this.$(html);
+    const res = await this.get(`${this.baseUrl}/en/genre/${path}?type=1&page=${page - 1}`);
+    const $ = this.$(res.data);
     const mangas: Manga[] = $('div.genre-content div.items a').map((_: any, el: any) => this.mangaFromElement($(el))).get();
     const hasNextPage = $('span.next').length > 0;
     return { mangas, hasNextPage };
@@ -33,8 +33,8 @@ export class MangaToonScraper extends BaseScraper {
   }
 
   async getSearch(query: string, page?: number): Promise<SearchResult> {
-    const html = await this.get(`${this.baseUrl}/en/search?word=${encodeURIComponent(query)}`);
-    const $ = this.$(html);
+    const res = await this.get(`${this.baseUrl}/en/search?word=${encodeURIComponent(query)}`);
+    const $ = this.$(res.data);
     const mangas: Manga[] = $('div.comics-result div.recommend-item:has(a[abs\\:href^="' + this.baseUrl + '"])').map((_: any, el: any) => {
       const $el = $(el);
       return {
@@ -48,8 +48,8 @@ export class MangaToonScraper extends BaseScraper {
   }
 
   async getMangaDetail(mangaUrl: string): Promise<Manga> {
-    const html = await this.get(mangaUrl);
-    const $ = this.$(html);
+    const res = await this.get(mangaUrl);
+    const $ = this.$(res.data);
     const locale = 'en';
     const manga: Manga = {
       title: '',
@@ -71,8 +71,8 @@ export class MangaToonScraper extends BaseScraper {
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const html = await this.get(mangaUrl + '/episodes');
-    const $ = this.$(html);
+    const res = await this.get(mangaUrl + '/episodes');
+    const $ = this.$(res.data);
     const chapterList: Chapter[] = $('a.episode-item-new').map((_: any, el: any) => {
       const $el = $(el);
       return {
@@ -99,8 +99,8 @@ export class MangaToonScraper extends BaseScraper {
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const html = await this.get(chapterUrl);
-    const $ = this.$(html);
+    const res = await this.get(chapterUrl);
+    const $ = this.$(res.data);
     const pages = $('div.pictures div img:first-child').map((i: number, el: any) => ({
       index: i,
       url: this.imgAttr($(el)),
@@ -124,8 +124,8 @@ export class MangaToonScraper extends BaseScraper {
     return attr ? $el.attr('abs:data-src') : $el.attr('abs:src');
   }
 
-  private normalPosterUrl(url: string): string {
-    return url.replace(POSTER_SUFFIX, '$1');
+  private normalPosterUrl(url: string | undefined): string {
+    return url ? url.replace(POSTER_SUFFIX, '$1') : '';
   }
 
   private toStatus(status: string): number {

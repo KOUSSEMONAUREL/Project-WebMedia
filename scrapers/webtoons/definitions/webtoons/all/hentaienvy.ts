@@ -9,7 +9,7 @@ export class HentaiEnvyScraper extends BaseScraper {
   readonly supportsLatest = true;
 
   async getPopular(page: number = 1): Promise<SearchResult> {
-    const url = this.buildPageUrl('/popular/', page);
+    const url = this.buildPageUrl('/', page);
     const res = await this.get(url);
     return this.parseListing(res.data);
   }

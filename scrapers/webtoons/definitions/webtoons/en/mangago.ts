@@ -3,11 +3,11 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 export class MangagoScraper extends BaseScraper {
   readonly name = 'Mangago';
-  readonly baseUrl = 'https://www.$domain';
+  readonly baseUrl = 'https://www.mangago.net';
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/genre/all/$page/?f=1&o=1&sortby=view&e=`);
+    const res = await this.get(`${this.baseUrl}/genre/all/${page}/?f=1&o=1&sortby=view&e=`);
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
     $("a").each((_, el) => {

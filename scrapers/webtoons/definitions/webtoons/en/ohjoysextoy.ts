@@ -7,7 +7,7 @@ export class OhJoySexToyScraper extends BaseScraper {
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/category/comic/page/$page/`);
+    const res = await this.get(`${this.baseUrl}/category/comic/page/${page}/`);
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
     $("a").each((_, el) => {

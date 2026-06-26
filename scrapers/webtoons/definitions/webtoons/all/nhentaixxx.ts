@@ -10,7 +10,7 @@ export class NHentaiXXXScraper extends BaseScraper {
   readonly idPrefixUri = 'g';
 
   async getPopular(page: number = 1): Promise<SearchResult> {
-    const url = this.buildPageUrl(`/popular/`, page);
+    const url = this.buildPageUrl(`/`, page);
     const res = await this.get(url);
     return this.parseListing(res.data);
   }
@@ -28,8 +28,7 @@ export class NHentaiXXXScraper extends BaseScraper {
   }
 
   private buildPageUrl(base: string, page: number): string {
-    const separator = base.endsWith('/') ? '' : '/';
-    return page > 1 ? `${base}${separator}page/${page}/` : base;
+    return page > 1 ? `${base}?page=${page}` : base;
   }
 
   private parseListing(html: string): SearchResult {

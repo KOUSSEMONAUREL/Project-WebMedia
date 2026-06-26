@@ -7,16 +7,19 @@ export class DoujinsScraper extends BaseScraper {
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}${popularityPeriodFilter.toUriPart()}`);
-    const data = JSON.parse(res.data);
-    const mangaList = data || [];
-    const mangas: Manga[] = mangaList.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
-      lang: this.lang,
-    }));
-    const hasNextPage = false;
+    const res = await this.get(`${this.baseUrl}/top/month`);
+    const $ = this.$(res.data);
+    const mangas: Manga[] = $('div:not(.premium-folder) > .thumbnail-doujin a.gallery-visited-from-favorites').toArray().map(el => {
+      const $el = $(el);
+      const url = this.absUrl($el.attr('href') || '');
+      const title = $el.find('div.title .text').text();
+      const imgUrl = $el.find('img').attr('srcset') || $el.find('img').attr('src') || '';
+      const thumbnailUrl = this.absUrl(imgUrl);
+      const artist = $el.parent()?.next()?.find('.single-line strong').last()?.text()?.replace('Artist: ', '') || '';
+      return { title, url, thumbnailUrl, artist: artist || undefined, lang: this.lang };
+    });
+    const pagination = $('.pagination').first();
+    const hasNextPage = pagination.length > 0 && !pagination.find('li.page-item:last-child').hasClass('disabled');
     return { mangas, hasNextPage };
   }
 
@@ -30,36 +33,37 @@ export class DoujinsScraper extends BaseScraper {
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
-    return {
-      title: detail?.name || detail?.title || detail?.postTitle || "",
-      url: mangaUrl,
-      thumbnailUrl: this.absUrl(detail?.cover || detail?.cover_url || detail?.thumbnail_url || detail?.featuredImage || ""),
-      description: (detail?.summary || detail?.description || detail?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: detail?.author || undefined,
-      lang: this.lang,
-    };
+    const $ = this.$(res.data);
+    const title = $('.folder-title a').last().text();
+    const artist = $('.gallery-artist a').toArray().map(el => $(el).text()).join(', ');
+    const genre = $('.tag-area').first().find('a').toArray().map(el => $(el).text()).join(', ');
+    return { title, url: mangaUrl, author: artist || undefined, genre: genre || undefined, lang: this.lang };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
-    const chapters = data?.chapters || data?.data || [];
-    return (Array.isArray(chapters) ? chapters : []).map((ch: any) => ({
-      name: ch.name || ch.title || `Chapter ${ch.chapter_number || ch.number || ""}`,
-      url: ch.url || ch.id?.toString() || ch.slug || "",
-      chapterNumber: ch.chapter_number || ch.number || undefined,
-      dateUpload: ch.created_at || ch.published || ch.date_upload ? new Date(ch.created_at || ch.published || ch.date_upload).getTime() : undefined,
-    }));
+    const $ = this.$(res.data);
+    const scanlator = $('div.folder-message:contains(Translated)').text().split('by:').pop()?.trim();
+    const dateText = $('.text-md-right.text-sm-left > .folder-message').first().text().split(' • ')[0];
+    const dateUpload = dateText ? new Date(dateText).getTime() || undefined : undefined;
+    return [{
+      name: 'Chapter',
+      url: mangaUrl,
+      scanlator: scanlator || undefined,
+      dateUpload,
+    }];
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
-    const data = JSON.parse(res.data);
-    const pages = data?.pages || data?.data || [];
-    return (Array.isArray(pages) ? pages : []).map((url: string, index: number) => ({
-      index,
-      imageUrl: this.absUrl(typeof url === "string" ? url : url.url || url.imageUrl || ""),
-    }));
+    const $ = this.$(res.data);
+    return $('.doujin').toArray().map((el, index) => {
+      const $el = $(el);
+      const dataLink = $el.attr('data-link') || '';
+      return {
+        index,
+        imageUrl: this.absUrl(`${chapterUrl}${dataLink}`),
+      };
+    });
   }
 }

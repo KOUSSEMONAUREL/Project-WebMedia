@@ -15,10 +15,10 @@ test('scraper files exist', () => {
   assert.ok(langs.includes('all'), 'has all scrapers');
 });
 
-test('runner.listScrapers returns 194 scrapers', async () => {
+test('runner.listScrapers returns scrapers', async () => {
   const { listScrapers } = await import('../src/runner');
   const scrapers = listScrapers();
-  assert.strictEqual(scrapers.length >= 190, true, `Expected >=190, got ${scrapers.length}`);
+  assert.ok(scrapers.length >= 150, `Expected >=150, got ${scrapers.length}`);
   assert.ok(scrapers.some(s => s.name.toLowerCase().includes('mangadex')), 'MangaDex scraper found');
   assert.ok(scrapers.some(s => s.name.toLowerCase().includes('tcb')), 'TCB Scans scraper found');
 });

@@ -27,7 +27,7 @@ export class MangarawclubScraper extends BaseScraper {
     return { mangas, hasNextPage };
   }
   private async parseSearch(html: string): Promise<SearchResult> {
-    const data = JSON.parse(html);
+    const data = typeof html === 'string' ? JSON.parse(html) : html;
     const $ = this.$(data.html || data.results_html);
     const mangas: Manga[] = $('.comic-card').toArray().map(el => {
       const $el = $(el);
@@ -46,7 +46,7 @@ export class MangarawclubScraper extends BaseScraper {
     if (!$('.novel-header').length) throw new Error('Page not found');
     const author = $('.author a').attr('title')?.trim();
     const description = $('.description').text();
-    const genre = $('.categories a[href*=genre]').toArray().map(el => $(el).ownText().trim()).join(', ');
+    const genre = $('.categories a[href*=genre]').toArray().map(el => $(el).text().trim()).join(', ');
     const thumbnailUrl = this.absUrl($('.cover img').attr('data-src') || $('.cover img').attr('src') || '');
     return { url: mangaUrl, lang: 'en', author: author?.toLowerCase() !== 'updating' ? author : undefined, description: description || undefined, thumbnailUrl };
   }
@@ -58,7 +58,7 @@ export class MangarawclubScraper extends BaseScraper {
       const $el = $(el);
       const link = $el.find('a');
       const chapterUrl = this.absUrl(link.attr('href') || '');
-      const chapterName = $el.find('.chapter-title, .chapter-number').first().ownText().replace('-eng-li', '');
+      const chapterName = $el.find('.chapter-title, .chapter-number').first().text().replace('-eng-li', '');
       const name = `Chapter ${chapterName}`;
       const dateStr = $el.find('.chapter-update').attr('datetime');
       const dateUpload = dateStr ? new Date(dateStr).getTime() || undefined : undefined;

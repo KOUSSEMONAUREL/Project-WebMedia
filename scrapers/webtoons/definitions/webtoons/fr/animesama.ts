@@ -12,6 +12,14 @@ export class AnimeSamaScraper extends BaseScraper {
   private static readonly NEW_SP_RE = /newSP\((?:\d+(?:\.\d+)?|"(.*?)")\)/g;
   private static readonly SCANS_RE = /(Scans|\(|\))/g;
 
+  async getPopular(page = 1): Promise<SearchResult> {
+    return this.getSearch('', page);
+  }
+
+  async getLatest(page = 1): Promise<SearchResult> {
+    return this.getSearch('', page);
+  }
+
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const res = await this.get('/catalogue', {
       params: { 'type[0]': 'Scans', search: query, page: String(page) },

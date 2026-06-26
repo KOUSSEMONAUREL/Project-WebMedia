@@ -1,6 +1,8 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
+const j = (d: any) => typeof d === 'string' ? JSON.parse(d) : d;
+
 export class AzukiScraper extends BaseScraper {
   readonly name = 'Omoi';
   readonly baseUrl = 'https://www.omoi.com';
@@ -8,74 +10,103 @@ export class AzukiScraper extends BaseScraper {
   private readonly apiUrl = 'https://production.api.azuki.co';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/discover?sort=popular&page=$page`);
-    const data = JSON.parse(res.data);
-    const mangaList = data.data || [];
-    const mangas: Manga[] = mangaList.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
-      lang: this.lang,
-    }));
-    const hasNextPage = false;
+    const res = await this.get(`${this.baseUrl}/discover?sort=popular&page=${page}`);
+    const $ = this.$(res.data);
+    const mangas: Manga[] = $('ol.o-series-card-list li').toArray().map(el => {
+      const $el = $(el);
+      const link = $el.find('a.a-card-link').first();
+      const gaId = link.attr('data-ga-item-id') || '';
+      const uuid = gaId.replace('series-', '');
+      const href = link.attr('href') || '';
+      const slug = href.split('/').filter(Boolean).pop() || '';
+      const title = link.text();
+      const thumbnailUrl = this.absUrl($el.find('img').first().attr('src') || '');
+      return { title, url: `${slug}#${uuid}`, thumbnailUrl, lang: this.lang };
+    });
+    const hasNextPage = $('a[rel=next]').length > 0;
     return { mangas, hasNextPage };
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/discover?sort=recent_series&page=$page`);
-    const data = JSON.parse(res.data);
-    const mangaList = data.data || [];
-    const sorted = [...mangaList].sort((a, b) => {
-      const dateA = a.updated_at || a.updatedAt || "";
-      const dateB = b.updated_at || b.updatedAt || "";
-      return dateB.localeCompare(dateA);
+    const res = await this.get(`${this.baseUrl}/discover?sort=recent_series&page=${page}`);
+    const $ = this.$(res.data);
+    const mangas: Manga[] = $('ol.o-series-card-list li').toArray().map(el => {
+      const $el = $(el);
+      const link = $el.find('a.a-card-link').first();
+      const gaId = link.attr('data-ga-item-id') || '';
+      const uuid = gaId.replace('series-', '');
+      const href = link.attr('href') || '';
+      const slug = href.split('/').filter(Boolean).pop() || '';
+      const title = link.text();
+      const thumbnailUrl = this.absUrl($el.find('img').first().attr('src') || '');
+      return { title, url: `${slug}#${uuid}`, thumbnailUrl, lang: this.lang };
     });
-    const mangas: Manga[] = sorted.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
-      lang: this.lang,
-    }));
-    const hasNextPage = false;
+    const hasNextPage = $('a[rel=next]').length > 0;
     return { mangas, hasNextPage };
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
-    return { mangas: [], hasNextPage: false };
+    const res = await this.get(`${this.baseUrl}/discover?q=${encodeURIComponent(query)}&page=${page}`);
+    const $ = this.$(res.data);
+    const mangas: Manga[] = $('ol.o-series-card-list li').toArray().map(el => {
+      const $el = $(el);
+      const link = $el.find('a.a-card-link').first();
+      const gaId = link.attr('data-ga-item-id') || '';
+      const uuid = gaId.replace('series-', '');
+      const href = link.attr('href') || '';
+      const slug = href.split('/').filter(Boolean).pop() || '';
+      const title = link.text();
+      const thumbnailUrl = this.absUrl($el.find('img').first().attr('src') || '');
+      return { title, url: `${slug}#${uuid}`, thumbnailUrl, lang: this.lang };
+    });
+    const hasNextPage = $('a[rel=next]').length > 0;
+    return { mangas, hasNextPage };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
+    const slug = mangaUrl.split('#')[0];
+    const res = await this.get(`${this.apiUrl}/manga/slug/${slug}/v0`, {
+      headers: { Referer: `${this.baseUrl}/`, Origin: this.baseUrl, 'azuki-organization-key': '199e5a19-a236-49f5-81f4-43d4a541748a' },
+    });
+    const data = j(res.data);
     return {
-      title: detail?.name || detail?.title || detail?.postTitle || "",
+      title: data?.name || data?.title || "",
       url: mangaUrl,
-      thumbnailUrl: this.absUrl(detail?.cover || detail?.cover_url || detail?.thumbnail_url || detail?.featuredImage || ""),
-      description: (detail?.summary || detail?.description || detail?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: detail?.author || undefined,
+      thumbnailUrl: this.absUrl(data?.cover || data?.cover_url || data?.thumbnail_url || data?.featuredImage || ""),
+      description: (data?.summary || data?.description || "").replace(/<[^>]*>/g, "").trim() || undefined,
+      author: data?.author || undefined,
       lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
-    const chapters = data?.chapters || data?.data || [];
+    const uuid = mangaUrl.split('#')[1];
+    const slug = mangaUrl.split('#')[0];
+    if (!uuid) return [];
+    const res = await this.get(`${this.apiUrl}/mangas/${uuid}/chapters/v4?order=ascending&count=1000`, {
+      headers: { Referer: `${this.baseUrl}/`, Origin: this.baseUrl, 'azuki-organization-key': '199e5a19-a236-49f5-81f4-43d4a541748a' },
+    });
+    const data = j(res.data);
+    const chapters = data?.chapters || [];
     return (Array.isArray(chapters) ? chapters : []).map((ch: any) => ({
       name: ch.name || ch.title || `Chapter ${ch.chapter_number || ch.number || ""}`,
-      url: ch.url || ch.id?.toString() || ch.slug || "",
+      url: `${ch.uuid}#${slug}`,
       chapterNumber: ch.chapter_number || ch.number || undefined,
       dateUpload: ch.created_at || ch.published || ch.date_upload ? new Date(ch.created_at || ch.published || ch.date_upload).getTime() : undefined,
     }));
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(chapterUrl);
-    const data = JSON.parse(res.data);
-    const pages = data?.pages || data?.data || [];
-    return (Array.isArray(pages) ? pages : []).map((url: string, index: number) => ({
+    const chapterUuid = chapterUrl.split('#')[0];
+    const res = await this.get(`${this.apiUrl}/chapters/${chapterUuid}/pages/v1`, {
+      headers: { Referer: `${this.baseUrl}/`, Origin: this.baseUrl, 'azuki-organization-key': '199e5a19-a236-49f5-81f4-43d4a541748a' },
+    });
+    const data = j(res.data);
+    const result = data?.data || data;
+    const pages = result?.pages || [];
+    return (Array.isArray(pages) ? pages : []).map((page: any, index: number) => ({
       index,
-      imageUrl: this.absUrl(typeof url === "string" ? url : url.url || url.imageUrl || ""),
+      imageUrl: page.image?.webp ? page.image.webp.sort((a: any, b: any) => b.width - a.width)[0]?.url : (typeof page === 'string' ? page : page.url || ''),
     }));
   }
 }

@@ -6,6 +6,28 @@ export class AstralMangaScraper extends BaseScraper {
     readonly baseUrl = 'https://astral-manga.fr';
     readonly lang = 'fr';
 
+    async getPopular(page = 1): Promise<SearchResult> {
+        try {
+            const res = await this.get('/api/mangas', {
+                params: { page: String(page), pageSize: '12', sortBy: 'views', sortOrder: 'desc' }
+            });
+            return this._parseMangaApiResponse(res.data);
+        } catch {
+            return { mangas: [], hasNextPage: false };
+        }
+    }
+
+    async getLatest(page = 1): Promise<SearchResult> {
+        try {
+            const res = await this.get('/api/mangas', {
+                params: { page: String(page), pageSize: '12', sortBy: 'createdAt', sortOrder: 'desc' }
+            });
+            return this._parseMangaApiResponse(res.data);
+        } catch {
+            return { mangas: [], hasNextPage: false };
+        }
+    }
+
     async getSearch(query: string, page = 1): Promise<SearchResult> {
         const res = await this.get('/api/mangas', {
             params: { page: String(page), pageSize: '12', sortBy: 'title', sortOrder: 'asc', query }

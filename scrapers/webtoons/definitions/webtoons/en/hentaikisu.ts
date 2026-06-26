@@ -1,41 +1,36 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
+const j = (d: any) => typeof d === 'string' ? JSON.parse(d) : d;
+
 export class HentaiKisuScraper extends BaseScraper {
   readonly name = 'HentaiKisu';
   readonly baseUrl = 'https://hentaikisu.com';
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/backend/infinite.index.php?p=$page`);
-    const data = JSON.parse(res.data);
-    const mangaList = data.data || [];
-    const mangas: Manga[] = mangaList.map((item: any) => ({
+    const res = await this.get(`${this.baseUrl}/backend/infinite.index.php?p=${page}`);
+    const mangaList = j(res.data);
+    const mangas: Manga[] = (Array.isArray(mangaList) ? mangaList : []).map((item: any) => ({
       title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
+      url: item.slug || item.id?.toString() || item.url || "",
+      thumbnailUrl: this.absUrl(item.img || item.cover_url || item.cover || item.thumbnail || ""),
       lang: this.lang,
     }));
-    const hasNextPage = false;
+    const hasNextPage = mangas.length > 0;
     return { mangas, hasNextPage };
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/backend/infinite.index.php?p=$page`);
-    const data = JSON.parse(res.data);
-    const mangaList = data.data || [];
-    const sorted = [...mangaList].sort((a, b) => {
-      const dateA = a.updated_at || a.updatedAt || "";
-      const dateB = b.updated_at || b.updatedAt || "";
-      return dateB.localeCompare(dateA);
-    });
-    const mangas: Manga[] = sorted.map((item: any) => ({
+    const res = await this.get(`${this.baseUrl}/backend/infinite.index.php?p=${page}`);
+    const mangaList = j(res.data);
+    const mangas: Manga[] = (Array.isArray(mangaList) ? mangaList : []).map((item: any) => ({
       title: item.title || item.name || "",
-      url: item.url || item.slug || item.id?.toString() || "",
-      thumbnailUrl: this.absUrl(item.cover_url || item.cover || item.thumbnail_url || item.thumbnail || ""),
+      url: item.slug || item.id?.toString() || item.url || "",
+      thumbnailUrl: this.absUrl(item.img || item.cover_url || item.cover || item.thumbnail || ""),
       lang: this.lang,
     }));
-    const hasNextPage = false;
+    const hasNextPage = mangas.length > 0;
     return { mangas, hasNextPage };
   }
 
@@ -45,20 +40,20 @@ export class HentaiKisuScraper extends BaseScraper {
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
+    const data = j(res.data);
     return {
-      title: detail?.name || detail?.title || detail?.postTitle || "",
+      title: data?.name || data?.title || data?.postTitle || "",
       url: mangaUrl,
-      thumbnailUrl: this.absUrl(detail?.cover || detail?.cover_url || detail?.thumbnail_url || detail?.featuredImage || ""),
-      description: (detail?.summary || detail?.description || detail?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: detail?.author || undefined,
+      thumbnailUrl: this.absUrl(data?.cover || data?.cover_url || data?.img || data?.thumbnail_url || data?.featuredImage || ""),
+      description: (data?.summary || data?.description || data?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
+      author: data?.author || undefined,
       lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const res = await this.get(mangaUrl);
-    const data = JSON.parse(res.data);
+    const data = j(res.data);
     const chapters = data?.chapters || data?.data || [];
     return (Array.isArray(chapters) ? chapters : []).map((ch: any) => ({
       name: ch.name || ch.title || `Chapter ${ch.chapter_number || ch.number || ""}`,
@@ -70,7 +65,7 @@ export class HentaiKisuScraper extends BaseScraper {
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
-    const data = JSON.parse(res.data);
+    const data = j(res.data);
     const pages = data?.pages || data?.data || [];
     return (Array.isArray(pages) ? pages : []).map((url: string, index: number) => ({
       index,

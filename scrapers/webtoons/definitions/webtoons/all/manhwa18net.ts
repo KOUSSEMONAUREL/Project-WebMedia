@@ -7,27 +7,27 @@ export class Manhwa18NetScraper extends BaseScraper {
   readonly lang = 'en';
 
   async getPopular(page: number): Promise<SearchResult> {
-    const html = await this.get(`${this.baseUrl}/manga-list?sort=top&page=${page}`);
-    return this.parseList(html);
+    const res = await this.get(`${this.baseUrl}/manga-list?sort=top&page=${page}`);
+    return this.parseList(res.data);
   }
 
   async getLatest(page: number): Promise<SearchResult> {
-    const html = await this.get(`${this.baseUrl}/manga-list?sort=update&page=${page}`);
-    return this.parseList(html);
+    const res = await this.get(`${this.baseUrl}/manga-list?sort=update&page=${page}`);
+    return this.parseList(res.data);
   }
 
   async getSearch(query: string, page?: number): Promise<SearchResult> {
     const url = query
       ? `${this.baseUrl}/tim-kiem?q=${encodeURIComponent(query)}&page=${page || 1}`
       : `${this.baseUrl}/manga-list?page=${page || 1}`;
-    const html = await this.get(url);
-    return this.parseList(html);
+    const res = await this.get(url);
+    return this.parseList(res.data);
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const fullUrl = mangaUrl.startsWith('http') ? mangaUrl : `${this.baseUrl}${mangaUrl}`;
-    const html = await this.get(fullUrl);
-    const $ = this.$(html);
+    const res = await this.get(fullUrl);
+    const $ = this.$(res.data);
     const appEl = $('#app');
     const dataJson = appEl.attr('data-page');
     if (!dataJson) throw new Error('Could not find data-page attribute');
@@ -40,14 +40,14 @@ export class Manhwa18NetScraper extends BaseScraper {
     return chapters.map((ch: any) => ({
       name: ch.name,
       url: `/manga/${manga.slug}/${ch.slug}`,
-      date_upload: this.parseDate(ch.created_at),
+      dateUpload: this.parseDate(ch.created_at),
     }));
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const fullUrl = chapterUrl.startsWith('http') ? chapterUrl : `${this.baseUrl}${chapterUrl}`;
-    const html = await this.get(fullUrl);
-    const $ = this.$(html);
+    const res = await this.get(fullUrl);
+    const $ = this.$(res.data);
     const appEl = $('#app');
     const dataJson = appEl.attr('data-page');
     if (!dataJson) throw new Error('Could not find data-page attribute');
@@ -64,17 +64,17 @@ export class Manhwa18NetScraper extends BaseScraper {
       if (src) {
         const fixedUrl = this.fixImageUrl(src);
         if (fixedUrl) {
-          pages.push({ index: i, url: fixedUrl });
+          pages.push({ index: i, imageUrl: fixedUrl });
         }
       }
     });
     return pages;
   }
 
-  async getMangaDetail(mangaUrl: string): Promise<Manga> {
+  async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const fullUrl = mangaUrl.startsWith('http') ? mangaUrl : `${this.baseUrl}${mangaUrl}`;
-    const html = await this.get(fullUrl);
-    const $ = this.$(html);
+    const res = await this.get(fullUrl);
+    const $ = this.$(res.data);
     const appEl = $('#app');
     const dataJson = appEl.attr('data-page');
     if (!dataJson) throw new Error('Could not find data-page attribute');
@@ -88,19 +88,14 @@ export class Manhwa18NetScraper extends BaseScraper {
         ? this.$(manga.description).text()
         : undefined;
 
-    let status = 0;
-    if (manga.status_id === 0) status = 1;
-    else if (manga.status_id === 1 || manga.status_id === 2) status = 2;
-
     return {
       title: manga.name,
-      thumbnail_url: this.fixImageUrl(manga.cover_url || manga.thumb_url),
+      thumbnailUrl: this.fixImageUrl(manga.cover_url || manga.thumb_url),
       genre: (manga.genres || []).map((g: any) => g.name).join(', '),
       author: (manga.artists || []).map((a: any) => a.name).join(', ') || undefined,
-      artist: (manga.artists || []).map((a: any) => a.name).join(', ') || undefined,
       url: fullUrl,
       description,
-      status,
+      lang: this.lang,
     };
   }
 
@@ -118,7 +113,8 @@ export class Manhwa18NetScraper extends BaseScraper {
     const mangas: Manga[] = listing.data.map((m: any) => ({
       title: m.name,
       url: `/manga/${m.slug}`,
-      thumbnail_url: this.fixImageUrl(m.cover_url || m.thumb_url),
+      thumbnailUrl: this.fixImageUrl(m.cover_url || m.thumb_url) || '',
+      lang: this.lang,
     }));
 
     return { mangas, hasNextPage: listing.next_page_url != null };

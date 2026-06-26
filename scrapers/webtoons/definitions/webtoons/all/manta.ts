@@ -18,48 +18,51 @@ export class MantaScraper extends BaseScraper {
 
   async getSearch(query: string, page?: number): Promise<SearchResult> {
     const url = `${this.apiUrl}/manta/v1/search/series?lang=en${query ? `&q=${encodeURIComponent(query)}` : '&tagId=288'}`;
-    const data = await this.get(url);
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    const mangas: Manga[] = (result.data || []).map((item: any) => ({
+    const res = await this.get(url);
+    const json = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    const items = json.data || json.result || [];
+    const mangas: Manga[] = (Array.isArray(items) ? items : []).map((item: any) => ({
       title: this.seriesString(item, 'en'),
       url: item.id.toString(),
-      thumbnail_url: item.image?.toString() || '',
+      thumbnailUrl: item.image?.toString() || '',
+      lang: this.lang,
     }));
     return { mangas, hasNextPage: false };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const url = `${this.apiUrl}/front/v1/series/${mangaUrl}?lang=en`;
-    const data = await this.get(url);
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    const episodes = result.data?.data?.episodes || result.data?.episodes || [];
+    const res = await this.get(url);
+    const json = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    const seriesData = json.data?.data || json.data;
+    const episodes = seriesData?.episodes || [];
     return episodes
       .filter((ep: any) => !(ep.lockData && this.isLocked(ep.lockData)))
       .map((ep: any) => ({
         name: this.episodeString(ep, 'en'),
         url: ep.id.toString(),
-        date_upload: this.episodeTimestamp(ep),
-        chapter_number: ep.ord,
+        dateUpload: this.episodeTimestamp(ep),
+        chapterNumber: ep.ord,
       }))
       .reverse();
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const url = `${this.apiUrl}/front/v1/episodes/${chapterUrl}?lang=en`;
-    const data = await this.get(url);
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    const cutImages = result.data?.cutImages;
+    const res = await this.get(url);
+    const json = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    const cutImages = json.data?.cutImages;
     if (!cutImages) return [];
     return cutImages.map((img: any, idx: number) => ({
       index: idx,
-      url: img.toString(),
+      imageUrl: img.toString(),
     }));
   }
 
-  async getMangaDetail(mangaUrl: string): Promise<Manga> {
-    const data = await this.get(`${this.apiUrl}/front/v1/series/${mangaUrl}?lang=en`);
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    const seriesData = result.data?.data;
+  async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
+    const res = await this.get(`${this.apiUrl}/front/v1/series/${mangaUrl}?lang=en`);
+    const json = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    const seriesData = json.data?.data || json.data;
     if (!seriesData) throw new Error('Manga details not found');
 
     const artists = (seriesData.creators || [])
@@ -73,7 +76,7 @@ export class MantaScraper extends BaseScraper {
     }
 
     return {
-      title: result.data.asString?.('en') || '',
+      title: seriesData?.name || seriesData?.title || json.data?.asString?.('en') || '',
       url: mangaUrl,
       description: this.descriptionString(seriesData.description, 'en'),
       genre: (seriesData.tags || []).map((t: any) => this.tagString(t, 'en')).join(', '),

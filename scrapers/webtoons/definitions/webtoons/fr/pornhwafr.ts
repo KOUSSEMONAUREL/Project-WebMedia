@@ -10,13 +10,14 @@ export class PornhwafrScraper extends BaseScraper {
     private _parseMangaList(html: string): Manga[] {
         const $ = this.$(html);
         const mangas: Manga[] = [];
-        $('.cate-child, .page-item-detail, .item-thumb').each((_, el) => {
+        $('.listupd .bsx').each((_, el) => {
             const $el = $(el);
-            const title = $el.find('.h4 a, .post-title a, h3 a').first().text().trim() ||
-                          $el.attr('title') || '';
-            const url = $el.find('a').first().attr('href') || '';
-            const thumbnailUrl = $el.find('img').first().attr('src') ||
-                                 $el.find('img').first().attr('data-src') || '';
+            const a = $el.find('a').first();
+            const title = a.attr('title') || a.text().trim() || '';
+            const url = a.attr('href') || '';
+            const thumbnailUrl = $el.find('.limit img').first().attr('src') ||
+                                 $el.find('.limit img').first().attr('data-src') ||
+                                 $el.find('img').first().attr('src') || '';
             if (title && url) {
                 mangas.push({ title, url, thumbnailUrl, lang: this.lang });
             }
@@ -28,7 +29,7 @@ export class PornhwafrScraper extends BaseScraper {
         const res = await this.get(`${this.mangaUrlDirectory}/?page=${page}&order=popular`);
         const mangas = this._parseMangaList(res.data);
         const $ = this.$(res.data);
-        const hasNextPage = $('.next, .next.page-numbers').length > 0;
+        const hasNextPage = $('.nextprev a[rel=next], .next, .next.page-numbers').length > 0;
         return { mangas, hasNextPage };
     }
 
@@ -41,10 +42,10 @@ export class PornhwafrScraper extends BaseScraper {
     }
 
     async getSearch(query: string, page = 1): Promise<SearchResult> {
-        const res = await this.get(`/page/${page}/?s=${encodeURIComponent(query)}`);
+        const res = await this.get('/catalogue/', { params: { s: query, page: String(page) } });
         const mangas = this._parseMangaList(res.data);
         const $ = this.$(res.data);
-        const hasNextPage = $('.next, .next.page-numbers').length > 0;
+        const hasNextPage = $('.nextprev a[rel=next], .next, .next.page-numbers').length > 0;
         return { mangas, hasNextPage };
     }
 

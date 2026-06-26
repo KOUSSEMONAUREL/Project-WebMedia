@@ -21,7 +21,7 @@ export class MangahenScraper extends BaseScraper {
     const $ = this.$(html);
     const mangas: Manga[] = $('a[href^=/manga/]').toArray().map(el => {
       const $el = $(el);
-      const title = $el.find('h2').first().ownText();
+      const title = $el.find('h2').first().text();
       const url = this.absUrl($el.attr('href') || '');
       const thumbnailUrl = this.absUrl($el.find('img').attr('src') || '');
       return { title, url, thumbnailUrl, lang: 'en' };

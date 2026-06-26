@@ -8,16 +8,17 @@ export class HentaiscanreaderScraper extends BaseScraper {
 
   async getPopular(page = 1): Promise<SearchResult> {
     const res = await this.get('/', { params: { page: String(page) } });
-    return { mangas: this._parseMangaList(this.$(res.data)), hasNextPage: this._hasNextPage(res.data) };
+    return this._parseList(this.$(res.data), '.manga-card');
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    return this.getPopular(page);
+    const res = await this.get('/', { params: { page: String(page) } });
+    return this._parseList(this.$(res.data), '.manga-latest-card');
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const res = await this.get('/', { params: { s: query, page: String(page) } });
-    return { mangas: this._parseMangaList(this.$(res.data)), hasNextPage: this._hasNextPage(res.data) };
+    return this._parseList(this.$(res.data), '.manga-card, .manga-latest-card');
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
@@ -71,16 +72,18 @@ export class HentaiscanreaderScraper extends BaseScraper {
     return { title, thumbnailUrl: this.absUrl(thumbnailUrl), author, description, lang: this.lang };
   }
 
-  private _parseMangaList($: cheerio.CheerioAPI): Manga[] {
+  private _parseList($: any, selector: string): SearchResult {
     const mangas: Manga[] = [];
-    $('.page-item-detail, .bs div.bsx, .listupd article, .c-tabs-item__content, .row .item-thumb').each((_, el) => {
-      const a = $(el).find('a[href]').first();
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const a = $el.find('a').first();
       const href = a.attr('href') ?? '';
-      const title = a.attr('title') ?? a.text().trim();
-      const thumb = $(el).find('img').first().attr('data-src') ?? $(el).find('img').first().attr('src') ?? '';
-      if (title && href) mangas.push({ title, url: href, thumbnailUrl: this.absUrl(thumb), lang: this.lang });
+      const title = $el.find('h3').text().trim() || a.text().trim() || $el.find('h2').text().trim();
+      const thumb = $el.find('img').first().attr('data-lazy-src') ?? $el.find('img').first().attr('data-src') ?? $el.find('img').first().attr('src') ?? '';
+      if (title && href) mangas.push({ title, url: this.absUrl(href), thumbnailUrl: this.absUrl(thumb), lang: this.lang });
     });
-    return mangas;
+    const hasNextPage = $('.next, .nav-links a.next, a.next.page-numbers, .pagination .next').length > 0;
+    return { mangas, hasNextPage };
   }
 
   private _hasNextPage(html: string): boolean {

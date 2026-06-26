@@ -7,7 +7,7 @@ export class MangahereScraper extends BaseScraper {
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/directory/$page.htm`);
+    const res = await this.get(`${this.baseUrl}/directory/${page}.htm`);
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
     $("a").each((_, el) => {
@@ -23,7 +23,7 @@ export class MangahereScraper extends BaseScraper {
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/directory/$page.htm?latest`);
+    const res = await this.get(`${this.baseUrl}/directory/${page}.htm?latest`);
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
     return this.getPopular(page);

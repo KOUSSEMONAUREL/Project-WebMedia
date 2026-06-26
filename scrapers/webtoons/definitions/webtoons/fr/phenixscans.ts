@@ -40,7 +40,6 @@ interface SearchResultsDto {
 
 interface ChapterDetail {
     number: number;
-    price: number;
     createdAt: string;
 }
 
@@ -154,7 +153,6 @@ export class PhenixscansScraper extends BaseScraper {
         const body = res.data as MangaDetailDto;
         const chapters = body.chapters || [];
         return chapters
-            .filter(ch => ch.price === 0)
             .map(ch => ({
                 name: `Chapter ${ch.number}`,
                 url: `/manga/${slug}/chapter/${ch.number}`,
