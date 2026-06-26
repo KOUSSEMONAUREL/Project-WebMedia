@@ -76,7 +76,7 @@ graph TD
 | TMDB | film, serie | 20 (via `IMPORT_LIMIT`) |
 | AniList | anime | 20 |
 | IGDB | jeu | 20 |
-| Google Books | book | **10 par catégorie** (5 catégories, max 50 total) |
+| Google Books | book | **5 par catégorie** (5 catégories, max 25 total) |
 | Gutenberg | book | 20 |
 | OpenLibrary | book | 20 |
 | Comic Vine | comic | 20 |

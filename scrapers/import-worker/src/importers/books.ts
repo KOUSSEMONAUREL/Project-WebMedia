@@ -7,8 +7,8 @@ import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 const KEY = 'googlebooks';
-const PER_CATEGORY = 10;
-const MAX_CATEGORY_LIMIT = 10;
+const PER_CATEGORY = 5;
+const MAX_CATEGORY_LIMIT = 5;
 
 export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = PER_CATEGORY) {
     limit = Math.min(limit, MAX_CATEGORY_LIMIT);
