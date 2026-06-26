@@ -55,7 +55,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
                 type: 'anime', title, originalTitle: entry.title?.native,
                 slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
                 synopsis, posterUrl: entry.coverImage?.large,
-                externalId: `al-${entry.id}`, year: entry.startDate?.year,
+                externalId: `al-${entry.id}`, anilistId: entry.id, year: entry.startDate?.year,
                 metadataSource: 'anilist', metadataFreshAt: new Date()
             };
         });

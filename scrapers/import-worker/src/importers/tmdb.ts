@@ -60,6 +60,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
                     type: mediaType, title, originalTitle: item.original_title || item.original_name,
                     slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
                     synopsis: item.overview, posterUrl, externalId: `${category}-${item.id}`,
+                    tmdbId: item.id,
                     year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
                     metadataSource: 'tmdb', metadataFreshAt: new Date(),
                 };
