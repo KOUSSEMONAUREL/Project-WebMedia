@@ -227,8 +227,9 @@ def process_jobs():
     print("🐍 Playwright Worker active (Supabase + Sweep Mode)")
 
     jobs_processed = 0
+    max_jobs = 10
 
-    while (time.time() - start_time) < max_duration:
+    while (time.time() - start_time) < max_duration and jobs_processed < max_jobs:
         job_id = None
         try:
             cur = conn.cursor()

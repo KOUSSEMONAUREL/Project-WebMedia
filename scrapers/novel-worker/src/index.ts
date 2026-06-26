@@ -100,29 +100,36 @@ async function processJob(job: any) {
 }
 
 async function runOneShot() {
-    console.log('🤖 Novel Worker One-Shot Debug Mode...');
-    try {
-        const [job] = await supabaseClient`
-            UPDATE scraping_jobs
-            SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
-            WHERE id = (
-                SELECT id FROM scraping_jobs
-                WHERE status = 'pending' AND worker_type = 'novel'
-                ORDER BY priority DESC, created_at ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            )
-            RETURNING id, media_id, media_type, title, slug, attempts
-        `;
+    console.log('🤖 Novel Worker One-Shot Mode...');
+    const MAX_JOBS = 10;
+    let processed = 0;
 
-        if (job) {
+    for (let i = 0; i < MAX_JOBS; i++) {
+        try {
+            const [job] = await supabaseClient`
+                UPDATE scraping_jobs
+                SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
+                WHERE id = (
+                    SELECT id FROM scraping_jobs
+                    WHERE status = 'pending' AND worker_type = 'novel'
+                    ORDER BY priority DESC, created_at ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING id, media_id, media_type, title, slug, attempts
+            `;
+
+            if (!job) break;
+
+            console.log(`🎯 [${processed + 1}/${MAX_JOBS}] ${job.title}`);
             await processJob(job);
-        } else {
-            console.log('No novel jobs found.');
+            processed++;
+        } catch (err: any) {
+            console.error('💥 Worker Error:', err.message);
         }
-    } catch (err: any) {
-        console.error('💥 Worker Error:', err.message);
     }
+
+    console.log(`🏁 ${processed} job(s) novel traités.`);
     process.exit(0);
 }
 
