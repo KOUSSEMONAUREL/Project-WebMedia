@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 import crypto from 'crypto';
 
@@ -46,7 +46,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
         });
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-        let importedCount = 0;
+        const toInsert: { row: string[]; externalId: string; title: string; url: string; source: string; slug: string }[] = [];
         for (let i = 0; i < rows.length; i++) {
             const [titre, auteur, parution, maj, urlHtml] = rows[i];
             const externalId = externalIds[i];
@@ -57,22 +57,43 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
             const title = titre || 'Titre inconnu';
             const slug = `nl-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490);
 
-            try {
-                const [media] = await db.insert(medias).values({
-                    type: 'book', title, slug, externalId,
-                    year: parution ? parseInt(parution.split('-')[0]) : undefined,
-                    metadataSource: 'noslivres', metadataFreshAt: new Date()
-                }).returning({ id: medias.id });
-
-                if (media && url) {
-                    await db.insert(liens).values({
-                        mediaId: media.id, sourceSite: source.toLowerCase(),
-                        url, quality: 'original', language: 'FR',
-                    }).onConflictDoNothing().catch(() => {});
-                    importedCount++;
-                }
-            } catch {}
+            toInsert.push({ row: rows[i], externalId, title, url, source, slug });
         }
+
+        if (toInsert.length === 0) {
+            console.log(`📄 NosLivres offset ${start}: tout existant déjà`);
+            const nextStart = start + rows.length;
+            if (nextStart >= total) {
+                await setOffset(KEY, 0, databaseUrl);
+            } else {
+                await setOffset(KEY, nextStart, databaseUrl);
+            }
+            return 0;
+        }
+
+        const mediaValues = toInsert.map(item => ({
+            type: 'book', title: item.title, slug: item.slug, externalId: item.externalId,
+            year: item.row[2] ? parseInt(item.row[2].split('-')[0]) : undefined,
+            metadataSource: 'noslivres', metadataFreshAt: new Date()
+        }));
+
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+        const extToId = new Map(inserted.map(m => [m.externalId, m.id]));
+
+        const lienValues: any[] = [];
+        for (const item of toInsert) {
+            if (!item.url) continue;
+            const mediaId = extToId.get(item.externalId);
+            if (!mediaId) continue;
+            lienValues.push({ mediaId, sourceSite: item.source.toLowerCase(), url: item.url, quality: 'original', language: 'FR' });
+        }
+
+        if (lienValues.length > 0) {
+            await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+        }
+
+        console.log(`✅ NosLivres: ${inserted.length} ajoutés (offset ${start}/${total})`);
 
         const nextStart = start + rows.length;
         if (nextStart >= total) {
@@ -82,8 +103,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
             await setOffset(KEY, nextStart, databaseUrl);
         }
 
-        console.log(`✅ NosLivres: ${importedCount} ajoutés (offset ${start}/${total})`);
-        return importedCount;
+        return inserted.length;
     } catch (error: any) {
         console.warn('⚠️ NosLivres ignoré (API inaccessible):', error.message);
         return 0;

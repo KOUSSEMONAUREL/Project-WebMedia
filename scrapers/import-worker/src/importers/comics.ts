@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const COMICVINE_URL = 'https://comicvine.gamespot.com/api/volumes';
@@ -31,32 +31,33 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
         const externalIds = results.map((r: any) => `cv-${r.id}`);
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-        let importedCount = 0;
-        for (const item of results) {
-            const externalId = `cv-${item.id}`;
-            if (existing.has(externalId)) continue;
+        const toInsert = results.filter((r: any) => !existing.has(`cv-${r.id}`));
+        if (toInsert.length === 0) {
+            console.log(`📄 ComicVine offset ${offset}: tout existant déjà`);
+            await setOffset(KEY, offset + limit, databaseUrl);
+            return 0;
+        }
 
-            const title = item.name;
-            try {
-                const [insertedMedia] = await db.insert(medias).values({
-                    type: 'comic', title,
-                    slug: `comic-${item.id}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
-                    synopsis: item.deck || item.description, year: item.start_year ? parseInt(item.start_year) : null,
-                    posterUrl: item.image?.super_url || item.image?.original_url, externalId,
-                    metadataSource: 'comicvine', metadataFreshAt: new Date()
-                }).onConflictDoNothing().returning();
+        const mediaValues = toInsert.map((item: any) => ({
+            type: 'comic', title: item.name,
+            slug: `comic-${item.id}-${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
+            synopsis: item.deck || item.description, year: item.start_year ? parseInt(item.start_year) : null,
+            posterUrl: item.image?.super_url || item.image?.original_url, externalId: `cv-${item.id}`,
+            metadataSource: 'comicvine', metadataFreshAt: new Date()
+        }));
 
-                if (insertedMedia) {
-                    await notifyBrain(insertedMedia.id, 'comic', internalApiUrl!, internalApiKey!);
-                    importedCount++;
-                    console.log(`✅ [COMIC] ${title}`);
-                }
-            } catch {}
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+        const brainItems = inserted.map(m => ({ id: m.id, type: 'comic' as const }));
+        await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
+
+        for (const m of inserted) {
+            console.log(`✅ [COMIC] ${m.externalId}`);
         }
 
         await setOffset(KEY, offset + limit, databaseUrl);
-        console.log(`✅ ComicVine: ${importedCount} ajoutés (offset ${offset})`);
-        return importedCount;
+        console.log(`✅ ComicVine: ${inserted.length} ajoutés (offset ${offset})`);
+        return inserted.length;
     } catch (err: any) {
         console.error('Comic Vine Error:', err.message);
         throw err;

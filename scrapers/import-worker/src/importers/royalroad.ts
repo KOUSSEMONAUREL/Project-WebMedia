@@ -3,7 +3,7 @@ import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import axios from 'axios';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, notifyBrainBatch } from '../utils/batch-import.js';
 
 const RR_BASE = 'https://www.royalroad.com';
 const RR_API = new RoyalRoadAPI();
@@ -27,36 +27,48 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
         const toInsert = candidates.filter((f: any) => !existing.has(`rr-${f.id}`));
 
-        let importedCount = 0;
-        for (const fiction of toInsert) {
+        if (toInsert.length === 0) {
+            console.log('📄 RoyalRoad: tout existant déjà');
+            return 0;
+        }
+
+        const mediaValues = toInsert.map((fiction: any) => {
             const externalId = `rr-${fiction.id}`;
             const title = fiction.title;
             const slug = `rr-${fiction.id}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490);
-            const url = `${RR_BASE}/fiction/${fiction.id}`;
+            return {
+                type: 'novel', title, originalTitle: title, slug,
+                synopsis: fiction.description?.slice(0, 2000),
+                posterUrl: fiction.image || undefined,
+                metadataSource: 'royalroad', metadataFreshAt: new Date(), externalId,
+            };
+        });
 
-            try {
-                const [inserted] = await db.insert(medias).values({
-                    type: 'novel', title, originalTitle: title, slug,
-                    synopsis: fiction.description?.slice(0, 2000),
-                    posterUrl: fiction.image || undefined,
-                    metadataSource: 'royalroad', metadataFreshAt: new Date(), externalId,
-                }).onConflictDoNothing().returning();
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
 
-                if (!inserted) continue;
+        const extToId = new Map(inserted.map(m => [m.externalId, m.id]));
 
-                await db.insert(liens).values({
-                    mediaId: inserted.id, sourceSite: 'royalroad',
-                    url, quality: 'original', language: 'EN',
-                }).onConflictDoNothing().catch(() => {});
-
-                await notifyBrain(inserted.id, 'novel', INTERNAL_API_URL, INTERNAL_API_KEY);
-                importedCount++;
-                console.log(`✅ [RR] ${title}`);
-            } catch {}
+        const lienValues: any[] = [];
+        for (const fiction of toInsert) {
+            const externalId = `rr-${fiction.id}`;
+            const mediaId = extToId.get(externalId);
+            if (!mediaId) continue;
+            lienValues.push({ mediaId, sourceSite: 'royalroad', url: `${RR_BASE}/fiction/${fiction.id}`, quality: 'original', language: 'EN' });
         }
 
-        console.log(`✅ RoyalRoad import terminé : ${importedCount} nouveaux`);
-        return importedCount;
+        if (lienValues.length > 0) {
+            await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+        }
+
+        const brainItems = inserted.map(m => ({ id: m.id, type: 'novel' as const }));
+        await notifyBrainBatch(brainItems, INTERNAL_API_URL, INTERNAL_API_KEY);
+
+        for (const m of inserted) {
+            console.log(`✅ [RR] ${m.externalId}`);
+        }
+
+        console.log(`✅ RoyalRoad import terminé : ${inserted.length} nouveaux`);
+        return inserted.length;
     } catch (error: any) {
         console.error('❌ RoyalRoad Import Error:', error.message);
         throw error;

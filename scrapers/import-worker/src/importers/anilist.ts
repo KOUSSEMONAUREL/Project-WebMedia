@@ -41,33 +41,34 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
         const externalIds = entries.map((m: any) => `al-${m.id}`);
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-        let importedCount = 0;
-        for (const entry of entries) {
-            const externalId = `al-${entry.id}`;
-            if (existing.has(externalId)) continue;
+        const toInsert = entries.filter((e: any) => !existing.has(`al-${e.id}`));
+        if (toInsert.length === 0) {
+            console.log(`📄 AniList page ${page}: tout existant déjà`);
+            await setOffset(KEY, page + 1, databaseUrl);
+            return 0;
+        }
 
+        const mediaValues = toInsert.map((entry: any) => {
             const title = entry.title?.romaji || entry.title?.english || entry.title?.native || 'Unknown';
             const synopsis = entry.description?.replace(/<[^>]*>/g, '').slice(0, 2000);
+            return {
+                type: 'anime', title, originalTitle: entry.title?.native,
+                slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                synopsis, posterUrl: entry.coverImage?.large,
+                externalId: `al-${entry.id}`, year: entry.startDate?.year,
+                metadataSource: 'anilist', metadataFreshAt: new Date()
+            };
+        });
 
-            try {
-                const [inserted] = await db.insert(medias).values({
-                    type: 'anime', title, originalTitle: entry.title?.native,
-                    slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
-                    synopsis, posterUrl: entry.coverImage?.large,
-                    externalId, year: entry.startDate?.year,
-                    metadataSource: 'anilist', metadataFreshAt: new Date()
-                }).onConflictDoNothing().returning();
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
 
-                if (inserted) {
-                    importedCount++;
-                    console.log(`✅ [ANIME] ${title}`);
-                }
-            } catch {}
+        for (const m of inserted) {
+            console.log(`✅ [ANIME] ${m.externalId}`);
         }
 
         await setOffset(KEY, page + 1, databaseUrl);
-        console.log(`✅ AniList: ${importedCount} ajoutés (page ${page})`);
-        return importedCount;
+        console.log(`✅ AniList: ${inserted.length} ajoutés (page ${page})`);
+        return inserted.length;
     } catch (error: any) {
         console.error('AniList Import Error:', error.message);
         throw error;

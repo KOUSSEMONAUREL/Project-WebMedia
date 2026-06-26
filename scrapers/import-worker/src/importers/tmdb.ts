@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens, episodes } from '../db/neon/schema.js';
 import { eq, inArray, and } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, notifyBrainBatch } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3';
@@ -45,31 +45,40 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
             const itemKeys = items.map((i: any) => `${category}-${i.id}`);
             const existing = await batchCheckExisting(db, medias.externalId, itemKeys);
 
-            for (const item of items) {
-                const externalId = `${category}-${item.id}`;
-                if (existing.has(externalId)) continue;
-
-                const title = item.title || item.name;
-                const mediaType = category.startsWith('movie') ? 'movie' : 'serie';
-                let posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
-
-                try {
-                    const [inserted] = await db.insert(medias).values({
-                        type: mediaType, title, originalTitle: item.original_title || item.original_name,
-                        slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
-                        synopsis: item.overview, posterUrl, externalId,
-                        year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
-                        metadataSource: 'tmdb', metadataFreshAt: new Date(),
-                    }).onConflictDoNothing().returning();
-
-                    if (!inserted) continue;
-
-                    await notifyBrain(inserted.id, mediaType, internalApiUrl!, internalApiKey!);
-                    totalImported++;
-                    console.log(`✅ [${mediaType.toUpperCase()}] ${title}`);
-                } catch {}
+            const toInsert = items.filter((i: any) => !existing.has(`${category}-${i.id}`));
+            if (toInsert.length === 0) {
+                console.log(`📄 TMDB ${category} page ${page}: tout existant déjà`);
+                await setOffset(catKey, page + 1, databaseUrl);
+                continue;
             }
 
+            const mediaValues = toInsert.map((item: any) => {
+                const title = item.title || item.name;
+                const mediaType = category.startsWith('movie') ? 'movie' : 'serie';
+                const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
+                return {
+                    type: mediaType, title, originalTitle: item.original_title || item.original_name,
+                    slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                    synopsis: item.overview, posterUrl, externalId: `${category}-${item.id}`,
+                    year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
+                    metadataSource: 'tmdb', metadataFreshAt: new Date(),
+                };
+            });
+
+            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+            const brainItems = inserted
+                .filter(m => m.externalId)
+                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' : 'serie' as const }));
+            await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
+
+            for (const m of inserted) {
+                if (!m.externalId) continue;
+                const mediaType = m.externalId.startsWith('movie') ? 'movie' : 'serie';
+                console.log(`✅ [${mediaType.toUpperCase()}] ${m.externalId}`);
+            }
+
+            totalImported += inserted.length;
             await setOffset(catKey, page + 1, databaseUrl);
         } catch (err: any) {
             console.error(`TMDB Error for ${category}:`, err.message);

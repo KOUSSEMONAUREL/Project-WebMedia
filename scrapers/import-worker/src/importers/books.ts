@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
@@ -16,7 +16,6 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
     const categories = ['fiction', 'fantasy', 'thriller', 'romance', 'science fiction'];
     console.log(`🚀 Starting Google Books Import (limit=${limit})...`);
 
-    let totalImported = 0;
     for (const cat of categories) {
         try {
             const startIndex = await getOffset(`${KEY}:${cat}`, databaseUrl, 0);
@@ -35,43 +34,54 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             const externalIds = items.map((i: any) => i.id);
             const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-            for (const item of items) {
-                const externalId = item.id;
-                if (existing.has(externalId)) continue;
+            const toInsert = items.filter((i: any) => !existing.has(i.id));
+            if (toInsert.length === 0) {
+                console.log(`📄 ${cat}: tout existant déjà`);
+                await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
+                continue;
+            }
 
+            const mediaValues = toInsert.map((item: any) => {
                 const info = item.volumeInfo;
                 const title = info.title;
-                try {
-                    const [inserted] = await db.insert(medias).values({
-                        type: 'book', title, originalTitle: info.title,
-                        slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
-                        synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
-                        posterUrl: info.imageLinks?.thumbnail, externalId,
-                        metadataSource: 'google-books', metadataFreshAt: new Date()
-                    }).onConflictDoNothing().returning();
+                const externalId = item.id;
+                return {
+                    type: 'book', title, originalTitle: info.title,
+                    slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
+                    synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
+                    posterUrl: info.imageLinks?.thumbnail, externalId,
+                    metadataSource: 'google-books', metadataFreshAt: new Date()
+                };
+            });
 
-                    if (!inserted) continue;
+            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
 
-                    const bookUrl = info.previewLink || info.infoLink;
-                    if (bookUrl) {
-                        await db.insert(liens).values({
-                            mediaId: inserted.id, sourceSite: 'google-books',
-                            url: bookUrl, quality: 'original', language: 'FR',
-                        }).onConflictDoNothing().catch(() => {});
-                    }
+            const extToId = new Map(inserted.map(m => [m.externalId, m.id]));
 
-                    await notifyBrain(inserted.id, 'book', internalApiUrl!, internalApiKey!);
-                    totalImported++;
-                    console.log(`✅ [BOOK] ${title}`);
-                } catch {}
+            const lienValues: any[] = [];
+            for (const item of toInsert) {
+                const info = (item as any).volumeInfo;
+                const bookUrl = info.previewLink || info.infoLink;
+                const mediaId = extToId.get(item.id);
+                if (!mediaId || !bookUrl) continue;
+                lienValues.push({ mediaId, sourceSite: 'google-books', url: bookUrl, quality: 'original', language: 'FR' });
+            }
+
+            if (lienValues.length > 0) {
+                await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+            }
+
+            const brainItems = inserted.map(m => ({ id: m.id, type: 'book' as const }));
+            await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
+
+            for (const m of inserted) {
+                console.log(`✅ [BOOK] ${m.externalId}`);
             }
 
             await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
+            console.log(`✅ Google Books ${cat}: ${inserted.length} ajoutés`);
         } catch (err: any) {
             console.error(`Google Books Error for ${cat}:`, err.message);
         }
     }
-
-    console.log(`✅ Google Books: ${totalImported} ajoutés`);
-    return totalImported;
 }

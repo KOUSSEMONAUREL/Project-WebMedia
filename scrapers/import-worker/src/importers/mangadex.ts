@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
+import { batchCheckExisting } from '../utils/batch-import.js';
 
 const MANGADEX_API = 'https://api.mangadex.org';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
@@ -62,54 +63,46 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
         const ids = mangaList.map(m => m.id);
         const covers = await fetchCovers(ids);
 
-        let importedCount = 0;
+        const existing = await batchCheckExisting(db, medias.externalId, ids);
 
-        for (const manga of mangaList) {
+        const toInsert = mangaList.filter(m => !existing.has(m.id));
+        if (toInsert.length === 0) {
+            console.log('📄 MangaDex: tout existant déjà');
+            return 0;
+        }
+
+        const mediaValues = toInsert.map(manga => {
             const attr = manga.attributes;
             const title = Object.values(attr.title || {}).find(Boolean) as string || 'Unknown';
             const slug = title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').substring(0, 490);
-
-            const existing = await db.select().from(medias).where(eq(medias.externalId, manga.id)).limit(1);
-            if (existing.length > 0) continue;
-
             const desc = Object.values(attr.description || {}).find(Boolean) as string || '';
-            const genres = (attr.tags || [])
-              .filter((t: any) => t.attributes?.group === 'genre' || t.attributes?.group === 'theme')
-              .map((t: any) => Object.values(t.attributes?.name || {}).find(Boolean))
-              .filter(Boolean).join(', ');
-
-            const inserted = await db.insert(medias).values({
-                type: 'webtoon',
-                title,
-                synopsis: desc,
+            return {
+                type: 'webtoon', title, synopsis: desc,
                 posterUrl: covers.get(manga.id) || undefined,
-                year: attr.year || undefined,
-                status: attr.status || undefined,
-                externalId: manga.id,
-                slug,
-                metadataSource: 'mangadex',
-                metadataFreshAt: new Date(),
-            }).returning({ id: medias.id });
+                year: attr.year || undefined, status: attr.status || undefined,
+                externalId: manga.id, slug,
+                metadataSource: 'mangadex', metadataFreshAt: new Date(),
+            };
+        });
 
-            if (inserted.length > 0) {
-                try {
-                    await axios.post(`${INTERNAL_API_URL}/ingest/media`, {
-                        id: inserted[0].id,
-                        type: 'webtoon',
-                        metadata_ok: 1,
-                    }, {
-                        headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
-                        timeout: 5000,
-                    });
-                } catch (err) {
-                    console.error(`Failed to sync manga ${inserted[0].id} to internal API: ${err instanceof Error ? err.message : err}`);
-                }
-                importedCount++;
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+        for (const m of inserted) {
+            try {
+                await axios.post(`${INTERNAL_API_URL}/ingest/media`, {
+                    id: m.id, type: 'webtoon', metadata_ok: 1,
+                }, {
+                    headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
+                    timeout: 5000,
+                });
+            } catch (err) {
+                console.error(`Failed to sync manga ${m.id} to internal API: ${err instanceof Error ? err.message : err}`);
             }
+            console.log(`✅ [MANGADEX] ${m.externalId}`);
         }
 
-        console.log(`✅ Import MangaDex terminé : ${importedCount} nouveaux mangas.`);
-        return importedCount;
+        console.log(`✅ Import MangaDex terminé : ${inserted.length} nouveaux mangas.`);
+        return inserted.length;
     } catch (error: any) {
         console.error('❌ MangaDex Import Error:', error.message);
         throw error;

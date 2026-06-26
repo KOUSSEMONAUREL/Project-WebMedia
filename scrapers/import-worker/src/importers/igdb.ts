@@ -2,7 +2,7 @@ import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
@@ -39,32 +39,35 @@ export async function importTrendingGames(clientId: string, clientSecret: string
         const igdbIds = results.map((r: any) => r.id);
         const existing = await batchCheckExisting(db, medias.igdbId, igdbIds);
 
-        let importedCount = 0;
-        for (const item of results) {
-            if (existing.has(item.id)) continue;
+        const toInsert = results.filter((r: any) => !existing.has(r.id));
+        if (toInsert.length === 0) {
+            console.log(`📄 IGDB offset ${offset}: tout existant déjà`);
+            await setOffset(KEY, offset + limit, databaseUrl);
+            return 0;
+        }
 
-            const title = item.name;
-            try {
-                const inserted: { id: string }[] = await db.insert(medias).values({
-                    type: 'game', title,
-                    synopsis: item.summary,
-                    year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
-                    posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
-                    rating: item.total_rating ? (item.total_rating / 10).toString() : "0",
-                    igdbId: item.id, slug: title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
-                    metadataSource: 'igdb', metadataFreshAt: new Date()
-                }).returning({ id: medias.id }) as any;
+        const mediaValues = toInsert.map((item: any) => ({
+            type: 'game', title: item.name,
+            synopsis: item.summary,
+            year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
+            posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
+            rating: item.total_rating ? (item.total_rating / 10).toString() : "0",
+            igdbId: item.id, slug: item.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+            metadataSource: 'igdb', metadataFreshAt: new Date()
+        }));
 
-                if (inserted[0]) {
-                    await notifyBrain(inserted[0].id, 'game', internalApiUrl!, internalApiKey!);
-                    importedCount++;
-                }
-            } catch {}
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, igdbId: medias.igdbId }) as any;
+
+        const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'game' as const }));
+        await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
+
+        for (const m of inserted) {
+            console.log(`✅ [GAME] IGDB#${m.igdbId}`);
         }
 
         await setOffset(KEY, offset + limit, databaseUrl);
-        console.log(`✅ IGDB: ${importedCount} ajoutés (offset ${offset})`);
-        return importedCount;
+        console.log(`✅ IGDB: ${inserted.length} ajoutés (offset ${offset})`);
+        return inserted.length;
     } catch (error) {
         console.error('IGDB Import Error:', error);
         throw error;

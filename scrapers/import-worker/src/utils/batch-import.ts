@@ -33,6 +33,25 @@ export async function notifyBrain(
   } catch {}
 }
 
+export async function notifyBrainBatch(
+  items: { id: string; type: string }[],
+  internalApiUrl: string,
+  internalApiKey: string
+): Promise<void> {
+  if (!internalApiUrl || !internalApiKey || items.length === 0) return;
+  try {
+    const { default: axios } = await import('axios');
+    await axios.post(`${internalApiUrl}/ingest/media/batch`, {
+      items: items.map(i => ({ id: i.id, type: i.type, metadata_ok: 1 }))
+    }, {
+      headers: { 'X-Internal-API-Key': internalApiKey },
+      timeout: 30000,
+    });
+  } catch (err: any) {
+    console.error(`notifyBrainBatch error (${items.length} items): ${err.message}`);
+  }
+}
+
 export async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let i = 0; i < retries; i++) {
     try {

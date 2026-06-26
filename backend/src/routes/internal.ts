@@ -172,6 +172,38 @@ internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any
     }
 });
 
+// ========== POST /api/internal/ingest/media/batch ==========
+const ingestMediaBatchSchema = z.object({
+    items: z.array(z.object({
+        id: z.string().uuid(),
+        type: z.string(),
+        metadata_ok: z.number().default(0),
+        active_links: z.number().default(0),
+        has_content: z.number().default(0)
+    })).max(500)
+});
+
+internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSchema as any), async (c) => {
+    const { items } = c.req.valid('json') as z.infer<typeof ingestMediaBatchSchema>;
+    try {
+        if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+        const statements = items.map(item =>
+            c.env.DB!.prepare(`
+                INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(media_id) DO UPDATE SET
+                    active_links = excluded.active_links,
+                    has_content = excluded.has_content
+            `).bind(item.id, item.type, item.metadata_ok, item.active_links, item.has_content, Date.now())
+        );
+        await c.env.DB.batch(statements);
+        return c.json({ success: true, count: items.length });
+    } catch (error: any) {
+        console.error('Ingest Media Batch Error:', error.message);
+        return c.json({ success: false, error: `Erreur D1 batch: ${error.message}` }, 500);
+    }
+});
+
 // ========== POST /api/internal/ingest/mapping ==========
 const mappingSchema = z.object({
     mappings: z.array(z.object({

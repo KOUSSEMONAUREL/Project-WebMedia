@@ -29,41 +29,44 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             return 0;
         }
 
-        const externalIds = results.map((item: any) => item.id);
+        const externalIds = results.map((item: any) => item.id.toString());
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-        let importedCount = 0;
-        for (const item of results) {
-            const externalId = item.id.toString();
-            if (existing.has(externalId)) continue;
-
-            const title = item.title;
-            const authors = item.authors?.map((a: any) => a.name).join(', ') || 'Unknown';
-            const slug = `book-gb-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
-
-            try {
-                const [media] = await db.insert(medias).values({
-                    type: 'book', title, originalTitle: title,
-                    synopsis: `Auteur(s): ${authors}`,
-                    posterUrl: item.cover_image || undefined,
-                    externalId, slug,
-                    metadataSource: 'gutenberg', metadataFreshAt: new Date()
-                }).returning({ id: medias.id });
-
-                if (media) {
-                    const bookUrl = `https://www.gutenberg.org/ebooks/${externalId}`;
-                    await db.insert(liens).values({
-                        mediaId: media.id, sourceSite: 'gutenberg',
-                        url: bookUrl, quality: 'original', language: 'EN',
-                    }).onConflictDoNothing().catch(() => {});
-                    importedCount++;
-                }
-            } catch {}
+        const toInsert = results.filter((item: any) => !existing.has(item.id.toString()));
+        if (toInsert.length === 0) {
+            console.log(`📄 Gutenberg page ${page}: tout existant déjà`);
+            await setOffset(KEY, page + 1, databaseUrl);
+            return 0;
         }
 
-        await setOffset(KEY, page + 1, databaseUrl);
-        console.log(`✅ Project Gutenberg: ${importedCount} ajoutés (page ${page})`);
-        return importedCount;
+        const mediaValues = toInsert.map((item: any) => {
+            const title = item.title;
+            const externalId = item.id.toString();
+            const authors = item.authors?.map((a: any) => a.name).join(', ') || 'Unknown';
+            const slug = `book-gb-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            return {
+                type: 'book', title, originalTitle: title,
+                synopsis: `Auteur(s): ${authors}`,
+                posterUrl: item.cover_image || undefined,
+                externalId, slug,
+                metadataSource: 'gutenberg', metadataFreshAt: new Date()
+            };
+        });
+
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+        const lienValues = inserted.map(m => ({
+            mediaId: m.id, sourceSite: 'gutenberg',
+            url: `https://www.gutenberg.org/ebooks/${m.externalId}`,
+            quality: 'original', language: 'EN',
+        }));
+
+        if (lienValues.length > 0) {
+            await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+        }
+
+        console.log(`✅ Project Gutenberg: ${inserted.length} ajoutés (page ${page})`);
+        return inserted.length;
     } catch (error: any) {
         console.error('❌ Project Gutenberg Import Error:', error.message);
         throw error;

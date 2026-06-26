@@ -30,35 +30,45 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         );
         const existing = await batchCheckExisting(db, medias.slug, slugs);
 
-        let importedCount = 0;
-        for (const item of results) {
+        const toInsert = results.filter((item: any) => {
             const externalId = item.key.replace('/works/', '');
             const title = item.title;
             const slug = `book-ol-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
-            if (existing.has(slug)) continue;
+            return !existing.has(slug);
+        });
 
-            try {
-                const [media] = await db.insert(medias).values({
-                    type: 'book', title, originalTitle: title,
-                    synopsis: item.first_sentence ? item.first_sentence[0] : '',
-                    posterUrl: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : undefined,
-                    externalId, slug, metadataSource: 'openlibrary', metadataFreshAt: new Date()
-                }).returning({ id: medias.id });
-
-                if (media) {
-                    await db.insert(liens).values({
-                        mediaId: media.id, sourceSite: 'openlibrary',
-                        url: `${OPEN_LIBRARY_API}${item.key}`,
-                        quality: 'original', language: 'EN'
-                    }).onConflictDoNothing();
-                    importedCount++;
-                }
-            } catch {}
+        if (toInsert.length === 0) {
+            console.log(`📄 OpenLibrary page ${page}: tout existant déjà`);
+            await setOffset(KEY, page + 1, databaseUrl);
+            return 0;
         }
 
-        await setOffset(KEY, page + 1, databaseUrl);
-        console.log(`✅ OpenLibrary: ${importedCount} ajoutés (page ${page})`);
-        return importedCount;
+        const mediaValues = toInsert.map((item: any) => {
+            const externalId = item.key.replace('/works/', '');
+            const title = item.title;
+            const slug = `book-ol-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            return {
+                type: 'book', title, originalTitle: title,
+                synopsis: item.first_sentence ? item.first_sentence[0] : '',
+                posterUrl: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : undefined,
+                externalId, slug, metadataSource: 'openlibrary', metadataFreshAt: new Date()
+            };
+        });
+
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+        const lienValues = inserted.map(m => ({
+            mediaId: m.id, sourceSite: 'openlibrary',
+            url: `${OPEN_LIBRARY_API}/works/${m.externalId}`,
+            quality: 'original', language: 'EN'
+        }));
+
+        if (lienValues.length > 0) {
+            await db.insert(liens).values(lienValues).onConflictDoNothing();
+        }
+
+        console.log(`✅ OpenLibrary: ${inserted.length} ajoutés (page ${page})`);
+        return inserted.length;
     } catch (error: any) {
         console.error('❌ Open Library Import Error:', error.message);
         throw error;
