@@ -8,9 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "development"
 # Secrets gérés via le dashboard Cloudflare
 
-# Triggers pour l'automatisation (Cron à 07:00 et 19:00 UTC)
+# Trigger quotidien à 06:00 UTC
 [triggers]
-crons = ["0 7,19 * * *"]
+crons = ["0 6 * * *"]
 
 # Configuration pour le développement local
 [dev]

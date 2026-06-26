@@ -67,7 +67,7 @@ graph TD
 | GitHub Actions | **09:00 / 21:00** | `webtoon-scraper` | Scrape 188+ définitions webtoon |
 | GitHub Actions | **06:00** quotidien | `keiyoushi-monitor` | Surveille màj upstream des définitions |
 | GitHub Actions | **Dimanche 04:00** | `maintenance-jobs` | Dead link checker → sync Neon→Turso |
-| Cloudflare Worker | **07:00 / 19:00** | `orchestrator` | Résout les médias périmés (media_state D1) |
+| Cloudflare Worker | **06:00** quotidien | `orchestrator` | Résout les médias périmés (media_state D1) |
 
 ## Import Worker — Détail par Source
 
