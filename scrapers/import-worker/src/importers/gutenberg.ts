@@ -45,8 +45,8 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             const authors = item.authors?.map((a: any) => a.name).join(', ') || 'Unknown';
             const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
             return {
-                type: 'book', title, originalTitle: title,
-                synopsis: `Auteur(s): ${authors}`,
+                type: 'book', title, originalTitle: title, author: authors,
+                synopsis: item.synopsis || `Livre de Project Gutenberg — ${title}`,
                 posterUrl: item.cover_image || undefined,
                 externalId, slug,
                 metadataSource: 'gutenberg', metadataFreshAt: new Date()

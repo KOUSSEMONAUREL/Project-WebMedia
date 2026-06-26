@@ -43,8 +43,9 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             const externalId = `ol-${item.key.replace('/works/', '')}`;
             const title = item.title;
             const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            const author = item.author_name ? item.author_name.join(', ') : item.authors ? item.authors.map((a: any) => a.name).join(', ') : 'Unknown';
             return {
-                type: 'book', title, originalTitle: title,
+                type: 'book', title, originalTitle: title, author,
                 synopsis: item.first_sentence ? item.first_sentence[0] : '',
                 posterUrl: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : undefined,
                 externalId, slug, metadataSource: 'openlibrary', metadataFreshAt: new Date()

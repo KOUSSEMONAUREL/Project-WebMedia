@@ -36,8 +36,9 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             const externalId = `rr-${fiction.id}`;
             const title = fiction.title;
             const slug = `rr-${fiction.id}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490);
+            const author = fiction.author || 'Unknown';
             return {
-                type: 'novel', title, originalTitle: title, slug,
+                type: 'novel', title, originalTitle: title, slug, author,
                 synopsis: fiction.description?.slice(0, 2000),
                 posterUrl: fiction.image || undefined,
                 metadataSource: 'royalroad', metadataFreshAt: new Date(), externalId,

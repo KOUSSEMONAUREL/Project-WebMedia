@@ -104,11 +104,9 @@ export async function startWorker() {
 
       if (['film', 'movie', 'serie', 'anime'].includes(mediaType)) {
         savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id);
-      } else if (['webtoon', 'comic', 'manga', 'book'].includes(mediaType)) {
-        console.log(`  ℹ️ ${mediaType}: liens déjà sauvegardés pendant l'import`);
-        savedLinks = 1;
       } else {
-        console.log(`  ⏭️ Type non géré: ${mediaType}`);
+        console.log(`  ⏭️ Type délégué ou non géré par Cheerio: ${mediaType}`);
+        savedLinks = 1; // On marque comme "traité" pour que le job ne boucle pas
       }
 
       if (savedLinks > 0) {

@@ -73,6 +73,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
         const mediaValues = toInsert.map(item => ({
             type: 'book', title: item.title, slug: item.slug, externalId: item.externalId,
+            author: item.row[1] || 'Unknown',
             year: item.row[2] ? parseInt(item.row[2].split('-')[0]) : undefined,
             metadataSource: 'noslivres', metadataFreshAt: new Date()
         }));

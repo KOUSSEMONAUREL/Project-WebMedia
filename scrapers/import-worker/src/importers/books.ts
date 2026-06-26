@@ -45,8 +45,9 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
                 const info = item.volumeInfo;
                 const title = info.title;
                 const externalId = `googlebooks-${item.id}`;
+                const author = info.authors ? info.authors.join(', ') : 'Unknown';
                 return {
-                    type: 'book', title, originalTitle: info.title,
+                    type: 'book', title, originalTitle: info.title, author,
                     slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
                     synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
                     posterUrl: info.imageLinks?.thumbnail, externalId,

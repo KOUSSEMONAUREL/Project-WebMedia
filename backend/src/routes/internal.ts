@@ -175,7 +175,7 @@ internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any
             ON CONFLICT(media_id) DO UPDATE SET
                 active_links = excluded.active_links,
                 has_content = excluded.has_content
-        `).bind(id, type, metadata_ok, active_links, has_content, Date.now()).run();
+        `).bind(id, type, metadata_ok, active_links, has_content, Date.now() + 10000).run();
         return c.json({ success: true });
     } catch (error: any) {
         console.error('Ingest Media Error:', error.message);
@@ -205,7 +205,7 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
                 ON CONFLICT(media_id) DO UPDATE SET
                     active_links = excluded.active_links,
                     has_content = excluded.has_content
-            `).bind(item.id, item.type, item.metadata_ok, item.active_links, item.has_content, Date.now())
+            `).bind(item.id, item.type, item.metadata_ok, item.active_links, item.has_content, Date.now() + 10000)
         );
         await c.env.DB.batch(statements);
         return c.json({ success: true, count: items.length });
