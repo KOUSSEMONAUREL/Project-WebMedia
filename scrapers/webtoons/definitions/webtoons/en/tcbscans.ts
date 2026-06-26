@@ -25,9 +25,7 @@ export class TCBScansScraper extends BaseScraper {
   async getLatest(page = 1): Promise<SearchResult> {
     const res = await this.get(`${this.baseUrl}/projects`);
     const $ = this.$(res.data);
-    const mangas: Manga[] = [];
     return this.getPopular(page);
-    return { mangas, hasNextPage: false };
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {

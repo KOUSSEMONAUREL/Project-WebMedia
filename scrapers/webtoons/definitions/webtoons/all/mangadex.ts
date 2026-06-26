@@ -152,7 +152,7 @@ export class MangadexScraper extends BaseScraper {
     url.searchParams.set('contentRating[]', 'pornographic');
 
     const response = await this.get(url.toString());
-    return this.parseMangaListResponse(response);
+    return this.parseMangaListResponse(response.data);
   }
 
   async getSearch(query: string, page?: number): Promise<SearchResult> {
@@ -169,14 +169,14 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('contentRating[]', 'erotica');
       url.searchParams.set('contentRating[]', 'pornographic');
       const response = await this.get(url.toString());
-      return this.parseMangaListResponse(response);
+      return this.parseMangaListResponse(response.data);
     }
 
     if (query.startsWith('ch:')) {
       const chapterId = query.slice(3);
       const chapterUrl = `${API_URL}/chapter/${chapterId}`;
       const chapterResp = await this.get(chapterUrl);
-      const chapterDto = JSON.parse(chapterResp) as ResponseDto<ChapterDataDto>;
+      const chapterDto = chapterResp.data as ResponseDto<ChapterDataDto>;
       const mangaRel = chapterDto.data?.relationships.find(r => r.type === 'manga');
       if (!mangaRel) throw new Error('Unable to find manga from chapter');
       return this.getSearch(`id:${mangaRel.id}`, p);
@@ -194,7 +194,7 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('contentRating[]', 'erotica');
       url.searchParams.set('contentRating[]', 'pornographic');
       const response = await this.get(url.toString());
-      return this.parseMangaListResponse(response);
+      return this.parseMangaListResponse(response.data);
     }
 
     if (query.startsWith('grp:')) {
@@ -209,7 +209,7 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('contentRating[]', 'erotica');
       url.searchParams.set('contentRating[]', 'pornographic');
       const response = await this.get(url.toString());
-      return this.parseMangaListResponse(response);
+      return this.parseMangaListResponse(response.data);
     }
 
     if (query.startsWith('usr:')) {
@@ -228,7 +228,7 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('includeFuturePublishAt', '0');
       url.searchParams.set('includeEmptyPages', '0');
       const response = await this.get(url.toString());
-      return this.parseLatestUpdatesResponse(response);
+      return this.parseLatestUpdatesResponse(response.data);
     }
 
     if (query.startsWith('list:')) {
@@ -247,13 +247,13 @@ export class MangadexScraper extends BaseScraper {
     url.searchParams.set('contentRating[]', 'pornographic');
 
     const response = await this.get(url.toString());
-    return this.parseMangaListResponse(response);
+    return this.parseMangaListResponse(response.data);
   }
 
   private async getMangaListFromCustomList(listId: string, page: number): Promise<SearchResult> {
     const listUrl = `${API_URL}/list/${listId}`;
     const listResp = await this.get(listUrl);
-    const listDto = JSON.parse(listResp) as ResponseDto<{ relationships: EntityDto[] }>;
+    const listDto = listResp.data as ResponseDto<{ relationships: EntityDto[] }>;
     const mangaRels = (listDto.data?.relationships || []).filter(r => r.type === 'manga');
     if (mangaRels.length < 1) throw new Error('No series in list');
 
@@ -271,14 +271,14 @@ export class MangadexScraper extends BaseScraper {
     url.searchParams.set('contentRating[]', 'pornographic');
 
     const response = await this.get(url.toString());
-    const mangas = (await this.parseMangaListResponse(response)).mangas;
+    const mangas = (await this.parseMangaListResponse(response.data)).mangas;
     const hasNextPage = mangaRels.length / MANGA_LIMIT - (page - 1) > 1 && ids.length === MANGA_LIMIT;
 
     return { mangas, hasNextPage };
   }
 
-  private async parseMangaListResponse(response: string): Promise<SearchResult> {
-    const data = response.data as MangaListDto;
+  private async parseMangaListResponse(response: MangaListDto): Promise<SearchResult> {
+    const data = response;
     if (data.data.length === 0) return { mangas: [], hasNextPage: false };
 
     const firstVolumeCovers = await this.fetchFirstVolumeCovers(data.data);
@@ -287,8 +287,8 @@ export class MangadexScraper extends BaseScraper {
     return { mangas, hasNextPage: data.limit + data.offset < data.total };
   }
 
-  private async parseLatestUpdatesResponse(response: string): Promise<SearchResult> {
-    const chapterListDto = response.data as ChapterListDto;
+  private async parseLatestUpdatesResponse(response: ChapterListDto): Promise<SearchResult> {
+    const chapterListDto = response;
     if (chapterListDto.data.length === 0) return { mangas: [], hasNextPage: false };
 
     const mangaIds = [...new Set(chapterListDto.data.flatMap(c =>
@@ -305,7 +305,7 @@ export class MangadexScraper extends BaseScraper {
     mangaUrl.searchParams.set('contentRating[]', 'pornographic');
 
     const mangaResp = await this.get(mangaUrl.toString());
-    const mangaListDto = JSON.parse(mangaResp) as MangaListDto;
+    const mangaListDto = mangaResp.data as MangaListDto;
     const mangaMap = new Map(mangaListDto.data.map(m => [m.id, m]));
     const firstVolumeCovers = await this.fetchFirstVolumeCovers(mangaListDto.data);
 
@@ -325,7 +325,8 @@ export class MangadexScraper extends BaseScraper {
     const manga: Manga = {
       url: `/manga/${mangaDataDto.id}`,
       title,
-      thumbnail_url: fileName ? `${CDN_URL}/covers/${mangaDataDto.id}/${fileName}` : undefined,
+      thumbnailUrl: fileName ? `${CDN_URL}/covers/${mangaDataDto.id}/${fileName}` : '',
+      lang: this.dexLang,
     };
 
     return manga;
@@ -383,14 +384,14 @@ export class MangadexScraper extends BaseScraper {
     }
     if (nameParts.length === 0) nameParts.push('Oneshot');
 
-    const date_upload = attr.publishAt ? new Date(attr.publishAt).getTime() : undefined;
+    const dateUpload = attr.publishAt ? new Date(attr.publishAt).getTime() : undefined;
 
     return {
       url: `/chapter/${chapterDataDto.id}`,
       name: nameParts.join(' '),
-      date_upload,
+      dateUpload,
       scanlator: groups || 'No Group',
-      chapter_number: attr.chapter ? parseFloat(attr.chapter) : undefined,
+      chapterNumber: attr.chapter ? parseFloat(attr.chapter) : undefined,
     };
   }
 

@@ -31,7 +31,7 @@ if (query) {
     {error && <p class="text-red-500">{error}</p>}
 
     {query ? (
-      <MediaGrid title={`Résultats pour "${query}"`} items={results} />
+      <MediaGrid title={`Résultats pour "${query}"`} items={results} client:load />
     ) : (
       <div class="flex flex-col items-center justify-center min-h-[40vh] text-center">
         <p class="text-muted-foreground text-lg">Utilisez la barre de recherche pour trouver du contenu.</p>

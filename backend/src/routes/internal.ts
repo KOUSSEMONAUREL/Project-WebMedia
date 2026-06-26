@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getNeonDb } from '../db/singleton';
 import { medias, episodes, liens } from '../db/neon/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
 import { logger } from '../services/logger';
 
@@ -11,6 +11,7 @@ type Bindings = {
     NEON_DATABASE_URL: string;
     HYPERDRIVE: Hyperdrive;
     INTERNAL_API_KEY: string;
+    MONGODB_URI: string;
     DB: D1Database;
 };
 
@@ -68,11 +69,12 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
         return c.json({ success: true, count: 0, message: "Aucun lien autorisé." });
     }
 
+    let inserted: any[] = [];
     try {
         const connStr = getVar(c, 'NEON_DATABASE_URL');
         const hyperdrive = c.env?.HYPERDRIVE;
         const db = getNeonDb(connStr, hyperdrive) as any;
-        const inserted = await db.insert(liens).values(
+        inserted = await db.insert(liens).values(
             safeLinks.map(link => ({
                 sourceSite: link.source_site,
                 playerHost: link.player_host,
@@ -101,6 +103,20 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
         await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length }, getVar(c, 'MONGODB_URI'));
         return c.json({ success: true, count: inserted.length });
     } catch (error: any) {
+        // Compensation: si D1 a échoué après Neon, nettoyer les lignes insérées
+        if (inserted.length > 0) {
+            try {
+                const connStr = getVar(c, 'NEON_DATABASE_URL');
+                const hyperdrive = c.env?.HYPERDRIVE;
+                const db = getNeonDb(connStr, hyperdrive) as any;
+                const insertedIds = inserted.map((r: any) => r.id).filter(Boolean);
+                if (insertedIds.length > 0) {
+                    await db.delete(liens).where(inArray(liens.id, insertedIds));
+                }
+            } catch (rollbackError) {
+                console.error('Rollback échoué:', rollbackError);
+            }
+        }
         await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId }, getVar(c, 'MONGODB_URI'));
         console.error('Ingestion Error:', error.message);
         return c.json({ success: false, error: 'Erreur insertion' }, 500);

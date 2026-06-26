@@ -77,6 +77,13 @@ export const episodeRelations = relations(episodes, ({ one, many }) => ({
     liens: many(liens),
 }));
 
+// ========== TABLE IMPORT OFFSETS ==========
+export const importOffsets = pgTable('import_offsets', {
+    key: varchar('key', { length: 50 }).primaryKey(),
+    value: integer('value').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 export const lienRelations = relations(liens, ({ one }) => ({
     media: one(medias, {
         fields: [liens.mediaId],

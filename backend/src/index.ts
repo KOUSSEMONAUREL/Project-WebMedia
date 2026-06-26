@@ -18,12 +18,17 @@ import webtoonRoutes from './routes/webtoon';
 type Bindings = {
     DB: D1Database;
     KV: KVNamespace;
+    HYPERDRIVE: Hyperdrive;
     SUPABASE_DATABASE_URL: string;
     NEON_DATABASE_URL: string;
+    TURSO_DATABASE_URL: string;
+    TURSO_AUTH_TOKEN: string;
     JWT_SECRET: string;
     TMDB_API_KEY: string;
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
+    INTERNAL_API_KEY: string;
+    MONGODB_URI: string;
     ENVIRONMENT: string;
 };
 

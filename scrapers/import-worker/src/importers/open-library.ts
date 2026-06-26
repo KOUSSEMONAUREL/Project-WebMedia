@@ -50,7 +50,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
                         mediaId: media.id, sourceSite: 'openlibrary',
                         url: `${OPEN_LIBRARY_API}${item.key}`,
                         quality: 'original', language: 'EN'
-                    });
+                    }).onConflictDoNothing();
                     importedCount++;
                 }
             } catch {}

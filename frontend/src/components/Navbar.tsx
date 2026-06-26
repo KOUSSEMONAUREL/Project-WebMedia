@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Search, Menu, X, Bell, Home, Film, Tv, Library, Gamepad2, Heart, Clock, Settings, Compass, Hash, Star, BookOpen, NotebookPen } from 'lucide-react';
+import { Search, Menu, X, Bell, Home, Film, Tv, Library, Gamepad2, Heart, Clock, Settings, Compass, Hash, Star, BookOpen, BookMarked, NotebookPen } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { allMockData } from '@/lib/mockData';
@@ -15,7 +15,7 @@ const mobileMenuItems = [
     { icon: Library, label: "Animés", href: "/animes" },
     { icon: Gamepad2, label: "Jeux Vidéo", href: "/games" },
     { icon: BookOpen, label: "Webtoons", href: "/webtoons" },
-    { icon: BookOpen, label: "Livres", href: "/books" },
+    { icon: BookMarked, label: "Livres", href: "/books" },
     { icon: NotebookPen, label: "Light Novels", href: "/novels" },
     { icon: Heart, label: "Favoris", href: "/favorites" },
     { icon: Clock, label: "À voir", href: "/watchlist" },

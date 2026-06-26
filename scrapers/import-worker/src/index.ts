@@ -30,9 +30,9 @@ async function startApp() {
     const { importTrendingGames } = await import('./importers/igdb.js');
     const { importRoyalRoad } = await import('./importers/royalroad.js');
     const { syncNeonToTurso } = await import('./sync-turso.js');
-    const { config } = await import('dotenv');
+    const dotenv = await import('dotenv');
 
-    config();
+    dotenv.config();
 
     const tmdbKey = process.env.TMDB_API_KEY || '';
     const cvKey = process.env.COMICVINE_API_KEY || '';

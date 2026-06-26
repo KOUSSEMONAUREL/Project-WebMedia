@@ -22,11 +22,11 @@ export class VizshonenjumpScraper extends BaseScraper {
     const res = await this.get(mangaUrl);
     const data = JSON.parse(res.data);
     return {
-      title: detail?.name || detail?.title || detail?.postTitle || "",
+      title: data?.name || data?.title || data?.postTitle || "",
       url: mangaUrl,
-      thumbnailUrl: this.absUrl(detail?.cover || detail?.cover_url || detail?.thumbnail_url || detail?.featuredImage || ""),
-      description: (detail?.summary || detail?.description || detail?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: detail?.author || undefined,
+      thumbnailUrl: this.absUrl(data?.cover || data?.cover_url || data?.thumbnail_url || data?.featuredImage || ""),
+      description: (data?.summary || data?.description || data?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
+      author: data?.author || undefined,
       lang: this.lang,
     };
   }

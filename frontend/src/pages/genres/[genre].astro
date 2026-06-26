@@ -44,6 +44,6 @@ const displayName = genre ? genre.charAt(0).toUpperCase() + genre.slice(1).repla
       </h1>
       <p class="mt-2 text-muted-foreground">{filtered.length} résultat{filtered.length > 1 ? 's' : ''}</p>
     </header>
-    <MediaGrid title={displayName} items={filtered} />
+    <MediaGrid title={displayName} items={filtered} client:load />
   </div>
 </Layout>

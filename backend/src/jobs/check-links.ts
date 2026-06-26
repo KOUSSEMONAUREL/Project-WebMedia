@@ -2,7 +2,7 @@ import 'dotenv/config';
 import axios from 'axios';
 import { getNeonClient } from '../db/singleton';
 import { liens, medias } from '../db/neon/schema';
-import { eq, lt, sql, and, inArray } from 'drizzle-orm';
+import { eq, sql, and, inArray } from 'drizzle-orm';
 
 async function mapConcurrent<T, R>(
     items: T[],

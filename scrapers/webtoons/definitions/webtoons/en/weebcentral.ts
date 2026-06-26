@@ -31,7 +31,7 @@ export class WeebCentralScraper extends BaseScraper {
       description: content.find('li:has(strong:contains(Description)) > p').text().trim() || undefined,
       author: info.find('ul > li:has(strong:contains(Author)) > span > a').map((_: any, el: any) => $(el).text()).get().join(', ') || undefined,
       genre: info.find('ul > li:has(strong:contains(Tag),strong:contains(Type)) a').map((_: any, el: any) => $(el).text()).get().join(', '),
-      status: (() => { const s = info.find('ul > li:has(strong:contains(Status)) > a').text().toLowerCase(); return s === 'ongoing' ? 1 : s === 'complete' ? 2 : s === 'hiatus' ? 3 : s === 'canceled' ? 5 : 0; })(),
+      status: (() => { const s = info.find('ul > li:has(strong:contains(Status)) > a').text().toLowerCase(); return s === 'ongoing' ? 1 : s === 'complete' ? 2 : s === 'hiatus' ? 3 : s === 'canceled' ? 3 : 0; })(),
       lang: this.lang,
     };
   }

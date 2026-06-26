@@ -18,7 +18,7 @@ async function getRunner() {
     }
 
     try {
-        const runnerPath = '../../../scrapers/webtoons/src/runner';
+        const runnerPath = '../lib/scrapers/runner';
         const mod = await import(runnerPath);
         return mod as { listScrapers: Function; getScraper: Function; getScraperForUrl: Function };
     } catch (err: any) {

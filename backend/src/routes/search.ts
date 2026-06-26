@@ -7,6 +7,7 @@ import { ilike, and, eq, or, sql, getTableColumns } from 'drizzle-orm';
 
 type Bindings = {
     NEON_DATABASE_URL: string;
+    HYPERDRIVE: Hyperdrive;
 };
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
@@ -16,7 +17,7 @@ const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key
 
 const searchSchema = z.object({
     q: z.string().min(1).max(200),
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'all']).optional(),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
     offset: z.coerce.number().int().min(0).optional().default(0),
@@ -31,7 +32,7 @@ searchRoutes.get(
         const dbUrl = getVar(c, 'NEON_DATABASE_URL');
 
         try {
-            const db = getNeonDb(dbUrl);
+            const db = getNeonDb(dbUrl, c.env?.HYPERDRIVE);
 
             let searchFilters = [
                 or(

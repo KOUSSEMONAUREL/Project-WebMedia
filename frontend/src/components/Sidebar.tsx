@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Home, 
   Film, 
@@ -6,6 +5,7 @@ import {
   Gamepad2, 
   Library, 
   BookOpen,
+  BookMarked,
   NotebookPen,
   Compass, 
   Heart, 
@@ -28,7 +28,7 @@ const sidebarItems = [
     { icon: Library, label: "Animés", href: "/animes" },
     { icon: Gamepad2, label: "Jeux Vidéo", href: "/games" },
     { icon: BookOpen, label: "Webtoons", href: "/webtoons" },
-    { icon: BookOpen, label: "Livres", href: "/books" },
+    { icon: BookMarked, label: "Livres", href: "/books" },
     { icon: NotebookPen, label: "Light Novels", href: "/novels" },
   ]},
   { group: "Personnel", items: [

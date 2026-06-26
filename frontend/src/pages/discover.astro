@@ -45,13 +45,13 @@ try {
       </p>
     </header>
 
-    <MediaGrid title="Tendances" items={trending} viewAllHref="/trending" />
-    <MediaGrid title="Films" items={films} viewAllHref="/films" />
-    <MediaGrid title="Séries" items={series} viewAllHref="/series" />
-    <MediaGrid title="Animés" items={animes} viewAllHref="/animes" />
-    <MediaGrid title="Jeux Vidéo" items={games} viewAllHref="/games" />
-    <MediaGrid title="Webtoons" items={webtoons} viewAllHref="/webtoons" />
-    <MediaGrid title="Livres" items={books} viewAllHref="/books" />
-    <MediaGrid title="Light Novels" items={novels} viewAllHref="/novels" />
+    <MediaGrid title="Tendances" items={trending} viewAllHref="/trending" client:load />
+    <MediaGrid title="Films" items={films} viewAllHref="/films" client:load />
+    <MediaGrid title="Séries" items={series} viewAllHref="/series" client:load />
+    <MediaGrid title="Animés" items={animes} viewAllHref="/animes" client:load />
+    <MediaGrid title="Jeux Vidéo" items={games} viewAllHref="/games" client:load />
+    <MediaGrid title="Webtoons" items={webtoons} viewAllHref="/webtoons" client:load />
+    <MediaGrid title="Livres" items={books} viewAllHref="/books" client:load />
+    <MediaGrid title="Light Novels" items={novels} viewAllHref="/novels" client:load />
   </div>
 </Layout>

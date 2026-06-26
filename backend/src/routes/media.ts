@@ -12,6 +12,7 @@ type Bindings = {
     NEON_DATABASE_URL: string;
     TURSO_DATABASE_URL: string;
     TURSO_AUTH_TOKEN: string;
+    INTERNAL_API_KEY: string;
 };
 
 const mediaRoutes = new Hono<{ Bindings: Bindings }>();
@@ -48,7 +49,7 @@ mediaRoutes.get('/trending', async (c) => {
             .limit(20);
 
         // 2. Sauvegarder dans KV (Si dispo)
-        if (c.env?.KV) {
+        if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
                 c.env.KV.put(cacheKey, JSON.stringify(trending), { expirationTtl: 3600 })
             );
@@ -68,7 +69,7 @@ mediaRoutes.get('/trending', async (c) => {
 
 // ========== GET /api/media (Listing par type) ==========
 const listMediaSchema = z.object({
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon']),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
     offset: z.coerce.number().int().min(0).optional().default(0),
 });
@@ -89,7 +90,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
             .limit(limit)
             .offset(offset);
 
-        if (c.env?.KV) {
+        if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
                 c.env.KV.put(cacheKey, JSON.stringify(results), { expirationTtl: 1800 })
             );
@@ -147,7 +148,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
             links: mediaLiens
         };
 
-        if (c.env?.KV) {
+        if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
                 c.env.KV.put(cacheKey, JSON.stringify(finalData), { expirationTtl: 21600 })
             );
@@ -163,7 +164,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
 // ========== POST /api/media ==========
 const createMediaSchema = z.object({
     title: z.string().min(1).max(500),
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon']),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
     year: z.number().int().min(1900).max(2100),
     synopsis: z.string().optional(),
     posterUrl: z.string().url().optional(),

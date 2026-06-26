@@ -25,29 +25,29 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@hono/node-server": "^2.0.4",
+    "@hono/node-server": "^2.0.6",
     "@hono/zod-validator": "^0.7.6",
-    "@libsql/client": "^0.17.3",
-    "axios": "^1.7.8",
+    "@libsql/client": "^0.17.4",
+    "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.4.0",
+    "hono": "^4.12.27",
     "jose": "^5.2.0",
-    "mongodb": "^7.3.0",
+    "mongodb": "^7.4.0",
     "postgres": "^3.4.3",
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240208.0",
+    "@cloudflare/workers-types": "^4.20260626.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.31.10",
     "esbuild": "0.28.1",
-    "tsx": "^4.7.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.3.3",
-    "vitest": "^4.1.7",
-    "wrangler": "^4.100.0"
+    "vitest": "^4.1.9",
+    "wrangler": "^4.105.0"
   },
   "overrides": {
     "esbuild": "0.28.1",

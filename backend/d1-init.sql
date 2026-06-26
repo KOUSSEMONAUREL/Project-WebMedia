@@ -40,15 +40,6 @@ CREATE TABLE IF NOT EXISTS media_state (
   last_error      TEXT
 );
 
--- Table de Mapping Universelle (Fribb/anime-lists)
-CREATE TABLE IF NOT EXISTS id_mapping (
-    anilist_id      INTEGER PRIMARY KEY,
-    tmdb_id         INTEGER,
-    mal_id          INTEGER,
-    imdb_id         TEXT,
-    updated_at      INTEGER
-);
-
 -- Queue légère (backup de Upstash, toujours consultable)
 CREATE TABLE IF NOT EXISTS scrape_queue (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
