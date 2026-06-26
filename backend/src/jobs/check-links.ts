@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import axios from 'axios';
-import { getNeonClient } from '../db/singleton';
-import { liens, medias } from '../db/neon/schema';
+import { getNeonClient, getTursoClient } from '../db/singleton';
+import { liens, medias, episodes } from '../db/neon/schema';
+import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from '../db/turso/schema';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 
 async function mapConcurrent<T, R>(
@@ -104,7 +105,70 @@ async function checkLinks() {
     }
 
     console.log(`✅ Done: ${aliveIds.length} alive, ${justIncrement.length} incremented, ${toDeactivate.length} deactivated.`);
+
+    // Sync Neon -> Turso pour que le cache edge reflète les changements
+    const tursoUrl = process.env.TURSO_DATABASE_URL || '';
+    const tursoToken = process.env.TURSO_AUTH_TOKEN || '';
+    if (tursoUrl && tursoToken) {
+        console.log('🔄 Syncing Neon -> Turso...');
+        await syncNeonToTurso(neonUrl, tursoUrl, tursoToken);
+    }
+
     await pgClient.end();
+}
+
+async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
+    const { db: neonDb } = getNeonClient(neonUrl);
+    const tursoDb = getTursoClient(tursoUrl, tursoToken);
+
+    const allMedias = await neonDb.select().from(medias);
+    if (allMedias.length > 0) {
+        for (const m of allMedias) {
+            const { id, ...rest } = m;
+            await tursoDb.insert(tursoMedias).values({
+                ...m,
+                rating: m.rating?.toString(),
+                metadataFreshAt: m.metadataFreshAt ? new Date(m.metadataFreshAt) : null,
+                linksLastScrapedAt: m.linksLastScrapedAt ? new Date(m.linksLastScrapedAt) : null,
+                createdAt: new Date(m.createdAt!),
+                updatedAt: new Date(m.updatedAt!)
+            }).onConflictDoUpdate({
+                target: tursoMedias.id,
+                set: { ...rest, rating: m.rating?.toString(), updatedAt: new Date() }
+            });
+        }
+    }
+
+    const allEpisodes = await neonDb.select().from(episodes);
+    if (allEpisodes.length > 0) {
+        for (const e of allEpisodes) {
+            const { id, ...rest } = e;
+            await tursoDb.insert(tursoEpisodes).values({
+                ...e,
+                airDate: e.airDate ? new Date(e.airDate) : null
+            }).onConflictDoUpdate({
+                target: tursoEpisodes.id,
+                set: { ...rest }
+            });
+        }
+    }
+
+    const allLiens = await neonDb.select().from(liens);
+    if (allLiens.length > 0) {
+        for (const l of allLiens) {
+            const { id, ...rest } = l;
+            await tursoDb.insert(tursoLiens).values({
+                ...l,
+                lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
+                scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null
+            }).onConflictDoUpdate({
+                target: tursoLiens.id,
+                set: { ...rest }
+            });
+        }
+    }
+
+    console.log(`✅ Sync Turso: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links.`);
 }
 
 checkLinks().catch(console.error);
