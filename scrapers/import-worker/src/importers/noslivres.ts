@@ -1,67 +1,87 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { eq, inArray } from 'drizzle-orm';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import crypto from 'crypto';
 
-const NOSLIVRES_API = 'https://api.noslivres.fr/api/v1';
+const API = 'https://noslivres.net/query.php';
 const KEY = 'noslivres';
+
+function extractUrl(html: string): string {
+    const m = html.match(/href='([^']+)'/);
+    return m ? m[1] : '';
+}
+
+function extractSource(html: string): string {
+    const m = html.match(/>([^<]+)<\/a>/);
+    return m ? m[1].trim() : 'noslivres';
+}
 
 export async function importPopularBooksFR(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     console.log(`🚀 Starting NosLivres Import (limit=${limit})...`);
 
     try {
-        const page = await getOffset(KEY, databaseUrl, 1);
-        const response = await withRetry(() => axios.get(`${NOSLIVRES_API}/books/popular`, {
-            params: { page, pageSize: limit },
-            headers: { 'User-Agent': 'WebMedia/1.0' }
-        }));
+        const start = await getOffset(KEY, databaseUrl, 0);
 
-        const results = response.data?.data || response.data || [];
-        if (!Array.isArray(results) || results.length === 0) {
-            await setOffset(KEY, 1, databaseUrl);
-            console.log('📄 Fin catalogue NosLivres, retour page 1');
+        const response = await axios.post(API,
+            `draw=1&start=${start}&length=${limit}&columns[0][data]=0&columns[1][data]=1&columns[2][data]=2&columns[3][data]=3&columns[4][data]=4`,
+            { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+
+        const total = response.data.recordsTotal ?? 0;
+        const rows: string[][] = response.data.data ?? [];
+
+        if (rows.length === 0) {
+            await setOffset(KEY, 0, databaseUrl);
+            console.log('📄 Fin catalogue NosLivres, retour début');
             return 0;
         }
 
-        // Batch check slugs
-        const slugs = results.map((book: any) =>
-            `nl-${book.id}-${book.attributes?.title?.toLowerCase().substring(0, 60).replace(/[^a-z0-9]+/g, '-') || book.id}`
-        );
-        const existingSlugs = await batchCheckExisting(db, medias.slug, slugs);
+        const externalIds = rows.map((r: string[]) => {
+            const url = extractUrl(r[4]);
+            return `nl-${crypto.createHash('md5').update(url).digest('hex').slice(0, 12)}`;
+        });
+        const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
         let importedCount = 0;
-        for (let i = 0; i < results.length; i++) {
-            const book = results[i];
-            if (existingSlugs.has(slugs[i])) continue;
+        for (let i = 0; i < rows.length; i++) {
+            const [titre, auteur, parution, maj, urlHtml] = rows[i];
+            const externalId = externalIds[i];
+            if (existing.has(externalId)) continue;
 
-            const title = book.attributes?.title || 'Titre inconnu';
-            const externalId = `nl-${book.id}`;
-            const slug = slugs[i];
+            const url = extractUrl(urlHtml);
+            const source = extractSource(urlHtml);
+            const title = titre || 'Titre inconnu';
+            const slug = `nl-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490);
 
             try {
                 const [media] = await db.insert(medias).values({
                     type: 'book', title, slug, externalId,
-                    synopsis: book.attributes?.description,
-                    posterUrl: book.attributes?.cover,
+                    year: parution ? parseInt(parution.split('-')[0]) : undefined,
                     metadataSource: 'noslivres', metadataFreshAt: new Date()
                 }).returning({ id: medias.id });
 
-                if (media) {
-                    const bookUrl = book.attributes?.url || `https://noslivres.fr/livres/${book.id}`;
+                if (media && url) {
                     await db.insert(liens).values({
-                        mediaId: media.id, sourceSite: 'noslivres',
-                        url: bookUrl, quality: 'original', language: 'FR',
+                        mediaId: media.id, sourceSite: source.toLowerCase(),
+                        url, quality: 'original', language: 'FR',
                     }).onConflictDoNothing().catch(() => {});
                     importedCount++;
                 }
             } catch {}
         }
 
-        await setOffset(KEY, page + 1, databaseUrl);
-        console.log(`✅ NosLivres: ${importedCount} ajoutés (page ${page})`);
+        const nextStart = start + rows.length;
+        if (nextStart >= total) {
+            await setOffset(KEY, 0, databaseUrl);
+            console.log(`📄 Catalogue NosLivres complet (${total} entrées), retour début`);
+        } else {
+            await setOffset(KEY, nextStart, databaseUrl);
+        }
+
+        console.log(`✅ NosLivres: ${importedCount} ajoutés (offset ${start}/${total})`);
         return importedCount;
     } catch (error: any) {
         console.warn('⚠️ NosLivres ignoré (API inaccessible):', error.message);
