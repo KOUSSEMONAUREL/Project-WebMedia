@@ -6,6 +6,7 @@ import { medias, episodes, liens } from '../db/neon/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
 import { logger } from '../services/logger';
+import { OrchestratorService } from '../services/orchestrator';
 
 type Bindings = {
     NEON_DATABASE_URL: string;
@@ -211,6 +212,19 @@ internalRoutes.post('/ingest/mapping', zValidator('json', mappingSchema as any),
         await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {}, getVar(c, 'MONGODB_URI'));
         console.error("D1 Mapping Ingest Error:", e.message);
         return c.json({ error: e.message }, 500);
+    }
+});
+
+// ========== POST /api/internal/orchestrate ==========
+internalRoutes.post('/orchestrate', async (c) => {
+    try {
+        const orchestrator = new OrchestratorService(c.env);
+        const result = await orchestrator.resolveStaleMedia();
+        await logger.audit('Orchestrator', 'Trigger manuel via endpoint', result, getVar(c, 'MONGODB_URI'));
+        return c.json({ success: true, ...result });
+    } catch (error: any) {
+        await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, getVar(c, 'MONGODB_URI'));
+        return c.json({ success: false, error: error.message }, 500);
     }
 });
 
