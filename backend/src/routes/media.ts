@@ -17,8 +17,14 @@ type Bindings = {
 
 const mediaRoutes = new Hono<{ Bindings: Bindings }>();
 
-// Helper universel pour les variables d'env (Cloudflare + Node.js)
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+// Helper universel pour les variables d'env
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
 // Helpers typés (singleton — réutilise les connexions)
 const getTursoDb = (c: any) => {
@@ -71,7 +77,7 @@ mediaRoutes.get('/trending', async (c) => {
 const listMediaSchema = z.object({
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-    offset: z.coerce.number().int().min(0).optional().default(0),
+    offset: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
@@ -184,7 +190,17 @@ mediaRoutes.post('/', async (c, next) => {
     const data = c.req.valid('json' as any);
     try {
         const db = getNeonWriteDb(c);
-        const slug = data.title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+        // Génération de slug robuste
+        const baseSlug = data.title
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+            .trim()
+            .replace(/\s+/g, '-')
+            .replace(/[^\w-]+/g, '')
+            .replace(/--+/g, '-');
+        
+        // Ajout de l'année au slug pour éviter les collisions (remakes etc)
+        const slug = `${baseSlug}-${data.year}`;
 
         const result = await db.insert(neonMedias).values({
             ...data,

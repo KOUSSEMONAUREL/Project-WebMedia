@@ -13,14 +13,20 @@ type Bindings = {
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
 
 // Helper universel pour les variables d'env
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
 const searchSchema = z.object({
     q: z.string().min(1).max(200),
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-    offset: z.coerce.number().int().min(0).optional().default(0),
+    offset: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
 // ========== GET /api/search ==========

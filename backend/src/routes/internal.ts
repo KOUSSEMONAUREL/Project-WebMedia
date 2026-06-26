@@ -19,7 +19,13 @@ type Bindings = {
 const internalRoutes = new Hono<{ Bindings: Bindings }>();
 
 // Helper universel pour les variables d'env
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && (c.env?.ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production')) {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
 // Middleware de sécurité
 internalRoutes.use('*', async (c, next) => {
@@ -55,14 +61,17 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
     const data = c.req.valid('json') as z.infer<typeof ingestLiensSchema>;
     const { mediaId, episodeId, links } = data;
 
-    // Filter links: All links MUST match whitelist, except Novels don't need player check IF they match source whitelist
+    // Filter links: All links MUST match hostname whitelist
     const safeLinks = links.filter(l => {
-        const isWhitelistedPlayer = ALLOWED_PLAYERS.some(player => 
-            l.url.includes(player) || (l.player_host && l.player_host.includes(player))
-        );
-        
-        // Novel specifics: We still want them from a whitelisted host (royalroad etc)
-        return isWhitelistedPlayer;
+        try {
+            const url = new URL(l.url);
+            const hostname = url.hostname.replace('www.', '');
+            return ALLOWED_PLAYERS.some(player => 
+                hostname === player || hostname.endsWith('.' + player)
+            );
+        } catch {
+            return false;
+        }
     });
 
     if (safeLinks.length === 0) {
@@ -113,8 +122,10 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                 const insertedIds = inserted.map((r: any) => r.id).filter(Boolean);
                 if (insertedIds.length > 0) {
                     await db.delete(liens).where(inArray(liens.id, insertedIds));
+                    await logger.warn('IngestWorker', 'Rollback effectué après erreur D1', { mediaId, deletedCount: insertedIds.length }, getVar(c, 'MONGODB_URI'));
                 }
-            } catch (rollbackError) {
+            } catch (rollbackError: any) {
+                await logger.error('IngestWorker', `Rollback échoué: ${rollbackError.message}`, { mediaId }, getVar(c, 'MONGODB_URI'));
                 console.error('Rollback échoué:', rollbackError);
             }
         }

@@ -6,6 +6,15 @@ type Bindings = {
 
 const staticRoutes = new Hono<{ Bindings: Bindings }>();
 
+// Helper universel pour les variables d'env
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
+
 // ========== GET /api/static/genres ==========
 staticRoutes.get('/genres', async (c) => {
     try {

@@ -5,7 +5,7 @@ const MAX_STORE_SIZE = 5000; // Sécurité anti-OOM (Out Of Memory)
 
 export const rateLimitServer = (limit: number, windowSeconds: number): MiddlewareHandler => {
   return async (c, next) => {
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     const now = Date.now();
     const key = `ratelimit:${ip}`;
 
