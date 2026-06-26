@@ -64,7 +64,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
         console.log(`✅ NosLivres: ${importedCount} ajoutés (page ${page})`);
         return importedCount;
     } catch (error: any) {
-        console.error('NosLivres Import Error:', error.message);
-        throw error;
+        console.warn('⚠️ NosLivres ignoré (API inaccessible):', error.message);
+        return 0;
     }
 }

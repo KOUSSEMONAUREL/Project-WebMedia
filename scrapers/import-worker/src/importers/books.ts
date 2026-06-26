@@ -62,7 +62,7 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
 
                     await notifyBrain(inserted.id, 'book', internalApiUrl!, internalApiKey!);
                     totalImported++;
-                    console.log(`✅ [NOVEL] ${title}`);
+                    console.log(`✅ [BOOK] ${title}`);
                 } catch {}
             }
 
