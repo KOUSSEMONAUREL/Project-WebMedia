@@ -1,7 +1,7 @@
 name: Novel Scraper
 on:
   schedule:
-    - cron: '0 * * * *' # Run every hour
+    - cron: '0 8,20 * * *'
   workflow_dispatch:
 
 jobs:
