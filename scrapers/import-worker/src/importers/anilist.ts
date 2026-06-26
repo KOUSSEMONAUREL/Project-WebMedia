@@ -64,6 +64,9 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
 
         for (const m of inserted) {
             console.log(`✅ [ANIME] ${m.externalId}`);
+            try {
+                await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+            } catch { /* ignore brain errors */ }
         }
 
         await setOffset(KEY, page + 1, databaseUrl);

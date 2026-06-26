@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
-import { batchCheckExisting, withRetry } from '../utils/batch-import.js';
+import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 import crypto from 'crypto';
 
@@ -91,6 +91,12 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
         if (lienValues.length > 0) {
             await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+        }
+
+        for (const m of inserted) {
+            try {
+                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+            } catch { /* ignore brain errors */ }
         }
 
         console.log(`✅ NosLivres: ${inserted.length} ajoutés (offset ${start}/${total})`);
