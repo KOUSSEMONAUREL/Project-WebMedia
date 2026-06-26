@@ -64,7 +64,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
       const neon = postgres(neonUrl, { prepare: false });
 
       let processed = 0;
-      const maxJobs = 20;
+      const maxJobs = 10;
 
       while (processed < maxJobs) {
         const [job] = await sb`
