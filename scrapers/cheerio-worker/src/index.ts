@@ -48,7 +48,7 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
   if (!tmdbId) return 0;
 
   const links: any[] = [];
-  const mediaType = type === 'anime' ? 'serie' : type; // anime → TV embed
+  const mediaType = type === 'anime' ? 'serie' : type === 'movie' ? 'film' : type;
 
   for (const src of STREAMING_SOURCES) {
     try {
@@ -102,7 +102,7 @@ export async function startWorker() {
 
       let savedLinks = 0;
 
-      if (['film', 'serie', 'anime'].includes(mediaType)) {
+      if (['film', 'movie', 'serie', 'anime'].includes(mediaType)) {
         savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id);
       } else if (['webtoon', 'comic', 'manga', 'book'].includes(mediaType)) {
         console.log(`  ℹ️ ${mediaType}: liens déjà sauvegardés pendant l'import`);
