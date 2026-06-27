@@ -48,7 +48,7 @@ webtoonRoutes.get('/', async (c) => {
             (grouped[s.lang] ||= []).push({ name: s.name, lang: s.lang });
         }
 
-        if (c.env?.KV) {
+        if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
                 c.env.KV.put(cacheKey, JSON.stringify(grouped), { expirationTtl: 3600 })
             );

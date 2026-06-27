@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: cd scrapers/webtoons && npm install
+        run: cd scrapers/webtoons && npm ci
       - name: Fetch stale webtoons from queue
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

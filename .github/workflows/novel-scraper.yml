@@ -20,7 +20,7 @@ jobs:
       - name: Install lncrawl
         run: pip install lightnovel-crawler
       - name: Install dependencies
-        run: cd scrapers/novel-worker && npm install
+        run: cd scrapers/novel-worker && npm ci
       - name: Run Novel Worker
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Start the WebMedia Recommender API
 # Usage: ./start.sh [port]
 
@@ -7,10 +8,10 @@ PORT=${1:-7860}
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
     python3 -m venv venv
-    source venv/bin/activate
+    . venv/bin/activate
     pip install -r requirements.txt
 else
-    source venv/bin/activate
+    . venv/bin/activate
 fi
 
 echo "Starting Recommender API on port $PORT..."

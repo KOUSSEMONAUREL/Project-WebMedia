@@ -55,7 +55,7 @@ class MongodbLogger {
                     const safeDetails = details ? JSON.parse(JSON.stringify(details).substring(0, 5000)) : undefined;
                     await collection.insertOne({ ...entry, details: safeDetails });
                 } catch (e) {
-                    // Silently fail
+                    console.error('[Logger] MongoDB insert failed:', e);
                 }
             }
         }
