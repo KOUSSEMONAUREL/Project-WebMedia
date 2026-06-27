@@ -38,7 +38,8 @@ internalRoutes.use('*', async (c, next) => {
 });
 
 const ALLOWED_PLAYERS = [
-    'vidsrc.me', 'voe.sx', 'streamwish.to', 'doodstream.com', 'filemoon.sx', 'upstream.to',
+    'vidsrc.me', 'vidsrc.to', 'vidsrc.icu', '2embed.cc', 'embed.su', 'multiembed.mov', 'ezvidapi.com',
+    'voe.sx', 'streamwish.to', 'doodstream.com', 'filemoon.sx', 'upstream.to',
     'royalroad.com', 'wuxiaworld.com', 'lightnovelpub.com', 'boxnovel.com', 'novel-bin.com'
 ];
 
@@ -237,16 +238,24 @@ internalRoutes.post('/ingest/mapping', zValidator('json', mappingSchema as any),
             return c.json({ success: false, error: "Aucun mapping valide (anilist_id + au moins un autre ID requis)" }, 400);
         }
 
-        const statements = validMappings.map((m) =>
-            c.env.DB.prepare(`
+        const statements = validMappings.map((m) => {
+            // Normaliser tmdb_id : Fribb peut l'envoyer comme { tv: 13916 } ou directement 13916
+            let tmdbIdVal = m.tmdb_id;
+            if (tmdbIdVal && typeof tmdbIdVal === 'object') {
+                tmdbIdVal = (tmdbIdVal as any).tv ?? (tmdbIdVal as any).movie ?? null;
+            }
+            // Valider que c'est bien un nombre
+            const tmdbStr = tmdbIdVal && !isNaN(Number(tmdbIdVal)) ? String(Number(tmdbIdVal)) : null;
+
+            return c.env.DB.prepare(`
                 INSERT INTO id_mapping (anilist_id, tmdb_id, mal_id, imdb_id)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(anilist_id) DO UPDATE SET
                     tmdb_id = excluded.tmdb_id,
                     mal_id = excluded.mal_id,
                     imdb_id = excluded.imdb_id
-            `).bind(String(m.anilist_id), m.tmdb_id ? String(m.tmdb_id) : null, m.mal_id ? String(m.mal_id) : null, m.imdb_id ? String(m.imdb_id) : null)
-        );
+            `).bind(String(m.anilist_id), tmdbStr, m.mal_id ? String(m.mal_id) : null, m.imdb_id ? String(m.imdb_id) : null);
+        });
         await c.env.DB.batch(statements);
         
         await logger.info('IngestWorker', `Mapping mis à jour: ${validMappings.length} entrées`, {}, getVar(c, 'MONGODB_URI'));
@@ -255,6 +264,47 @@ internalRoutes.post('/ingest/mapping', zValidator('json', mappingSchema as any),
         await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {}, getVar(c, 'MONGODB_URI'));
         console.error("D1 Mapping Ingest Error:", e.message);
         return c.json({ error: e.message }, 500);
+    }
+});
+
+// ========== GET /api/internal/resolve/tmdb ==========
+internalRoutes.get('/resolve/tmdb', async (c) => {
+    const anilistId = c.req.query('anilist_id');
+    const mediaId = c.req.query('media_id');
+    try {
+        if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+
+        let mapping;
+        if (anilistId) {
+            mapping = await c.env.DB.prepare(`
+                SELECT tmdb_id FROM id_mapping WHERE anilist_id = ?
+            `).bind(anilistId).first<{ tmdb_id: string | null }>();
+        } else if (mediaId) {
+            // Fallback: lookup via Neon anilist_id
+            const connStr = getVar(c, 'NEON_DATABASE_URL');
+            const hyperdrive = c.env?.HYPERDRIVE;
+            const db = getNeonDb(connStr, hyperdrive) as any;
+            const [media] = await db.select({ anilistId: medias.anilistId })
+                .from(medias)
+                .where(eq(medias.id, mediaId));
+            if (media?.anilistId) {
+                mapping = await c.env.DB.prepare(`
+                    SELECT tmdb_id FROM id_mapping WHERE anilist_id = ?
+                `).bind(String(media.anilistId)).first<{ tmdb_id: string | null }>();
+            }
+        }
+
+        if (!mapping?.tmdb_id) {
+            return c.json({ success: false, error: 'Mapping non trouvé' }, 404);
+        }
+        const parsed = parseInt(String(mapping.tmdb_id), 10);
+        if (isNaN(parsed)) {
+            return c.json({ success: false, error: 'TMDB ID invalide' }, 404);
+        }
+        return c.json({ success: true, tmdb_id: parsed });
+    } catch (error: any) {
+        console.error('Resolve TMDB Error:', error.message);
+        return c.json({ success: false, error: error.message }, 500);
     }
 });
 
