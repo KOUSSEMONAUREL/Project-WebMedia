@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
 import { reviews } from '../db/supabase/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { jwt } from 'hono/jwt';
 
 type Bindings = {
@@ -21,9 +21,15 @@ type Variables = {
 const reviewRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Helper universel pour les variables d'env
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
-// ========== GET /api/reviews/:mediaId ==========
+// ========== GET /api/reviews/:mediaId (PUBLIC) ==========
 reviewRoutes.get('/:mediaId', async (c) => {
     const mediaId = c.req.param('mediaId');
     const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
@@ -45,7 +51,7 @@ reviewRoutes.get('/:mediaId', async (c) => {
     }
 });
 
-// Middleware JWT
+// Middleware JWT (protège les routes déclarées après ici)
 reviewRoutes.use('*', (c, next) => {
     const jwtMiddleware = jwt({
         secret: getVar(c, 'JWT_SECRET'),
@@ -54,7 +60,7 @@ reviewRoutes.use('*', (c, next) => {
     return jwtMiddleware(c, next);
 });
 
-// ========== POST /api/reviews ==========
+// ========== POST /api/reviews (PROTÉGÉ) ==========
 const createReviewSchema = z.object({
     mediaId: z.string().min(1),
     rating: z.number().int().min(1).max(10),
@@ -72,6 +78,16 @@ reviewRoutes.post(
 
         try {
             const db = getSupabaseClient(dbUrl);
+
+            // Déduplication: Un utilisateur ne peut avoir qu'une review par média
+            const existing = await db.select()
+                .from(reviews)
+                .where(and(eq(reviews.mediaId, data.mediaId), eq(reviews.userId, userId)))
+                .limit(1);
+
+            if (existing.length > 0) {
+                return c.json({ success: false, error: 'Vous avez déjà posté une review pour ce média' }, 400);
+            }
 
             const result = await db.insert(reviews).values({
                 ...data,

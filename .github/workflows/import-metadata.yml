@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Restore import offsets cache
         id: cache-offsets
@@ -23,7 +23,7 @@ jobs:
           restore-keys: import-offsets-
 
       - name: Install dependencies
-        run: cd scrapers/import-worker && npm install
+        run: cd scrapers/import-worker && npm ci
 
       - name: Build
         run: cd scrapers/import-worker && npm run build

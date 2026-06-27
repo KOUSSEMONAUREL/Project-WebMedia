@@ -55,7 +55,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
                 type: 'anime', title, originalTitle: entry.title?.native,
                 slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
                 synopsis, posterUrl: entry.coverImage?.large,
-                externalId: `al-${entry.id}`, year: entry.startDate?.year,
+                externalId: `al-${entry.id}`, anilistId: entry.id, year: entry.startDate?.year,
                 metadataSource: 'anilist', metadataFreshAt: new Date()
             };
         });
@@ -64,6 +64,9 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
 
         for (const m of inserted) {
             console.log(`✅ [ANIME] ${m.externalId}`);
+            try {
+                await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+            } catch { /* ignore brain errors */ }
         }
 
         await setOffset(KEY, page + 1, databaseUrl);

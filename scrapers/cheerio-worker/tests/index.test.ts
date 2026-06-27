@@ -15,21 +15,26 @@ test('cheerio-worker has streaming sources', () => {
   assert.ok(src.includes('embed.su'));
   assert.ok(src.includes('multiembed'));
   assert.ok(src.includes('vidsrc.icu'));
+  assert.ok(src.includes('ezvidapi'));
   const matches = src.match(/name:/g);
-  assert.ok(matches && matches.length >= 6, 'at least 6 streaming sources');
+  assert.ok(matches && matches.length >= 7, 'at least 7 streaming sources');
 });
 
-test('cheerio-worker imports webtoon pipeline', () => {
+test('cheerio-worker handles streaming media types', () => {
   const src = fs.readFileSync(SRC, 'utf-8');
-  assert.ok(src.includes('webtoons'), 'imports from webtoons');
-  assert.ok(src.includes('processMedia'), 'uses processMedia');
+  assert.ok(src.includes("['film', 'movie', 'serie', 'anime']"), 'handles film/movie/serie/anime');
 });
 
-test('cheerio-worker handles all media types', () => {
+test('cheerio-worker resolves tmdb for anime via backend', () => {
   const src = fs.readFileSync(SRC, 'utf-8');
-  assert.ok(src.includes("['webtoon', 'comic', 'manga']"), 'handles webtoon/comic/manga');
-  assert.ok(src.includes("['film', 'serie', 'anime']"), 'handles film/serie/anime');
-  assert.ok(src.includes("mediaType === 'book'"), 'handles book');
+  assert.ok(src.includes('/resolve/tmdb'), 'uses tmdb resolve endpoint');
+  assert.ok(src.includes('anilist_id'), 'looks up by anilist_id');
+});
+
+test('cheerio-worker generates episode-specific URLs for TV', () => {
+  const src = fs.readFileSync(SRC, 'utf-8');
+  assert.ok(src.includes('season_number'), 'queries episodes with season_number');
+  assert.ok(src.includes('episode_number'), 'queries episodes with episode_number');
 });
 
 test('old vidsrc-worker is deprecated', () => {

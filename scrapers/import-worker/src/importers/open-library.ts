@@ -25,16 +25,16 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             return 0;
         }
 
-        const slugs = results.map((item: any) =>
-            `book-ol-${item.key.replace('/works/', '')}-${item.title?.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490)
-        );
-        const existing = await batchCheckExisting(db, medias.slug, slugs);
+        const externalIds = results.map((item: any) => {
+            const key = item?.key || '';
+            return `ol-${key.replace('/works/', '')}`;
+        }).filter(Boolean);
+        const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
         const toInsert = results.filter((item: any) => {
-            const externalId = item.key.replace('/works/', '');
-            const title = item.title;
-            const slug = `book-ol-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
-            return !existing.has(slug);
+            const key = item?.key || '';
+            const externalId = `ol-${key.replace('/works/', '')}`;
+            return !existing.has(externalId);
         });
 
         if (toInsert.length === 0) {
@@ -44,11 +44,13 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         }
 
         const mediaValues = toInsert.map((item: any) => {
-            const externalId = item.key.replace('/works/', '');
+            const key = item?.key || '';
+            const externalId = `ol-${key.replace('/works/', '')}`;
             const title = item.title;
-            const slug = `book-ol-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            const author = item.author_name ? item.author_name.join(', ') : item.authors ? item.authors.map((a: any) => a.name).join(', ') : 'Unknown';
             return {
-                type: 'book', title, originalTitle: title,
+                type: 'book', title, originalTitle: title, author,
                 synopsis: item.first_sentence ? item.first_sentence[0] : '',
                 posterUrl: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : undefined,
                 externalId, slug, metadataSource: 'openlibrary', metadataFreshAt: new Date()
@@ -59,12 +61,16 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
 
         const lienValues = inserted.map(m => ({
             mediaId: m.id, sourceSite: 'openlibrary',
-            url: `${OPEN_LIBRARY_API}/works/${m.externalId}`,
+            url: `${OPEN_LIBRARY_API}/works/${m.externalId?.replace('ol-', '')}`,
             quality: 'original', language: 'EN'
         }));
 
         if (lienValues.length > 0) {
             await db.insert(liens).values(lienValues).onConflictDoNothing();
+        }
+
+        for (const m of inserted) {
+            await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
         }
 
         console.log(`✅ OpenLibrary: ${inserted.length} ajoutés (page ${page})`);

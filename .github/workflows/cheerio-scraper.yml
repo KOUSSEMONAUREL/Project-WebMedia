@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: cd scrapers/cheerio-worker && npm install
+        run: cd scrapers/cheerio-worker && npm ci
       - name: Run Cheerio Worker
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}

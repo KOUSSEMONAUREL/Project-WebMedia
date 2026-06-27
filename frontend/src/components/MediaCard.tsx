@@ -1,5 +1,6 @@
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
+import { hoverStore } from '@/stores/hover';
 
 interface MediaCardProps {
     media: Media;
@@ -37,7 +38,12 @@ export function MediaCard({ media }: MediaCardProps) {
     };
 
     return (
-        <a href={detailHref} className="group relative flex flex-col gap-3 transition-all duration-500 hover:-translate-y-2">
+        <a 
+            href={detailHref} 
+            className="group relative flex flex-col gap-3 transition-all duration-500 hover:-translate-y-2"
+            onMouseEnter={() => hoverStore.setMedia(media)}
+            onMouseLeave={() => hoverStore.setMedia(null)}
+        >
             <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg border border-white/5 group-hover:shadow-[0_8px_30px_rgba(212,175,55,0.4)] group-hover:border-primary/50 transition-all duration-500">
                 <img
                     src={media.posterUrl}

@@ -11,6 +11,7 @@ export const medias = pgTable('medias', {
     slug: varchar('slug', { length: 500 }).notNull().unique(),
     synopsis: text('synopsis'),
     year: integer('year'),
+    author: varchar('author', { length: 300 }),
     posterUrl: text('poster_url'),
     backdropUrl: text('backdrop_url'),
     rating: decimal('rating', { precision: 3, scale: 1 }),

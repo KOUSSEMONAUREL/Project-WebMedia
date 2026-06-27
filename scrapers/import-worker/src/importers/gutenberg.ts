@@ -14,25 +14,30 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
+        const gutenbergKey = process.env.GUTENBERG_API_KEY || '';
+        if (!gutenbergKey) {
+            console.warn('⚠️ GUTENBERG_API_KEY non définie, skip');
+            return 0;
+        }
         const response = await withRetry(() => axios.get(PG_API, {
             params: { q: 'popular', page_size: limit, page },
             headers: {
-                'X-RapidAPI-Key': process.env.GUTENBERG_API_KEY || '',
+                'X-RapidAPI-Key': gutenbergKey,
                 'X-RapidAPI-Host': 'project-gutenberg-free-books-api1.p.rapidapi.com'
             }
         }));
 
-        const results = (response.data.results || []).slice(0, limit);
+        const results = ((response.data?.results || response.data || []) as any[]).slice(0, limit);
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
             console.log('📄 Fin catalogue Project Gutenberg, retour page 1');
             return 0;
         }
 
-        const externalIds = results.map((item: any) => item.id.toString());
+        const externalIds = results.map((item: any) => `gutenberg-${item.id}`);
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-        const toInsert = results.filter((item: any) => !existing.has(item.id.toString()));
+        const toInsert = results.filter((item: any) => !existing.has(`gutenberg-${item.id}`));
         if (toInsert.length === 0) {
             console.log(`📄 Gutenberg page ${page}: tout existant déjà`);
             await setOffset(KEY, page + 1, databaseUrl);
@@ -41,12 +46,12 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
         const mediaValues = toInsert.map((item: any) => {
             const title = item.title;
-            const externalId = item.id.toString();
+            const externalId = `gutenberg-${item.id}`;
             const authors = item.authors?.map((a: any) => a.name).join(', ') || 'Unknown';
-            const slug = `book-gb-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
+            const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
             return {
-                type: 'book', title, originalTitle: title,
-                synopsis: `Auteur(s): ${authors}`,
+                type: 'book', title, originalTitle: title, author: authors,
+                synopsis: item.synopsis || `Livre de Project Gutenberg — ${title}`,
                 posterUrl: item.cover_image || undefined,
                 externalId, slug,
                 metadataSource: 'gutenberg', metadataFreshAt: new Date()
@@ -57,12 +62,18 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
         const lienValues = inserted.map(m => ({
             mediaId: m.id, sourceSite: 'gutenberg',
-            url: `https://www.gutenberg.org/ebooks/${m.externalId}`,
+            url: `https://www.gutenberg.org/ebooks/${m.externalId?.replace('gutenberg-', '')}`,
             quality: 'original', language: 'EN',
         }));
 
         if (lienValues.length > 0) {
             await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
+        }
+
+        for (const m of inserted) {
+            try {
+                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+            } catch { /* ignore brain errors */ }
         }
 
         console.log(`✅ Project Gutenberg: ${inserted.length} ajoutés (page ${page})`);

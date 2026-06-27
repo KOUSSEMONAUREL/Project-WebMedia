@@ -268,7 +268,10 @@ def process_jobs():
                         headers = {
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                         }
-                        page = fetcher.get(search_url, headers=headers)
+                        kwargs = {"headers": headers}
+                        if site_name == "steamunlocked.org":
+                            kwargs["verify"] = False  # SSL auto-signé, inoffensif
+                        page = fetcher.get(search_url, **kwargs)
 
                         if getattr(page, 'status', 200) == 200:
                             site_links = extract_game_links(page, search_url, game_name)

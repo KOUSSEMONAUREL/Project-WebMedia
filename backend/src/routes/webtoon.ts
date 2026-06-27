@@ -8,6 +8,15 @@ type Bindings = {
 
 const webtoonRoutes = new Hono<{ Bindings: Bindings }>();
 
+// Helper universel pour les variables d'env
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
+
 async function getRunner() {
     // Dans Cloudflare Workers, on ne peut pas importer dynamiquement des fichiers de scraper en dehors du bundle
     // Cette route est donc principalement fonctionnelle sur Render (Node.js) pour l'instant.
@@ -39,7 +48,7 @@ webtoonRoutes.get('/', async (c) => {
             (grouped[s.lang] ||= []).push({ name: s.name, lang: s.lang });
         }
 
-        if (c.env?.KV) {
+        if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
                 c.env.KV.put(cacheKey, JSON.stringify(grouped), { expirationTtl: 3600 })
             );
@@ -55,6 +64,12 @@ webtoonRoutes.get('/', async (c) => {
 webtoonRoutes.get('/:source', async (c) => {
     const source = c.req.param('source');
     const url = c.req.query('url');
+
+    // Validation basique de l'URL pour éviter SSRF/erreurs
+    if (url) {
+        try { new URL(url); } catch { return c.json({ success: false, error: 'Invalid URL format' }, 400); }
+    }
+
     try {
         const { getScraper } = await getRunner();
         const scraper = await getScraper(source);
@@ -84,6 +99,7 @@ webtoonRoutes.get('/:source/chapters', async (c) => {
     if (!url) return c.json({ success: false, error: 'url query param required' }, 400);
 
     try {
+        try { new URL(url); } catch { return c.json({ success: false, error: 'Invalid URL format' }, 400); }
         const { getScraper } = await getRunner();
         const scraper = await getScraper(source);
         if (!scraper) return c.json({ success: false, error: `Scraper "${source}" not found` }, 404);
@@ -101,6 +117,7 @@ webtoonRoutes.get('/:source/pages', async (c) => {
     if (!url) return c.json({ success: false, error: 'url query param required' }, 400);
 
     try {
+        try { new URL(url); } catch { return c.json({ success: false, error: 'Invalid URL format' }, 400); }
         const { getScraper } = await getRunner();
         const scraper = await getScraper(source);
         if (!scraper) return c.json({ success: false, error: `Scraper "${source}" not found` }, 404);

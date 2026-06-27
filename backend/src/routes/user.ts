@@ -21,11 +21,17 @@ type Variables = {
 const userRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Helper universel pour les variables d'env
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
 // ========== GET /api/user/profile/:id (PUBLIC) ==========
-userRoutes.get('/profile/:id', async (c) => {
-    const userId = c.req.param('id');
+userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string().uuid() })), async (c) => {
+    const { id: userId } = c.req.valid('param' as any);
     const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
     try {
         const db = getSupabaseClient(dbUrl);

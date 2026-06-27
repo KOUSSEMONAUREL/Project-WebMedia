@@ -63,9 +63,10 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
         const ids = mangaList.map(m => m.id);
         const covers = await fetchCovers(ids);
 
-        const existing = await batchCheckExisting(db, medias.externalId, ids);
+        const prefixedIds = ids.map(id => `mangadex-${id}`);
+        const existing = await batchCheckExisting(db, medias.externalId, prefixedIds);
 
-        const toInsert = mangaList.filter(m => !existing.has(m.id));
+        const toInsert = mangaList.filter(m => !existing.has(`mangadex-${m.id}`));
         if (toInsert.length === 0) {
             console.log('📄 MangaDex: tout existant déjà');
             return 0;
@@ -80,7 +81,7 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
                 type: 'webtoon', title, synopsis: desc,
                 posterUrl: covers.get(manga.id) || undefined,
                 year: attr.year || undefined, status: attr.status || undefined,
-                externalId: manga.id, slug,
+                externalId: `mangadex-${manga.id}`, slug,
                 metadataSource: 'mangadex', metadataFreshAt: new Date(),
             };
         });

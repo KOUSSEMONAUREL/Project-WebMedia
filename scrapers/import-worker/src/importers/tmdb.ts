@@ -19,6 +19,45 @@ async function fetchWithRetry(url: string, params: Record<string, any>, retries 
     }
 }
 
+async function importEpisodesForSerie(db: any, apiKey: string, tmdbId: number, mediaId: string) {
+    try {
+        // Récupérer les saisons depuis le détail de la série
+        const detailRes = await fetchWithRetry(`${TMDB_API_BASE}/tv/${tmdbId}`, {
+            api_key: apiKey, language: 'fr-FR'
+        });
+        if (!detailRes) return;
+
+        const seasons: any[] = (detailRes.data.seasons || []).filter((s: any) => s.season_number > 0);
+
+        for (const season of seasons) {
+            const seasonNum = season.season_number;
+            const epRes = await fetchWithRetry(`${TMDB_API_BASE}/tv/${tmdbId}/season/${seasonNum}`, {
+                api_key: apiKey, language: 'fr-FR'
+            });
+            if (!epRes) continue;
+
+            const epItems: any[] = epRes.data.episodes || [];
+            if (epItems.length === 0) continue;
+
+            const episodeValues = epItems.map((ep: any) => ({
+                mediaId,
+                seasonNumber: seasonNum,
+                episodeNumber: ep.episode_number,
+                title: ep.name,
+                synopsis: ep.overview,
+                airDate: ep.air_date ? new Date(ep.air_date) : null,
+                thumbnailUrl: ep.still_path ? `https://image.tmdb.org/t/p/w300${ep.still_path}` : null,
+                duration: ep.runtime || null,
+            }));
+
+            await db.insert(episodes).values(episodeValues).onConflictDoNothing();
+            console.log(`  🎬 S${seasonNum}: ${epItems.length} épisodes`);
+        }
+    } catch (err: any) {
+        console.error(`  ⚠️ Erreur épisodes pour TMDB ${tmdbId}: ${err.message}`);
+    }
+}
+
 export async function importTMDB(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     console.log(`🚀 Starting TMDB Import (limit=${limit})...`);
@@ -60,12 +99,21 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
                     type: mediaType, title, originalTitle: item.original_title || item.original_name,
                     slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
                     synopsis: item.overview, posterUrl, externalId: `${category}-${item.id}`,
+                    tmdbId: item.id,
                     year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
                     metadataSource: 'tmdb', metadataFreshAt: new Date(),
                 };
             });
 
-            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId });
+
+            // Importer les épisodes pour les séries TV
+            for (const m of inserted) {
+                if (!m.externalId?.startsWith('tv') && !m.externalId?.startsWith('tv/popular')) continue;
+                if (!m.tmdbId) continue;
+                console.log(`  📺 Import des épisodes pour ${m.externalId}...`);
+                await importEpisodesForSerie(db, apiKey, m.tmdbId, m.id);
+            }
 
             const brainItems = inserted
                 .filter(m => m.externalId)

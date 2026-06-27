@@ -52,7 +52,8 @@ export async function importTrendingGames(clientId: string, clientSecret: string
             year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
             posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
             rating: item.total_rating ? (item.total_rating / 10).toString() : "0",
-            igdbId: item.id, slug: item.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+            igdbId: item.id, externalId: `igdb-${item.id}`,
+            slug: item.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
             metadataSource: 'igdb', metadataFreshAt: new Date()
         }));
 

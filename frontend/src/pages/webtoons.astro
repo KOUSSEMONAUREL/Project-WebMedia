@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { MediaGrid } from '../components/MediaGrid';
+import { DynamicHero } from '../components/DynamicHero';
 import { getMediaByType, type Media } from '../lib/api';
 
 let webtoons: Media[] = [];
@@ -12,11 +13,11 @@ try {
 
 <Layout title="Webtoons">
   <div class="container mx-auto px-6 py-10">
-    <header class="mb-8 text-center">
-      <h1 class="text-3xl md:text-4xl font-display font-bold text-white inline-flex items-center gap-3"><svg class="w-6 h-6 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Webtoons</h1>
-      <p class="text-muted-foreground mt-1">BD numérique coréenne. Des histoires à dévorer en chapitres, avec un style visuel unique.</p>
-      <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-orange-500/50 to-transparent mx-auto mt-4" />
-    </header>
-    <MediaGrid title="Webtoons" items={webtoons} />
+    <DynamicHero 
+        client:load 
+        defaultTitle="Webtoons" 
+        defaultSubtitle="BD numérique coréenne. Des histoires à dévorer en chapitres, avec un style visuel unique."
+    />
+    <MediaGrid title="Webtoons" items={webtoons} client:load />
   </div>
 </Layout>

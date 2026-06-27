@@ -31,10 +31,10 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
                 continue;
             }
 
-            const externalIds = items.map((i: any) => i.id);
+            const externalIds = items.map((i: any) => `googlebooks-${i.id}`);
             const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
-            const toInsert = items.filter((i: any) => !existing.has(i.id));
+            const toInsert = items.filter((i: any) => !existing.has(`googlebooks-${i.id}`));
             if (toInsert.length === 0) {
                 console.log(`📄 ${cat}: tout existant déjà`);
                 await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
@@ -42,11 +42,12 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             }
 
             const mediaValues = toInsert.map((item: any) => {
-                const info = item.volumeInfo;
-                const title = info.title;
-                const externalId = item.id;
+                const info = item.volumeInfo || {};
+                const title = info.title || 'Titre inconnu';
+                const externalId = `googlebooks-${item.id}`;
+                const author = info.authors ? info.authors.join(', ') : 'Unknown';
                 return {
-                    type: 'book', title, originalTitle: info.title,
+                    type: 'book', title, originalTitle: info.title, author,
                     slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
                     synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
                     posterUrl: info.imageLinks?.thumbnail, externalId,
@@ -62,7 +63,7 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             for (const item of toInsert) {
                 const info = (item as any).volumeInfo;
                 const bookUrl = info.previewLink || info.infoLink;
-                const mediaId = extToId.get(item.id);
+                const mediaId = extToId.get(`googlebooks-${item.id}`);
                 if (!mediaId || !bookUrl) continue;
                 lienValues.push({ mediaId, sourceSite: 'google-books', url: bookUrl, quality: 'original', language: 'FR' });
             }

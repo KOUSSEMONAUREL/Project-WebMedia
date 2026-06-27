@@ -11,14 +11,11 @@ async function mapConcurrent<T, R>(
     concurrency: number
 ): Promise<R[]> {
     const results: R[] = [];
-    const pool = new Set<Promise<void>>();
-    for (const item of items) {
-        const promise = fn(item).then((result) => { results.push(result); });
-        pool.add(promise);
-        promise.then(() => pool.delete(promise));
-        if (pool.size >= concurrency) await Promise.race(pool);
+    for (let i = 0; i < items.length; i += concurrency) {
+        const batch = items.slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(fn));
+        results.push(...batchResults);
     }
-    await Promise.all(pool);
     return results;
 }
 

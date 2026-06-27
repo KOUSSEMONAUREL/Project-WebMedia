@@ -15,13 +15,19 @@ type Bindings = {
 const authRoutes = new Hono<{ Bindings: Bindings }>();
 
 // Helper universel pour les variables d'env
-const getVar = (c: any, key: string) => c.env?.[key] || (process.env as any)[key];
+const getVar = (c: any, key: string) => {
+    const val = c.env?.[key] || (process.env as any)[key];
+    if (!val && c.env?.ENVIRONMENT === 'production') {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return val;
+};
 
 // ========== REGISTRATION ==========
 const registerSchema = z.object({
     email: z.string().email(),
     username: z.string().min(3),
-    password: z.string().min(6),
+    password: z.string().min(10),
 });
 
 authRoutes.post('/register', zValidator('json', registerSchema as any), async (c) => {
@@ -46,7 +52,7 @@ authRoutes.post('/register', zValidator('json', registerSchema as any), async (c
         }).returning();
 
         const user = newUser[0];
-        const token = await new SignJWT({ id: user.id, email: user.email })
+        const token = await new SignJWT({ id: user.id, email: user.email, jti: crypto.randomUUID() })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
             .setExpirationTime('24h')
@@ -91,7 +97,7 @@ authRoutes.post('/login', zValidator('json', loginSchema as any), async (c) => {
             return c.json({ success: false, error: 'Identifiants incorrects' }, 401);
         }
 
-        const token = await new SignJWT({ id: user.id, email: user.email })
+        const token = await new SignJWT({ id: user.id, email: user.email, jti: crypto.randomUUID() })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
             .setExpirationTime('24h')
