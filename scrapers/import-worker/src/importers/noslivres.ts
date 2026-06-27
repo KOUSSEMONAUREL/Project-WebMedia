@@ -8,12 +8,14 @@ import crypto from 'crypto';
 const API = 'https://noslivres.net/query.php';
 const KEY = 'noslivres';
 
-function extractUrl(html: string): string {
+function extractUrl(html: string | undefined): string {
+    if (!html) return '';
     const m = html.match(/href='([^']+)'/);
     return m ? m[1] : '';
 }
 
-function extractSource(html: string): string {
+function extractSource(html: string | undefined): string {
+    if (!html) return 'noslivres';
     const m = html.match(/>([^<]+)<\/a>/);
     return m ? m[1].trim() : 'noslivres';
 }
@@ -87,7 +89,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
             if (!item.url) continue;
             const mediaId = extToId.get(item.externalId);
             if (!mediaId) continue;
-            lienValues.push({ mediaId, sourceSite: item.source.toLowerCase(), url: item.url, quality: 'original', language: 'FR' });
+            lienValues.push({ mediaId, sourceSite: (item.source || 'noslivres').toLowerCase(), url: item.url, quality: 'original', language: 'FR' });
         }
 
         if (lienValues.length > 0) {

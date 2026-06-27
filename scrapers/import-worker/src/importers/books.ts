@@ -42,8 +42,8 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             }
 
             const mediaValues = toInsert.map((item: any) => {
-                const info = item.volumeInfo;
-                const title = info.title;
+                const info = item.volumeInfo || {};
+                const title = info.title || 'Titre inconnu';
                 const externalId = `googlebooks-${item.id}`;
                 const author = info.authors ? info.authors.join(', ') : 'Unknown';
                 return {

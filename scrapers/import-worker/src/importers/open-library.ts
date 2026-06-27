@@ -25,11 +25,15 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             return 0;
         }
 
-        const externalIds = results.map((item: any) => `ol-${item.key.replace('/works/', '')}`);
+        const externalIds = results.map((item: any) => {
+            const key = item?.key || '';
+            return `ol-${key.replace('/works/', '')}`;
+        }).filter(Boolean);
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
         const toInsert = results.filter((item: any) => {
-            const externalId = `ol-${item.key.replace('/works/', '')}`;
+            const key = item?.key || '';
+            const externalId = `ol-${key.replace('/works/', '')}`;
             return !existing.has(externalId);
         });
 
@@ -40,7 +44,8 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         }
 
         const mediaValues = toInsert.map((item: any) => {
-            const externalId = `ol-${item.key.replace('/works/', '')}`;
+            const key = item?.key || '';
+            const externalId = `ol-${key.replace('/works/', '')}`;
             const title = item.title;
             const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
             const author = item.author_name ? item.author_name.join(', ') : item.authors ? item.authors.map((a: any) => a.name).join(', ') : 'Unknown';

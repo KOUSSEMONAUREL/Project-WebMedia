@@ -14,15 +14,20 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
+        const gutenbergKey = process.env.GUTENBERG_API_KEY || '';
+        if (!gutenbergKey) {
+            console.warn('⚠️ GUTENBERG_API_KEY non définie, skip');
+            return 0;
+        }
         const response = await withRetry(() => axios.get(PG_API, {
             params: { q: 'popular', page_size: limit, page },
             headers: {
-                'X-RapidAPI-Key': process.env.GUTENBERG_API_KEY || '',
+                'X-RapidAPI-Key': gutenbergKey,
                 'X-RapidAPI-Host': 'project-gutenberg-free-books-api1.p.rapidapi.com'
             }
         }));
 
-        const results = (response.data.results || []).slice(0, limit);
+        const results = ((response.data?.results || response.data || []) as any[]).slice(0, limit);
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
             console.log('📄 Fin catalogue Project Gutenberg, retour page 1');
