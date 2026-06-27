@@ -89,10 +89,11 @@ app.all('*', async (c) => {
         } else if (path === '/api/search') {
             const q = url.searchParams.get('q') || '';
             const type = url.searchParams.get('type') || 'all';
-            cacheKey = `search:${q}:${type}`;
+            const offset = url.searchParams.get('offset') || '0';
+            const limit = url.searchParams.get('limit') || '20';
+            cacheKey = `search:${q}:${type}:${offset}:${limit}`;
             ttl = CACHE_TTL.SEARCH;
         } else if (path.startsWith('/api/media/') && path.split('/').length === 5) {
-            // /api/media/:type/:slug
             cacheKey = `media:${path.replace('/api/media/', '').replace(/\//g, ':')}`;
             ttl = CACHE_TTL.MEDIA;
         } else if (path.startsWith('/api/static/')) {
@@ -101,16 +102,23 @@ app.all('*', async (c) => {
         }
 
         if (cacheKey) {
-            const cached = await c.env.KV.get(cacheKey);
-            if (cached) {
-                return c.json(JSON.parse(cached), 200, { 'X-Cache': 'HIT' });
-            }
+            try {
+                const cached = await c.env.KV.get(cacheKey);
+                if (cached) {
+                    return c.json(JSON.parse(cached), 200, { 'X-Cache': 'HIT' });
+                }
+            } catch { /* KV indisponible, on proxyfie */ }
         }
     }
 
     // 4. Proxy vers le Backend (Render/Hono)
     const targetUrl = `${c.env.BACKEND_URL}${path}${url.search}`;
     const headers = new Headers(c.req.header());
+    headers.delete('host');
+    headers.delete('cf-connecting-ip');
+    headers.delete('cf-ray');
+    headers.delete('cf-visitor');
+    headers.delete('cf-worker');
     headers.set('X-Forwarded-For', ip);
 
     try {
@@ -128,7 +136,7 @@ app.all('*', async (c) => {
             let cacheKey = '';
             let ttl = 0;
             if (path === '/api/media/trending') { cacheKey = 'trending:all'; ttl = CACHE_TTL.TRENDING; }
-            else if (path === '/api/search') { cacheKey = `search:${url.searchParams.get('q')}:${url.searchParams.get('type') || 'all'}`; ttl = CACHE_TTL.SEARCH; }
+            else if (path === '/api/search') { cacheKey = `search:${url.searchParams.get('q')}:${url.searchParams.get('type') || 'all'}:${url.searchParams.get('offset') || '0'}:${url.searchParams.get('limit') || '20'}`; ttl = CACHE_TTL.SEARCH; }
             else if (path.startsWith('/api/media/') && path.split('/').length === 5) { cacheKey = `media:${path.replace('/api/media/', '').replace(/\//g, ':')}`; ttl = CACHE_TTL.MEDIA; }
             else if (path.startsWith('/api/static/')) { cacheKey = `static:${path.split('/').pop()}`; ttl = CACHE_TTL.STATIC; }
 
