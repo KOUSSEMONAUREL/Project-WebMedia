@@ -38,7 +38,7 @@ export function MediaCard({ media }: MediaCardProps) {
 
     return (
         <a href={detailHref} className="group relative flex flex-col gap-3 transition-all duration-500 hover:-translate-y-2">
-            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg border border-white/5 group-hover:shadow-primary/20 group-hover:shadow-2xl transition-all duration-500">
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg border border-white/5 group-hover:shadow-[0_8px_30px_rgba(212,175,55,0.4)] group-hover:border-primary/50 transition-all duration-500">
                 <img
                     src={media.posterUrl}
                     alt={media.title}

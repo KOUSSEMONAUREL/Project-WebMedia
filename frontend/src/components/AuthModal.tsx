@@ -96,13 +96,13 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     {/* Avantages pour les non-connectés */}
                     {mode === 'login' && (
                         <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
-                            <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>
-                            <ul className="text-xs text-muted-foreground space-y-1">
-                                <li>✨ Sauvegarder vos favoris</li>
-                                <li>📥 Télécharger du contenu</li>
-                                <li>🔔 Suivre vos séries préférées</li>
-                                <li>📊 Voir vos statistiques</li>
-                            </ul>
+                        <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>Sauvegarder vos favoris</li>
+                            <li>Télécharger du contenu</li>
+                            <li>Suivre vos séries préférées</li>
+                            <li>Voir vos statistiques</li>
+                        </ul>
                         </div>
                     )}
 

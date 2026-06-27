@@ -40,5 +40,8 @@
 
 body {
   background-color: var(--color-background);
+  background-image: radial-gradient(circle at top right, rgba(212,175,55,0.05), transparent 40%),
+                    radial-gradient(circle at bottom left, rgba(212,175,55,0.03), transparent 40%);
+  background-attachment: fixed;
   color: var(--color-foreground);
 }

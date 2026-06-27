@@ -9,11 +9,12 @@ interface MediaGridProps {
 
 export function MediaGrid({ title, items, viewAllHref }: MediaGridProps) {
     return (
-        <section className="py-10 px-2">
-            <div className="flex items-center justify-between mb-8 border-b border-border/50 pb-4">
-                <h2 className="text-2xl font-display font-semibold text-foreground">{title}</h2>
+        <section className="py-8">
+            <div className="flex items-center justify-between mb-6 pb-3 relative">
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+                <h2 className="text-xl md:text-2xl font-display font-semibold text-foreground">{title}</h2>
                 {viewAllHref && (
-                    <a href={viewAllHref} className="text-sm font-medium text-primary hover:underline flex items-center gap-2">
+                    <a href={viewAllHref} className="text-sm font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-2">
                         Voir tout <span>&rarr;</span>
                     </a>
                 )}

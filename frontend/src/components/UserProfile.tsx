@@ -1,0 +1,153 @@
+import { useState, useEffect } from 'react';
+import { authStore } from '../stores/auth';
+import { Heart, Clock, Film, Tv, Library, Settings, LogOut, Star } from 'lucide-react';
+import { allMockData } from '../lib/api';
+import type { Media } from '../lib/api';
+import { EmptyState } from './EmptyState';
+
+function getLocalIds(key: string): string[] {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+
+export function UserProfile() {
+  const [user, setUser] = useState(authStore.user);
+  const [favCount, setFavCount] = useState(0);
+  const [wlCount, setWlCount] = useState(0);
+  const [recentItems, setRecentItems] = useState<Media[]>([]);
+
+  useEffect(() => {
+    const unsub = authStore.subscribe(() => setUser(authStore.user));
+    const favIds = getLocalIds('webmedia_favorites');
+    const wlIds = getLocalIds('webmedia_watchlist');
+    setFavCount(favIds.length);
+    setWlCount(wlIds.length);
+    const mediaMap: Record<string, Media> = {};
+    for (const m of allMockData) mediaMap[m.id] = m;
+    const combined = [...new Set([...favIds, ...wlIds])].slice(0, 6);
+    setRecentItems(combined.map(id => mediaMap[id]).filter(Boolean));
+    return unsub;
+  }, []);
+
+  if (!user) {
+    return (
+      <div className="container mx-auto px-6 pt-24 pb-16">
+        <EmptyState title="Non connecté" description="Connectez-vous pour accéder à votre profil." action={{ label: "Retour à l'accueil", href: '/' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-6 pt-16 pb-16 animate-fade-in">
+      {/* Header */}
+      <div className="relative mb-10">
+        <div className="h-48 bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10 rounded-2xl" />
+        <div className="absolute -bottom-12 left-8 flex items-end gap-6">
+          <div className="h-28 w-28 rounded-full border-4 border-background overflow-hidden bg-card shadow-lg">
+            <img
+              src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+              alt={user.username}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="mb-4">
+            <h1 className="text-3xl font-black text-white">{user.username}</h1>
+            <p className="text-muted-foreground">{user.email}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        <div className="glass rounded-xl p-5 text-center">
+          <div className="flex items-center justify-center gap-2 text-blue-500 mb-2">
+            <Heart className="h-5 w-5 fill-current" />
+            <span className="text-2xl font-black">{favCount}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Favoris</p>
+        </div>
+        <div className="glass rounded-xl p-5 text-center">
+          <div className="flex items-center justify-center gap-2 text-purple-500 mb-2">
+            <Clock className="h-5 w-5" />
+            <span className="text-2xl font-black">{wlCount}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">À voir</p>
+        </div>
+        <div className="glass rounded-xl p-5 text-center">
+          <div className="flex items-center justify-center gap-2 text-pink-500 mb-2">
+            <Star className="h-5 w-5 fill-current" />
+            <span className="text-2xl font-black">{favCount + wlCount}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Total sauvegardé</p>
+        </div>
+        <div className="glass rounded-xl p-5 text-center">
+          <div className="flex items-center justify-center gap-2 text-green-500 mb-2">
+            <Film className="h-5 w-5" />
+            <span className="text-2xl font-black">2025</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Membre depuis</p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Recent items */}
+        <div className="md:col-span-2 glass rounded-xl p-6">
+          <h2 className="text-xl font-display font-semibold mb-4 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            Activité récente
+          </h2>
+          {recentItems.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-8 text-center">Ajoutez des favoris pour voir votre activité.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {recentItems.map(m => (
+                <a key={m.id} href={`/${m.type}/${m.slug}`} className="group flex flex-col gap-2 card-lift">
+                  <div className="aspect-[2/3] rounded-xl overflow-hidden border border-white/5">
+                    <img src={m.posterUrl} alt={m.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  </div>
+                  <p className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">{m.title}</p>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Quick actions */}
+        <div className="space-y-4">
+          <div className="glass rounded-xl p-6">
+            <h2 className="text-xl font-display font-semibold mb-4">Actions rapides</h2>
+            <div className="space-y-2">
+              <a href="/favorites" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                <span className="h-10 w-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center"><Heart className="h-5 w-5" /></span>
+                <div><p className="font-medium text-sm">Mes Favoris</p><p className="text-xs text-muted-foreground">{favCount} éléments</p></div>
+              </a>
+              <a href="/watchlist" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                <span className="h-10 w-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center"><Clock className="h-5 w-5" /></span>
+                <div><p className="font-medium text-sm">À voir</p><p className="text-xs text-muted-foreground">{wlCount} éléments</p></div>
+              </a>
+              <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                <span className="h-10 w-10 rounded-full bg-gray-500/20 text-gray-500 flex items-center justify-center"><Settings className="h-5 w-5" /></span>
+                <div><p className="font-medium text-sm">Paramètres</p><p className="text-xs text-muted-foreground">Gérer mon compte</p></div>
+              </a>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-6">
+            <h3 className="text-lg font-display font-semibold mb-2">Passez Premium</h3>
+            <p className="text-sm text-muted-foreground mb-4">Téléchargements illimités, pas de pubs, contenu exclusif.</p>
+            <button className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-bold text-sm hover:brightness-110 transition-all">
+              Découvrir
+            </button>
+          </div>
+
+          <button
+            onClick={() => { authStore.logout(); window.location.reload(); }}
+            className="flex items-center justify-center gap-2 w-full py-2.5 text-sm text-red-500 rounded-lg border border-red-500/20 hover:bg-red-500/10 transition-all"
+          >
+            <LogOut className="h-4 w-4" />
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

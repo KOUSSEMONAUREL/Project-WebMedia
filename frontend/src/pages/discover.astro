@@ -36,13 +36,10 @@ try {
 
 <Layout title="Découvrir">
   <div class="container mx-auto px-6 pt-28 pb-16">
-    <header class="mb-16 flex flex-col items-center text-center space-y-4">
-      <h1 class="text-5xl md:text-7xl font-display font-bold text-white">
-        Découvrir
-      </h1>
-      <p class="text-lg text-muted-foreground max-w-xl">
-        Explorez tous les contenus disponibles sur WebMedia.
-      </p>
+    <header class="mb-8 text-center">
+      <h1 class="text-3xl md:text-4xl font-display font-bold text-white inline-flex items-center gap-3"><svg class="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Découvrir</h1>
+      <p class="text-muted-foreground mt-1">Explorez tous les contenus disponibles sur WebMedia.</p>
+      <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mx-auto mt-4" />
     </header>
 
     <MediaGrid title="Tendances" items={trending} viewAllHref="/trending" client:load />

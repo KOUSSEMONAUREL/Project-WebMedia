@@ -91,11 +91,15 @@ export function Navbar() {
 
     return (
         <>
-            <nav className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
+            <nav className="h-16 border-b border-border/50 bg-background/40 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] sticky top-0 z-40 w-full">
                 <div className="container h-full flex items-center justify-between px-4 lg:px-6">
                     <Button variant="ghost" size="icon" className="lg:hidden mr-2" onClick={() => setIsOpen(!isOpen)}>
                         {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </Button>
+
+                    <a href="/" className="hidden lg:flex items-center mr-6 shrink-0">
+                        <img src="/images/logo.png" alt="WebMedia Logo" className="h-8 w-auto" />
+                    </a>
 
                     <div className="flex-1 max-w-2xl" ref={searchRef}>
                         <div className="relative group">
@@ -106,7 +110,7 @@ export function Navbar() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => searchQuery.length >= 3 && setShowSuggestions(true)}
                                 placeholder="Rechercher un film, série, animé..."
-                                className="w-full h-10 bg-black border-b border-border rounded-none pl-10 pr-4 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground"
+                                className="w-full h-10 bg-card/80 border border-border/60 rounded-xl pl-10 pr-4 text-sm focus:outline-none focus:border-primary/50 focus:bg-card focus:shadow-[0_0_20px_rgba(212,175,55,0.08)] transition-all placeholder:text-muted-foreground"
                             />
 
                             {showSuggestions && suggestions.length > 0 && (
@@ -175,7 +179,7 @@ export function Navbar() {
                     <div className="fixed inset-0 bg-black/80" onClick={() => setIsOpen(false)} />
                     <div className="fixed top-0 left-0 h-full w-64 bg-black border-r border-border p-4 overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
-                            <span className="text-3xl font-display text-primary uppercase tracking-wider">WebMedia</span>
+                            <img src="/images/logo.png" alt="WebMedia Logo" className="h-10 w-auto" />
                             <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-none">
                                 <X className="h-5 w-5" />
                             </Button>

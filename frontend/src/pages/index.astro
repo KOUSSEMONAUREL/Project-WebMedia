@@ -33,16 +33,26 @@ try {
 ---
 
 <Layout title="Accueil">
-    <div class="container mx-auto px-6 pt-28 pb-16">
-        <!-- Hero Section -->
-        <header class="mb-24 flex flex-col items-center text-center space-y-6">
-            <h1 class="text-5xl md:text-7xl lg:text-8xl font-display font-semibold text-white leading-tight max-w-5xl mx-auto">
-                Tout le divertissement,<br/>
-                <span class="text-primary italic">un seul endroit.</span>
-            </h1>
-             <p class="text-lg md:text-xl text-muted-foreground max-w-xl font-light leading-relaxed">
-                Films, séries, animés, jeux, livres & light novels — votre bibliothèque ultime.
-            </p>
+    <div class="container mx-auto px-6 pt-20 pb-16">
+        <header class="mb-16 relative w-full max-w-6xl mx-auto rounded-3xl overflow-hidden border border-border shadow-2xl py-24 px-6 flex flex-col items-center text-center group">
+            <div class="absolute inset-0 z-0 pointer-events-none bg-black">
+                <img src="/images/server-room.png" alt="Serveurs WebMedia" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-1000 opacity-50 mix-blend-luminosity" />
+                <div class="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-background/20 via-background/60 to-background"></div>
+            </div>
+            
+            <div class="relative z-10 space-y-6 flex flex-col items-center">
+                <div class="relative">
+                    <div class="absolute inset-0 bg-primary/20 blur-3xl rounded-full w-96 h-32 -top-6 left-1/2 -translate-x-1/2" />
+                    <h1 class="relative text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-semibold text-white leading-tight">
+                        Tout le divertissement, <br class="md:hidden" /><span class="text-primary italic drop-shadow-md">un seul endroit.</span>
+                    </h1>
+                </div>
+                <p class="text-gray-200 max-w-lg text-lg font-medium drop-shadow-lg">
+                    Films, séries, animés, jeux, livres & light novels — votre bibliothèque ultime.
+                </p>
+                <div class="w-24 h-1 mt-6 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full shadow-[0_0_15px_rgba(212,175,55,0.6)]" />
+            </div>
         </header>
 
         <MediaGrid title="Tendances du moment" items={trending} viewAllHref="/trending" client:load />

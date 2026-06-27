@@ -17,12 +17,12 @@ import {
 import { cn } from '@/lib/utils';
 
 const sidebarItems = [
-  { group: "Menu", items: [
+  { group: "", items: [
     { icon: Home, label: "Accueil", href: "/" },
     { icon: Compass, label: "Découvrir", href: "/discover" },
     { icon: Hash, label: "Genres", href: "/genres" },
   ]},
-  { group: "Bibliothèque", items: [
+  { group: "", items: [
     { icon: Film, label: "Films", href: "/films" },
     { icon: Tv, label: "Séries", href: "/series" },
     { icon: Library, label: "Animés", href: "/animes" },
@@ -31,11 +31,11 @@ const sidebarItems = [
     { icon: BookMarked, label: "Livres", href: "/books" },
     { icon: NotebookPen, label: "Light Novels", href: "/novels" },
   ]},
-  { group: "Personnel", items: [
+  { group: "", items: [
     { icon: Heart, label: "Favoris", href: "/favorites" },
     { icon: Clock, label: "À voir plus tard", href: "/watchlist" },
   ]},
-  { group: "Autre", items: [
+  { group: "", items: [
     { icon: Settings, label: "Paramètres", href: "/settings" },
     { icon: HelpCircle, label: "Aide", href: "/help" },
   ]}
@@ -48,7 +48,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   return (
     <aside className={cn(
-      "w-64 bg-card border-r border-border h-screen sticky top-0 overflow-y-auto hidden lg:flex flex-col py-8 px-4 gap-8 items-center",
+      "w-48 bg-background/40 backdrop-blur-xl border-r border-border/50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] h-screen sticky top-0 overflow-y-auto hidden lg:flex flex-col py-8 px-3 gap-6 items-center z-50",
       className
     )}>
       <div className="flex items-center justify-center mb-4 w-full">
@@ -60,15 +60,17 @@ export function Sidebar({ className }: SidebarProps) {
       <nav className="flex flex-col gap-6 w-full">
         {sidebarItems.map((group, i) => (
           <div key={i} className="flex flex-col gap-2">
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">
-              {group.group}
-            </h3>
+            {group.group && (
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">
+                {group.group}
+              </h3>
+            )}
             <div className="flex flex-col gap-0.5">
               {group.items.map((item, j) => (
                 <a
                   key={j}
                   href={item.href}
-                  className="flex items-center justify-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded-lg hover:bg-secondary hover:text-primary text-muted-foreground"
+                    className="flex items-center justify-start gap-3 px-4 py-2.5 text-sm font-medium transition-all rounded-lg hover:bg-secondary hover:text-primary text-muted-foreground"
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
