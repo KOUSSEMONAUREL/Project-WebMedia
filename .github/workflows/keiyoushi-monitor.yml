@@ -21,7 +21,7 @@ jobs:
 
       - name: Restore last checked commit from cache
         id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: /tmp/keiyoushi_last_commit
           key: keiyoushi-commit-cache
@@ -90,13 +90,6 @@ jobs:
           python3 "$ANALYZER" /tmp/compare.json "$LAST_CHECKED" "$HEAD_SHA"
 
           persist_supabase "$HEAD_SHA"
-
-      - name: Save last checked commit to cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/keiyoushi_last_commit
-          key: keiyoushi-commit-cache
 
       - name: Create issue if critical changes found
         if: steps.monitor.outputs.has_changes == 'true'
