@@ -24,7 +24,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/keiyoushi_last_commit
-          key: keiyoushi-commit-cache
+          key: keiyoushi-commit-cache-${{ github.run_id }}
+          restore-keys: keiyoushi-commit-cache-
 
       - name: Install PostgreSQL client
         run: |
