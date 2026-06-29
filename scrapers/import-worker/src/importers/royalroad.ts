@@ -14,7 +14,7 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting RoyalRoad Import (limit=${limit})...`);
+    console.log(`🚀 Starting RoyalRoad Import...`);
 
     try {
         const page = await getOffset(RR_KEY, databaseUrl, 1);
@@ -25,7 +25,7 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             return 0;
         }
 
-        const candidates = data.slice(0, limit);
+        const candidates = data;
         const externalIds = candidates.map((f: any) => `rr-${f.id}`);
 
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
