@@ -73,7 +73,7 @@ async function startApp() {
       if (cvKey) await importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
 
       console.log('MangaDex...');
-      await importTrendingManga(databaseUrl);
+      await importTrendingManga(databaseUrl, '', LIMIT);
 
       console.log('RoyalRoad...');
       await importRoyalRoad(databaseUrl, LIMIT);

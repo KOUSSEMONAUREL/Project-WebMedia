@@ -3,6 +3,7 @@ import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting } from '../utils/batch-import.js';
+import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const MANGADEX_API = 'https://api.mangadex.org';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
@@ -43,11 +44,13 @@ async function fetchCovers(mangaIds: string[]): Promise<Map<string, string>> {
   return coverMap;
 }
 
-export async function importTrendingManga(databaseUrl: string, searchTerm: string = '') {
+export async function importTrendingManga(databaseUrl: string, searchTerm: string = '', limit = 20) {
     const db = createDbClient(databaseUrl, 'neon');
 
     try {
-        const params: any = { limit: 20, includes: ['cover_art'] };
+        const offset = await getOffset('mangadex-offset', databaseUrl, 0, db);
+
+        const params: any = { limit, offset, includes: ['cover_art'] };
         if (searchTerm && searchTerm !== 'trending') {
           params.title = searchTerm;
           params.order = { relevance: 'desc' };
@@ -55,10 +58,17 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
           params.order = { followedCount: 'desc' };
         }
 
-        console.log(`📡 MangaDex API: ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
+        console.log(`📡 MangaDex API (offset=${offset}): ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
         const response = await axios.get(`${MANGADEX_API}/manga`, { params, timeout: 15000 });
         const mangaList: MdManga[] = response.data.data || [];
         console.log(`📦 ${mangaList.length} mangas trouvés`);
+
+        // Fin du catalogue → reset offset
+        if (mangaList.length === 0) {
+            console.log('📄 Fin catalogue MangaDex, retour au début');
+            await setOffset('mangadex-offset', 0, databaseUrl, db);
+            return 0;
+        }
 
         const ids = mangaList.map(m => m.id);
         const covers = await fetchCovers(ids);
@@ -102,7 +112,10 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
             console.log(`✅ [MANGADEX] ${m.externalId}`);
         }
 
-        console.log(`✅ Import MangaDex terminé : ${inserted.length} nouveaux mangas.`);
+        // Avancer l'offset
+        await setOffset('mangadex-offset', offset + limit, databaseUrl, db);
+
+        console.log(`✅ Import MangaDex terminé : ${inserted.length} nouveaux mangas (offset=${offset})`);
         return inserted.length;
     } catch (error: any) {
         console.error('❌ MangaDex Import Error:', error.message);
