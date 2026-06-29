@@ -29,6 +29,7 @@ async function startApp() {
     const { importPopularBooksFR } = await import('./importers/noslivres.js');
     const { importTrendingGames } = await import('./importers/igdb.js');
     const { importRoyalRoad } = await import('./importers/royalroad.js');
+    const { importTrendingManga } = await import('./importers/mangadex.js');
     const { syncNeonToTurso } = await import('./sync-turso.js');
     const dotenv = await import('dotenv');
 
@@ -70,6 +71,9 @@ async function startApp() {
       await importOpenLibrary(databaseUrl, 'popular', LIMIT);
       await importPopularBooksFR(databaseUrl, LIMIT);
       if (cvKey) await importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
+
+      console.log('MangaDex...');
+      await importTrendingManga(databaseUrl);
 
       console.log('RoyalRoad...');
       await importRoyalRoad(databaseUrl, LIMIT);

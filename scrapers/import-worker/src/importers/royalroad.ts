@@ -16,8 +16,8 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
     console.log(`🚀 Starting RoyalRoad Import (limit=${limit})...`);
 
     try {
-        let page = await getOffset('royalroad-page', databaseUrl, 1);
-        let consumed = await getOffset('royalroad-consumed', databaseUrl, 0);
+        let page = await getOffset('royalroad-page', databaseUrl, 1, db);
+        let consumed = await getOffset('royalroad-consumed', databaseUrl, 0, db);
         const candidates: any[] = [];
         let safety = 0;
 
@@ -50,8 +50,8 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             }
         }
 
-        await setOffset('royalroad-page', page, databaseUrl);
-        await setOffset('royalroad-consumed', consumed, databaseUrl);
+        await setOffset('royalroad-page', page, databaseUrl, db);
+        await setOffset('royalroad-consumed', consumed, databaseUrl, db);
 
         const externalIds = candidates.map((f: any) => `rr-${f.id}`);
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);

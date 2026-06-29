@@ -23,16 +23,16 @@ function writeCache(data: OffsetStore): void {
   } catch {}
 }
 
-export async function getOffset(key: string, databaseUrl?: string, defaultVal = 0): Promise<number> {
+export async function getOffset(key: string, databaseUrl?: string, defaultVal = 0, db?: any): Promise<number> {
   // 1. Cache file (le plus rapide)
   const cache = readCache();
   if (key in cache) return cache[key];
 
   // 2. Fallback Neon
-  if (databaseUrl) {
+  const neonDb = db || (databaseUrl ? createNeonClient(databaseUrl) : null);
+  if (neonDb) {
     try {
-      const db = createNeonClient(databaseUrl);
-      const row = await db.select({ value: importOffsets.value })
+      const row = await neonDb.select({ value: importOffsets.value })
         .from(importOffsets)
         .where(eq(importOffsets.key, key))
         .limit(1);
@@ -40,25 +40,30 @@ export async function getOffset(key: string, databaseUrl?: string, defaultVal = 
         writeCache({ ...cache, [key]: row[0].value });
         return row[0].value;
       }
-    } catch {}
+    } catch (err: any) {
+      console.error(`⚠️ getOffset(${key}): ${err.message}`);
+    }
   }
 
   // 3. Default
   return defaultVal;
 }
 
-export async function setOffset(key: string, value: number, databaseUrl?: string): Promise<void> {
+export async function setOffset(key: string, value: number, databaseUrl?: string, db?: any): Promise<void> {
   // 1. Écrire cache file
   const cache = readCache();
   cache[key] = value;
   writeCache(cache);
 
   // 2. Upsert Neon
-  if (databaseUrl) {
+  const neonDb = db || (databaseUrl ? createNeonClient(databaseUrl) : null);
+  if (neonDb) {
     try {
-      const db = createNeonClient(databaseUrl);
-      await db.insert(importOffsets).values({ key, value })
+      await neonDb.insert(importOffsets).values({ key, value })
         .onConflictDoUpdate({ target: importOffsets.key, set: { value, updatedAt: new Date() } });
-    } catch {}
+      console.log(`  📝 offset ${key} = ${value}`);
+    } catch (err: any) {
+      console.error(`⚠️ setOffset(${key}=${value}): ${err.message}`);
+    }
   }
 }

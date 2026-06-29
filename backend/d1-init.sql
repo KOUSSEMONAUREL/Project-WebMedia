@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS media_state (
   active_links    INTEGER DEFAULT 0, -- compte mis à jour après chaque cycle
   last_scraped    INTEGER,           -- unix timestamp
   next_scrape     INTEGER,           -- unix timestamp calculé
-  scrape_priority INTEGER DEFAULT 5, -- 1=urgent, 10=jamais
+  scrape_priority INTEGER DEFAULT 1, -- 1=urgent, 10=jamais
   source_pref     TEXT,              -- 'vidsrc'/'animesama'/'mangadex'/...
   last_error      TEXT
 );

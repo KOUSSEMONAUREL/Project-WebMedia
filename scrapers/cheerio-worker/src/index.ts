@@ -97,11 +97,14 @@ async function resolveTmdbId(mediaId: string, anilistId?: number | null): Promis
 }
 
 async function handleStreaming(mediaId: string, type: string, tmdbId?: number | null, anilistId?: number | null): Promise<number> {
-  if (!tmdbId) {
-    const [media] = await neonSql`SELECT tmdb_id, anilist_id FROM medias WHERE id = ${mediaId}`;
-    tmdbId = media?.tmdb_id;
-    anilistId = anilistId ?? media?.anilist_id;
+  // Vérifier que le media existe dans Neon (FK obligatoire pour /ingest/liens)
+  const [media] = await neonSql`SELECT id, tmdb_id, anilist_id FROM medias WHERE id = ${mediaId}`;
+  if (!media) {
+    console.log(`  ⏭️ Media ${mediaId} introuvable dans Neon`);
+    return 0;
   }
+  tmdbId = tmdbId ?? media.tmdb_id;
+  anilistId = anilistId ?? media.anilist_id;
 
   // Fallback pour les anime sans tmdb_id direct
   if (!tmdbId) {
@@ -159,9 +162,14 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
 
   if (links.length === 0) return 0;
 
-  await axios.post(`${INTERNAL_API_URL}/ingest/liens`, { mediaId, links }, {
-    headers: { 'X-Internal-API-Key': INTERNAL_API_KEY }, timeout: 15000,
-  });
+  try {
+    await axios.post(`${INTERNAL_API_URL}/ingest/liens`, { mediaId, links }, {
+      headers: { 'X-Internal-API-Key': INTERNAL_API_KEY }, timeout: 15000,
+    });
+  } catch (err: any) {
+    console.log(`  ⚠️ /ingest/liens échoué pour ${mediaId}: ${err.message}`);
+    return 0;
+  }
   return links.length;
 }
 

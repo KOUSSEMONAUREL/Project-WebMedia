@@ -171,11 +171,11 @@ internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
         await c.env.DB.prepare(`
-            INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(media_id) DO UPDATE SET
-                active_links = excluded.active_links,
-                has_content = excluded.has_content
+        INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(media_id) DO UPDATE SET
+            active_links = excluded.active_links,
+            has_content = excluded.has_content
         `).bind(id, type, metadata_ok, active_links, has_content, Date.now() + 10000).run();
         return c.json({ success: true });
     } catch (error: any) {
@@ -201,8 +201,8 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
         const statements = items.map(item =>
             c.env.DB!.prepare(`
-                INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(media_id) DO UPDATE SET
                     active_links = excluded.active_links,
                     has_content = excluded.has_content
