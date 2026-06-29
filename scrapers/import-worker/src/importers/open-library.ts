@@ -18,7 +18,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             params: { q: search, page, limit }
         }));
 
-        const results = (response.data.docs || []).slice(0, limit);
+        const results = response.data.docs || [];
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
             console.log('📄 Fin catalogue OpenLibrary, retour page 1');

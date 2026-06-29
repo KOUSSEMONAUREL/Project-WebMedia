@@ -75,7 +75,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
             });
             if (!response) continue;
 
-            const items = (response.data.results || []).slice(0, limit);
+            const items = response.data.results || [];
             if (items.length === 0) {
                 await setOffset(catKey, 1, databaseUrl);
                 continue;

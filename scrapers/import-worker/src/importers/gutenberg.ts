@@ -27,7 +27,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             }
         }));
 
-        const results = ((response.data?.results || response.data || []) as any[]).slice(0, limit);
+        const results = (response.data?.results || response.data || []) as any[];
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
             console.log('📄 Fin catalogue Project Gutenberg, retour page 1');

@@ -8,32 +8,38 @@ import { getOffset, setOffset } from '../utils/offset-tracker.js';
 
 const RR_BASE = 'https://www.royalroad.com';
 const RR_API = new RoyalRoadAPI();
-const RR_KEY = 'royalroad-page';
+const RR_PAGE_SIZE = 50;
+const RR_KEY = 'royalroad-pos';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting RoyalRoad Import...`);
+    console.log(`🚀 Starting RoyalRoad Import (limit=${limit})...`);
 
     try {
-        const page = await getOffset(RR_KEY, databaseUrl, 1);
+        const pos = await getOffset(RR_KEY, databaseUrl, 0);
+        const page = Math.floor(pos / RR_PAGE_SIZE) + 1;
+        const skip = pos % RR_PAGE_SIZE;
+        const take = Math.min(limit, RR_PAGE_SIZE - skip);
+
         const { data } = await RR_API.fictions.getPopular(page);
         if (!data || data.length === 0) {
-            console.log('📄 Fin catalogue RoyalRoad, retour page 1');
-            await setOffset(RR_KEY, 1, databaseUrl);
+            console.log('📄 Fin catalogue RoyalRoad, retour à 0');
+            await setOffset(RR_KEY, 0, databaseUrl);
             return 0;
         }
 
-        const candidates = data;
+        const candidates = data.slice(skip, skip + take);
         const externalIds = candidates.map((f: any) => `rr-${f.id}`);
 
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
         const toInsert = candidates.filter((f: any) => !existing.has(`rr-${f.id}`));
 
+        await setOffset(RR_KEY, pos + take, databaseUrl);
+
         if (toInsert.length === 0) {
-            console.log(`📄 RoyalRoad page ${page}: tout existant déjà`);
-            await setOffset(RR_KEY, page + 1, databaseUrl);
+            console.log(`📄 RoyalRoad pos ${pos}: tout existant déjà`);
             return 0;
         }
 
@@ -69,13 +75,11 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
         const brainItems = inserted.map(m => ({ id: m.id, type: 'novel' as const }));
         await notifyBrainBatch(brainItems, INTERNAL_API_URL, INTERNAL_API_KEY);
 
-        await setOffset(RR_KEY, page + 1, databaseUrl);
-
         for (const m of inserted) {
             console.log(`✅ [RR] ${m.externalId}`);
         }
 
-        console.log(`✅ RoyalRoad import terminé : ${inserted.length} nouveaux (page ${page})`);
+        console.log(`✅ RoyalRoad import terminé : ${inserted.length} nouveaux (pos ${pos})`);
         return inserted.length;
     } catch (error: any) {
         console.error('❌ RoyalRoad Import Error:', error.message);
