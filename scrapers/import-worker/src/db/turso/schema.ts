@@ -11,6 +11,7 @@ export const medias = sqliteTable('medias', {
     slug: text('slug').notNull().unique(),
     synopsis: text('synopsis'),
     year: integer('year'),
+    author: text('author'),
     posterUrl: text('poster_url'),
     backdropUrl: text('backdrop_url'),
     rating: text('rating'), // On garde text pour correspondre au decimal de PG

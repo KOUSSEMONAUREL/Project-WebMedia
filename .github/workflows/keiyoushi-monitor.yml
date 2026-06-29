@@ -96,15 +96,12 @@ jobs:
         if: steps.monitor.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          LAST_CHECKED: ${{ steps.monitor.outputs.last_checked }}
-          HEAD_SHA: ${{ steps.monitor.outputs.head_sha }}
-          DEFAULT_BRANCH: ${{ steps.monitor.outputs.default_branch }}
-          CRITICAL_COUNT: ${{ env.CRITICAL_CHANGED }}
-          REMOVED_COUNT: ${{ env.REMOVED_CHANGED }}
-          NEW_COUNT: ${{ env.NEW_CHANGED }}
-          RUN_ID: ${{ github.run_id }}
         run: |
-          if [ "${CRITICAL_COUNT:-0}" -gt 0 ]; then
+          LAST_CHECKED="${{ steps.monitor.outputs.last_checked }}"
+          HEAD_SHA="${{ steps.monitor.outputs.head_sha }}"
+          DEFAULT_BRANCH="${{ steps.monitor.outputs.default_branch }}"
+          RUN_ID="${{ github.run_id }}"
+          if [ "${CRITICAL_CHANGED:-0}" -gt 0 ]; then
             EXISTING=$(gh issue list \
               --label "keiyoushi-upstream" \
               --state open \
@@ -117,7 +114,7 @@ jobs:
                 --body "Nouveaux changements: [${LAST_CHECKED}...${HEAD_SHA}](https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA})"
             else
               printf 'Des changements critiques ont ete detectes.\n\n**Compare**: https://github.com/keiyoushi/extensions-source/compare/%s...%s\n**Branche**: %s\n\nConsulte le workflow run #%s.\n\n**Extensions**: %s critique(s), %s supprimee(s), %s nouvelle(s).\n' \
-                "${LAST_CHECKED}" "${HEAD_SHA}" "${DEFAULT_BRANCH}" "${RUN_ID}" "${CRITICAL_COUNT}" "${REMOVED_COUNT}" "${NEW_COUNT}" > /tmp/issue_body.md
+                "${LAST_CHECKED}" "${HEAD_SHA}" "${DEFAULT_BRANCH}" "${RUN_ID}" "${CRITICAL_CHANGED:-0}" "${REMOVED_CHANGED:-0}" "${NEW_CHANGED:-0}" > /tmp/issue_body.md
               gh issue create \
                 --title "[Keiyoushi] Changements critiques detectes ($(date +'%d/%m/%Y'))" \
                 --label "keiyoushi-upstream" \

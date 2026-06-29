@@ -32,10 +32,10 @@ const registerSchema = z.object({
 
 authRoutes.post('/register', zValidator('json', registerSchema as any), async (c) => {
     const { email, username, password } = c.req.valid('json' as any);
-    const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-    const jwtSecret = getVar(c, 'JWT_SECRET');
 
     try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
+        const jwtSecret = getVar(c, 'JWT_SECRET');
         const db = getSupabaseClient(dbUrl);
 
         const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -76,10 +76,10 @@ const loginSchema = z.object({
 
 authRoutes.post('/login', zValidator('json', loginSchema as any), async (c) => {
     const { email, password } = c.req.valid('json' as any);
-    const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-    const jwtSecret = getVar(c, 'JWT_SECRET');
 
     try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
+        const jwtSecret = getVar(c, 'JWT_SECRET');
         const db = getSupabaseClient(dbUrl);
 
         const result = await db.select().from(users).where(eq(users.email, email)).limit(1);

@@ -35,18 +35,6 @@ type Bindings = {
 // Initialisation de l'application Hono
 export const app = new Hono<{ Bindings: Bindings }>();
 
-// ========== RATE LIMITING GLOBAL ==========
-app.use('/api/*', async (c, next) => {
-    if (c.env.ENVIRONMENT === 'development' || c.env.ENVIRONMENT === 'test') return next();
-
-    const path = c.req.path;
-    const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
-    return rateLimit(isSensitive ? 60 : 200, 60)(c, next);
-});
-
-app.use('*', logger());
-app.use('*', prettyJSON());
-
 // Origins autorisés en prod
 const allowedOrigins = ['https://app.webmedia.com', 'https://webmedia.com', 'http://localhost:3000'];
 
@@ -59,6 +47,18 @@ app.use('*', cors({
     },
     credentials: true,
 }));
+
+app.use('*', logger());
+app.use('*', prettyJSON());
+
+// ========== RATE LIMITING GLOBAL ==========
+app.use('/api/*', async (c, next) => {
+    if (c.env.ENVIRONMENT === 'development' || c.env.ENVIRONMENT === 'test') return next();
+
+    const path = c.req.path;
+    const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
+    return rateLimit(isSensitive ? 60 : 200, 60)(c, next);
+});
 
 // ========== ROUTES ==========
 app.route('/api/auth', authRoutes);

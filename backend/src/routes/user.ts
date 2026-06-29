@@ -32,8 +32,8 @@ const getVar = (c: any, key: string) => {
 // ========== GET /api/user/profile/:id (PUBLIC) ==========
 userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string().uuid() })), async (c) => {
     const { id: userId } = c.req.valid('param' as any);
-    const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
     try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
         const result = await db.select({
@@ -72,9 +72,9 @@ userRoutes.use('*', (c, next) => {
 // ========== GET /api/user/favorites ==========
 userRoutes.get('/favorites', async (c) => {
     const userId = c.get('jwtPayload').id;
-    const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
 
     try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
         const userFavorites = await db.select()

@@ -27,6 +27,10 @@ const getVar = (c: any, key: string) => {
     return val;
 };
 
+const mongoUri = (c: any) => {
+    try { return mongoUri(c); } catch { return ''; }
+};
+
 // Middleware de sécurité
 internalRoutes.use('*', async (c, next) => {
     const apiKey = c.req.header('X-Internal-API-Key');
@@ -76,7 +80,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
     });
 
     if (safeLinks.length === 0) {
-        await logger.warn('IngestWorker', 'Tentative d\'ingestion sans liens valides', { mediaId, links }, getVar(c, 'MONGODB_URI'));
+        await logger.warn('IngestWorker', 'Tentative d\'ingestion sans liens valides', { mediaId, links }, mongoUri(c));
         return c.json({ success: true, count: 0, message: "Aucun lien autorisé." });
     }
 
@@ -111,7 +115,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
             `).bind(inserted.length, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
         }
 
-        await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length }, getVar(c, 'MONGODB_URI'));
+        await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length }, mongoUri(c));
         return c.json({ success: true, count: inserted.length });
     } catch (error: any) {
         // Compensation: si D1 a échoué après Neon, nettoyer les lignes insérées
@@ -123,14 +127,14 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                 const insertedIds = inserted.map((r: any) => r.id).filter(Boolean);
                 if (insertedIds.length > 0) {
                     await db.delete(liens).where(inArray(liens.id, insertedIds));
-                    await logger.warn('IngestWorker', 'Rollback effectué après erreur D1', { mediaId, deletedCount: insertedIds.length }, getVar(c, 'MONGODB_URI'));
+                    await logger.warn('IngestWorker', 'Rollback effectué après erreur D1', { mediaId, deletedCount: insertedIds.length }, mongoUri(c));
                 }
             } catch (rollbackError: any) {
-                await logger.error('IngestWorker', `Rollback échoué: ${rollbackError.message}`, { mediaId }, getVar(c, 'MONGODB_URI'));
+                await logger.error('IngestWorker', `Rollback échoué: ${rollbackError.message}`, { mediaId }, mongoUri(c));
                 console.error('Rollback échoué:', rollbackError);
             }
         }
-        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId }, getVar(c, 'MONGODB_URI'));
+        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId }, mongoUri(c));
         console.error('Ingestion Error:', error.message);
         return c.json({ success: false, error: 'Erreur insertion' }, 500);
     }
@@ -258,10 +262,10 @@ internalRoutes.post('/ingest/mapping', zValidator('json', mappingSchema as any),
         });
         await c.env.DB.batch(statements);
         
-        await logger.info('IngestWorker', `Mapping mis à jour: ${validMappings.length} entrées`, {}, getVar(c, 'MONGODB_URI'));
+        await logger.info('IngestWorker', `Mapping mis à jour: ${validMappings.length} entrées`, {}, mongoUri(c));
         return c.json({ success: true, count: validMappings.length });
     } catch (e: any) {
-        await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {}, getVar(c, 'MONGODB_URI'));
+        await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {}, mongoUri(c));
         console.error("D1 Mapping Ingest Error:", e.message);
         return c.json({ error: e.message }, 500);
     }
@@ -313,10 +317,10 @@ internalRoutes.post('/orchestrate', async (c) => {
     try {
         const orchestrator = new OrchestratorService(c.env);
         const result = await orchestrator.resolveStaleMedia();
-        await logger.audit('Orchestrator', 'Trigger manuel via endpoint', result, getVar(c, 'MONGODB_URI'));
+        await logger.audit('Orchestrator', 'Trigger manuel via endpoint', result, mongoUri(c));
         return c.json({ success: true, ...result });
     } catch (error: any) {
-        await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, getVar(c, 'MONGODB_URI'));
+        await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, mongoUri(c));
         return c.json({ success: false, error: error.message }, 500);
     }
 });

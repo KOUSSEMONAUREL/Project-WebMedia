@@ -55,40 +55,33 @@ async function startApp() {
     if (process.env.GITHUB_ACTIONS) {
       console.log('One-Shot mode (GitHub Actions)...');
 
-      if (tmdbKey) {
-        console.log('TMDB...');
-        await importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
-      }
+      const run = async (label: string, fn: () => Promise<any>) => {
+        try {
+          console.log(`${label}...`);
+          await fn();
+        } catch (err: any) {
+          console.error(`${label} ERROR: ${err.message}`);
+        }
+      };
 
-      if (twitchId && twitchSecret) {
-        console.log('IGDB...');
-        await importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
-      }
-
-      console.log('Books & Comics...');
-      if (gbKey) await importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
-      await importGutenberg(databaseUrl, LIMIT);
-      await importOpenLibrary(databaseUrl, 'popular', LIMIT);
-      await importPopularBooksFR(databaseUrl, LIMIT);
-      if (cvKey) await importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT);
-
-      console.log('MangaDex...');
-      await importTrendingManga(databaseUrl, '', LIMIT);
-
-      console.log('RoyalRoad...');
-      await importRoyalRoad(databaseUrl, LIMIT);
-
-      console.log('AniList...');
-      await importAnime(databaseUrl, LIMIT);
-
-      console.log('Syncing Neon to Turso...');
-      await syncNeonToTurso(databaseUrl, tursoUrl, tursoToken);
+      await run('TMDB', () => importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      await run('Books (Google)', () => importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      await run('Gutenberg', () => importGutenberg(databaseUrl, LIMIT));
+      await run('OpenLibrary', () => importOpenLibrary(databaseUrl, 'popular', LIMIT));
+      await run('NosLivres', () => importPopularBooksFR(databaseUrl, LIMIT));
+      await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      await run('MangaDex', () => importTrendingManga(databaseUrl, '', LIMIT));
+      await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT));
+      await run('AniList', () => importAnime(databaseUrl, LIMIT));
+      await run('Sync Turso', () => syncNeonToTurso(databaseUrl, tursoUrl, tursoToken));
 
       console.log('One-Shot run completed.');
       process.exit(0);
     }
-  } catch (err) {
-    console.error('[STARTUP] Fatal error:', err);
+  } catch (err: any) {
+    console.error('[STARTUP] Fatal error:', err.message || err);
+    process.exit(1);
   }
 }
 

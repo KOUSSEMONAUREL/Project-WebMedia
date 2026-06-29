@@ -37,8 +37,15 @@ async function processJob(job: any) {
             sources.push({ url: job.slug, site: 'Source' });
         } else {
             console.log(`🔍 Searching: ${job.title}`);
-            const searchCmd = `env -i PATH="${process.env.PATH}" DATABASE_URL="sqlite:///${sqlitePath}" LNCRAWL_DATA_PATH="${tempDir}" ${lncrawlBin} search "${job.title}"`;
-            const { stdout } = await execPromise(searchCmd);
+            const { stdout } = await execPromise(`"${lncrawlBin}" search "$TITLE"`, {
+                env: {
+                    PATH: process.env.PATH || '',
+                    DATABASE_URL: `sqlite:///${sqlitePath}`,
+                    LNCRAWL_DATA_PATH: tempDir,
+                    TITLE: job.title,
+                },
+                timeout: 30000,
+            });
             
             const lines = stdout.split('\n');
             for (const line of lines) {

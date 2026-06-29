@@ -2,6 +2,8 @@ import { MiddlewareHandler } from 'hono';
 
 export const rateLimit = (limit: number, windowSeconds: number): MiddlewareHandler => {
     return async (c, next) => {
+        if (c.req.method === 'OPTIONS') return await next();
+
         const ip = c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
         const url = c.env.UPSTASH_REDIS_REST_URL;
         const token = c.env.UPSTASH_REDIS_REST_TOKEN;

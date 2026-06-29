@@ -117,11 +117,11 @@ export class OrchestratorService {
             return { processed: 0 };
         }
 
-        // 5. UN SEUL batch insert Supabase
+        // 5. UN SEUL batch insert Supabase en premier (si ça fail, D1 n'est pas modifié → retry possible)
         await this.supabase.insert(scrapingJobs).values(insertValues);
         console.log(`📡 ${insertValues.length} scraping jobs queued`);
 
-        // 6. UN SEUL batch D1 pour toutes les UPDATEs
+        // 6. UN SEUL batch D1 pour UPDATE les next_scrape
         if (updateStatements.length > 0) {
             const BATCH_SIZE = 100;
             for (let i = 0; i < updateStatements.length; i += BATCH_SIZE) {

@@ -32,8 +32,8 @@ const getVar = (c: any, key: string) => {
 // ========== GET /api/reviews/:mediaId (PUBLIC) ==========
 reviewRoutes.get('/:mediaId', async (c) => {
     const mediaId = c.req.param('mediaId');
-    const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
     try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
         const mediaReviews = await db.select()
@@ -74,9 +74,9 @@ reviewRoutes.post(
     async (c) => {
         const data = c.req.valid('json' as any);
         const userId = c.get('jwtPayload').id;
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
 
         try {
+            const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
             const db = getSupabaseClient(dbUrl);
 
             // Déduplication: Un utilisateur ne peut avoir qu'une review par média

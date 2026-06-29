@@ -30,7 +30,9 @@ export async function notifyBrain(
       headers: { 'X-Internal-API-Key': internalApiKey },
       timeout: 5000,
     });
-  } catch {}
+  } catch (err: any) {
+    console.error(`notifyBrain error (${mediaId}): ${err?.message || err}`);
+  }
 }
 
 export async function notifyBrainBatch(

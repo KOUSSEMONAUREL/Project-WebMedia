@@ -35,9 +35,9 @@ searchRoutes.get(
     zValidator('query', searchSchema as any),
     async (c) => {
         const { q, type, year, limit, offset } = c.req.valid('query' as any);
-        const dbUrl = getVar(c, 'NEON_DATABASE_URL');
 
         try {
+            const dbUrl = getVar(c, 'NEON_DATABASE_URL');
             const db = getNeonDb(dbUrl, c.env?.HYPERDRIVE);
 
             let searchFilters = [
