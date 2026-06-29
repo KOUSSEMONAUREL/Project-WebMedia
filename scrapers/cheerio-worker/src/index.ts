@@ -66,12 +66,18 @@ const STREAMING_SOURCES: { name: string; buildUrl: BuildUrlFn; host: string }[] 
 ];
 
 async function checkStream(url: string): Promise<boolean> {
-  try {
-    const res = await axios.head(url, { timeout: 5000, validateStatus: () => true });
-    return res.status === 200 || res.status === 302;
-  } catch (err) {
-    return false;
+  for (const method of ['head', 'get'] as const) {
+    try {
+      const res = await axios[method](url, { timeout: 5000, validateStatus: () => true });
+      if (res.status === 200 || res.status === 302) return true;
+      // HEAD interdit (405) → essayer GET
+      if (res.status === 405) continue;
+      return false;
+    } catch {
+      continue;
+    }
   }
+  return false;
 }
 
 async function resolveTmdbId(mediaId: string, anilistId?: number | null): Promise<number | null> {
