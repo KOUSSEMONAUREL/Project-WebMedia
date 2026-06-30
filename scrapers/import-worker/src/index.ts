@@ -64,13 +64,13 @@ async function startApp() {
         }
       };
 
-      await run('TMDB', () => importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
-      await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
-      await run('Books (Google)', () => importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      if (tmdbKey) await run('TMDB', () => importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      if (twitchId && twitchSecret) await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      if (gbKey) await run('Books (Google)', () => importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
       await run('Gutenberg', () => importGutenberg(databaseUrl, LIMIT));
       await run('OpenLibrary', () => importOpenLibrary(databaseUrl, 'popular', LIMIT));
       await run('NosLivres', () => importPopularBooksFR(databaseUrl, LIMIT));
-      await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
+      if (cvKey) await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
       await run('MangaDex', () => importTrendingManga(databaseUrl, '', LIMIT));
       await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT));
       await run('AniList', () => importAnime(databaseUrl, LIMIT));

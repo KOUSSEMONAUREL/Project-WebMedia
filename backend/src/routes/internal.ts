@@ -28,7 +28,7 @@ const getVar = (c: any, key: string) => {
 };
 
 const mongoUri = (c: any) => {
-    try { return mongoUri(c); } catch { return ''; }
+    try { return getVar(c, 'MONGODB_URI'); } catch { return ''; }
 };
 
 // Middleware de sécurité
