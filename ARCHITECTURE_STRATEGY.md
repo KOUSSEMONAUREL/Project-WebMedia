@@ -2,8 +2,6 @@
 
 Architecture multi-cloud, coût 0€/mois, utilisant les limites gratuites des hébergeurs.
 
-<img src="./frontend/public/images/server-room.png" alt="WebMedia Server Infrastructure" width="100%" style="border-radius: 10px; margin-top: 20px; margin-bottom: 20px;" />
-
 ## Stack
 
 | Service | Plateforme | Rôle |

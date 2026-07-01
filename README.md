@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="./frontend/public/images/logo.png" alt="WebMedia Logo" width="150" style="border-radius: 10px;" />
-
 <br/>
 ```
 ██╗    ██╗███████╗██████╗ ███╗   ███╗███████╗██████╗ ██╗  █████╗ 
@@ -33,8 +31,6 @@
 ---
 
 ## Architecture
-
-<img src="./frontend/public/images/server-room.png" alt="WebMedia Server Infrastructure" width="100%" style="border-radius: 10px; margin-bottom: 20px;" />
 
 ```mermaid
 graph TD
