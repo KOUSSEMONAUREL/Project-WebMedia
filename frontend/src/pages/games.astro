@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { MediaGrid } from '../components/MediaGrid';
-import { DynamicHero } from '../components/DynamicHero';
+import { PageHeader } from '../components/PageHeader';
 import { getMediaByType, type Media } from '../lib/api';
 
 let games: Media[] = [];
@@ -13,11 +13,7 @@ try {
 
 <Layout title="Jeux Vidéo">
   <div class="container mx-auto px-6 py-10">
-    <DynamicHero 
-        client:load 
-        defaultTitle="Jeux Vidéo" 
-        defaultSubtitle="Le divertissement interactif. Explorez, créez, combattez — le jeu sous toutes ses formes."
-    />
+    <PageHeader title="Jeux Vidéo" subtitle="Le divertissement interactif. Explorez, créez, combattez — le jeu sous toutes ses formes." />
     <MediaGrid title="Jeux Vidéo" items={games} client:load />
   </div>
 </Layout>

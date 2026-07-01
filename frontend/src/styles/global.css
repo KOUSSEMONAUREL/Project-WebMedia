@@ -1,47 +1,133 @@
 @import "tailwindcss";
 
 @theme {
-  /* Premium Elegant Palette */
-  --color-background: #090a0f;
-  --color-foreground: #f3f4f6;
-  --color-card: #11131a;
-  --color-card-foreground: #ffffff;
-  --color-primary: #d4af37; /* Elegant Gold */
-  --color-primary-foreground: #000000;
-  --color-secondary: #1a1d27;
-  --color-secondary-foreground: #e5e7eb;
-  --color-muted: #1f2230;
-  --color-muted-foreground: #9ca3af;
-  --color-accent: #d4af37;
-  --color-accent-foreground: #000000;
-  --color-destructive: #ef4444;
+  --color-background: #09090c;
+  --color-foreground: #f0ede8;
+  --color-card: #0f0f15;
+  --color-card-foreground: #f0ede8;
+  --color-primary: #e8b825;
+  --color-primary-foreground: #09090c;
+  --color-secondary: #141420;
+  --color-secondary-foreground: #d4cfc7;
+  --color-muted: #1a1a28;
+  --color-muted-foreground: #7a7590;
+  --color-accent: #f0c040;
+  --color-accent-foreground: #09090c;
+  --color-destructive: #e55353;
   --color-destructive-foreground: #ffffff;
-  --color-border: #262938;
-  --color-input: #1a1d27;
-  --color-ring: #d4af37;
-  
-  /* Elegant soft edges */
-  --radius: 0.75rem;
+  --color-border: #1e1e2e;
+  --color-input: #141420;
+  --color-ring: #e8b825;
+  --color-surface: #0f0f15f2;
 
-  /* Custom Fonts */
+  --glow-gold: 0 0 40px rgba(232, 184, 37, 0.2);
+  --glow-gold-strong: 0 0 60px rgba(232, 184, 37, 0.3);
+  --glow-gold-subtle: 0 0 20px rgba(232, 184, 37, 0.12);
+
+  --radius: 0.625rem;
+
   --font-sans: 'Inter', sans-serif;
-  --font-display: 'Playfair Display', serif;
+  --font-display: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* Base styles for a dark theme */
 :root {
   color-scheme: dark;
 }
 
-/* Styles de base */
+html {
+  scroll-behavior: smooth;
+}
+
 * {
   border-color: var(--color-border);
 }
 
 body {
   background-color: var(--color-background);
-  background-image: radial-gradient(circle at top right, rgba(212,175,55,0.05), transparent 40%),
-                    radial-gradient(circle at bottom left, rgba(212,175,55,0.03), transparent 40%);
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -5%, rgba(232, 184, 37, 0.055), transparent),
+    radial-gradient(ellipse 60% 30% at 80% 120%, rgba(232, 184, 37, 0.03), transparent);
   background-attachment: fixed;
   color: var(--color-foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: rgba(232, 184, 37, 0.25);
+  color: var(--color-primary);
+}
+
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@utility glass {
+  background: color-mix(in srgb, var(--color-card) 82%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+@utility glass-strong {
+  background: color-mix(in srgb, var(--color-background) 92%, transparent);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@utility poster-row {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 0.875rem;
+  padding: 0.75rem 0.25rem 1rem;
+  margin: 0 -0.25rem;
+  scroll-snap-type: x mandatory;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@utility poster-row-card {
+  scroll-snap-align: start;
+}
+
+@utility gold-text {
+  background: linear-gradient(135deg, #f0c040 0%, #e8b825 40%, #c99a14 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@utility gold-border {
+  border: 1px solid rgba(232, 184, 37, 0.25);
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(232,184,37,0.15); }
+  50% { box-shadow: 0 0 35px rgba(232,184,37,0.28); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease both;
+}
+
+.card-skeleton {
+  background: linear-gradient(90deg, #141420 25%, #1a1a2e 50%, #141420 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
 }

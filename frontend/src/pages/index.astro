@@ -4,20 +4,21 @@ import { MediaGrid } from '../components/MediaGrid';
 import { DynamicHero } from '../components/DynamicHero';
 import { getTrending, getMediaByType, type Media } from '../lib/api';
 
-// Fetch data from API (which falls back to mockData internally if backend is down)
 let trending: Media[] = [];
 let popularFilms: Media[] = [];
 let topSeries: Media[] = [];
 let bestAnimes: Media[] = [];
+let popularGames: Media[] = [];
 let popularBooks: Media[] = [];
 let topNovels: Media[] = [];
 
 try {
-  const [trendingRes, filmsRes, seriesRes, animesRes, booksRes, novelsRes] = await Promise.all([
+  const [trendingRes, filmsRes, seriesRes, animesRes, gamesRes, booksRes, novelsRes] = await Promise.all([
     getTrending(),
     getMediaByType('film'),
     getMediaByType('serie'),
     getMediaByType('anime'),
+    getMediaByType('game'),
     getMediaByType('book'),
     getMediaByType('novel'),
   ]);
@@ -26,6 +27,7 @@ try {
   popularFilms = filmsRes.data || [];
   topSeries = seriesRes.data || [];
   bestAnimes = animesRes.data || [];
+  popularGames = gamesRes.data || [];
   popularBooks = booksRes.data || [];
   topNovels = novelsRes.data || [];
 } catch (error) {
@@ -34,14 +36,15 @@ try {
 ---
 
 <Layout title="Accueil">
-    <div class="container mx-auto px-6 pt-20 pb-16">
-        <DynamicHero client:load />
+    <DynamicHero client:load />
 
-        <MediaGrid title="Tendances du moment" items={trending} viewAllHref="/trending" client:load />
-        <MediaGrid title="Films Populaires" items={popularFilms} viewAllHref="/films" client:load />
-        <MediaGrid title="Séries à ne pas manquer" items={topSeries} viewAllHref="/series" client:load />
-        <MediaGrid title="Top Animés" items={bestAnimes} viewAllHref="/animes" client:load />
-        <MediaGrid title="Livres Populaires" items={popularBooks} viewAllHref="/books" client:load />
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+        <MediaGrid title="Recommandations" items={trending} client:load />
+        <MediaGrid title="Films" items={popularFilms} viewAllHref="/films" client:load />
+        <MediaGrid title="Séries" items={topSeries} viewAllHref="/series" client:load />
+        <MediaGrid title="Animés" items={bestAnimes} viewAllHref="/animes" client:load />
+        <MediaGrid title="Jeux" items={popularGames} viewAllHref="/games" client:load />
+        <MediaGrid title="Livres" items={popularBooks} viewAllHref="/books" client:load />
         <MediaGrid title="Light Novels" items={topNovels} viewAllHref="/novels" client:load />
     </div>
 </Layout>

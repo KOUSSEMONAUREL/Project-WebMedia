@@ -1,36 +1,43 @@
 import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
+import { ChevronRight } from 'lucide-react';
 
 interface MediaGridProps {
-    title: string;
-    items: Media[];
-    viewAllHref?: string;
+  title: string;
+  items: Media[];
+  viewAllHref?: string;
 }
 
 export function MediaGrid({ title, items, viewAllHref }: MediaGridProps) {
-    return (
-        <section className="py-8">
-            <div className="flex items-center justify-between mb-6 pb-3 relative">
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-                <h2 className="text-xl md:text-2xl font-display font-semibold text-foreground">{title}</h2>
-                {viewAllHref && (
-                    <a href={viewAllHref} className="text-sm font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-2">
-                        Voir tout <span>&rarr;</span>
-                    </a>
-                )}
-            </div>
+  return (
+    <section className="py-6">
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-[18px] md:text-[20px] font-display font-bold text-foreground tracking-tight">
+          {title}
+        </h2>
+        {viewAllHref && (
+          <a
+            href={viewAllHref}
+            className="flex items-center gap-1 text-[12px] font-semibold text-muted-foreground hover:text-primary transition-colors group"
+          >
+            Voir tout
+            <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        )}
+      </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
-                {items.length > 0 ? (
-                    items.map((media) => (
-                        <MediaCard key={media.id} media={media} />
-                    ))
-                ) : (
-                    <div className="col-span-full py-20 text-center">
-                        <p className="text-muted-foreground text-lg">Aucun contenu trouvé dans cette catégorie.</p>
-                    </div>
-                )}
-            </div>
-        </section>
-    );
+      {items.length > 0 ? (
+        <div className="poster-row">
+          {items.map((media) => (
+            <MediaCard key={media.id} media={media} />
+          ))}
+        </div>
+      ) : (
+        <div className="py-14 text-center rounded-xl border border-border/30 bg-white/[0.015]">
+          <p className="text-muted-foreground text-sm">Aucun contenu trouvé.</p>
+        </div>
+      )}
+    </section>
+  );
 }

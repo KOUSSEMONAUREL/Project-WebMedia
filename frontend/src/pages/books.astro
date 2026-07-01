@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { MediaGrid } from '../components/MediaGrid';
-import { DynamicHero } from '../components/DynamicHero';
+import { PageHeader } from '../components/PageHeader';
 import { getMediaByType, type Media } from '../lib/api';
 
 let books: Media[] = [];
@@ -13,11 +13,7 @@ try {
 
 <Layout title="Livres">
   <div class="container mx-auto px-6 py-10">
-    <DynamicHero 
-        client:load 
-        defaultTitle="Livres" 
-        defaultSubtitle="Des mots qui façonnent des mondes. Plongez dans la littérature, du classique à la fantasy."
-    />
+    <PageHeader title="Livres" subtitle="Des mots qui façonnent des mondes. Plongez dans la littérature, du classique à la fantasy." />
     <MediaGrid title="Livres" items={books} client:load />
   </div>
 </Layout>

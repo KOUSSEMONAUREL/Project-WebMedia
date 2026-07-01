@@ -54,7 +54,7 @@ export function ListPage({ storageKey, title, description, emptyIcon, emptyTitle
           icon={emptyIcon}
           title={emptyTitle}
           description={emptyDescription}
-          action={{ label: 'Découvrir du contenu', href: '/discover' }}
+          action={{ label: 'Découvrir du contenu', href: '/trending' }}
         />
       ) : (
         <div className="animate-fade-in">

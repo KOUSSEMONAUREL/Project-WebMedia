@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { User, LogOut, Heart, Clock, Settings, ChevronDown, Film, Tv, Library, BarChart3 } from 'lucide-react';
+import { User, LogOut, ChevronDown, Film, Tv, Library, BarChart3 } from 'lucide-react';
 
 interface UserData {
     name: string;
@@ -39,14 +39,19 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
 
     if (!user) {
         return (
-            <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground"
+            <button
+                className="flex items-center gap-2 px-3.5 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 hover:scale-[1.02]"
+                style={{
+                    background: 'linear-gradient(135deg, #f0c040 0%, #e8b825 60%, #c99a14 100%)',
+                    border: 'none',
+                    color: '#09090c',
+                    boxShadow: '0 2px 12px rgba(232,184,37,0.25)',
+                }}
                 onClick={onLoginClick}
             >
-                <User className="h-5 w-5" />
-            </Button>
+                <User className="h-3.5 w-3.5" />
+                Connexion
+            </button>
         );
     }
 
@@ -67,100 +72,62 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
             </Button>
 
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden z-50" style={{boxShadow:'0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)'}}>
                     {/* Header avec infos utilisateur */}
-                    <div className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 border-b border-border">
+                    <div className="p-4 border-b border-border/50" style={{background:'linear-gradient(135deg, rgba(232,184,37,0.08) 0%, rgba(232,184,37,0.03) 100%)'}}>
                         <div className="flex items-center gap-3">
                             <img
                                 src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
                                 alt={user.name}
-                                className="h-12 w-12 rounded-full bg-secondary border-2 border-primary/50"
+                                className="h-11 w-11 rounded-xl bg-secondary"
+                                style={{border:'2px solid rgba(232,184,37,0.4)'}}
                             />
                             <div className="flex-1 min-w-0">
-                                <p className="font-bold text-foreground truncate">{user.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                <p className="font-bold text-[14px] text-foreground truncate">{user.name}</p>
+                                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{user.email}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Stats rapides */}
-                    <div className="grid grid-cols-4 gap-1 p-3 bg-secondary/30 border-b border-border">
-                        <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-blue-500">
-                                <Film className="h-3 w-3" />
-                                <span className="text-sm font-bold">{userStats.films}</span>
+                    <div className="grid grid-cols-4 gap-px bg-border/40 border-b border-border/50">
+                        {[
+                            { icon: Film, value: userStats.films, label: 'Films' },
+                            { icon: Tv, value: userStats.series, label: 'Séries' },
+                            { icon: Library, value: userStats.animes, label: 'Animés' },
+                            { icon: BarChart3, value: userStats.watchTime, label: 'Temps' },
+                        ].map((stat) => (
+                            <div key={stat.label} className="flex flex-col items-center py-3 bg-card gap-0.5">
+                                <span className="text-[13px] font-bold text-foreground">{stat.value}</span>
+                                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
                             </div>
-                            <p className="text-[10px] text-muted-foreground">Films</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-purple-500">
-                                <Tv className="h-3 w-3" />
-                                <span className="text-sm font-bold">{userStats.series}</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">Séries</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-pink-500">
-                                <Library className="h-3 w-3" />
-                                <span className="text-sm font-bold">{userStats.animes}</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">Animés</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-green-500">
-                                <BarChart3 className="h-3 w-3" />
-                                <span className="text-sm font-bold">{userStats.watchTime}</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">Temps</p>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Menu items */}
-                    <nav className="p-2">
-                        <a
-                            href="/profile"
-                            className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg hover:bg-secondary transition-colors"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span>Mon Profil</span>
-                        </a>
-                        <a
-                            href="/favorites"
-                            className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg hover:bg-secondary transition-colors"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            <Heart className="h-4 w-4 text-muted-foreground" />
-                            <span>Mes Favoris</span>
-                        </a>
-                        <a
-                            href="/watchlist"
-                            className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg hover:bg-secondary transition-colors"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>À voir plus tard</span>
-                        </a>
-                        <a
-                            href="/settings"
-                            className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg hover:bg-secondary transition-colors"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            <Settings className="h-4 w-4 text-muted-foreground" />
-                            <span>Paramètres</span>
-                        </a>
+                    <nav className="p-1.5">
+                        {[
+                            { href: '/profile', icon: User, label: 'Mon Profil' },
+                        ].map(item => (
+                            <a
+                                key={item.href}
+                                href={item.href}
+                                className="flex items-center gap-3 px-3 py-2 text-[13px] rounded-lg hover:bg-white/[0.04] hover:text-foreground text-muted-foreground transition-colors"
+                                onClick={() => setIsOpen(false)}
+                            >
+                                <item.icon className="h-3.5 w-3.5" />
+                                <span>{item.label}</span>
+                            </a>
+                        ))}
                     </nav>
 
                     {/* Logout */}
-                    <div className="p-2 border-t border-border">
+                    <div className="p-1.5 border-t border-border/50">
                         <button
-                            onClick={() => {
-                                onLogout();
-                                setIsOpen(false);
-                            }}
-                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
+                            onClick={() => { onLogout(); setIsOpen(false); }}
+                            className="flex items-center gap-3 w-full px-3 py-2 text-[13px] text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
                         >
-                            <LogOut className="h-4 w-4" />
+                            <LogOut className="h-3.5 w-3.5" />
                             <span>Déconnexion</span>
                         </button>
                     </div>

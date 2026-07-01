@@ -74,20 +74,30 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-md mx-4 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="relative w-full max-w-md mx-4 bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden" style={{boxShadow:'0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)'}}>
                 {/* Header avec gradient */}
-                <div className="relative h-24 bg-gradient-to-br from-primary/80 via-primary to-primary/60 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiIHN0cm9rZS13aWR0aD0iMiIvPjwvZz48L3N2Zz4=')] opacity-30" />
-                    <h2 className="text-2xl font-black text-white italic uppercase tracking-tight">
+                <div
+                    className="relative h-20 flex items-center justify-center"
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(232,184,37,0.15) 0%, rgba(232,184,37,0.06) 100%)',
+                        borderBottom: '1px solid rgba(232,184,37,0.15)',
+                    }}
+                >
+                    <h2 className="text-xl font-display font-bold tracking-tight" style={{
+                        background: 'linear-gradient(135deg, #f0c040 0%, #e8b825 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                    }}>
                         {mode === 'login' ? 'Connexion' : 'Inscription'}
                     </h2>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-3 right-3 text-white/80 hover:text-white hover:bg-white/20"
+                        className="absolute top-3 right-3 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
                         onClick={onClose}
                     >
-                        <X className="h-5 w-5" />
+                        <X className="h-4 w-4" />
                     </Button>
                 </div>
 

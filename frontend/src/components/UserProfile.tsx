@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authStore } from '../stores/auth';
-import { Heart, Clock, Film, Tv, Library, Settings, LogOut, Star } from 'lucide-react';
+import { Heart, Clock, Film, Tv, Library, LogOut, Star } from 'lucide-react';
 import { allMockData } from '../lib/api';
 import type { Media } from '../lib/api';
 import { EmptyState } from './EmptyState';
@@ -113,23 +113,6 @@ export function UserProfile() {
 
         {/* Quick actions */}
         <div className="space-y-4">
-          <div className="glass rounded-xl p-6">
-            <h2 className="text-xl font-display font-semibold mb-4">Actions rapides</h2>
-            <div className="space-y-2">
-              <a href="/favorites" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
-                <span className="h-10 w-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center"><Heart className="h-5 w-5" /></span>
-                <div><p className="font-medium text-sm">Mes Favoris</p><p className="text-xs text-muted-foreground">{favCount} éléments</p></div>
-              </a>
-              <a href="/watchlist" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
-                <span className="h-10 w-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center"><Clock className="h-5 w-5" /></span>
-                <div><p className="font-medium text-sm">À voir</p><p className="text-xs text-muted-foreground">{wlCount} éléments</p></div>
-              </a>
-              <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
-                <span className="h-10 w-10 rounded-full bg-gray-500/20 text-gray-500 flex items-center justify-center"><Settings className="h-5 w-5" /></span>
-                <div><p className="font-medium text-sm">Paramètres</p><p className="text-xs text-muted-foreground">Gérer mon compte</p></div>
-              </a>
-            </div>
-          </div>
 
           <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-6">
             <h3 className="text-lg font-display font-semibold mb-2">Passez Premium</h3>
