@@ -49,7 +49,9 @@ export class HentaiNexusScraper extends BaseScraper {
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const id = mangaUrl.split('/').pop() || '';
-    const dateStr = this.$(await (await this.get(mangaUrl)).data).find('.view-page-details td.viewcolumn:contains(Published) + td').text().trim();
+    const res = await this.get(mangaUrl);
+    const $ = this.$(res.data);
+    const dateStr = $('.view-page-details td.viewcolumn:contains(Published) + td').text().trim();
     let dateUpload: number | undefined;
     if (dateStr) { const ts = Date.parse(dateStr); if (!isNaN(ts)) dateUpload = ts; }
     return [{ name: 'Chapter', url: `/read/${id}`, dateUpload }];

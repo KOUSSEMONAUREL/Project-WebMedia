@@ -5,6 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import axios from 'axios';
 import { batchCheckExisting, notifyBrain, notifyBrainBatch } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const RR_BASE = 'https://www.royalroad.com';
 const RR_API = new RoyalRoadAPI();
@@ -13,7 +14,8 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting RoyalRoad Import (limit=${limit})...`);
+    const log = createLog('RoyalRoad', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         let page = await getOffset('royalroad-page', databaseUrl, 1, db);
@@ -25,7 +27,7 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             safety++;
             const { data } = await RR_API.fictions.getPopular(page);
             if (!data || data.length === 0) {
-                console.log('📄 Fin catalogue RoyalRoad, retour page 1');
+                log.skip('End of catalog, reset to page 1');
                 await setOffset('royalroad-page', 1, databaseUrl);
                 await setOffset('royalroad-consumed', 0, databaseUrl);
                 if (candidates.length === 0) return 0;
@@ -58,7 +60,7 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
         const toInsert = candidates.filter((f: any) => !existing.has(`rr-${f.id}`));
 
         if (toInsert.length === 0) {
-            console.log(`📄 RoyalRoad: tout existant déjà`);
+            log.skip('RoyalRoad: all existing');
             return 0;
         }
 
@@ -95,13 +97,13 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
         await notifyBrainBatch(brainItems, INTERNAL_API_URL, INTERNAL_API_KEY);
 
         for (const m of inserted) {
-            console.log(`✅ [RR] ${m.externalId}`);
+            log.success(`[RR] ${m.externalId}`);
         }
 
-        console.log(`✅ RoyalRoad import terminé : ${inserted.length} nouveaux (page ${page})`);
+        log.success(`RoyalRoad: ${inserted.length} new (page ${page})`);
         return inserted.length;
     } catch (error: any) {
-        console.error('❌ RoyalRoad Import Error:', error.message);
+        log.error(`RoyalRoad Import Error: ${error.message}`);
         throw error;
     }
 }

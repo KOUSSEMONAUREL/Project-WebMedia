@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Cheerio, CheerioAPI } from 'cheerio';
 
 const dateFormat = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4})/;
 const reverieLangRegex = /(French|Arabic|Italian|Indonesia|Spanish)/;
@@ -14,7 +15,7 @@ function parseDate(s: string): number {
 export class TheLibraryOfOharaScraper extends BaseScraper {
   readonly name = 'The Library of Ohara';
   readonly baseUrl = 'https://thelibraryofohara.com';
-  readonly lang = 'all';
+  readonly lang: string = 'all';
   private siteLang = '';
 
   private popularMangaSelector(): string {
@@ -70,8 +71,8 @@ export class TheLibraryOfOharaScraper extends BaseScraper {
     return { title, url: mangaUrl, thumbnailUrl, lang: this.lang, description: '' };
   }
 
-  private _chooseChapterThumbnail($: cheerio.CheerioAPI, mangaTitle: string): string | undefined {
-    let imgEl: cheerio.Cheerio | null = null;
+  private _chooseChapterThumbnail($: CheerioAPI, mangaTitle: string): string | undefined {
+    let imgEl: Cheerio<any> | null = null;
     if (mangaTitle.includes('Reverie')) {
       const articles = $('article').toArray();
       for (const article of articles) {

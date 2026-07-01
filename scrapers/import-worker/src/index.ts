@@ -1,4 +1,5 @@
 import http from 'http';
+import { createLog } from './utils/log.js';
 
 const port = parseInt(process.env.PORT || '8080', 10);
 if (!process.env.GITHUB_ACTIONS) {
@@ -17,9 +18,9 @@ if (!process.env.GITHUB_ACTIONS) {
 }
 
 async function startApp() {
-  console.log('[STARTUP] Initializing Engines...');
+  const log = createLog('Import Worker', 'one-shot');
+  log.header();
   try {
-    const { default: cron } = await import('node-cron');
     const { importTMDB } = await import('./importers/tmdb.js');
     const { importAnime } = await import('./importers/anilist.js');
     const { importComics } = await import('./importers/comics.js');
@@ -50,17 +51,21 @@ async function startApp() {
 
     const LIMIT = parseInt(process.env.IMPORT_LIMIT || '20', 10);
 
-    console.log(`[STARTUP] Engines ready. Limit=${LIMIT}`);
+    log.info(`Limit=${LIMIT}`);
 
     if (process.env.GITHUB_ACTIONS) {
-      console.log('One-Shot mode (GitHub Actions)...');
+      let totalProcessed = 0;
+      let totalErrors = 0;
 
       const run = async (label: string, fn: () => Promise<any>) => {
+        log.start(label);
         try {
-          console.log(`${label}...`);
-          await fn();
+          const count = await fn();
+          if (typeof count === 'number') totalProcessed += count;
+          log.success(label);
         } catch (err: any) {
-          console.error(`${label} ERROR: ${err.message}`);
+          totalErrors++;
+          log.error(`${label}: ${err.message}`);
         }
       };
 
@@ -76,11 +81,11 @@ async function startApp() {
       await run('AniList', () => importAnime(databaseUrl, LIMIT));
       await run('Sync Turso', () => syncNeonToTurso(databaseUrl, tursoUrl, tursoToken));
 
-      console.log('One-Shot run completed.');
+      log.summary(totalProcessed, totalErrors);
       process.exit(0);
     }
   } catch (err: any) {
-    console.error('[STARTUP] Fatal error:', err.message || err);
+    log.error(`Fatal: ${err.message || err}`);
     process.exit(1);
   }
 }

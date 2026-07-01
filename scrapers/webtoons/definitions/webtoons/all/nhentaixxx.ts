@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Cheerio } from 'cheerio';
 
 export class NHentaiXXXScraper extends BaseScraper {
   readonly name = 'NHentai.xxx';
@@ -142,7 +143,7 @@ export class NHentaiXXXScraper extends BaseScraper {
     return new URL(this.baseUrl).host;
   }
 
-  private imgAttr($el: cheerio.Cheerio): string {
+  private imgAttr($el: Cheerio<any>): string {
     if (!$el || !$el.length) return '';
     return this.absUrl(
       $el.attr('data-cfsrc') ||

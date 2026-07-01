@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Cheerio } from 'cheerio';
 
 export class HentaiFoxScraper extends BaseScraper {
   readonly name = 'HentaiFox';
@@ -131,7 +132,7 @@ export class HentaiFoxScraper extends BaseScraper {
     return $(`input[id="${id}"]`).attr('value') || '';
   }
 
-  private imgAttr($el: cheerio.Cheerio): string {
+  private imgAttr($el: Cheerio<any>): string {
     if (!$el || !$el.length) return '';
     return this.absUrl(
       $el.attr('data-cfsrc') ||

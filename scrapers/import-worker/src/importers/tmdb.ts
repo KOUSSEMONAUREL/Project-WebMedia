@@ -4,6 +4,7 @@ import { medias, liens, episodes } from '../db/neon/schema.js';
 import { eq, inArray, and } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrain, notifyBrainBatch } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3';
 const KEY = 'tmdb';
@@ -19,9 +20,8 @@ async function fetchWithRetry(url: string, params: Record<string, any>, retries 
     }
 }
 
-async function importEpisodesForSerie(db: any, apiKey: string, tmdbId: number, mediaId: string) {
+async function importEpisodesForSerie(db: any, apiKey: string, tmdbId: number, mediaId: string, log: ReturnType<typeof createLog>) {
     try {
-        // Récupérer les saisons depuis le détail de la série
         const detailRes = await fetchWithRetry(`${TMDB_API_BASE}/tv/${tmdbId}`, {
             api_key: apiKey, language: 'fr-FR'
         });
@@ -51,16 +51,17 @@ async function importEpisodesForSerie(db: any, apiKey: string, tmdbId: number, m
             }));
 
             await db.insert(episodes).values(episodeValues).onConflictDoNothing();
-            console.log(`  🎬 S${seasonNum}: ${epItems.length} épisodes`);
+            log.info(`S${seasonNum}: ${epItems.length} episodes`);
         }
     } catch (err: any) {
-        console.error(`  ⚠️ Erreur épisodes pour TMDB ${tmdbId}: ${err.message}`);
+        log.warn(`Episode error for TMDB ${tmdbId}: ${err.message}`);
     }
 }
 
 export async function importTMDB(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting TMDB Import (limit=${limit})...`);
+    const log = createLog('TMDB', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     const categories = ['movie/popular', 'tv/popular'];
     let totalImported = 0;
@@ -86,7 +87,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
 
             const toInsert = items.filter((i: any) => !existing.has(`${category}-${i.id}`));
             if (toInsert.length === 0) {
-                console.log(`📄 TMDB ${category} page ${page}: tout existant déjà`);
+                log.skip(`TMDB ${category} page ${page}: all existing`);
                 await setOffset(catKey, page + 1, databaseUrl);
                 continue;
             }
@@ -107,12 +108,11 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
 
             const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId });
 
-            // Importer les épisodes pour les séries TV
             for (const m of inserted) {
                 if (!m.externalId?.startsWith('tv') && !m.externalId?.startsWith('tv/popular')) continue;
                 if (!m.tmdbId) continue;
-                console.log(`  📺 Import des épisodes pour ${m.externalId}...`);
-                await importEpisodesForSerie(db, apiKey, m.tmdbId, m.id);
+                log.info(`Importing episodes for ${m.externalId}`);
+                await importEpisodesForSerie(db, apiKey, m.tmdbId, m.id, log);
             }
 
             const brainItems = inserted
@@ -123,16 +123,16 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
             for (const m of inserted) {
                 if (!m.externalId) continue;
                 const mediaType = m.externalId.startsWith('movie') ? 'movie' : 'serie';
-                console.log(`✅ [${mediaType.toUpperCase()}] ${m.externalId}`);
+                log.success(`[${mediaType.toUpperCase()}] ${m.externalId}`);
             }
 
             totalImported += inserted.length;
             await setOffset(catKey, page + 1, databaseUrl);
         } catch (err: any) {
-            console.error(`TMDB Error for ${category}:`, err.message);
+            log.error(`TMDB Error for ${category}: ${err.message}`);
         }
     }
 
-    console.log(`✅ TMDB: ${totalImported} ajoutés`);
+    log.success(`TMDB: ${totalImported} added`);
     return totalImported;
 }

@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { CheerioAPI, AnyNode } from 'cheerio';
+import type { CheerioAPI } from 'cheerio';
 import { BaseScraper } from './base';
 import type { Manga, Chapter, Page, SearchResult } from './types';
 
@@ -27,10 +27,10 @@ export abstract class MadaraScraper extends BaseScraper {
   override readonly baseUrl: string;
   override readonly lang: string;
 
-  protected readonly mangaSubString = 'manga';
-  protected readonly filterNonMangaItems = true;
+  protected readonly mangaSubString: string = 'manga';
+  protected readonly filterNonMangaItems: boolean = true;
   protected readonly useLoadMoreRequest: LoadMoreStrategy = 'AutoDetect';
-  protected readonly useNewChapterEndpoint = false;
+  protected readonly useNewChapterEndpoint: boolean = false;
 
   protected readonly popularMangaSelectorStr = "div.page-item-detail:not(:has(a[href*='bilibilicomics.com'])) , .manga__item";
   protected readonly popularMangaUrlSelector = 'div.post-title a';

@@ -4,6 +4,7 @@ import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const MANGADEX_API = 'https://api.mangadex.org';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
@@ -22,7 +23,7 @@ interface MdManga {
   relationships: { type: string; attributes?: { fileName: string } }[];
 }
 
-async function fetchCovers(mangaIds: string[]): Promise<Map<string, string>> {
+async function fetchCovers(mangaIds: string[], log: ReturnType<typeof createLog>): Promise<Map<string, string>> {
   const coverMap = new Map<string, string>();
   const batches: string[][] = [];
   for (let i = 0; i < mangaIds.length; i += 100) batches.push(mangaIds.slice(i, i + 100));
@@ -38,7 +39,7 @@ async function fetchCovers(mangaIds: string[]): Promise<Map<string, string>> {
         if (mangaId && fn) coverMap.set(mangaId, `https://uploads.mangadex.org/covers/${mangaId}/${fn}.256.jpg`);
       }
     } catch (err) {
-      console.error(`Failed to fetch cover batch: ${err instanceof Error ? err.message : err}`);
+      log.error(`Failed to fetch cover batch: ${err instanceof Error ? err.message : err}`);
     }
   }
   return coverMap;
@@ -46,6 +47,8 @@ async function fetchCovers(mangaIds: string[]): Promise<Map<string, string>> {
 
 export async function importTrendingManga(databaseUrl: string, searchTerm: string = '', limit = 20) {
     const db = createDbClient(databaseUrl, 'neon');
+    const log = createLog('MangaDex', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const offset = await getOffset('mangadex-offset', databaseUrl, 0, db);
@@ -58,27 +61,26 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
           params.order = { followedCount: 'desc' };
         }
 
-        console.log(`📡 MangaDex API (offset=${offset}): ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
+        log.info(`API (offset=${offset}): ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
         const response = await axios.get(`${MANGADEX_API}/manga`, { params, timeout: 15000 });
         const mangaList: MdManga[] = response.data.data || [];
-        console.log(`📦 ${mangaList.length} mangas trouvés`);
+        log.info(`${mangaList.length} mangas found`);
 
-        // Fin du catalogue → reset offset
         if (mangaList.length === 0) {
-            console.log('📄 Fin catalogue MangaDex, retour au début');
+            log.skip('End of catalog, reset');
             await setOffset('mangadex-offset', 0, databaseUrl, db);
             return 0;
         }
 
         const ids = mangaList.map(m => m.id);
-        const covers = await fetchCovers(ids);
+        const covers = await fetchCovers(ids, log);
 
         const prefixedIds = ids.map(id => `mangadex-${id}`);
         const existing = await batchCheckExisting(db, medias.externalId, prefixedIds);
 
         const toInsert = mangaList.filter(m => !existing.has(`mangadex-${m.id}`));
         if (toInsert.length === 0) {
-            console.log('📄 MangaDex: tout existant déjà');
+            log.skip('MangaDex: all existing');
             return 0;
         }
 
@@ -107,18 +109,17 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
                     timeout: 5000,
                 });
             } catch (err) {
-                console.error(`Failed to sync manga ${m.id} to internal API: ${err instanceof Error ? err.message : err}`);
+                log.error(`Failed to sync manga ${m.id}: ${err instanceof Error ? err.message : err}`);
             }
-            console.log(`✅ [MANGADEX] ${m.externalId}`);
+            log.success(`[MANGADEX] ${m.externalId}`);
         }
 
-        // Avancer l'offset
         await setOffset('mangadex-offset', offset + limit, databaseUrl, db);
 
-        console.log(`✅ Import MangaDex terminé : ${inserted.length} nouveaux mangas (offset=${offset})`);
+        log.success(`Import finished: ${inserted.length} new mangas (offset=${offset})`);
         return inserted.length;
     } catch (error: any) {
-        console.error('❌ MangaDex Import Error:', error.message);
+        log.error(`MangaDex Import Error: ${error.message}`);
         throw error;
     }
 }

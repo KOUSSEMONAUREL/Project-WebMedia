@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Cheerio } from 'cheerio';
 
 export class AsmHentaiScraper extends BaseScraper {
   readonly name = 'AsmHentai';
@@ -52,16 +53,16 @@ export class AsmHentaiScraper extends BaseScraper {
     const $info = $('.book_page').first();
     const title = $info.find('h1').first().text();
     const thumbnailUrl = this.imgAttr($('.cover img').first());
-    const genre = this.getInfo($info, 'Tags');
-    const author = this.getInfo($info, 'Artists');
+    const genre = this.getInfo($info, $, 'Tags');
+    const author = this.getInfo($info, $, 'Artists');
     const desc = this.getDescription($info, $);
     return { title, url: mangaUrl, thumbnailUrl, lang: this.lang, author, description: desc, genre };
   }
 
-  private getDescription($info: cheerio.Cheerio, $: ReturnType<typeof this.$>): string {
+  private getDescription($info: Cheerio<any>, $: ReturnType<typeof this.$>): string {
     const parts: string[] = [];
     for (const tag of ['Parodies', 'Characters', 'Languages', 'Categories', 'Category']) {
-      const val = this.getInfo($info, tag);
+      const val = this.getInfo($info, $, tag);
       if (val) parts.push(`${tag}: ${val}`);
     }
     const pagesEl = $info.find('.book_page .pages h3').first().text();
@@ -71,7 +72,7 @@ export class AsmHentaiScraper extends BaseScraper {
     return parts.join('\n\n');
   }
 
-  private getInfo($info: cheerio.Cheerio, tag: string): string {
+  private getInfo($info: Cheerio<any>, $: ReturnType<typeof this.$>, tag: string): string {
     return $info.find(`.tags:contains(${tag}:) .tag_list a`).toArray().map(el => {
       const $el = $(el);
       const name = $el.find('.tag').first().text().trim();
@@ -123,7 +124,7 @@ export class AsmHentaiScraper extends BaseScraper {
     return $(`input[id="${id}"]`).attr('value') || '';
   }
 
-  private imgAttr($el: cheerio.Cheerio): string {
+  private imgAttr($el: Cheerio<any>): string {
     if (!$el || !$el.length) return '';
     return this.absUrl(
       $el.attr('data-cfsrc') ||

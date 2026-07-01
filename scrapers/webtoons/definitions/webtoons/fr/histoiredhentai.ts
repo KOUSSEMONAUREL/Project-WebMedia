@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { CheerioAPI } from 'cheerio';
 
 export class HistoiredhentaiScraper extends BaseScraper {
   readonly name = 'HistoireDHentai';
@@ -56,7 +57,7 @@ export class HistoiredhentaiScraper extends BaseScraper {
     return { title, thumbnailUrl: this.absUrl(thumbnailUrl), author, description, lang: this.lang };
   }
 
-  private _parseMangaList($: cheerio.CheerioAPI): Manga[] {
+  private _parseMangaList($: CheerioAPI): Manga[] {
     const mangas: Manga[] = [];
     $('.page-item-detail, .c-tabs-item__content, .row .item-thumb').each((_, el) => {
       const a = $(el).find('a[href]').first();

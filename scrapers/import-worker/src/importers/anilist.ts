@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import axios from 'axios';
 import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const ANILIST_API = 'https://graphql.anilist.co';
 const KEY = 'anilist';
@@ -22,7 +23,8 @@ const POPULAR_QUERY = `
 
 export async function importAnime(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting AniList Import (limit=${limit})...`);
+    const log = createLog('AniList', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
@@ -34,7 +36,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
         const entries = response.data?.data?.Page?.media || [];
         if (entries.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
-            console.log('📄 Fin catalogue AniList, retour page 1');
+            log.skip('End of catalog, reset to page 1');
             return 0;
         }
 
@@ -43,7 +45,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
 
         const toInsert = entries.filter((e: any) => !existing.has(`al-${e.id}`));
         if (toInsert.length === 0) {
-            console.log(`📄 AniList page ${page}: tout existant déjà`);
+            log.skip(`AniList page ${page}: all existing`);
             await setOffset(KEY, page + 1, databaseUrl);
             return 0;
         }
@@ -63,17 +65,17 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
         const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
 
         for (const m of inserted) {
-            console.log(`✅ [ANIME] ${m.externalId}`);
+            log.success(`[ANIME] ${m.externalId}`);
             try {
                 await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
             } catch { /* ignore brain errors */ }
         }
 
         await setOffset(KEY, page + 1, databaseUrl);
-        console.log(`✅ AniList: ${inserted.length} ajoutés (page ${page})`);
+        log.success(`AniList: ${inserted.length} added (page ${page})`);
         return inserted.length;
     } catch (error: any) {
-        console.error('AniList Import Error:', error.message);
+        log.error(`AniList Import Error: ${error.message}`);
         throw error;
     }
 }

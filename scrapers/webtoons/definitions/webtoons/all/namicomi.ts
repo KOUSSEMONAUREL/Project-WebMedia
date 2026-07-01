@@ -115,7 +115,7 @@ export class NamiComiScraper extends BaseScraper {
       }
     }
 
-    return allChapters.mapNotNull(ch => {
+    return allChapters.map(ch => {
       const isAccessible = accessibleMap.get(ch.id) ?? false;
       if (isAccessible) {
         return this.createChapter(ch);
@@ -126,7 +126,7 @@ export class NamiComiScraper extends BaseScraper {
         return chapter;
       }
       return null;
-    });
+    }).filter(Boolean) as Chapter[];
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
@@ -243,14 +243,16 @@ export class NamiComiScraper extends BaseScraper {
     const manga: Manga = {
       title,
       url: dto.id,
+      thumbnailUrl: '',
+      lang: this.lang,
       description: attr.description[lang] || attr.description.en || '',
       author: organizations.join(', '),
-      status,
+      status: status as 0 | 1 | 2 | 3 | undefined,
       genre: [...genreList, ...nonGenres].filter(Boolean).join(', '),
     };
 
     if (coverFileName) {
-      manga.thumbnail_url = `${CDN_URL}/covers/${dto.id}/${coverFileName}${this.coverQuality}`;
+      manga.thumbnailUrl = `${CDN_URL}/covers/${dto.id}/${coverFileName}${this.coverQuality}`;
     }
 
     return manga;
@@ -270,7 +272,7 @@ export class NamiComiScraper extends BaseScraper {
     return {
       url: dto.id,
       name: parts.join(' '),
-      date_upload: this.parseDate(attr.publishAt),
+      dateUpload: this.parseDate(attr.publishAt),
     };
   }
 

@@ -39,7 +39,7 @@ export class MangaToonScraper extends BaseScraper {
       const $el = $(el);
       return {
         title: $el.find('div.recommend-comics-title').text(),
-        thumbnail_url: this.normalPosterUrl(this.imgAttr($el.find('img'))),
+        thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))), lang: this.lang,
         url: $el.find('a').first().attr('abs:href') || '',
       };
     }).get();
@@ -47,25 +47,27 @@ export class MangaToonScraper extends BaseScraper {
     return { mangas, hasNextPage };
   }
 
-  async getMangaDetail(mangaUrl: string): Promise<Manga> {
+  async getMangaDetails(mangaUrl: string): Promise<Manga> {
     const res = await this.get(mangaUrl);
     const $ = this.$(res.data);
     const locale = 'en';
     const manga: Manga = {
-      title: '',
+      title: $('div.detail-title h1').text() || $('h1.entry-title').text() || '',
       url: mangaUrl,
-      author: $('div.detail-author-name span').text().substringAfter(': '),
+      thumbnailUrl: '',
+      lang: this.lang,
+      author: $('div.detail-author-name span').text().split(': ')[1] || '',
       description: $('div.detail-description-short p').map((_: any, el: any) => $(el).text()).get().join('\n\n'),
       genre: $('div.detail-tags-info span').text()
         .split('/')
         .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
         .sort()
         .join(', '),
-      status: this.toStatus($('div.detail-status').text()),
+      status: this.toStatus($('div.detail-status').text()) as 0 | 1 | 2 | 3 | undefined,
     };
     const thumbnail = this.normalPosterUrl(this.imgAttr($('div.detail-img img')));
     if (!thumbnail.includes('cartoon-big-images')) {
-      manga.thumbnail_url = thumbnail;
+      manga.thumbnailUrl = thumbnail;
     }
     return manga;
   }
@@ -77,8 +79,8 @@ export class MangaToonScraper extends BaseScraper {
       const $el = $(el);
       return {
         name: $el.find('div.episode-title-new:last-child').text(),
-        chapter_number: parseFloat($el.find('div.episode-number').text()) || -1,
-        date_upload: this.parseDate($el.find('div.episode-date span.open-date').text()),
+        chapterNumber: parseFloat($el.find('div.episode-number').text()) || -1,
+        dateUpload: this.parseDate($el.find('div.episode-date span.open-date').text()),
         url: $el.attr('abs:href') || '',
       };
     }).get();
@@ -103,7 +105,7 @@ export class MangaToonScraper extends BaseScraper {
     const $ = this.$(res.data);
     const pages = $('div.pictures div img:first-child').map((i: number, el: any) => ({
       index: i,
-      url: this.imgAttr($(el)),
+      imageUrl: this.imgAttr($(el)),
     })).get();
     if (pages.length === 0) {
       throw new Error('This chapter is paid and can\'t be read. Use the MangaToon official app to purchase and read it.');
@@ -114,8 +116,9 @@ export class MangaToonScraper extends BaseScraper {
   private mangaFromElement($el: any): Manga {
     return {
       title: $el.find('div.content-title').text(),
-      thumbnail_url: this.normalPosterUrl(this.imgAttr($el.find('img'))),
+      thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))),
       url: $el.attr('abs:href') || '',
+      lang: this.lang,
     };
   }
 

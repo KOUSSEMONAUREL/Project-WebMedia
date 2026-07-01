@@ -3,6 +3,7 @@ import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
 import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 import crypto from 'crypto';
 
 const API = 'https://noslivres.net/query.php';
@@ -22,7 +23,8 @@ function extractSource(html: string | undefined): string {
 
 export async function importPopularBooksFR(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting NosLivres Import (limit=${limit})...`);
+    const log = createLog('NosLivres', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const start = await getOffset(KEY, databaseUrl, 0);
@@ -38,7 +40,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
         if (rows.length === 0) {
             await setOffset(KEY, 0, databaseUrl);
-            console.log('📄 Fin catalogue NosLivres, retour début');
+            log.skip('End of catalog, reset');
             return 0;
         }
 
@@ -65,7 +67,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
         }
 
         if (toInsert.length === 0) {
-            console.log(`📄 NosLivres offset ${start}: tout existant déjà`);
+            log.skip(`NosLivres offset ${start}: all existing`);
             const nextStart = start + rows.length;
             if (nextStart >= total) {
                 await setOffset(KEY, 0, databaseUrl);
@@ -104,19 +106,19 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
             } catch { /* ignore brain errors */ }
         }
 
-        console.log(`✅ NosLivres: ${inserted.length} ajoutés (offset ${start}/${total})`);
+        log.success(`NosLivres: ${inserted.length} added (offset ${start}/${total})`);
 
         const nextStart = start + rows.length;
         if (nextStart >= total) {
             await setOffset(KEY, 0, databaseUrl);
-            console.log(`📄 Catalogue NosLivres complet (${total} entrées), retour début`);
+            log.info(`Catalog complete (${total} entries), reset`);
         } else {
             await setOffset(KEY, nextStart, databaseUrl);
         }
 
         return inserted.length;
     } catch (error: any) {
-        console.warn('⚠️ NosLivres ignoré (API inaccessible):', error.message);
+        log.warn(`NosLivres skipped (API unavailable): ${error.message}`);
         return 0;
     }
 }

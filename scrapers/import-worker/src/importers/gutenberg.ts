@@ -4,19 +4,21 @@ import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const PG_API = 'https://project-gutenberg-free-books-api1.p.rapidapi.com/books';
 const KEY = 'gutenberg';
 
 export async function importGutenberg(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting Project Gutenberg Import (limit=${limit})...`);
+    const log = createLog('Gutenberg', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
         const gutenbergKey = process.env.GUTENBERG_API_KEY || '';
         if (!gutenbergKey) {
-            console.warn('⚠️ GUTENBERG_API_KEY non définie, skip');
+            log.warn('GUTENBERG_API_KEY not set, skip');
             return 0;
         }
         const response = await withRetry(() => axios.get(PG_API, {
@@ -30,7 +32,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
         const results = (response.data?.results || response.data || []) as any[];
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
-            console.log('📄 Fin catalogue Project Gutenberg, retour page 1');
+            log.skip('End of catalog, reset to page 1');
             return 0;
         }
 
@@ -39,7 +41,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
         const toInsert = results.filter((item: any) => !existing.has(`gutenberg-${item.id}`));
         if (toInsert.length === 0) {
-            console.log(`📄 Gutenberg page ${page}: tout existant déjà`);
+            log.skip(`Gutenberg page ${page}: all existing`);
             await setOffset(KEY, page + 1, databaseUrl);
             return 0;
         }
@@ -51,7 +53,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
             return {
                 type: 'book', title, originalTitle: title, author: authors,
-                synopsis: item.synopsis || `Livre de Project Gutenberg — ${title}`,
+                synopsis: item.synopsis || `Project Gutenberg — ${title}`,
                 posterUrl: item.cover_image || undefined,
                 externalId, slug,
                 metadataSource: 'gutenberg', metadataFreshAt: new Date()
@@ -76,10 +78,10 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             } catch { /* ignore brain errors */ }
         }
 
-        console.log(`✅ Project Gutenberg: ${inserted.length} ajoutés (page ${page})`);
+        log.success(`Project Gutenberg: ${inserted.length} added (page ${page})`);
         return inserted.length;
     } catch (error: any) {
-        console.error('❌ Project Gutenberg Import Error:', error.message);
+        log.error(`Project Gutenberg Import Error: ${error.message}`);
         throw error;
     }
 }

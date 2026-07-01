@@ -74,7 +74,7 @@ export class HentaiscanreaderScraper extends BaseScraper {
 
   private _parseList($: any, selector: string): SearchResult {
     const mangas: Manga[] = [];
-    $(selector).each((_, el) => {
+    $(selector).each((_: any, el: any) => {
       const $el = $(el);
       const a = $el.find('a').first();
       const href = a.attr('href') ?? '';

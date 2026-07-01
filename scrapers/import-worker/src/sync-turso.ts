@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
 import { medias, episodes, liens } from './db/neon/schema.js';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from './db/turso/schema.js';
+import { createLog } from './utils/log.js';
 
 const BATCH = 100;
 
@@ -78,8 +79,9 @@ function lienUpsert() {
 export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
     const neon = createNeonClient(neonUrl);
     const turso = createTursoClient(tursoUrl, tursoToken);
+    const log = createLog('Sync Turso', 'sync');
 
-    console.log('🔄 Syncing Neon -> Turso...');
+    log.start('Syncing Neon -> Turso');
 
     try {
         const allMedias = await neon.select().from(medias);
@@ -158,8 +160,8 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             }
         }
 
-        console.log(`✅ Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links.`);
+        log.success(`Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links`);
     } catch (error: any) {
-        console.error('❌ Sync Error:', error.message);
+        log.error(`Sync Error: ${error.message}`);
     }
 }

@@ -4,13 +4,15 @@ import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const OPEN_LIBRARY_API = 'https://openlibrary.org';
 const KEY = 'openlibrary';
 
 export async function importOpenLibrary(databaseUrl: string, search: string = 'popular', limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting Open Library Import (search=${search}, limit=${limit})...`);
+    const log = createLog('OpenLibrary', 'one-shot');
+    log.start(`Import (search=${search}, limit=${limit})`);
 
     try {
         const page = await getOffset(KEY, databaseUrl, 1);
@@ -21,7 +23,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         const results = response.data.docs || [];
         if (results.length === 0) {
             await setOffset(KEY, 1, databaseUrl);
-            console.log('📄 Fin catalogue OpenLibrary, retour page 1');
+            log.skip('End of catalog, reset to page 1');
             return 0;
         }
 
@@ -38,7 +40,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         });
 
         if (toInsert.length === 0) {
-            console.log(`📄 OpenLibrary page ${page}: tout existant déjà`);
+            log.skip(`OpenLibrary page ${page}: all existing`);
             await setOffset(KEY, page + 1, databaseUrl);
             return 0;
         }
@@ -73,10 +75,10 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
         }
 
-        console.log(`✅ OpenLibrary: ${inserted.length} ajoutés (page ${page})`);
+        log.success(`OpenLibrary: ${inserted.length} added (page ${page})`);
         return inserted.length;
     } catch (error: any) {
-        console.error('❌ Open Library Import Error:', error.message);
+        log.error(`Open Library Import Error: ${error.message}`);
         throw error;
     }
 }

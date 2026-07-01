@@ -75,7 +75,7 @@ export class Photos18Scraper extends BaseScraper {
         thumbnailUrl: this.absUrl(img.attr('src') || ''),
         genre: label.text() || undefined,
         lang: this.lang,
-        status: 'completed',
+        status: 2,
       };
     });
     const next = $('.next').first();

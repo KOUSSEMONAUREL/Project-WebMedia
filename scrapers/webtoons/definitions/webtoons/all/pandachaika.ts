@@ -90,7 +90,7 @@ export class PandaChaikaScraper extends BaseScraper {
     return [{
       name: 'Chapter',
       url: archive.download.split('/download/')[0],
-      date_upload: archive.posted * 1000,
+      dateUpload: archive.posted * 1000,
     }];
   }
 
@@ -150,7 +150,8 @@ export class PandaChaikaScraper extends BaseScraper {
     return {
       url: archive.id.toString(),
       title: archive.title,
-      thumbnail_url: archive.thumbnail,
+      thumbnailUrl: archive.thumbnail,
+      lang: this.lang,
       author: groups || artists,
       artist: artists,
       genre: [male, female, others].filter(Boolean).join(', '),

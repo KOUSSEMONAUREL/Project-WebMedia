@@ -4,6 +4,7 @@ import { medias, liens } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 const KEY = 'googlebooks';
@@ -13,13 +14,15 @@ const MAX_CATEGORY_LIMIT = 5;
 export async function importPopularBooks(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = PER_CATEGORY) {
     limit = Math.min(limit, MAX_CATEGORY_LIMIT);
     const db = createDbClient(databaseUrl, 'neon');
+    const log = createLog('Google Books', 'one-shot');
+    log.start(`Import (limit=${limit})`);
+
     const categories = ['fiction', 'fantasy', 'thriller', 'romance', 'science fiction'];
-    console.log(`🚀 Starting Google Books Import (limit=${limit})...`);
 
     for (const cat of categories) {
         try {
             const startIndex = await getOffset(`${KEY}:${cat}`, databaseUrl, 0);
-            console.log(`🔍 ${cat} (startIndex=${startIndex})`);
+            log.info(`${cat} (startIndex=${startIndex})`);
 
             const response = await withRetry(() => axios.get(GOOGLE_BOOKS_URL, {
                 params: { q: `subject:${cat}`, orderBy: 'newest', maxResults: limit, startIndex, key: apiKey, langRestrict: 'fr' }
@@ -36,7 +39,7 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
 
             const toInsert = items.filter((i: any) => !existing.has(`googlebooks-${i.id}`));
             if (toInsert.length === 0) {
-                console.log(`📄 ${cat}: tout existant déjà`);
+                log.skip(`${cat}: all existing`);
                 await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
                 continue;
             }
@@ -76,13 +79,13 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
             await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
             for (const m of inserted) {
-                console.log(`✅ [BOOK] ${m.externalId}`);
+                log.success(`[BOOK] ${m.externalId}`);
             }
 
             await setOffset(`${KEY}:${cat}`, startIndex + limit, databaseUrl);
-            console.log(`✅ Google Books ${cat}: ${inserted.length} ajoutés`);
+            log.success(`Google Books ${cat}: ${inserted.length} added`);
         } catch (err: any) {
-            console.error(`Google Books Error for ${cat}:`, err.message);
+            log.error(`Google Books Error for ${cat}: ${err.message}`);
         }
     }
 }

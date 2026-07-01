@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { CheerioAPI } from 'cheerio';
 
 interface PopularPostDto {
   title: { rendered: string };
@@ -133,7 +134,7 @@ export class CosplayTeleScraper extends BaseScraper {
     };
   }
 
-  private getTags($: cheerio.CheerioAPI): string[] {
+  private getTags($: CheerioAPI): string[] {
     return $('#main a').toArray().filter(a => {
       const href = $(a).attr('href') || '';
       return TAG_PATTERN.test(href);

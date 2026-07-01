@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, Page, SearchResult } from '../../../engine/types';
+import type { Chapter as EngineChapter } from '../../../engine/types';
 
 const API_URL = 'https://api-global.tappytoon.com';
 
@@ -17,7 +18,7 @@ interface Comic {
   authors: { name: string }[];
 }
 
-interface Chapter {
+interface TappytoonChapter {
   id: number;
   order: number;
   title: string;
@@ -29,7 +30,7 @@ interface Chapter {
   willAccessibleAt: string;
 }
 
-interface URL {
+interface TappytoonURL {
   url: string;
 }
 
@@ -122,14 +123,14 @@ export class TappytoonScraper extends BaseScraper {
     return { mangas, hasNextPage: false };
   }
 
-  async getChapterList(mangaUrl: string): Promise<Chapter[]> {
+  async getChapterList(mangaUrl: string): Promise<EngineChapter[]> {
     await this.ensureApiHeaders();
     const id = mangaUrl.split('|')[1];
     const res = await this.get(
       `${API_URL}/comics/${id}/chapters?locale=${this.lang}`,
       { headers: this.apiHeaders },
     );
-    const data: Chapter[] = res.data;
+    const data: TappytoonChapter[] = res.data;
     return data.filter(c => c.isAccessible).reverse().map(c => ({
       name: `${c.title}${c.subtitle ? ' - ' + c.subtitle : ''}${!c.isFree && !c.isUserUnlocked && !c.isUserRented ? ' 🔒' : ''}`,
       url: String(c.id),

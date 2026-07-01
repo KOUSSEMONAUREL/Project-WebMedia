@@ -1,5 +1,5 @@
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, Chapter, Page, SearchResult, MangaStatus } from '../../../engine/types';
 
 interface ComikeyComic {
   link: string;
@@ -69,8 +69,8 @@ export class ComikeyScraper extends BaseScraper {
       const title = linkEl.text();
       const desc = $el.find('div.excerpt p').text() + '\n\n' + $el.find('div.desc p').text();
       const genre = $el.find('ul.category-listing li a').map((_, a) => $(a).text()).get().join(', ');
-      const thumb = $el.find('div.image picture img').attr('abs:src');
-      mangas.push({ url: href.replace(this.baseUrl, ''), title, description: desc, genre, thumbnailUrl: thumb });
+      const thumb = $el.find('div.image picture img').attr('abs:src') || '';
+      mangas.push({ url: href.replace(this.baseUrl, ''), title, description: desc, genre, thumbnailUrl: thumb, lang: this.lang });
     });
     const hasNextPage = $('ul.pagination li.next-page:not(.disabled)').length > 0;
     return { mangas, hasNextPage };
@@ -84,13 +84,13 @@ export class ComikeyScraper extends BaseScraper {
       }
       const slug = `${url.pathname.split('/')[1]}/${url.pathname.split('/')[2]}`;
       const mangaUrl = `/comics/${slug}/`;
-      const manga = await this.getMangaDetails(mangaUrl);
+      const manga = await this.getMangaDetails(mangaUrl) as Manga;
       return { mangas: [manga], hasNextPage: false };
     }
     if (query.startsWith(PREFIX_SLUG_SEARCH)) {
       const slug = query.replace(PREFIX_SLUG_SEARCH, '');
       const mangaUrl = `/comics/${slug}/`;
-      const manga = await this.getMangaDetails(mangaUrl);
+      const manga = await this.getMangaDetails(mangaUrl) as Manga;
       return { mangas: [manga], hasNextPage: false };
     }
 
@@ -109,13 +109,14 @@ export class ComikeyScraper extends BaseScraper {
         title: linkEl.text(),
         description: $el.find('div.excerpt p').text() + '\n\n' + $el.find('div.desc p').text(),
         genre: $el.find('ul.category-listing li a').map((_, a) => $(a).text()).get().join(', '),
-        thumbnailUrl: $el.find('div.image picture img').attr('abs:src'),
+        thumbnailUrl: $el.find('div.image picture img').attr('abs:src') || '',
+        lang: this.lang,
       });
     });
     return { mangas, hasNextPage: $('ul.pagination li.next-page:not(.disabled)').length > 0 };
   }
 
-  private async getMangaDetails(mangaUrl: string): Promise<Manga> {
+  async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const response = await this.get(`${this.baseUrl}${mangaUrl}`);
     const $ = this.$(response.data);
     const rawData = $('script#comic').data();

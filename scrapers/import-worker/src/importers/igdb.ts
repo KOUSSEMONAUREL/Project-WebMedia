@@ -4,6 +4,7 @@ import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
 const TWITCH_TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
@@ -18,7 +19,8 @@ async function getTwitchToken(clientId: string, clientSecret: string) {
 
 export async function importTrendingGames(clientId: string, clientSecret: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting IGDB Import (limit=${limit})...`);
+    const log = createLog('IGDB', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const offset = await getOffset(KEY, databaseUrl, 0);
@@ -32,7 +34,7 @@ export async function importTrendingGames(clientId: string, clientSecret: string
         const results = response.data || [];
         if (results.length === 0) {
             await setOffset(KEY, 0, databaseUrl);
-            console.log('📄 Fin catalogue IGDB, retour offset 0');
+            log.skip('End of catalog, reset offset 0');
             return 0;
         }
 
@@ -41,7 +43,7 @@ export async function importTrendingGames(clientId: string, clientSecret: string
 
         const toInsert = results.filter((r: any) => !existing.has(r.id));
         if (toInsert.length === 0) {
-            console.log(`📄 IGDB offset ${offset}: tout existant déjà`);
+            log.skip(`IGDB offset ${offset}: all existing`);
             await setOffset(KEY, offset + limit, databaseUrl);
             return 0;
         }
@@ -63,14 +65,14 @@ export async function importTrendingGames(clientId: string, clientSecret: string
         await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
         for (const m of inserted) {
-            console.log(`✅ [GAME] IGDB#${m.igdbId}`);
+            log.success(`[GAME] IGDB#${m.igdbId}`);
         }
 
         await setOffset(KEY, offset + limit, databaseUrl);
-        console.log(`✅ IGDB: ${inserted.length} ajoutés (offset ${offset})`);
+        log.success(`IGDB: ${inserted.length} added (offset ${offset})`);
         return inserted.length;
     } catch (error) {
-        console.error('IGDB Import Error:', error);
+        log.error(`IGDB Import Error: ${error}`);
         throw error;
     }
 }

@@ -1,5 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Cheerio } from 'cheerio';
 
 export class HentaiEnvyScraper extends BaseScraper {
   readonly name = 'HentaiEnvy';
@@ -87,7 +88,7 @@ export class HentaiEnvyScraper extends BaseScraper {
     return pages.map((url, idx) => ({ index: idx, imageUrl: url }));
   }
 
-  private imgAttr($el: cheerio.Cheerio): string {
+  private imgAttr($el: Cheerio<any>): string {
     if (!$el || !$el.length) return '';
     return this.absUrl(
       $el.attr('data-cfsrc') ||

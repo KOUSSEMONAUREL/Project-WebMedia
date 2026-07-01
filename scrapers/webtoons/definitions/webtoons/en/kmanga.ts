@@ -22,6 +22,7 @@ export class ImageInterceptorScraper extends BaseScraper {
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(mangaUrl);
     const data = JSON.parse(res.data);
+    const detail = data?.manga || data;
     return {
       title: detail?.name || detail?.title || detail?.postTitle || "",
       url: mangaUrl,
@@ -48,9 +49,9 @@ export class ImageInterceptorScraper extends BaseScraper {
     const res = await this.get(chapterUrl);
     const data = JSON.parse(res.data);
     const pages = data?.pages || data?.data || [];
-    return (Array.isArray(pages) ? pages : []).map((url: string, index: number) => ({
+    return (Array.isArray(pages) ? pages : []).map((item: any, index: number) => ({
       index,
-      imageUrl: this.absUrl(typeof url === "string" ? url : url.url || url.imageUrl || ""),
+      imageUrl: this.absUrl(typeof item === "string" ? item : item.url || item.imageUrl || ""),
     }));
   }
 }

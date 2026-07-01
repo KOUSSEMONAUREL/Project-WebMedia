@@ -4,13 +4,15 @@ import { medias } from '../db/neon/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
+import { createLog } from '../utils/log.js';
 
 const COMICVINE_URL = 'https://comicvine.gamespot.com/api/volumes';
 const KEY = 'comicvine';
 
 export async function importComics(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    console.log(`🚀 Starting Comic Vine Import (limit=${limit})...`);
+    const log = createLog('ComicVine', 'one-shot');
+    log.start(`Import (limit=${limit})`);
 
     try {
         const offset = await getOffset(KEY, databaseUrl, 0);
@@ -24,7 +26,7 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
         const results = response.data.results || [];
         if (results.length === 0) {
             await setOffset(KEY, 0, databaseUrl);
-            console.log('📄 Fin catalogue ComicVine, retour offset 0');
+            log.skip('End of catalog, reset offset 0');
             return 0;
         }
 
@@ -33,7 +35,7 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
 
         const toInsert = results.filter((r: any) => !existing.has(`cv-${r.id}`));
         if (toInsert.length === 0) {
-            console.log(`📄 ComicVine offset ${offset}: tout existant déjà`);
+            log.skip(`ComicVine offset ${offset}: all existing`);
             await setOffset(KEY, offset + limit, databaseUrl);
             return 0;
         }
@@ -52,14 +54,14 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
         await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
         for (const m of inserted) {
-            console.log(`✅ [COMIC] ${m.externalId}`);
+            log.success(`[COMIC] ${m.externalId}`);
         }
 
         await setOffset(KEY, offset + limit, databaseUrl);
-        console.log(`✅ ComicVine: ${inserted.length} ajoutés (offset ${offset})`);
+        log.success(`ComicVine: ${inserted.length} added (offset ${offset})`);
         return inserted.length;
     } catch (err: any) {
-        console.error('Comic Vine Error:', err.message);
+        log.error(`Comic Vine Error: ${err.message}`);
         throw err;
     }
 }

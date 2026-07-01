@@ -2,6 +2,7 @@ import axios from 'axios';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { eq } from 'drizzle-orm';
+import { createLog } from './log.js';
 
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
@@ -70,7 +71,6 @@ async function checkStream(url: string): Promise<boolean> {
     try {
       const res = await axios[method](url, { timeout: 5000, validateStatus: () => true });
       if (res.status === 200 || res.status === 302) return true;
-      // HEAD interdit (405) → essayer GET
       if (res.status === 405) continue;
       return false;
     } catch {
@@ -81,7 +81,6 @@ async function checkStream(url: string): Promise<boolean> {
 }
 
 async function resolveTmdbId(mediaId: string, anilistId?: number | null): Promise<number | null> {
-  // Fallback 1 : résoudre via l'API backend (mapping D1)
   if (anilistId) {
     try {
       const res = await axios.get(`${INTERNAL_API_URL}/resolve/tmdb?anilist_id=${anilistId}`, {
@@ -91,7 +90,6 @@ async function resolveTmdbId(mediaId: string, anilistId?: number | null): Promis
       if (res.data?.success && res.data?.tmdb_id) return res.data.tmdb_id;
     } catch { /* not found */ }
   }
-  // Fallback 2 : résoudre via media_id (Neon -> anilist_id -> D1)
   try {
     const res = await axios.get(`${INTERNAL_API_URL}/resolve/tmdb?media_id=${mediaId}`, {
       headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
@@ -103,16 +101,13 @@ async function resolveTmdbId(mediaId: string, anilistId?: number | null): Promis
 }
 
 async function handleStreaming(mediaId: string, type: string, tmdbId?: number | null, anilistId?: number | null): Promise<number> {
-  // Vérifier que le media existe dans Neon (FK obligatoire pour /ingest/liens)
   const [media] = await neonSql`SELECT id, tmdb_id, anilist_id FROM medias WHERE id = ${mediaId}`;
   if (!media) {
-    console.log(`  ⏭️ Media ${mediaId} introuvable dans Neon`);
     return 0;
   }
   tmdbId = tmdbId ?? media.tmdb_id;
   anilistId = anilistId ?? media.anilist_id;
 
-  // Fallback pour les anime sans tmdb_id direct
   if (!tmdbId) {
     tmdbId = await resolveTmdbId(mediaId, anilistId);
   }
@@ -130,10 +125,9 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
         if (await checkStream(url)) {
           links.push({ source_site: src.name, player_host: src.host, url, qualite: 'auto' });
         }
-      } catch { /* skip failed source */ }
+      } catch { /* skip */ }
     }
   } else if (isTv) {
-    // Récupérer les épisodes depuis Neon (inclut l'ID pour lier les liens)
     const episodes = await neonSql`
       SELECT id, season_number, episode_number FROM episodes WHERE media_id = ${mediaId} ORDER BY season_number, episode_number
     `;
@@ -154,7 +148,6 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
         }
       }
     } else {
-      // Pas d'épisodes en base → vérifier S01E01 par défaut
       for (const src of STREAMING_SOURCES) {
         try {
           const url = src.buildUrl(tmdbId, 'serie', 1, 1);
@@ -173,15 +166,15 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
       headers: { 'X-Internal-API-Key': INTERNAL_API_KEY }, timeout: 15000,
     });
   } catch (err: any) {
-    console.log(`  ⚠️ /ingest/liens échoué pour ${mediaId}: ${err.message}`);
     return 0;
   }
   return links.length;
 }
 
-// ========== BOUCLE PRINCIPALE (One-Shot) ==========
 export async function startWorker() {
-  console.log('🚀 Cheerio Worker (One-Shot)');
+  const log = createLog('Cheerio Worker', 'one-shot');
+  log.header();
+
   const MAX_JOBS = 10;
   let processed = 0;
 
@@ -203,7 +196,7 @@ export async function startWorker() {
       if (!job) break;
 
       const { id: jobId, media_id: mediaId, media_type: mediaType, title, slug, attempts } = job;
-      console.log(`🎯 [${processed + 1}/${MAX_JOBS}] ${title} (${mediaType})`);
+      log.start(`Processing`, { title, type: mediaType });
 
       const [media] = await neonSql`
         SELECT tmdb_id, anilist_id, metadata_source
@@ -215,34 +208,34 @@ export async function startWorker() {
       if (['film', 'movie', 'serie', 'anime'].includes(mediaType)) {
         savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id, media?.anilist_id);
       } else {
-        console.log(`  ⏭️ Type délégué ou non géré par Cheerio: ${mediaType}`);
+        log.skip(`Delegated: ${mediaType}`);
         savedLinks = 1;
       }
 
       if (savedLinks > 0) {
         await supabaseSql`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${jobId}`;
-        console.log(`  ✅ ${savedLinks} lien(s) sauvé(s)`);
+        log.success(`Saved ${savedLinks} links`);
       } else {
         if (attempts >= 3) {
           await supabaseSql`UPDATE scraping_jobs SET status = 'failed', last_error = 'No links found', updated_at = NOW() WHERE id = ${jobId}`;
-          console.log(`  ❌ Échec (${attempts}/3 tentatives)`);
+          log.error(`Failed after ${attempts} attempts`);
         } else {
           await supabaseSql`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${jobId}`;
-          console.log(`  ⏳ Nouvelle tentative (${attempts}/3)`);
+          log.retry('Retrying', attempts, 3);
         }
       }
 
       processed++;
 
     } catch (err: any) {
-      console.error('💥 Erreur worker:', err.message);
+      log.error(err.message);
       if (err.message?.includes('password authentication')) {
-        console.error('   → Vérifie SUPABASE_DATABASE_URL dans les secrets GitHub');
+        log.warn('Check SUPABASE_DATABASE_URL secrets');
       }
     }
   }
 
-  console.log(`🏁 ${processed} job(s) cheerio traités.`);
+  log.summary(processed, 0);
   process.exit(0);
 }
 

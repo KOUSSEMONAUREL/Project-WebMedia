@@ -109,7 +109,7 @@ export class ScantradunionScraper extends BaseScraper {
         }
         return {
             title, url: mangaUrl, thumbnailUrl: this.absUrl(thumbnailUrl), lang: this.lang,
-            author, description, status,
+            author, description, status: status as 0 | 1 | 2 | 3 | undefined,
         };
     }
 

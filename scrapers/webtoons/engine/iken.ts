@@ -75,7 +75,7 @@ export abstract class IkenScraper extends BaseScraper {
   override readonly lang: string;
 
   protected readonly apiUrl: string;
-  protected readonly perPage = 18;
+  protected readonly perPage: number = 18;
   protected sortPagesByFilename = false;
 
   constructor(name: string, baseUrl: string, lang: string, apiUrl?: string) {

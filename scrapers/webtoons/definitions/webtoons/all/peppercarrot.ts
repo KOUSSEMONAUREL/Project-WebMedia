@@ -40,7 +40,7 @@ export class PepperCarrotScraper extends BaseScraper {
     return this.getPopular(page || 1);
   }
 
-  async getMangaDetail(mangaUrl: string): Promise<Manga> {
+  async getMangaDetails(mangaUrl: string): Promise<Manga> {
     const key = mangaUrl;
     if (key.startsWith('#')) {
       return this.getArtworkEntry(key.substring(1));
@@ -64,11 +64,11 @@ export class PepperCarrotScraper extends BaseScraper {
         ? `${BASE_URL}/${key.split('#')[1]}/webcomics/miniFantasyTheater.html`
         : `${BASE_URL}/${key}/webcomics/peppercarrot.html`;
 
-    const html = await this.get(url);
-    const $ = this.$(html);
+    const res = await this.get(url);
+    const $ = this.$(res.data);
 
     if (key.startsWith('#')) {
-      return this.parseArtwork(html, key.substring(1));
+      return this.parseArtwork(res, key.substring(1));
     }
 
     const translatedChapters: { number: number; el: any }[] = [];
@@ -90,8 +90,8 @@ export class PepperCarrotScraper extends BaseScraper {
       return {
         url: href,
         name: cleanName,
-        date_upload: dateUpload,
-        chapter_number: number,
+        dateUpload: dateUpload,
+        chapterNumber: number,
       };
     });
   }
@@ -100,11 +100,11 @@ export class PepperCarrotScraper extends BaseScraper {
     const url = chapterUrl.startsWith('http') ? chapterUrl : `${BASE_URL}${chapterUrl}`;
 
     if (url.endsWith('.jpg')) {
-      return [{ index: 0, url }];
+      return [{ index: 0, imageUrl: url }];
     }
 
-    const html = await this.get(url);
-    const $ = this.$(html);
+    const res = await this.get(url);
+    const $ = this.$(res.data);
 
     const urls = [
       ...$('.webcomic-page img').map((_: any, el: any) => $(el).attr('src')).get(),
@@ -117,12 +117,12 @@ export class PepperCarrotScraper extends BaseScraper {
 
     return [...thumbnail, ...urls].map((imgUrl, i) => ({
       index: i,
-      url: imgUrl,
+      imageUrl: imgUrl,
     }));
   }
 
-  private parseArtwork(html: string, key: string): Chapter[] {
-    const $ = this.$(html);
+  private parseArtwork(res: any, key: string): Chapter[] {
+    const $ = this.$(res.data);
     const chapters: Chapter[] = [];
     const baseDir = `/0_sources/0ther/${key}/low-res/`;
 
@@ -153,8 +153,8 @@ export class PepperCarrotScraper extends BaseScraper {
       chapters.push({
         url: baseDir + filename,
         name,
-        date_upload: date,
-        chapter_number: -2,
+        dateUpload: date,
+        chapterNumber: -2,
       });
     });
 
@@ -168,7 +168,8 @@ export class PepperCarrotScraper extends BaseScraper {
       author: AUTHOR,
       description: `Language: ${lang.name}\nTranslators: ${lang.translators}`,
       status: 1,
-      thumbnail_url: `${BASE_URL}/0_sources/0ther/artworks/low-res/2016-02-24_vertical-cover_remake_by-David-Revoy.jpg`,
+      thumbnailUrl: `${BASE_URL}/0_sources/0ther/artworks/low-res/2016-02-24_vertical-cover_remake_by-David-Revoy.jpg`,
+      lang: this.lang,
     };
   }
 
@@ -179,7 +180,8 @@ export class PepperCarrotScraper extends BaseScraper {
       author: AUTHOR,
       description: 'A webcomic series featuring short stories set in the enchanting world of Pepper&Carrot. With its playful humor and whimsical tales, this collection of gag strips is perfect for audiences of all ages.',
       status: 1,
-      thumbnail_url: `${BASE_URL}/0_sources/0ther/artworks/low-res/2018-11-22_vertical-cover-book-three_by-David-Revoy.jpg`,
+      thumbnailUrl: `${BASE_URL}/0_sources/0ther/artworks/low-res/2018-11-22_vertical-cover-book-three_by-David-Revoy.jpg`,
+      lang: this.lang,
     };
   }
 
@@ -193,7 +195,8 @@ export class PepperCarrotScraper extends BaseScraper {
       title: titles[key] || key.charAt(0).toUpperCase() + key.slice(1),
       author: AUTHOR,
       status: 1,
-      thumbnail_url: `${BASE_URL}/0_sources/0ther/press/low-res/2015-10-12_logo_by-David-Revoy.jpg`,
+      thumbnailUrl: `${BASE_URL}/0_sources/0ther/press/low-res/2015-10-12_logo_by-David-Revoy.jpg`,
+      lang: this.lang,
     };
   }
 

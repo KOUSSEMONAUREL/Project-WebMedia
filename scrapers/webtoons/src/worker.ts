@@ -1,5 +1,6 @@
 import { scrapeMedia, MediaTarget } from './pipeline';
 import type { BaseScraper } from '../engine/base';
+import { createLog } from './log.js';
 
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
@@ -13,16 +14,12 @@ async function callInternal(endpoint: string, data: unknown) {
 }
 
 export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number }> {
-  console.log(`\n🎯 Processing: ${media.title} (${media.id})`);
   const results = await scrapeMedia(media);
   let chaptersSaved = 0;
 
   for (const result of results) {
     if (result.chapters.length === 0) continue;
 
-    console.log(`  📚 ${result.source}: ${result.chapters.length} chapters`);
-
-    // Sauvegarder les chapitres comme liens
     const links = result.chapters.map((ch, i) => ({
       source_site: result.source,
       player_host: new URL(ch.url).hostname,
@@ -40,19 +37,17 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
       });
       chaptersSaved += links.length;
     } catch (err: any) {
-      console.error(`    ❌ Failed to save: ${err.message}`);
+      console.error(`    ✗ Failed to save: ${err.message}`);
     }
   }
 
   return { chaptersSaved };
 }
 
-// Mode CLI : exécution directe ou via queue
 if (process.argv[1]?.endsWith('worker.ts')) {
   const mode = process.argv[2];
 
   if (mode === '--queue') {
-    // Mode queue : puller les jobs webtoon depuis Supabase
     import('postgres').then(async ({ default: postgres }) => {
       const supabaseUrl = process.env.SUPABASE_DATABASE_URL || '';
       const neonUrl = process.env.NEON_DATABASE_URL || '';
@@ -63,7 +58,11 @@ if (process.argv[1]?.endsWith('worker.ts')) {
       const sb = postgres(supabaseUrl, { prepare: false });
       const neon = postgres(neonUrl, { prepare: false });
 
+      const log = createLog('Webtoon Scraper', 'queue');
+      log.header();
+
       let processed = 0;
+      let errors = 0;
       const maxJobs = 10;
 
       while (processed < maxJobs) {
@@ -88,11 +87,14 @@ if (process.argv[1]?.endsWith('worker.ts')) {
           FROM medias WHERE id = ${job.media_id}
         `;
         if (!media) {
+          errors++;
           await sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'Media not found', updated_at = NOW() WHERE id = ${job.id}`;
           continue;
         }
 
-        console.log(`\n🎯 [${processed + 1}/${maxJobs}] ${media.title}`);
+        processed++;
+        log.start(`Processing`, { title: media.title, type: media.type });
+
         const result = await processMedia({
           id: media.id, title: media.title, slug: media.slug,
           type: media.type, externalId: media.external_id,
@@ -101,24 +103,24 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
         if (result.chaptersSaved > 0) {
           await sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`;
-          console.log(`  ✅ ${result.chaptersSaved} chapters`);
+          log.success(`Saved ${result.chaptersSaved} chapters`);
         } else {
           if (job.attempts >= 3) {
             await sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'No chapters found', updated_at = NOW() WHERE id = ${job.id}`;
+            log.error(`Failed after ${job.attempts} attempts`);
           } else {
             await sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`;
+            log.retry('No chapters', job.attempts, 3);
           }
         }
-        processed++;
       }
 
+      log.summary(processed, errors);
       await sb.end();
       await neon.end();
-      console.log(`\n🏁 Processed ${processed} webtoon jobs.`);
       process.exit(0);
     });
   } else {
-    // Mode direct : media ID en argument
     const mediaId = mode;
     if (!mediaId) {
       console.error('Usage: npx tsx src/worker.ts <media-id>');
