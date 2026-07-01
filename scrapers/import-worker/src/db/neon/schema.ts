@@ -4,7 +4,7 @@ import { relations } from 'drizzle-orm';
 // ========== TABLE MEDIAS (Catalogue principal) ==========
 export const medias = pgTable('medias', {
     id: uuid('id').primaryKey().defaultRandom(),
-    externalId: varchar('external_id', { length: 100 }), // ID TMDB/AniList
+    externalId: varchar('external_id', { length: 100 }).unique(), // ID TMDB/AniList
     type: varchar('type', { length: 20 }).notNull(), // film, serie, anime, manga, comic, novel, book, jeu
     title: varchar('title', { length: 500 }).notNull(),
     originalTitle: varchar('original_title', { length: 500 }),

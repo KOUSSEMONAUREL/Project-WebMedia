@@ -43,8 +43,10 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
         }
 
         const externalIds = rows.map((r: string[]) => {
-            const url = extractUrl(r[4]);
-            return `nl-${crypto.createHash('md5').update(url).digest('hex').slice(0, 12)}`;
+            const [titre, auteur, , , urlHtml] = r;
+            const url = extractUrl(urlHtml);
+            const raw = `${titre ?? ''}|${auteur ?? ''}|${url}`;
+            return `nl-${crypto.createHash('md5').update(raw).digest('hex').slice(0, 12)}`;
         });
         const existing = await batchCheckExisting(db, medias.externalId, externalIds);
 
