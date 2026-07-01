@@ -54,8 +54,8 @@ export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
           border: '1px solid rgba(255,255,255,0.06)',
         }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(232,184,37,0.2), 0 2px 8px rgba(0,0,0,0.4)';
-          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(232,184,37,0.25)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(59,130,246,0.2), 0 2px 8px rgba(0,0,0,0.4)';
+          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59,130,246,0.25)';
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLDivElement).style.boxShadow = '';
@@ -74,7 +74,7 @@ export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-250 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
           <button
             className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #f0c040, #e8b825)' }}
+            style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
           >
             <Play className="h-3 w-3 fill-current" />
             Détails

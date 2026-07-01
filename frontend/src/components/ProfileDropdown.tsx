@@ -42,10 +42,10 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
             <button
                 className="flex items-center gap-2 px-3.5 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 hover:scale-[1.02]"
                 style={{
-                    background: 'linear-gradient(135deg, #f0c040 0%, #e8b825 60%, #c99a14 100%)',
+                    background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%)',
                     border: 'none',
-                    color: '#09090c',
-                    boxShadow: '0 2px 12px rgba(232,184,37,0.25)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 12px rgba(59,130,246,0.25)',
                 }}
                 onClick={onLoginClick}
             >
@@ -74,13 +74,13 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
             {isOpen && (
                 <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden z-50" style={{boxShadow:'0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)'}}>
                     {/* Header avec infos utilisateur */}
-                    <div className="p-4 border-b border-border/50" style={{background:'linear-gradient(135deg, rgba(232,184,37,0.08) 0%, rgba(232,184,37,0.03) 100%)'}}>
+                    <div className="p-4 border-b border-border/50" style={{background:'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(59,130,246,0.03) 100%)'}}>
                         <div className="flex items-center gap-3">
                             <img
                                 src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
                                 alt={user.name}
                                 className="h-11 w-11 rounded-xl bg-secondary"
-                                style={{border:'2px solid rgba(232,184,37,0.4)'}}
+                                style={{border:'2px solid rgba(59,130,246,0.4)'}}
                             />
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-[14px] text-foreground truncate">{user.name}</p>

@@ -103,7 +103,7 @@ export function Navbar() {
             <span
               className="text-[17px] font-display font-bold tracking-tight"
               style={{
-                background: 'linear-gradient(135deg,#f0c040 0%,#e8b825 50%,#c99a14 100%)',
+                background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 50%,#2563eb 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',

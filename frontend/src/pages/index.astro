@@ -38,8 +38,41 @@ try {
 <Layout title="Accueil">
     <DynamicHero client:load />
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-        <MediaGrid title="Recommandations" items={trending} client:load />
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+        <MediaGrid title="Recommandations" items={trending} minCards={8} client:load />
+
+        <div class="flex flex-col items-center text-center py-3">
+          <div class="flex items-center gap-3 flex-wrap justify-center">
+            <a
+              href="/trending"
+              class="inline-flex items-center gap-2 font-semibold text-[13px] px-5 py-2 rounded-full text-primary-foreground shadow-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]"
+              style="background:linear-gradient(135deg,#60a5fa 0%,#3b82f6 60%,#2563eb 100%);box-shadow:0 4px 24px rgba(59,130,246,0.3),0 1px 4px rgba(0,0,0,0.3)"
+            >
+              Explorer les tendances
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+            <a
+              href="/genres"
+              class="inline-flex items-center gap-2 font-medium text-[13px] px-5 py-2 rounded-full text-foreground border border-border/60 bg-white/[0.04] hover:bg-white/[0.07] hover:border-primary/30 transition-all duration-200"
+            >
+              Parcourir par genre
+            </a>
+          </div>
+
+          <div class="flex items-center gap-6 sm:gap-10 mt-6 text-center">
+            {["10 000+","8","Gratuit"].map((val,i) => (
+              <div class="flex flex-col">
+                <span class="text-xl font-display font-bold" style="background:linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+                  {val}
+                </span>
+                <span class="text-[11px] text-muted-foreground mt-0.5 font-medium">
+                  {["Titres","Cat\u00e9gories","Acc\u00e8s"][i]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <MediaGrid title="Films" items={popularFilms} viewAllHref="/films" client:load />
         <MediaGrid title="Séries" items={topSeries} viewAllHref="/series" client:load />
         <MediaGrid title="Animés" items={bestAnimes} viewAllHref="/animes" client:load />

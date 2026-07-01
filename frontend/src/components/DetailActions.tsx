@@ -39,7 +39,7 @@ export function DetailActions({ mediaId }: DetailActionsProps) {
                 className={cn(
                     "group flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-300",
                     isFav
-                        ? "bg-red-500/20 text-red-400 border border-red-500/30 glow-gold-sm"
+                        ? "bg-red-500/20 text-red-400 border border-red-500/30"
                         : "glass-light text-muted-foreground hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10"
                 )}
             >

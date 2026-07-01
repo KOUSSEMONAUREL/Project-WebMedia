@@ -79,12 +79,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 <div
                     className="relative h-20 flex items-center justify-center"
                     style={{
-                        background: 'linear-gradient(135deg, rgba(232,184,37,0.15) 0%, rgba(232,184,37,0.06) 100%)',
-                        borderBottom: '1px solid rgba(232,184,37,0.15)',
+                        background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.06) 100%)',
+                        borderBottom: '1px solid rgba(59,130,246,0.15)',
                     }}
                 >
                     <h2 className="text-xl font-display font-bold tracking-tight" style={{
-                        background: 'linear-gradient(135deg, #f0c040 0%, #e8b825 100%)',
+                        background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                         backgroundClip: 'text',

@@ -5,24 +5,24 @@
   --color-foreground: #f0ede8;
   --color-card: #0f0f15;
   --color-card-foreground: #f0ede8;
-  --color-primary: #e8b825;
+  --color-primary: #3b82f6;
   --color-primary-foreground: #09090c;
   --color-secondary: #141420;
   --color-secondary-foreground: #d4cfc7;
   --color-muted: #1a1a28;
   --color-muted-foreground: #7a7590;
-  --color-accent: #f0c040;
+  --color-accent: #60a5fa;
   --color-accent-foreground: #09090c;
   --color-destructive: #e55353;
   --color-destructive-foreground: #ffffff;
   --color-border: #1e1e2e;
   --color-input: #141420;
-  --color-ring: #e8b825;
+  --color-ring: #3b82f6;
   --color-surface: #0f0f15f2;
 
-  --glow-gold: 0 0 40px rgba(232, 184, 37, 0.2);
-  --glow-gold-strong: 0 0 60px rgba(232, 184, 37, 0.3);
-  --glow-gold-subtle: 0 0 20px rgba(232, 184, 37, 0.12);
+  --glow-blue: 0 0 40px rgba(59, 130, 246, 0.2);
+  --glow-blue-strong: 0 0 60px rgba(59, 130, 246, 0.3);
+  --glow-blue-subtle: 0 0 20px rgba(59, 130, 246, 0.12);
 
   --radius: 0.625rem;
 
@@ -45,8 +45,8 @@ html {
 body {
   background-color: var(--color-background);
   background-image:
-    radial-gradient(ellipse 80% 40% at 50% -5%, rgba(232, 184, 37, 0.055), transparent),
-    radial-gradient(ellipse 60% 30% at 80% 120%, rgba(232, 184, 37, 0.03), transparent);
+    radial-gradient(ellipse 80% 40% at 50% -5%, rgba(59, 130, 246, 0.055), transparent),
+    radial-gradient(ellipse 60% 30% at 80% 120%, rgba(59, 130, 246, 0.03), transparent);
   background-attachment: fixed;
   color: var(--color-foreground);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -55,7 +55,7 @@ body {
 }
 
 ::selection {
-  background-color: rgba(232, 184, 37, 0.25);
+  background-color: rgba(59, 130, 246, 0.25);
   color: var(--color-primary);
 }
 
@@ -95,15 +95,15 @@ body {
   scroll-snap-align: start;
 }
 
-@utility gold-text {
-  background: linear-gradient(135deg, #f0c040 0%, #e8b825 40%, #c99a14 100%);
+@utility blue-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 40%, #2563eb 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-@utility gold-border {
-  border: 1px solid rgba(232, 184, 37, 0.25);
+@utility blue-border {
+  border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
 /* Animations */
@@ -118,8 +118,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(232,184,37,0.15); }
-  50% { box-shadow: 0 0 35px rgba(232,184,37,0.28); }
+  0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.15); }
+  50% { box-shadow: 0 0 35px rgba(59,130,246,0.28); }
 }
 
 .animate-fade-in-up {
