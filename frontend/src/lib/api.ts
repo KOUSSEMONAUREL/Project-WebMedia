@@ -118,6 +118,17 @@ export async function getMediaByType(type: MediaType): Promise<ApiResponse<Media
   catch { return { success: true, data: getMockByType(type) }; }
 }
 
+export async function getAllMedia(): Promise<Media[]> {
+  const rows = await queryMedias(`SELECT ${MEDIA_COLS} FROM medias ORDER BY created_at`);
+  if (rows) return rows.map(formatMedia);
+  try {
+    const res = await apiClient<ApiResponse<Media[]>>('/media');
+    return res.data;
+  } catch {
+    return allMockData;
+  }
+}
+
 export async function searchMedia(query: string, filters?: {
   type?: MediaType | 'all'; year?: number; genre?: string;
 }): Promise<ApiResponse<Media[]>> {
@@ -178,8 +189,8 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
 export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon' | 'book' | 'novel';
 
 export interface Media {
-  id: string; title: string; type: MediaType; year: number; rating: number;
-  posterUrl: string; slug?: string; synopsis?: string; genres?: string[];
+  id: string; title: string; type: MediaType; year?: number; rating?: number;
+  posterUrl?: string; slug?: string; synopsis?: string; genres?: string[];
   legalLinks?: LegalLink[]; voteCount?: number; status?: string;
   tmdbId?: number; imdbId?: string; anilistId?: number;
   metadataSource?: string; activeLinksCount?: number;

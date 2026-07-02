@@ -22,6 +22,75 @@ const typeColors: Record<string, string> = {
   novel:   'bg-teal-600',
 };
 
+const typeGradients: Record<string, string> = {
+  film:    'from-sky-950/60 via-sky-900/30 to-card',
+  serie:   'from-violet-950/60 via-violet-900/30 to-card',
+  anime:   'from-rose-950/60 via-rose-900/30 to-card',
+  jeu:     'from-emerald-950/60 via-emerald-900/30 to-card',
+  webtoon: 'from-amber-950/60 via-amber-900/30 to-card',
+  book:    'from-orange-950/60 via-orange-900/30 to-card',
+  novel:   'from-teal-950/60 via-teal-900/30 to-card',
+};
+
+const typeLabelUpper: Record<string, string> = {
+  film:    'FILM',
+  serie:   'SERIE',
+  anime:   'ANIME',
+  jeu:     'JEU',
+  webtoon: 'WEBTOON',
+  book:    'LIVRE',
+  novel:   'NOVEL',
+};
+
+const typeIcons: Record<string, JSX.Element> = {
+  film: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="2.5"/>
+      <line x1="8" y1="2" x2="8" y2="22"/><line x1="16" y1="2" x2="16" y2="22"/>
+      <line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/>
+    </svg>
+  ),
+  serie: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="7" width="20" height="15" rx="2"/>
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+    </svg>
+  ),
+  anime: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 14.4c0 .9-.8 1.6-1.6 1.6H12l-4 5V0h12.4c.9 0 1.6.7 1.6 1.6V14.4z"/>
+      <line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/>
+    </svg>
+  ),
+  jeu: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/>
+      <line x1="15" y1="12" x2="15.01" y2="12"/><line x1="18" y1="10" x2="18.01" y2="10"/>
+      <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59l-1.02 8A2 2 0 0 0 3.66 19h16.68a2 2 0 0 0 1.978-2.41l-1.02-8A4 4 0 0 0 17.32 5z"/>
+    </svg>
+  ),
+  webtoon: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/>
+      <line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/>
+      <line x1="8" y1="15" x2="16" y2="15"/>
+    </svg>
+  ),
+  book: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
+      <line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/>
+    </svg>
+  ),
+  novel: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9"/>
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      <line x1="8" y1="7" x2="14" y2="13"/>
+    </svg>
+  ),
+};
+
 interface MediaCardProps {
   media: Media;
   size?: 'normal' | 'large';
@@ -79,15 +148,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
         style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-card to-secondary/80">
-          <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-1.5">
-            {typeLabel[media.type] || media.type}
-          </span>
-          <span className="text-white/50 text-sm font-semibold leading-snug line-clamp-6 px-1">
-            {media.title}
-          </span>
-        </div>
-        {media.posterUrl && (
+        {media.posterUrl ? (
           <img
             src={media.posterUrl}
             alt={media.title}
@@ -95,7 +156,26 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
             loading="lazy"
             onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
           />
-        )}
+        ) : null}
+
+        {/* Placeholder (shown when no image or image behind it) */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br ${typeGradients[media.type] || 'from-card to-secondary/80'}`}>
+          {/* Decorative circles */}
+          <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03]"></div>
+          <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/[0.02]"></div>
+
+          {/* Type icon */}
+          <div className="relative mb-3 opacity-30">
+            {typeIcons[media.type] || null}
+          </div>
+
+          <span className="relative text-white/25 text-[9px] font-bold uppercase tracking-[0.15em] mb-2">
+            {typeLabelUpper[media.type] || media.type.toUpperCase()}
+          </span>
+          <span className="relative text-white/60 text-sm font-display font-bold leading-snug line-clamp-6 px-1 drop-shadow-sm">
+            {media.title}
+          </span>
+        </div>
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">

@@ -1,7 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { MediaGrid } from '../../components/MediaGrid';
-import { allMockData, type Media } from '../../lib/api';
 
 export function getStaticPaths() {
   const genres = ["action", "aventure", "comedie", "drame", "fantastique", "horreur", "mystere", "romance", "science-fiction", "thriller", "animation", "documentaire", "crime", "famille", "western", "rpg", "arts-martiaux"];
@@ -9,40 +7,29 @@ export function getStaticPaths() {
 }
 
 const { genre } = Astro.params;
-
-const genreMap: Record<string, string[]> = {
-  action: ["Action"],
-  aventure: ["Aventure"],
-  comedie: ["Comédie"],
-  drame: ["Drame"],
-  fantastique: ["Fantastique"],
-  horreur: ["Horreur"],
-  mystere: ["Mystère"],
-  romance: ["Romance"],
-  "science-fiction": ["Science-Fiction"],
-  thriller: ["Thriller"],
-  animation: ["Animation"],
-  documentaire: ["Documentaire"],
-  crime: ["Crime"],
-  famille: ["Famille"],
-  western: ["Western"],
-  rpg: ["RPG"],
-  "arts-martiaux": ["Arts Martiaux"],
-};
-
-const genreNames = genreMap[genre || ''] || [];
-const filtered = allMockData.filter(m => m.genres?.some(g => genreNames.includes(g)));
-
 const displayName = genre ? genre.charAt(0).toUpperCase() + genre.slice(1).replace(/-/g, ' ') : '';
+
+const typeRedirects: Record<string, string> = {
+  action: '/films', aventure: '/films', comedie: '/films',
+  drame: '/films', fantastique: '/animes', horreur: '/films',
+  mystere: '/series', romance: '/novels', 'science-fiction': '/films',
+  thriller: '/films', animation: '/animes', documentaire: '/films',
+  crime: '/series', famille: '/films', western: '/films',
+  rpg: '/games', 'arts-martiaux': '/animes',
+};
+const redirect = typeRedirects[genre || ''] || '/genres';
 ---
 
 <Layout title={displayName}>
-  <div class="container mx-auto px-6 py-10">
-    <header class="mb-8 text-center">
-      <h1 class="text-3xl md:text-4xl font-display font-bold text-white inline-flex items-center gap-3"><svg class="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>{displayName}</h1>
-      <p class="text-muted-foreground mt-1">{filtered.length} résultat{filtered.length > 1 ? 's' : ''}</p>
-      <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mx-auto mt-4" />
-    </header>
-    <MediaGrid title={displayName} items={filtered} client:load />
+  <div class="container mx-auto px-6 py-20 text-center">
+    <h1 class="text-3xl font-display font-bold text-white mb-4">{displayName}</h1>
+    <p class="text-muted-foreground mb-8">Les pages genres sont momentanement indisponibles.</p>
+    <p class="text-muted-foreground mb-8">Utilisez les categories pour naviguer parmi les contenus.</p>
+    <a href={redirect} class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
+      Voir les {redirect === '/films' ? 'films' : redirect === '/series' ? 'series' : redirect === '/animes' ? 'animes' : redirect === '/games' ? 'jeux' : redirect === '/novels' ? 'novels' : 'contenus'}
+    </a>
+    <a href="/genres" class="inline-flex items-center gap-2 px-6 py-3 ml-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors">
+      Tous les genres
+    </a>
   </div>
 </Layout>
