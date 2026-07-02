@@ -73,11 +73,11 @@ try {
           </div>
         </div>
 
-        <MediaGrid title="Films" items={popularFilms} viewAllHref="/films" client:load />
-        <MediaGrid title="Séries" items={topSeries} viewAllHref="/series" client:load />
-        <MediaGrid title="Animés" items={bestAnimes} viewAllHref="/animes" client:load />
-        <MediaGrid title="Jeux" items={popularGames} viewAllHref="/games" client:load />
-        <MediaGrid title="Livres" items={popularBooks} viewAllHref="/books" client:load />
-        <MediaGrid title="Light Novels" items={topNovels} viewAllHref="/novels" client:load />
+        <MediaGrid title="Films" items={popularFilms.slice(0, 10)} viewAllHref="/films" client:load />
+        <MediaGrid title="Séries" items={topSeries.slice(0, 10)} viewAllHref="/series" client:load />
+        <MediaGrid title="Animés" items={bestAnimes.slice(0, 10)} viewAllHref="/animes" client:load />
+        <MediaGrid title="Jeux" items={popularGames.slice(0, 10)} viewAllHref="/games" client:load />
+        <MediaGrid title="Livres" items={popularBooks.slice(0, 10)} viewAllHref="/books" client:load />
+        <MediaGrid title="Light Novels" items={topNovels.slice(0, 10)} viewAllHref="/novels" client:load />
     </div>
 </Layout>
