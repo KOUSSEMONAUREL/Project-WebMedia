@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Bell, Star, Command } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
-import { searchMedia } from '@/lib/api';
+import { getAllMedia } from '@/lib/api';
 import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
@@ -38,6 +38,7 @@ export function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Media[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchCache, setSearchCache] = useState<Media[] | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const linksRef = useRef<HTMLDivElement>(null);
@@ -140,20 +141,23 @@ export function Navbar() {
   };
 
   useEffect(() => {
+    if (!searchCache) getAllMedia().then(setSearchCache);
+  }, []);
+
+  useEffect(() => {
     if (searchQuery.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    var timer = setTimeout(async () => {
-      try {
-        var res = await searchMedia(searchQuery, { limit: 6 });
-        setSuggestions(res.data || []);
-        setShowSuggestions(true);
-      } catch { /* ignore */ }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    if (!searchCache) return;
+    var q = searchQuery.toLowerCase();
+    var matches = searchCache.filter(function(m) {
+      return m.title && m.title.toLowerCase().includes(q);
+    });
+    setSuggestions(matches.slice(0, 6));
+    setShowSuggestions(true);
+  }, [searchQuery, searchCache]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
