@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { createDbClient } from '../db/client.js';
 import { medias, liens } from '../db/neon/schema.js';
+import { eq } from 'drizzle-orm';
 import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
 import { getOffset, setOffset } from '../utils/offset-tracker.js';
 import { createLog } from '../utils/log.js';
@@ -19,6 +20,33 @@ function extractSource(html: string | undefined): string {
     if (!html) return 'noslivres';
     const m = html.match(/>([^<]+)<\/a>/);
     return m ? m[1].trim() : 'noslivres';
+}
+
+async function fetchOpenLibraryCoversFor(inserted: { id: string; externalId: string | null }[], toInsert: { title: string; externalId: string; }[], _db: any, log: ReturnType<typeof createLog>) {
+    if (inserted.length === 0) return;
+    const extToId = new Map(inserted.filter(m => m.externalId).map(m => [m.externalId!, m.id]));
+    for (const item of toInsert) {
+        const mediaId = extToId.get(item.externalId);
+        if (!mediaId) continue;
+        try {
+            const res = await axios.get('https://openlibrary.org/search.json', {
+                params: { q: item.title, limit: 5 },
+                timeout: 8000,
+            });
+            const docs = res.data.docs || [];
+            const best = docs.find((d: any) => d.title && d.title.toLowerCase() === item.title.toLowerCase()) || docs[0];
+            const coverI = best?.cover_i;
+            if (coverI) {
+                const coverUrl = `https://covers.openlibrary.org/b/id/${coverI}-L.jpg`;
+                await _db.update(medias).set({ posterUrl: coverUrl }).where(eq(medias.id, mediaId));
+                log.info(`Cover found for "${item.title}": ${coverUrl}`);
+            } else {
+                log.info(`No OpenLibrary cover for "${item.title}"`);
+            }
+        } catch (err) {
+            log.warn(`OpenLibrary lookup failed for "${item.title}": ${err instanceof Error ? err.message : err}`);
+        }
+    }
 }
 
 export async function importPopularBooksFR(databaseUrl: string, limit: number = 20) {
@@ -105,6 +133,8 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
                 await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
             } catch { /* ignore brain errors */ }
         }
+
+        await fetchOpenLibraryCoversFor(inserted, toInsert, db, log);
 
         log.success(`NosLivres: ${inserted.length} added (offset ${start}/${total})`);
 

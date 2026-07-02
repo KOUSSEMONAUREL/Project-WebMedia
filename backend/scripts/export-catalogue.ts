@@ -5,6 +5,10 @@ import { existsSync, unlinkSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
 
+const MANGADEX_API = 'https://api.mangadex.org';
+const ANILIST_API = 'https://graphql.anilist.co';
+const OPEN_LIBRARY_API = 'https://openlibrary.org';
+
 const TURSO_URL = process.env.TURSO_DATABASE_URL!;
 const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN!;
 const B2_KEY_ID = process.env.B2_KEY_ID!;
@@ -209,9 +213,102 @@ async function uploadToB2(filePath: string) {
   console.log(`[b2] uploaded: ${result.fileName} (${result.fileId})`);
 }
 
+async function fillMissingCovers(db: any) {
+  const missing = db.prepare(`SELECT id, type, title, author, external_id, metadata_source FROM medias WHERE poster_url IS NULL`).all() as any[];
+
+  if (missing.length === 0) {
+    console.log('[covers] all medias have poster_url, nothing to fill');
+    return;
+  }
+  console.log(`[covers] filling ${missing.length} missing covers...`);
+
+  const update = db.prepare(`UPDATE medias SET poster_url = ? WHERE id = ?`);
+
+  for (const m of missing) {
+    let url: string | null = null;
+
+    if (m.metadata_source === 'mangadex' && m.external_id?.startsWith('mangadex-')) {
+      const mdId = m.external_id.replace('mangadex-', '');
+      url = await fetchMangaDexCover(mdId);
+    }
+
+    if (!url && (m.type === 'webtoon' || m.type === 'manga')) {
+      url = await fetchAniListCover(m.title);
+    }
+
+    if (!url && m.type === 'book') {
+      url = await fetchOpenLibraryCover(m.title, m.author);
+    }
+
+    if (url) {
+      update.run(url, m.id);
+      console.log(`  [cover] ${m.title} -> ${url}`);
+    } else {
+      console.log(`  [cover] no cover found for ${m.title} (${m.type}, ${m.metadata_source})`);
+    }
+  }
+}
+
+async function fetchMangaDexCover(mdId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${MANGADEX_API}/manga/${mdId}?includes[]=cover_art`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    const coverRel = data.data?.relationships?.find((r: any) => r.type === 'cover_art');
+    const fn = coverRel?.attributes?.fileName;
+    if (fn) return `https://uploads.mangadex.org/covers/${mdId}/${fn}`;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAniListCover(title: string): Promise<string | null> {
+  try {
+    const query = `query($s: String) { Media(search: $s, type: MANGA) { coverImage { extraLarge } } }`;
+    const res = await fetch(ANILIST_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, variables: { s: title } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data.data?.Media?.coverImage?.extraLarge || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpenLibraryCover(title: string, author?: string): Promise<string | null> {
+  try {
+    let q = title.replace(/^["']+|["']+$/g, '');
+    q = q.replace(/^\d+\s*[\u2013\u2014\u002D]\s*/, '');
+    q = q.split(' / ')[0];
+    if (author && author !== 'Unknown') q += ' ' + author.split(',')[0];
+    const res = await fetch(`${OPEN_LIBRARY_API}/search.json?q=${encodeURIComponent(q)}&limit=5`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    const docs = data.docs || [];
+    const best = docs.find((d: any) => d.title?.toLowerCase() === title.toLowerCase()) || docs[0];
+    const coverI = best?.cover_i;
+    if (coverI) return `https://covers.openlibrary.org/b/id/${coverI}-L.jpg`;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   try {
     const filePath = await exportToSQLite();
+
+    const fillDb = new Database(filePath);
+    await fillMissingCovers(fillDb);
+    fillDb.close();
+
     if (B2_KEY_ID && B2_APP_KEY && B2_BUCKET_ID) {
       await uploadToB2(filePath);
     } else {

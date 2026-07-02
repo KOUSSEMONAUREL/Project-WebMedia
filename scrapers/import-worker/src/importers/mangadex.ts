@@ -36,7 +36,7 @@ async function fetchCovers(mangaIds: string[], log: ReturnType<typeof createLog>
       for (const rel of res.data.data || []) {
         const mangaId = rel.relationships?.find((r: any) => r.type === 'manga')?.id;
         const fn = rel.attributes?.fileName;
-        if (mangaId && fn) coverMap.set(mangaId, `https://uploads.mangadex.org/covers/${mangaId}/${fn}.256.jpg`);
+        if (mangaId && fn) coverMap.set(mangaId, `https://uploads.mangadex.org/covers/${mangaId}/${fn}`);
       }
     } catch (err) {
       log.error(`Failed to fetch cover batch: ${err instanceof Error ? err.message : err}`);
@@ -89,9 +89,15 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
             const title = Object.values(attr.title || {}).find(Boolean) as string || 'Unknown';
             const slug = title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').substring(0, 490);
             const desc = Object.values(attr.description || {}).find(Boolean) as string || '';
+            let posterUrl = covers.get(manga.id);
+            if (!posterUrl) {
+              const coverArt = manga.relationships?.find(r => r.type === 'cover_art');
+              const fn = coverArt?.attributes?.fileName;
+              if (fn) posterUrl = `https://uploads.mangadex.org/covers/${manga.id}/${fn}`;
+            }
             return {
                 type: 'webtoon', title, synopsis: desc,
-                posterUrl: covers.get(manga.id) || undefined,
+                posterUrl: posterUrl || undefined,
                 year: attr.year || undefined, status: attr.status || undefined,
                 externalId: `mangadex-${manga.id}`, slug,
                 metadataSource: 'mangadex', metadataFreshAt: new Date(),
