@@ -94,12 +94,12 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                 sourceSite: link.source_site,
                 playerHost: link.player_host,
                 url: link.url,
-                quality: link.qualite,
-                language: link.langue,
-                hasSubtitles: link.sous_titres,
-                headers: link.headers,
+                quality: link.qualite || null,
+                language: link.langue || null,
+                hasSubtitles: link.sous_titres ?? false,
+                headers: link.headers || null,
                 mediaId,
-                episodeId,
+                episodeId: episodeId || null,
                 scrapedAt: new Date()
             }))
         ).returning();

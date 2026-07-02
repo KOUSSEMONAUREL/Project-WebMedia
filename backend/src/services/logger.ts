@@ -12,12 +12,15 @@ class MongodbLogger {
     private client: any = null;
     private collection: any = null;
     private isNode: boolean;
+    private isWorker: boolean;
 
     constructor() {
-        this.isNode = typeof process !== 'undefined' && process.versions && !!process.versions.node;
+        this.isNode = typeof process !== 'undefined' && !!process.versions?.node;
+        this.isWorker = typeof WebSocketPair !== 'undefined';
     }
 
     private async connect(uri: string) {
+        if (this.isWorker) return null;
         if (!this.isNode) return null; 
         if (this.collection) return this.collection;
 
