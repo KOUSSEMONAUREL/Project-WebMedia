@@ -32,12 +32,12 @@ export function getAuth(dbUrl?: string) {
             crossSubDomainCookies: {
                 enabled: false,
             },
-            trustedOrigins: [
-                'https://project-web-media.vercel.app',
-                'https://webmedia-proxy.koussemonaurel.workers.dev',
-                'https://project-webmedia.onrender.com',
-            ],
         },
+        trustedOrigins: [
+            'https://project-web-media.vercel.app',
+            'https://webmedia-proxy.koussemonaurel.workers.dev',
+            'https://project-webmedia.onrender.com',
+        ],
         emailAndPassword: {
             enabled: true,
             autoSignIn: true,
