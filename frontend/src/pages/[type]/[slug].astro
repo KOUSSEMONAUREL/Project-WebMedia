@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getMediaDetails, getMediaByType, type Media } from '../../lib/api';
+import { optimizePosterUrl, posterSrcSet } from '../../lib/image';
 
 export async function getStaticPaths() {
   const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
@@ -88,7 +89,7 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
         <div class={`absolute inset-0 bg-gradient-to-b ${heroGrad} z-10`}></div>
         <div class="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent z-10"></div>
         {media.posterUrl ? (
-          <img src={media.posterUrl} alt={media.title} class="w-full h-full object-cover opacity-30" />
+          <img src={optimizePosterUrl(media.posterUrl)} srcset={posterSrcSet(media.posterUrl)} sizes="100vw" alt={media.title} class="w-full h-full object-cover opacity-30" />
         ) : (
           <div class="w-full h-full">
             <div class={`absolute inset-0 bg-gradient-to-br ${placeholderGrad}`}></div>
@@ -106,7 +107,7 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
           <div class="w-56 md:w-80 shrink-0 mx-auto md:mx-0 -mt-10 md:mt-0">
             {media.posterUrl ? (
               <div class="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 transform transition-transform duration-500 hover:scale-[1.02] hover:shadow-3xl">
-                <img src={media.posterUrl} alt={media.title} class="w-full h-auto" />
+                <img src={optimizePosterUrl(media.posterUrl)} srcset={posterSrcSet(media.posterUrl)} sizes="(max-width:768px) 224px, 320px" alt={media.title} class="w-full h-auto" />
               </div>
             ) : (
               <div class={`aspect-[2/3] w-full flex flex-col items-center justify-center p-6 text-center rounded-2xl bg-gradient-to-br ${placeholderGrad} ring-1 ring-white/5 shadow-2xl relative overflow-hidden`}>

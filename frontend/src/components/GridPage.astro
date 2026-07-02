@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import type { Media } from '@/lib/api';
+import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 
 export interface Props {
   title: string;
@@ -15,13 +16,18 @@ const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
 const firstPage = items.slice(0, PER_PAGE);
 const ITEMS_JSON = JSON.stringify(items);
 
+function posterImg(m: Media): string {
+  if (!m.posterUrl) return '';
+  const opt = optimizePosterUrl(m.posterUrl)!;
+  const ss = posterSrcSet(m.posterUrl);
+  return `<img src="${opt}"${ss ? ` srcset="${ss}"` : ''} sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 260px" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>`;
+}
+
 function cardHtml(m: Media): string {
   const h = `/${m.type}/${m.slug || m.id}`;
   return `<a href="${h}" class="group block transition-all duration-300 hover:-translate-y-1.5">
     <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">
-      ${m.posterUrl
-        ? `<img src="${m.posterUrl}" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>`
-        : ''}
+      ${posterImg(m)}
       <div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card">
         <span class="text-white/30 text-xs font-bold uppercase tracking-[0.15em] mb-2">${m.type.toUpperCase()}</span>
         <span class="text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:'Clash Display',sans-serif">${m.title}</span>
@@ -91,11 +97,26 @@ function cardHtml(m: Media): string {
     const totalPages = Math.ceil(items.length / PER_PAGE);
     let currentPage = Number(container.dataset.currentPage || 0);
 
+    function imgOpt(url) {
+      if (!url) return '';
+      let o = url;
+      if (/image\.tmdb\.org/.test(o)) o = o.replace(/\/t\/p\/\w+\//, '/t/p/original/');
+      else if (/books\.google\.com/.test(o)) o = o.replace(/zoom=\d+/, 'zoom=6');
+      else if (/anilist\.co/.test(o)) o = o.replace(/\/large\//, '/extraLarge/');
+
+      let ss = '';
+      if (/image\.tmdb\.org/.test(url)) {
+        const sz = [['w342',342],['w500',500],['w780',780],['original',1200]];
+        ss = ' srcset="' + sz.map(([s,w]) => `${url.replace(/\/t\/p\/\w+\//, '/t/p/'+s+'/')} ${w}w`).join(', ') + '"';
+      }
+      return `<img src="${o}"${ss} sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 260px" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>`;
+    }
+
     function card(m) {
       const h = `/${m.type}/${m.slug || m.id}`;
       return `<a href="${h}" class="group block transition-all duration-300 hover:-translate-y-1.5">
         <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">
-          ${m.posterUrl ? `<img src="${m.posterUrl}" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>` : ''}
+          ${imgOpt(m.posterUrl)}
           <div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card">
             <span class="text-white/30 text-xs font-bold uppercase tracking-[0.15em] mb-2">${m.type.toUpperCase()}</span>
             <span class="text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:'Clash Display',sans-serif">${m.title}</span>

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
+import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -150,7 +151,9 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
       >
         {media.posterUrl ? (
           <img
-            src={media.posterUrl}
+            src={optimizePosterUrl(media.posterUrl)!}
+            srcSet={posterSrcSet(media.posterUrl)}
+            sizes="(max-width: 640px) 164px, (max-width: 1024px) 192px, 212px"
             alt={media.title}
             className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
             loading="lazy"
