@@ -102,7 +102,7 @@ const MEDIA_COLS = [
 
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
   const rows = await queryMedias(
-    `SELECT ${MEDIA_COLS} FROM medias ORDER BY CAST(rating AS REAL) DESC, vote_count DESC LIMIT 20`
+    `SELECT ${MEDIA_COLS} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY type ORDER BY CAST(rating AS REAL) DESC, vote_count DESC) AS _rn FROM medias) WHERE _rn <= 3 ORDER BY CAST(rating AS REAL) DESC, vote_count DESC LIMIT 20`
   );
   if (rows) return { success: true, data: rows.map(formatMedia) };
   try { return await apiClient('/media/trending'); }

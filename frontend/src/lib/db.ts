@@ -66,9 +66,10 @@ const MEDIA_COLS = [
 
 export async function queryGetTrending(db: any): Promise<DbMedia[]> {
   return db.query(`
-    SELECT ${MEDIA_COLS} FROM medias
-    ORDER BY CAST(rating AS REAL) DESC, vote_count DESC
-    LIMIT 20
+    SELECT ${MEDIA_COLS} FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY type ORDER BY CAST(rating AS REAL) DESC, vote_count DESC) AS _rn FROM medias
+    ) WHERE _rn <= 3
+    ORDER BY CAST(rating AS REAL) DESC, vote_count DESC LIMIT 20
   `);
 }
 
