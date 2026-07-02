@@ -2,25 +2,32 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
-import { users, reviews, favorites } from '../db/supabase/schema';
-import { eq, and } from 'drizzle-orm';
-import { jwt } from 'hono/jwt';
+import { user, favorites } from '../db/supabase/schema';
+import { eq } from 'drizzle-orm';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
-    JWT_SECRET: string;
 };
 
 type Variables = {
-    jwtPayload: {
+    user: {
         id: string;
+        name: string;
         email: string;
-    };
+        emailVerified: boolean;
+        image?: string | null;
+        username?: string | null;
+    } | null;
+    session: {
+        id: string;
+        userId: string;
+        token: string;
+        expiresAt: Date;
+    } | null;
 };
 
 const userRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
     if (!val && c.env?.ENVIRONMENT === 'production') {
@@ -30,20 +37,21 @@ const getVar = (c: any, key: string) => {
 };
 
 // ========== GET /api/user/profile/:id (PUBLIC) ==========
-userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string().uuid() })), async (c) => {
+userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string() })), async (c) => {
     const { id: userId } = c.req.valid('param' as any);
     try {
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
         const result = await db.select({
-            id: users.id,
-            username: users.username,
-            createdAt: users.createdAt,
-            // Ne pas renvoyer 'email' ou 'passwordHash' publiquement
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            createdAt: user.createdAt,
         })
-        .from(users)
-        .where(eq(users.id, userId))
+        .from(user)
+        .where(eq(user.id, userId))
         .limit(1);
 
         if (result.length === 0) {
@@ -60,18 +68,19 @@ userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string().uui
     }
 });
 
-// Middleware JWT
-userRoutes.use('*', (c, next) => {
-    const jwtMiddleware = jwt({
-        secret: getVar(c, 'JWT_SECRET'),
-        alg: 'HS256'
-    });
-    return jwtMiddleware(c, next);
+// ========== PROTECTED ROUTES ==========
+userRoutes.use('/favorites', async (c, next) => {
+    const sessionUser = c.get('user');
+    if (!sessionUser) {
+        return c.json({ success: false, error: 'Non authentifié' }, 401);
+    }
+    await next();
 });
 
 // ========== GET /api/user/favorites ==========
 userRoutes.get('/favorites', async (c) => {
-    const userId = c.get('jwtPayload').id;
+    const sessionUser = c.get('user')!;
+    const userId = sessionUser.id;
 
     try {
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');

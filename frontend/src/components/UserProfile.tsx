@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authStore } from '../stores/auth';
+import { authClient } from '@/lib/auth-client';
 import { Heart, Clock, Film, Tv, Library, LogOut, Star } from 'lucide-react';
 import { allMockData } from '../lib/api';
 import type { Media } from '../lib/api';
@@ -10,13 +10,14 @@ function getLocalIds(key: string): string[] {
 }
 
 export function UserProfile() {
-  const [user, setUser] = useState(authStore.user);
   const [favCount, setFavCount] = useState(0);
   const [wlCount, setWlCount] = useState(0);
   const [recentItems, setRecentItems] = useState<Media[]>([]);
 
+  const { data: session, isPending } = authClient.useSession();
+  const sessionUser = session?.user;
+
   useEffect(() => {
-    const unsub = authStore.subscribe(() => setUser(authStore.user));
     const favIds = getLocalIds('webmedia_favorites');
     const wlIds = getLocalIds('webmedia_watchlist');
     setFavCount(favIds.length);
@@ -25,10 +26,16 @@ export function UserProfile() {
     for (const m of allMockData) mediaMap[m.id] = m;
     const combined = [...new Set([...favIds, ...wlIds])].slice(0, 6);
     setRecentItems(combined.map(id => mediaMap[id]).filter(Boolean));
-    return unsub;
   }, []);
 
-  if (!user) {
+  const currentUser = sessionUser ? {
+    id: sessionUser.id,
+    email: sessionUser.email,
+    username: sessionUser.name,
+    avatar: sessionUser.image || undefined,
+  } : null;
+
+  if (!currentUser) {
     return (
       <div className="container mx-auto px-6 pt-24 pb-16">
         <EmptyState title="Non connecté" description="Connectez-vous pour accéder à votre profil." action={{ label: "Retour à l'accueil", href: '/' }} />
@@ -38,25 +45,23 @@ export function UserProfile() {
 
   return (
     <div className="container mx-auto px-6 pt-16 pb-16 animate-fade-in">
-      {/* Header */}
       <div className="relative mb-10">
         <div className="h-48 bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10 rounded-2xl" />
         <div className="absolute -bottom-12 left-8 flex items-end gap-6">
           <div className="h-28 w-28 rounded-full border-4 border-background overflow-hidden bg-card shadow-lg">
             <img
-              src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
-              alt={user.username}
+              src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`}
+              alt={currentUser.username}
               className="h-full w-full object-cover"
             />
           </div>
           <div className="mb-4">
-            <h1 className="text-3xl font-black text-white">{user.username}</h1>
-            <p className="text-muted-foreground">{user.email}</p>
+            <h1 className="text-3xl font-black text-white">{currentUser.username}</h1>
+            <p className="text-muted-foreground">{currentUser.email}</p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <div className="glass rounded-xl p-5 text-center">
           <div className="flex items-center justify-center gap-2 text-blue-500 mb-2">
@@ -89,11 +94,10 @@ export function UserProfile() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Recent items */}
         <div className="md:col-span-2 glass rounded-xl p-6">
           <h2 className="text-xl font-display font-semibold mb-4 flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            Activité récente
+            Activite récente
           </h2>
           {recentItems.length === 0 ? (
             <p className="text-muted-foreground text-sm py-8 text-center">Ajoutez des favoris pour voir votre activité.</p>
@@ -111,9 +115,7 @@ export function UserProfile() {
           )}
         </div>
 
-        {/* Quick actions */}
         <div className="space-y-4">
-
           <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-6">
             <h3 className="text-lg font-display font-semibold mb-2">Passez Premium</h3>
             <p className="text-sm text-muted-foreground mb-4">Téléchargements illimités, pas de pubs, contenu exclusif.</p>
@@ -123,7 +125,7 @@ export function UserProfile() {
           </div>
 
           <button
-            onClick={() => { authStore.logout(); window.location.reload(); }}
+            onClick={() => { authClient.signOut(); window.location.reload(); }}
             className="flex items-center justify-center gap-2 w-full py-2.5 text-sm text-red-500 rounded-lg border border-red-500/20 hover:bg-red-500/10 transition-all"
           >
             <LogOut className="h-4 w-4" />

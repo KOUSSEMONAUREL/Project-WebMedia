@@ -1,11 +1,9 @@
 import { Hono } from 'hono';
-import { jwtVerify } from 'jose';
 
 type Bindings = {
     KV: KVNamespace;
     BACKEND_URL: string;
     INTERNAL_API_KEY: string;
-    JWT_SECRET: string;
     ENVIRONMENT: string;
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
@@ -13,16 +11,12 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Cache TTL configuration
 const CACHE_TTL = {
-    TRENDING: 3600, // 1 hour
-    SEARCH: 600,    // 10 minutes
-    MEDIA: 21600,   // 6 hours
-    STATIC: 86400   // 24 hours
+    TRENDING: 3600,
+    SEARCH: 600,
+    MEDIA: 21600,
+    STATIC: 86400
 };
-
-
-// Rate Limiting via Upstash REST
 
 async function rateLimit(c: any, ip: string) {
     const { UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN } = c.env;
@@ -38,25 +32,23 @@ async function rateLimit(c: any, ip: string) {
         const { result } = await res.json() as any;
 
         if (result === 1) {
-            // Premier appel, on met un TTL de 60s
             await fetch(`${UPSTASH_REDIS_REST_URL}/EXPIRE/${key}/60`, {
                 headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` }
             });
         }
 
-        return result <= 100; // 100 req / min
+        return result <= 100;
     } catch (e) {
-        return true; // En cas d'erreur Redis, on laisse passer
+        return true;
     }
 }
 
-// Middleware: API Gateway Strategy
 app.all('*', async (c) => {
     const url = new URL(c.req.url);
     const path = url.pathname;
     const ip = c.req.header('cf-connecting-ip') || '127.0.0.1';
 
-    // 1. Rate Limiting Sélectif (Uniquement Auth et Recherche pour économiser Upstash)
+    // Rate Limiting on auth and search
     if (path.startsWith('/api/auth/') || path.startsWith('/api/search')) {
         const isAllowed = await rateLimit(c, ip);
         if (!isAllowed) {
@@ -64,21 +56,7 @@ app.all('*', async (c) => {
         }
     }
 
-    // 2. JWT Verification pour les routes protégées
-    if (path.startsWith('/api/user/') || path.startsWith('/api/reviews/post')) {
-        const authHeader = c.req.header('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return c.json({ error: 'Unauthorized', message: 'Token manquant' }, 401);
-        }
-        const token = authHeader.split(' ')[1];
-        try {
-            await jwtVerify(token, new TextEncoder().encode(c.env.JWT_SECRET));
-        } catch (e) {
-            return c.json({ error: 'Unauthorized', message: 'Token invalide' }, 401);
-        }
-    }
-
-    // 3. Gestion du Cache Edge (KV) pour les GET fréquents
+    // Edge Cache for frequent GET requests
     if (c.req.method === 'GET') {
         let cacheKey = '';
         let ttl = 0;
@@ -107,11 +85,11 @@ app.all('*', async (c) => {
                 if (cached) {
                     return c.json(JSON.parse(cached), 200, { 'X-Cache': 'HIT' });
                 }
-            } catch { /* KV indisponible, on proxyfie */ }
+            } catch { /* KV unavailable */ }
         }
     }
 
-    // 4. Proxy vers le Backend (Render/Hono)
+    // Proxy to Backend (Passes through cookies for Better Auth)
     const targetUrl = `${c.env.BACKEND_URL}${path}${url.search}`;
     const headers = new Headers(c.req.header());
     headers.delete('host');
@@ -128,7 +106,7 @@ app.all('*', async (c) => {
             body: c.req.raw.body
         });
 
-        // 5. Post-processing : Mettre en cache si c'est un succès
+        // Post-processing: Cache successful GET responses
         if (response.ok && c.req.method === 'GET') {
             const clonedRes = response.clone();
             const data = await clonedRes.json();

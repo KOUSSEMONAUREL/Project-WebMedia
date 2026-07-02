@@ -25,22 +25,24 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.23",
     "@hono/node-server": "^2.0.6",
     "@hono/zod-validator": "^0.7.6",
     "@libsql/client": "^0.17.4",
     "axios": "^1.18.1",
-    "bcryptjs": "^3.0.3",
+
+    "better-auth": "^1.6.23",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.27",
-    "jose": "^5.2.0",
+
     "mongodb": "^7.4.0",
     "postgres": "^3.4.3",
     "zod": "^3.22.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260626.1",
-    "@types/bcryptjs": "^2.4.6",
+
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.31.10",
     "esbuild": "0.28.1",

@@ -1,7 +1,5 @@
 /**
- * server.ts — Entry point for Render (Node.js)
- * Ce fichier remplace l'export Cloudflare Workers de index.ts
- * pour un vrai serveur HTTP Node.js.
+ * server.ts - Entry point for Render (Node.js)
  */
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
@@ -10,9 +8,10 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import 'dotenv/config';
 import { rateLimitServer } from './middleware/ratelimit-server';
+import { sessionMiddleware } from './middleware/session';
+import { getAuth } from './lib/auth';
 
-// Import des routes (même routes que le CF Worker)
-import authRoutes from './routes/auth';
+// Import des routes
 import userRoutes from './routes/user';
 import mediaRoutes from './routes/media';
 import searchRoutes from './routes/search';
@@ -21,9 +20,14 @@ import staticRoutes from './routes/static';
 import internalRoutes from './routes/internal';
 import webtoonRoutes from './routes/webtoon';
 
-const app = new Hono();
+type Variables = {
+    user: import('./middleware/session').Variables['user'];
+    session: import('./middleware/session').Variables['session'];
+};
 
-// ========== MIDDLEWARES ==========
+const app = new Hono<{ Variables: Variables }>();
+
+// ========== MIDDLEWARES GLOBAUX ==========
 app.use('*', logger());
 app.use('*', prettyJSON());
 
@@ -41,15 +45,30 @@ app.use('*', cors({
     credentials: true,
 }));
 
+// ========== BETTER AUTH HANDLER ==========
+app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
+    const dbUrl = process.env.SUPABASE_DATABASE_URL || '';
+    return getAuth(dbUrl).handler(c.req.raw);
+});
+
+// ========== API MIDDLEWARES ==========
 app.use('/api/*', async (c, next) => {
-  if (process.env.ENVIRONMENT === 'development' || process.env.ENVIRONMENT === 'test') return next();
-  const path = c.req.path;
-  const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
-  return rateLimitServer(isSensitive ? 60 : 200, 60)(c, next);
+    if (c.req.path.startsWith('/api/auth/')) {
+        await next();
+        return;
+    }
+    await sessionMiddleware(c, next);
+});
+
+app.use('/api/*', async (c, next) => {
+    if (c.req.path.startsWith('/api/auth/')) return next();
+    if (process.env.ENVIRONMENT === 'development' || process.env.ENVIRONMENT === 'test') return next();
+    const path = c.req.path;
+    const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
+    return rateLimitServer(isSensitive ? 60 : 200, 60)(c, next);
 });
 
 // ========== ROUTES ==========
-app.route('/api/auth', authRoutes);
 app.route('/api/user', userRoutes);
 app.route('/api/media', mediaRoutes);
 app.route('/api/search', searchRoutes);
@@ -80,5 +99,5 @@ app.onError((err, c) => {
 // ========== DÉMARRAGE ==========
 const port = parseInt(process.env.PORT || '3000', 10);
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
-    console.log(`🚀 WebMedia Backend démarré sur le port ${info.port} (0.0.0.0)`);
+    console.log(`WebMedia Backend demarre sur le port ${info.port} (0.0.0.0)`);
 });

@@ -6,9 +6,9 @@ dotenv.config();
 export default {
     schema: './src/db/supabase/schema.ts',
     out: './drizzle/supabase',
-    driver: 'pg',
+    dialect: 'postgresql',
     dbCredentials: {
-        connectionString: process.env.SUPABASE_DATABASE_URL || '',
+        url: process.env.SUPABASE_DATABASE_URL || '',
     },
 } satisfies Config;
 

@@ -1,20 +1,4 @@
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:3000/api';
-const STORAGE_KEY_TOKEN = 'webmedia_token';
-
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEY_TOKEN);
-}
-
-export function setToken(token: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY_TOKEN, token);
-}
-
-export function clearToken() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(STORAGE_KEY_TOKEN);
-}
 
 export class ApiRequestError extends Error {
   constructor(
@@ -30,7 +14,6 @@ export class ApiRequestError extends Error {
 export async function apiGet<T = any>(
   endpoint: string,
   params?: Record<string, string | number | undefined>,
-  withAuth = false
 ): Promise<T> {
   let url = `${API_BASE_URL}${endpoint}`;
 
@@ -45,13 +28,11 @@ export async function apiGet<T = any>(
     if (qs) url += `?${qs}`;
   }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (withAuth) {
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(url, { method: 'GET', headers });
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
 
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;
@@ -65,16 +46,15 @@ export async function apiGet<T = any>(
 export async function apiPost<T = any>(
   endpoint: string,
   body: any = {},
-  withAuth = false
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (withAuth) {
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
 
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;

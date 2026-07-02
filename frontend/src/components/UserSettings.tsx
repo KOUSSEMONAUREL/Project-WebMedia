@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { authStore } from '../stores/auth';
+import { authClient } from '@/lib/auth-client';
 import { LogOut, Trash2, Palette, Info, User, Mail } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 
 export function UserSettings() {
-  const [user, setUser] = useState(authStore.user);
+  const { data: session, isPending } = authClient.useSession();
+  const sessionUser = session?.user;
 
-  useEffect(() => {
-    const unsub = authStore.subscribe(() => setUser(authStore.user));
-    return unsub;
-  }, []);
+  const currentUser = sessionUser ? {
+    id: sessionUser.id,
+    email: sessionUser.email,
+    username: sessionUser.name,
+    avatar: sessionUser.image || undefined,
+  } : null;
 
   const clearFavs = () => {
     localStorage.removeItem('webmedia_favorites');
@@ -20,7 +23,7 @@ export function UserSettings() {
     window.location.reload();
   };
 
-  if (!user) {
+  if (!currentUser) {
     return (
       <div className="container mx-auto px-6 pt-24 pb-16">
         <EmptyState title="Non connecté" description="Connectez-vous pour accéder aux paramètres." action={{ label: "Retour à l'accueil", href: '/' }} />
@@ -37,20 +40,19 @@ export function UserSettings() {
       </header>
 
       <div className="max-w-2xl space-y-6">
-        {/* Profile info */}
         <div className="glass rounded-xl p-6">
           <div className="flex items-center gap-4 mb-4">
             <div className="h-16 w-16 rounded-full overflow-hidden bg-card border-2 border-primary/30">
-              <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="" className="h-full w-full object-cover" />
+              <img src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`} alt="" className="h-full w-full object-cover" />
             </div>
             <div>
-              <h3 className="text-lg font-display font-semibold text-foreground">{user.username}</h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <h3 className="text-lg font-display font-semibold text-foreground">{currentUser.username}</h3>
+              <p className="text-sm text-muted-foreground">{currentUser.email}</p>
             </div>
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => { authStore.logout(); window.location.reload(); }}
+              onClick={() => { authClient.signOut(); window.location.reload(); }}
               className="flex items-center gap-2 bg-destructive/10 text-destructive px-4 py-2 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors"
             >
               <LogOut className="h-4 w-4" />
@@ -59,7 +61,6 @@ export function UserSettings() {
           </div>
         </div>
 
-        {/* Theme */}
         <div className="glass rounded-xl p-6">
           <div className="flex items-center gap-3 mb-1">
             <Palette className="h-5 w-5 text-primary" />
@@ -68,7 +69,6 @@ export function UserSettings() {
           <p className="text-sm text-muted-foreground">Le thème sombre est activé par défaut.</p>
         </div>
 
-        {/* About */}
         <div className="glass rounded-xl p-6">
           <div className="flex items-center gap-3 mb-1">
             <Info className="h-5 w-5 text-primary" />
@@ -77,7 +77,6 @@ export function UserSettings() {
           <p className="text-sm text-muted-foreground">WebMedia — Plateforme de découverte de médias. Version 1.0.0</p>
         </div>
 
-        {/* Local data */}
         <div className="glass rounded-xl p-6">
           <div className="flex items-center gap-3 mb-1">
             <Trash2 className="h-5 w-5 text-primary" />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MediaCard } from './MediaCard';
 import { allMockData } from '../lib/api';
 import type { Media } from '../lib/api';
-import { authStore } from '../stores/auth';
+import { authClient } from '@/lib/auth-client';
 import { EmptyState } from './EmptyState';
 
 interface ListPageProps {
@@ -15,13 +15,14 @@ interface ListPageProps {
 }
 
 export function ListPage({ storageKey, title, description, emptyIcon, emptyTitle, emptyDescription }: ListPageProps) {
-  const [user, setUser] = useState<unknown>(null);
   const [items, setItems] = useState<Media[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const { data: session } = authClient.useSession();
+  const user = session?.user ?? null;
+
   useEffect(() => {
-    if (authStore.user) {
-      setUser(authStore.user);
+    if (user) {
       const stored = localStorage.getItem(storageKey);
       const ids: string[] = stored ? JSON.parse(stored) : [];
       const mediaMap: Record<string, Media> = {};

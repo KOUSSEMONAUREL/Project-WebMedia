@@ -4,23 +4,30 @@ import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
 import { reviews } from '../db/supabase/schema';
 import { eq, desc, and } from 'drizzle-orm';
-import { jwt } from 'hono/jwt';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
-    JWT_SECRET: string;
 };
 
 type Variables = {
-    jwtPayload: {
+    user: {
         id: string;
+        name: string;
         email: string;
-    };
+        emailVerified: boolean;
+        image?: string | null;
+        username?: string | null;
+    } | null;
+    session: {
+        id: string;
+        userId: string;
+        token: string;
+        expiresAt: Date;
+    } | null;
 };
 
 const reviewRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
     if (!val && c.env?.ENVIRONMENT === 'production') {
@@ -51,15 +58,6 @@ reviewRoutes.get('/:mediaId', async (c) => {
     }
 });
 
-// Middleware JWT (protège les routes déclarées après ici)
-reviewRoutes.use('*', (c, next) => {
-    const jwtMiddleware = jwt({
-        secret: getVar(c, 'JWT_SECRET'),
-        alg: 'HS256'
-    });
-    return jwtMiddleware(c, next);
-});
-
 // ========== POST /api/reviews (PROTÉGÉ) ==========
 const createReviewSchema = z.object({
     mediaId: z.string().min(1),
@@ -70,16 +68,23 @@ const createReviewSchema = z.object({
 
 reviewRoutes.post(
     '/',
+    async (c, next) => {
+        const sessionUser = c.get('user');
+        if (!sessionUser) {
+            return c.json({ success: false, error: 'Non authentifié' }, 401);
+        }
+        await next();
+    },
     zValidator('json', createReviewSchema as any),
     async (c) => {
         const data = c.req.valid('json' as any);
-        const userId = c.get('jwtPayload').id;
+        const sessionUser = c.get('user')!;
+        const userId = sessionUser.id;
 
         try {
             const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
             const db = getSupabaseClient(dbUrl);
 
-            // Déduplication: Un utilisateur ne peut avoir qu'une review par média
             const existing = await db.select()
                 .from(reviews)
                 .where(and(eq(reviews.mediaId, data.mediaId), eq(reviews.userId, userId)))

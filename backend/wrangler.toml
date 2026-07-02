@@ -6,7 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 # Variables d'environnement
 [vars]
 ENVIRONMENT = "development"
-# Secrets gérés via le dashboard Cloudflare
+BETTER_AUTH_URL = "https://webmedia-backend.koussemonaurel.workers.dev"
+GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_SECRET = ""
 
 # Trigger quotidien à 06:00 UTC
 [triggers]

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Github, Chrome } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
+import { authStore } from '@/stores/auth';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -18,10 +20,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         confirmPassword: ''
     });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     if (!isOpen) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
@@ -45,37 +48,93 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             return;
         }
 
-        // Simuler une connexion réussie
-        onLogin({
-            name: formData.name || formData.email.split('@')[0],
-            email: formData.email,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.email}`
-        });
-        onClose();
+        setLoading(true);
+
+        try {
+            if (mode === 'login') {
+                const { data, error: signInError } = await authClient.signIn.email({
+                    email: formData.email,
+                    password: formData.password,
+                });
+
+                if (signInError) {
+                    setError(signInError.message || 'Erreur de connexion');
+                    return;
+                }
+
+                if (data?.user) {
+                    const userData = {
+                        name: data.user.name,
+                        email: data.user.email,
+                        avatar: data.user.image || undefined,
+                    };
+                    const authUser = {
+                        id: data.user.id,
+                        email: data.user.email,
+                        username: data.user.name,
+                        avatar: data.user.image || undefined,
+                    };
+                    authStore.setSession(authUser);
+                    onLogin(userData);
+                    onClose();
+                }
+            } else {
+                const { data, error: signUpError } = await authClient.signUp.email({
+                    email: formData.email,
+                    password: formData.password,
+                    name: formData.name,
+                });
+
+                if (signUpError) {
+                    setError(signUpError.message || "Erreur d'inscription");
+                    return;
+                }
+
+                if (data?.user) {
+                    const userData = {
+                        name: data.user.name,
+                        email: data.user.email,
+                        avatar: data.user.image || undefined,
+                    };
+                    const authUser = {
+                        id: data.user.id,
+                        email: data.user.email,
+                        username: data.user.name,
+                        avatar: data.user.image || undefined,
+                    };
+                    authStore.setSession(authUser);
+                    onLogin(userData);
+                    onClose();
+                }
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Une erreur est survenue');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleSocialLogin = (provider: string) => {
-        // Simuler une connexion sociale
-        const mockUser = {
-            name: `User ${provider}`,
-            email: `user@${provider.toLowerCase()}.com`,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${provider}`
-        };
-        onLogin(mockUser);
-        onClose();
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        try {
+            await authClient.signIn.social({
+                provider: 'google',
+                callbackURL: window.location.href,
+            });
+        } catch (err: any) {
+            setError(err?.message || 'Erreur lors de la connexion Google');
+            setLoading(false);
+        }
     };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-            {/* Overlay */}
             <div
                 className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                 onClick={onClose}
             />
 
-            {/* Modal */}
             <div className="relative w-full max-w-md mx-4 bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden" style={{boxShadow:'0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)'}}>
-                {/* Header avec gradient */}
                 <div
                     className="relative h-20 flex items-center justify-center"
                     style={{
@@ -101,9 +160,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     </Button>
                 </div>
 
-                {/* Content */}
                 <div className="p-6">
-                    {/* Avantages pour les non-connectés */}
                     {mode === 'login' && (
                         <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
                         <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>
@@ -116,27 +173,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         </div>
                     )}
 
-                    {/* Social Login */}
                     <div className="flex gap-3 mb-6">
                         <Button
                             variant="outline"
                             className="flex-1 gap-2"
-                            onClick={() => handleSocialLogin('Google')}
+                            onClick={handleGoogleLogin}
+                            disabled={loading}
                         >
                             <Chrome className="h-4 w-4" />
                             Google
                         </Button>
-                        <Button
-                            variant="outline"
-                            className="flex-1 gap-2"
-                            onClick={() => handleSocialLogin('GitHub')}
-                        >
-                            <Github className="h-4 w-4" />
-                            GitHub
-                        </Button>
                     </div>
 
-                    {/* Divider */}
                     <div className="relative mb-6">
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-border"></div>
@@ -146,7 +194,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         </div>
                     </div>
 
-                    {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {mode === 'signup' && (
                             <div className="relative">
@@ -207,18 +254,17 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
                         )}
 
-                        <Button type="submit" className="w-full h-11 font-bold">
-                            {mode === 'login' ? 'Se connecter' : "S'inscrire"}
+                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading}>
+                            {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
                         </Button>
                     </form>
 
-                    {/* Toggle mode */}
                     <p className="mt-6 text-center text-sm text-muted-foreground">
                         {mode === 'login' ? (
                             <>
                                 Pas encore de compte ?{' '}
                                 <button
-                                    onClick={() => setMode('signup')}
+                                    onClick={() => { setMode('signup'); setError(''); }}
                                     className="text-primary font-medium hover:underline"
                                 >
                                     S'inscrire
@@ -228,7 +274,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <>
                                 Déjà un compte ?{' '}
                                 <button
-                                    onClick={() => setMode('login')}
+                                    onClick={() => { setMode('login'); setError(''); }}
                                     className="text-primary font-medium hover:underline"
                                 >
                                     Se connecter

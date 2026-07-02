@@ -5,6 +5,8 @@ import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { allMockData } from '@/lib/mockData';
 import type { Media } from '@/lib/api';
+import { authClient } from '@/lib/auth-client';
+import { authStore } from '@/stores/auth';
 
 const navLinks = [
   { label: 'Films', href: '/films' },
@@ -42,8 +44,24 @@ export function Navbar() {
   const indicatorRef = useRef<HTMLDivElement>(null);
   const [pathname, setPathname] = useState('/');
 
-  const [user, setUser] = useState<UserData | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const { data: session, isPending } = authClient.useSession();
+  const sessionUser = session?.user;
+  const user: UserData | null = sessionUser
+    ? { name: sessionUser.name, email: sessionUser.email, avatar: sessionUser.image || undefined }
+    : null;
+
+  useEffect(() => {
+    if (sessionUser) {
+      authStore.setSession({
+        id: sessionUser.id,
+        email: sessionUser.email,
+        username: sessionUser.name,
+        avatar: sessionUser.image || undefined,
+      });
+    }
+  }, [sessionUser]);
 
   const PILL_PADDING = 6;
 
@@ -52,7 +70,6 @@ export function Navbar() {
     const indicator = indicatorRef.current;
     if (!container || !indicator) return;
 
-    // Hide below the lg breakpoint (1024px) — no mobile menu yet
     if (window.innerWidth < 1024) {
       indicator.style.opacity = '0';
       return;
@@ -67,8 +84,6 @@ export function Navbar() {
     const left = `${targetRect.left - containerRect.left - PILL_PADDING}px`;
     const width = `${targetRect.width + PILL_PADDING * 2}px`;
 
-    // Only enable transition on explicit navigation (animate=true).
-    // Background recalcs (resize, fonts) keep the existing transition alive.
     if (animate) {
       indicator.style.transition = `left 550ms cubic-bezier(0.34, 1.56, 0.64, 1), width 550ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 250ms`;
     }
@@ -77,19 +92,16 @@ export function Navbar() {
     indicator.style.opacity = '1';
   }, []);
 
-  // 1) Initial position BEFORE paint — zero flash on mount
   useLayoutEffect(() => {
     const curPath = window.location.pathname;
     setPathname(curPath);
     moveIndicator(curPath, false);
   }, [moveIndicator]);
 
-  // 2) Web fonts can shift text width once loaded
   useEffect(() => {
     document.fonts?.ready.then(() => moveIndicator(window.location.pathname, false));
   }, [moveIndicator]);
 
-  // 3) Astro navigation (component persists, so we listen ourselves)
   useEffect(() => {
     const onSwap = () => {
       const curPath = window.location.pathname;
@@ -100,7 +112,6 @@ export function Navbar() {
     return () => document.removeEventListener('astro:after-swap', onSwap);
   }, [moveIndicator]);
 
-  // 4) Resize / breakpoint crossing
   useEffect(() => {
     if (!linksRef.current) return;
     const ro = new ResizeObserver(() => moveIndicator(window.location.pathname, false));
@@ -114,18 +125,17 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem('webmedia_user');
-    if (savedUser) setUser(JSON.parse(savedUser));
-  }, []);
-
   const handleLogin = (userData: UserData) => {
-    setUser(userData);
-    localStorage.setItem('webmedia_user', JSON.stringify(userData));
+    localStorage.setItem('webmedia_user', JSON.stringify({
+      id: 'session',
+      email: userData.email,
+      username: userData.name,
+      avatar: userData.avatar,
+    }));
   };
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await authClient.signOut();
     localStorage.removeItem('webmedia_user');
   };
 
@@ -163,7 +173,6 @@ export function Navbar() {
           }`}
         >
           <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
-          {/* Logo + Nav links in same container for sliding indicator */}
           <div className="flex items-center relative" ref={linksRef}>
             <div
               ref={indicatorRef}
@@ -226,7 +235,6 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* Search bar */}
           <div className="relative flex-1 md:flex-initial md:w-40 lg:w-36 xl:w-52 focus-within:md:w-52 focus-within:lg:w-48 focus-within:xl:w-64 transition-all duration-200" ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -286,7 +294,6 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* Right actions */}
           <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost"
