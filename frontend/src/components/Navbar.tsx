@@ -138,29 +138,27 @@ export function Navbar() {
     localStorage.removeItem('webmedia_user');
   };
 
-  var fuseRef = useRef(null);
-  var loadRef = useRef(false);
+  var [fuse, setFuse] = useState(null);
 
   useEffect(function() {
-    if (loadRef.current) return;
-    loadRef.current = true;
+    var ok = true;
     (async function() {
       try {
         var resp = await fetch('/data/search-index.json');
         var list = await resp.json();
         var Fuse = (await import('fuse.js')).default;
-        fuseRef.current = new Fuse(list, {
+        if (ok) setFuse(new Fuse(list, {
           keys: ['title'],
           threshold: 0.4,
           distance: 100,
           minMatchCharLength: 2,
-        });
+        }));
       } catch (e) { console.warn('[search] fuse init failed', e); }
     })();
+    return function() { ok = false; };
   }, []);
 
   useEffect(function() {
-    var fuse = fuseRef.current;
     if (searchQuery.length < 2 || !fuse) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -169,7 +167,7 @@ export function Navbar() {
     var results = fuse.search(searchQuery, { limit: 6 });
     setSuggestions(results.map(function(r) { return r.item; }));
     setShowSuggestions(true);
-  }, [searchQuery]);
+  }, [searchQuery, fuse]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
