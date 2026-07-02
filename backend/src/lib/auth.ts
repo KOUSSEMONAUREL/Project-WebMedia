@@ -33,6 +33,10 @@ export function getAuth(dbUrl?: string) {
             crossSubDomainCookies: {
                 enabled: true,
             },
+            trustedOrigins: [
+                'https://project-web-media.vercel.app',
+                'https://webmedia-proxy.koussemonaurel.workers.dev',
+            ],
         },
         emailAndPassword: {
             enabled: true,
