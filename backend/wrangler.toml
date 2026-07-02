@@ -6,7 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 # Variables d'environnement
 [vars]
 ENVIRONMENT = "development"
-BETTER_AUTH_URL = "https://webmedia-backend.koussemonaurel.workers.dev"
 
 # Trigger quotidien à 06:00 UTC
 [triggers]
