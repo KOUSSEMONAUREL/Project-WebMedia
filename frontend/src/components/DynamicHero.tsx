@@ -27,10 +27,6 @@ export function DynamicHero() {
             un seul endroit.
           </span>
         </h1>
-
-        <p className="mt-2 text-muted-foreground max-w-md text-[14px] leading-relaxed">
-          Films, séries, animés, jeux, webtoons, livres et light novels.
-        </p>
       </div>
     </section>
   );

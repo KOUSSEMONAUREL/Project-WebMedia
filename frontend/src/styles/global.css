@@ -26,8 +26,8 @@
 
   --radius: 0.625rem;
 
-  --font-sans: 'Inter', sans-serif;
-  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Satoshi', sans-serif;
+  --font-display: 'Clash Display', sans-serif;
 }
 
 :root {
@@ -36,6 +36,7 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
 }
 
 * {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Search, Bell, Star } from 'lucide-react';
 import { AuthModal } from './AuthModal';
@@ -38,19 +38,85 @@ export function Navbar() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const linksRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const [pathname, setPathname] = useState('/');
 
   const [user, setUser] = useState<UserData | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem('webmedia_user');
-    if (savedUser) setUser(JSON.parse(savedUser));
+  const PILL_PADDING = 6;
+
+  const moveIndicator = useCallback((path: string, animate: boolean) => {
+    const container = linksRef.current;
+    const indicator = indicatorRef.current;
+    if (!container || !indicator) return;
+
+    // Hide below the lg breakpoint (1024px) — no mobile menu yet
+    if (window.innerWidth < 1024) {
+      indicator.style.opacity = '0';
+      return;
+    }
+
+    const target = container.querySelector<HTMLElement>(`[data-href="${path}"]`);
+    if (!target) return;
+
+    const targetRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    const left = `${targetRect.left - containerRect.left - PILL_PADDING}px`;
+    const width = `${targetRect.width + PILL_PADDING * 2}px`;
+
+    // Only enable transition on explicit navigation (animate=true).
+    // Background recalcs (resize, fonts) keep the existing transition alive.
+    if (animate) {
+      indicator.style.transition = `left 550ms cubic-bezier(0.34, 1.56, 0.64, 1), width 550ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 250ms`;
+    }
+    indicator.style.left = left;
+    indicator.style.width = width;
+    indicator.style.opacity = '1';
   }, []);
+
+  // 1) Initial position BEFORE paint — zero flash on mount
+  useLayoutEffect(() => {
+    const curPath = window.location.pathname;
+    setPathname(curPath);
+    moveIndicator(curPath, false);
+  }, [moveIndicator]);
+
+  // 2) Web fonts can shift text width once loaded
+  useEffect(() => {
+    document.fonts?.ready.then(() => moveIndicator(window.location.pathname, false));
+  }, [moveIndicator]);
+
+  // 3) Astro navigation (component persists, so we listen ourselves)
+  useEffect(() => {
+    const onSwap = () => {
+      const curPath = window.location.pathname;
+      setPathname(curPath);
+      moveIndicator(curPath, true);
+    };
+    document.addEventListener('astro:after-swap', onSwap);
+    return () => document.removeEventListener('astro:after-swap', onSwap);
+  }, [moveIndicator]);
+
+  // 4) Resize / breakpoint crossing
+  useEffect(() => {
+    if (!linksRef.current) return;
+    const ro = new ResizeObserver(() => moveIndicator(window.location.pathname, false));
+    ro.observe(linksRef.current);
+    return () => ro.disconnect();
+  }, [moveIndicator]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('webmedia_user');
+    if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
   const handleLogin = (userData: UserData) => {
@@ -86,48 +152,78 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-
   return (
     <>
-      <nav
-        className={`h-[58px] sticky top-0 z-40 w-full transition-all duration-300 ${
-          scrolled
-            ? 'bg-background/95 backdrop-blur-2xl border-b border-border/50 shadow-[0_1px_32px_rgba(0,0,0,0.5)]'
-            : 'bg-background/60 backdrop-blur-xl border-b border-border/20'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto h-full flex items-center justify-between px-4 sm:px-6 gap-4">
-          {/* Logo */}
-          <a href="/" className="flex items-center shrink-0">
-            <span
-              className="text-[17px] font-display font-bold tracking-tight"
+      <div className="sticky top-4 z-40 w-full px-4">
+        <nav
+          className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 overflow-hidden ${
+            scrolled
+              ? 'bg-background/85 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)]'
+              : 'bg-background/40 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.3)]'
+          }`}
+        >
+          <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
+          {/* Logo + Nav links in same container for sliding indicator */}
+          <div className="flex items-center relative" ref={linksRef}>
+            <div
+              ref={indicatorRef}
+              className="absolute top-1/2 -translate-y-1/2 rounded-full pointer-events-none opacity-0"
               style={{
-                background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 50%,#2563eb 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
+                height: '36px',
+                background: 'rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(16px) saturate(200%)',
+                WebkitBackdropFilter: 'blur(16px) saturate(200%)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                boxShadow: 'inset 0 1px 1.5px rgba(255,255,255,0.12), 0 4px 16px rgba(0,0,0,0.20)',
               }}
+            />
+            <a
+              href="/"
+              data-href="/"
+              className={`relative z-10 flex items-center shrink-0 px-3 py-1.5 mr-4 text-[13px] transition-all duration-200 ${
+                pathname === '/'
+                  ? 'text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.35)] font-bold'
+                  : 'text-muted-foreground hover:text-foreground hover:drop-shadow-[0_0_4px_rgba(255,255,255,0.06)] font-medium'
+              }`}
             >
-              WebMedia
-            </span>
-          </a>
-
-          {/* Desktop nav links */}
-          <div className="hidden lg:flex items-center gap-0.5 xl:gap-1">
-            {navLinks.map(link => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={`px-3 xl:px-3.5 py-1.5 text-[13px] font-medium rounded-md transition-all duration-150 ${
-                  pathname === link.href
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'
-                }`}
+              <span
+                className="text-[17px] font-display font-bold tracking-tight block transition-all duration-200"
+                style={{
+                  background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 50%,#2563eb 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  transform: pathname === '/' ? 'scale(1.07)' : 'none',
+                  textShadow: pathname === '/' ? '0 0 14px rgba(59,130,246,0.35)' : 'none',
+                }}
               >
-                {link.label}
-              </a>
-            ))}
+                WebMedia
+              </span>
+            </a>
+            <div className="hidden lg:flex items-center gap-0.5">
+              {navLinks.map(link => (
+                <a
+                  key={link.href}
+                  data-href={link.href}
+                  href={link.href}
+                  className={`relative z-10 px-3 xl:px-3.5 py-1.5 text-[13px] transition-all duration-200 ${
+                    pathname === link.href
+                      ? 'text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.35)] font-semibold'
+                      : 'text-muted-foreground hover:text-foreground font-medium'
+                  }`}
+                >
+                  <span
+                    className="block transition-all duration-200"
+                    style={{
+                      transform: pathname === link.href ? 'scale(1.07)' : 'none',
+                      textShadow: pathname === link.href ? '0 0 12px rgba(59,130,246,0.35)' : 'none',
+                    }}
+                  >
+                    {link.label}
+                  </span>
+                </a>
+              ))}
+            </div>
           </div>
 
           {/* Search bar */}
@@ -210,6 +306,7 @@ export function Navbar() {
           </div>
         </div>
       </nav>
+      </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onLogin={handleLogin} />
     </>
