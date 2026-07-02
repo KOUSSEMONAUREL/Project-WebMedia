@@ -28,6 +28,7 @@ export default defineConfig({
     build: {
         hooks: {
             'build:init': async () => {
+                console.log('[build:hook] build:init started, cwd:', process.cwd(), 'B2_KEY_ID:', !!process.env.B2_KEY_ID, 'B2_APP_KEY:', !!process.env.B2_APPLICATION_KEY);
                 if (!existsSync(PUBLIC_DATA)) mkdirSync(PUBLIC_DATA, { recursive: true });
                 const catalogPath = join(PUBLIC_DATA, 'catalogue.sqlite');
                 if (!existsSync(catalogPath)) {
