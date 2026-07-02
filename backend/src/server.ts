@@ -18,7 +18,6 @@ import searchRoutes from './routes/search';
 import reviewRoutes from './routes/reviews';
 import staticRoutes from './routes/static';
 import internalRoutes from './routes/internal';
-import webtoonRoutes from './routes/webtoon';
 
 type Variables = {
     user: import('./middleware/session').Variables['user'];
@@ -35,6 +34,7 @@ const allowedOrigins = [
     'https://app.webmedia.com',
     'https://webmedia.com',
     'http://localhost:3000',
+    'https://project-web-media.vercel.app',
 ];
 
 app.use('*', cors({
@@ -75,7 +75,6 @@ app.route('/api/search', searchRoutes);
 app.route('/api/reviews', reviewRoutes);
 app.route('/api/static', staticRoutes);
 app.route('/api/internal', internalRoutes);
-app.route('/api/webtoon', webtoonRoutes);
 
 // Health check
 app.get('/', (c) => {

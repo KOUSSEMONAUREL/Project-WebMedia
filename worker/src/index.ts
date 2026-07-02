@@ -2,11 +2,12 @@ import { Hono } from 'hono';
 
 type Bindings = {
     KV: KVNamespace;
-    BACKEND_URL: string;
     INTERNAL_API_KEY: string;
     ENVIRONMENT: string;
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
+    WORKER_BACKEND_URL: string;
+    RENDER_BACKEND_URL: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -18,7 +19,7 @@ const CACHE_TTL = {
     STATIC: 86400
 };
 
-async function rateLimit(c: any, ip: string) {
+async function rateLimit(c: any, ip: string, limit = 100, windowSec = 60) {
     const { UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN } = c.env;
     if (!UPSTASH_REDIS_REST_URL) return true;
 
@@ -32,15 +33,22 @@ async function rateLimit(c: any, ip: string) {
         const { result } = await res.json() as any;
 
         if (result === 1) {
-            await fetch(`${UPSTASH_REDIS_REST_URL}/EXPIRE/${key}/60`, {
+            await fetch(`${UPSTASH_REDIS_REST_URL}/EXPIRE/${key}/${windowSec}`, {
                 headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` }
             });
         }
 
-        return result <= 100;
+        return result <= limit;
     } catch (e) {
         return true;
     }
+}
+
+function pickBackend(path: string, env: Bindings): string {
+    if (path.startsWith('/api/internal/')) {
+        return env.WORKER_BACKEND_URL;
+    }
+    return env.RENDER_BACKEND_URL;
 }
 
 app.all('*', async (c) => {
@@ -48,16 +56,31 @@ app.all('*', async (c) => {
     const path = url.pathname;
     const ip = c.req.header('cf-connecting-ip') || '127.0.0.1';
 
-    // Rate Limiting on auth and search
+    // Rate Limiting
     if (path.startsWith('/api/auth/') || path.startsWith('/api/search')) {
-        const isAllowed = await rateLimit(c, ip);
+        const isAllowed = await rateLimit(c, ip, 100, 60);
         if (!isAllowed) {
             return c.json({ error: 'Too Many Requests', message: 'Veuillez ralentir un peu...' }, 429);
         }
     }
+    // Webtoon: stricter rate limit (20 req/min)
+    if (path.startsWith('/api/webtoon/')) {
+        const isAllowed = await rateLimit(c, ip, 20, 60);
+        if (!isAllowed) {
+            return c.json({ error: 'Too Many Requests', message: 'Trop de requêtes webtoon, ralentissez.' }, 429);
+        }
+    }
 
-    // Edge Cache for frequent GET requests
-    if (c.req.method === 'GET') {
+    // Edge Cache for frequent GET requests (only for Render-backed routes)
+    const cacheablePaths = [
+        '/api/media/trending',
+        '/api/search',
+        '/api/media/',
+        '/api/static/'
+    ];
+    const isCacheableRoute = cacheablePaths.some(p => path === p || path.startsWith(p));
+
+    if (c.req.method === 'GET' && isCacheableRoute) {
         let cacheKey = '';
         let ttl = 0;
 
@@ -89,8 +112,10 @@ app.all('*', async (c) => {
         }
     }
 
-    // Proxy to Backend (Passes through cookies for Better Auth)
-    const targetUrl = `${c.env.BACKEND_URL}${path}${url.search}`;
+    // Smart Routing: pick backend based on path
+    const backendUrl = pickBackend(path, c.env);
+    const targetUrl = `${backendUrl}${path}${url.search}`;
+
     const headers = new Headers(c.req.header());
     headers.delete('host');
     headers.delete('cf-connecting-ip');
@@ -106,8 +131,8 @@ app.all('*', async (c) => {
             body: c.req.raw.body
         });
 
-        // Post-processing: Cache successful GET responses
-        if (response.ok && c.req.method === 'GET') {
+        // Post-processing: Cache successful GET responses (only for cacheable routes)
+        if (response.ok && c.req.method === 'GET' && isCacheableRoute) {
             const clonedRes = response.clone();
             const data = await clonedRes.json();
 

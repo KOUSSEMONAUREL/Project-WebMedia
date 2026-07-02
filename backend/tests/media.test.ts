@@ -25,9 +25,3 @@ test('rate limiting applies to all API routes', async () => {
   assert.ok(apiRoutes.length > 0, 'has API routes');
 });
 
-test('webtoon routes registered', async () => {
-  const { app } = await import('../src/index');
-  const routes = app.routes?.map(r => `${r.method} ${r.path}`) || [];
-  const hasWebtoon = routes.some(r => r.includes('/api/webtoon'));
-  assert.ok(hasWebtoon, '/api/webtoon routes registered');
-});

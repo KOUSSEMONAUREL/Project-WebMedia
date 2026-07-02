@@ -9,7 +9,8 @@ binding = "KV"
 id = "c8ad78e7136a40b885547396a971ca5a"
 
 [vars]
-BACKEND_URL = "https://project-webmedia.onrender.com"
+RENDER_BACKEND_URL = "https://project-webmedia.onrender.com"
+WORKER_BACKEND_URL = "https://webmedia-backend.koussemonaurel.workers.dev"
 ENVIRONMENT = "production"
 UPSTASH_REDIS_REST_URL="https://dear-marmot-137652.upstash.io"
 
