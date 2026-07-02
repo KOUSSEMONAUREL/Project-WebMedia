@@ -87,87 +87,77 @@ function cardHtml(m: Media): string {
   </div>
 </Layout>
 
-<script>
-  (function() {
-    var gridInitialized = false;
+<script data-astro-rerun>
+(function(){
+  var cat = document.getElementById('category-grid');
+  if (!cat) return;
 
-    function renderGrid() {
-      var container = document.getElementById('category-grid');
-      if (!container) return;
+  var items = JSON.parse(cat.dataset.items);
+  var PER_PAGE = Number(cat.dataset.perPage);
+  var totalPages = Math.ceil(items.length / PER_PAGE);
 
-      var items = JSON.parse(container.dataset.items);
-      var PER_PAGE = Number(container.dataset.perPage);
-      var totalPages = Math.ceil(items.length / PER_PAGE);
-
-      function imgOpt(url) {
-        if (!url) return '';
-        var o = url;
-        if (/image\.tmdb\.org/.test(o)) o = o.replace(/\/t\/p\/\w+\//, '/t/p/original/');
-        else if (/books\.google\.com/.test(o)) o = o.replace(/zoom=\d+/, 'zoom=6');
-        else if (/anilist\.co/.test(o)) o = o.replace(/\/large\//, '/extraLarge/');
-        var ss = '';
-        if (/image\.tmdb\.org/.test(url)) {
-          var sz = [['w342',342],['w500',500],['w780',780],['original',1200]];
-          ss = ' srcset="' + sz.map(function(s) { return url.replace(/\/t\/p\/\w+\//, '/t/p/'+s[0]+'/') + ' ' + s[1] + 'w'; }).join(', ') + '"';
-        }
-        return '<img src="' + o + '"' + ss + ' sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 260px" alt="" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display=\'none\'"/>';
+  function card(m) {
+    var img = '';
+    if (m.posterUrl) {
+      var u = m.posterUrl;
+      if (/image\.tmdb\.org/.test(u)) u = u.replace(/\/t\/p\/\w+\//, '/t/p/original/');
+      else if (/books\.google\.com/.test(u)) u = u.replace(/zoom=\d+/, 'zoom=6');
+      else if (/anilist\.co/.test(u)) u = u.replace(/\/large\//, '/extraLarge/');
+      var ss = '';
+      if (/image\.tmdb\.org/.test(m.posterUrl)) {
+        var sizes = [342,500,780,1200];
+        var names = ['w342','w500','w780','original'];
+        ss = ' srcset="';
+        for (var si=0; si<4; si++) ss += m.posterUrl.replace(/\/t\/p\/\w+\//, '/t/p/'+names[si]+'/') + ' ' + sizes[si] + 'w' + (si<3?',':'');
+        ss += '"';
       }
-
-      function card(m) {
-        return '<a href="/' + m.type + '/' + (m.slug || m.id) + '" class="group block transition-all duration-300 hover:-translate-y-1.5">'
-          + '<div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">'
-          + imgOpt(m.posterUrl)
-          + '<div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card">'
-          + '<span class="text-white/30 text-xs font-bold uppercase tracking-[0.15em] mb-2">' + m.type.toUpperCase() + '</span>'
-          + '<span class="text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:\'Clash Display\',sans-serif">' + m.title + '</span></div>'
-          + '<div class="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg z-20">'
-          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
-          + '<span class="text-xs font-bold text-amber-400">' + (m.rating || '') + '</span></div></div>'
-          + '<div class="mt-2.5 px-0.5">'
-          + '<h3 class="font-display font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">' + m.title + '</h3>'
-          + '<div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground">'
-          + (m.year ? '<span>' + m.year + '</span>' : '')
-          + (m.rating ? '<span class="flex items-center gap-1 ml-auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + m.rating + '</span>' : '')
-          + '</div></div></a>';
-      }
-
-      function gotoPage(page) {
-        container.dataset.currentPage = String(page);
-        var start = page * PER_PAGE;
-        var end = start + PER_PAGE;
-        var grid = container.querySelector('.grid');
-        if (grid) grid.innerHTML = items.slice(start, end).map(card).join('');
-
-        var prevBtn = container.querySelector('#prev-page');
-        var nextBtn = container.querySelector('#next-page');
-        if (prevBtn) prevBtn.disabled = page <= 0;
-        if (nextBtn) nextBtn.disabled = page >= totalPages - 1;
-
-        container.querySelectorAll('[data-page]').forEach(function(btn) {
-          var p = Number(btn.dataset.page) - 1;
-          btn.className = p === page
-            ? 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground'
-            : 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary';
-        });
-        window.scrollTo({ top: Math.max(0, container.offsetTop - 80), behavior: 'smooth' });
-      }
-
-      if (!gridInitialized) {
-        container.addEventListener('click', function(e) {
-          var curPage = Number(container.dataset.currentPage || 0);
-          var prevBtn = e.target.closest('#prev-page');
-          var nextBtn = e.target.closest('#next-page');
-          var pageBtn = e.target.closest('[data-page]');
-          if (!prevBtn && !nextBtn && !pageBtn) return;
-          if (prevBtn && !prevBtn.disabled && curPage > 0) { gotoPage(curPage - 1); return; }
-          if (nextBtn && !nextBtn.disabled && curPage < totalPages - 1) { gotoPage(curPage + 1); return; }
-          if (pageBtn) { gotoPage(Number(pageBtn.dataset.page) - 1); }
-        });
-        gridInitialized = true;
-      }
+      img = '<img src="' + u + '"' + ss + ' sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 320px" alt="" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display=\'none\'"/>';
     }
+    var h = m.slug || m.id;
+    return '<a href="/' + m.type + '/' + h + '" class="group block transition-all duration-300 hover:-translate-y-1.5">'
+      + '<div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">'
+      + img
+      + '<div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card">'
+      + '<span class="text-white/30 text-xs font-bold uppercase tracking-[0.15em] mb-2">' + m.type.toUpperCase() + '</span>'
+      + '<span class="text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:\'Clash Display\',sans-serif">' + m.title + '</span></div>'
+      + '<div class="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg z-20">'
+      + '<svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+      + '<span class="text-xs font-bold text-amber-400">' + (m.rating || '') + '</span></div></div>'
+      + '<div class="mt-2.5 px-0.5">'
+      + '<h3 class="font-display font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">' + m.title + '</h3>'
+      + '<div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground">'
+      + (m.year ? '<span>' + m.year + '</span>' : '')
+      + (m.rating ? '<span class="flex items-center gap-1 ml-auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + m.rating + '</span>' : '')
+      + '</div></div></a>';
+  }
 
-    renderGrid();
-    document.addEventListener('astro:page-load', renderGrid);
-  })();
+  function gotoPage(page) {
+    cat.dataset.currentPage = String(page);
+    var s = page * PER_PAGE;
+    var e = s + PER_PAGE;
+    var g = cat.querySelector('.grid');
+    if (g) g.innerHTML = items.slice(s, e).map(card).join('');
+    var prev = cat.querySelector('#prev-page');
+    var next = cat.querySelector('#next-page');
+    if (prev) prev.disabled = page <= 0;
+    if (next) next.disabled = page >= totalPages - 1;
+    cat.querySelectorAll('[data-page]').forEach(function(b) {
+      var n = Number(b.dataset.page) - 1;
+      b.className = 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors '
+        + (n === page ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary');
+    });
+    window.scrollTo({ top: Math.max(0, cat.offsetTop - 80), behavior: 'smooth' });
+  }
+
+  cat.addEventListener('click', function(e) {
+    var cur = Number(cat.dataset.currentPage || 0);
+    var p = e.target.closest('#prev-page');
+    var n = e.target.closest('#next-page');
+    var b = e.target.closest('[data-page]');
+    if (!p && !n && !b) return;
+    if (p && !p.disabled && cur > 0) { gotoPage(cur - 1); return; }
+    if (n && !n.disabled && cur < totalPages - 1) { gotoPage(cur + 1); return; }
+    if (b) { gotoPage(Number(b.dataset.page) - 1); }
+  });
+})();
 </script>
