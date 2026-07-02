@@ -1,9 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Star } from 'lucide-react';
+import { Search, Bell, Star, Command } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
-import { allMockData } from '@/lib/mockData';
+import { searchMedia } from '@/lib/api';
 import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
@@ -140,16 +140,19 @@ export function Navbar() {
   };
 
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const filtered = allMockData.filter(item =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSuggestions(filtered.slice(0, 6));
-      setShowSuggestions(true);
-    } else {
+    if (searchQuery.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
+      return;
     }
+    var timer = setTimeout(async () => {
+      try {
+        var res = await searchMedia(searchQuery, { limit: 6 });
+        setSuggestions(res.data || []);
+        setShowSuggestions(true);
+      } catch { /* ignore */ }
+    }, 200);
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => {
@@ -235,7 +238,7 @@ export function Navbar() {
             </div>
           </div>
 
-          <div className="relative flex-1 md:flex-initial md:w-40 lg:w-36 xl:w-52 focus-within:md:w-52 focus-within:lg:w-48 focus-within:xl:w-64 transition-all duration-200" ref={searchRef}>
+          <div className="relative flex-1 md:flex-initial md:w-36 lg:w-36 xl:w-48 focus-within:md:w-56 focus-within:lg:w-56 focus-within:xl:w-72 transition-all duration-200" ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
@@ -244,23 +247,26 @@ export function Navbar() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
                 placeholder="Rechercher..."
-                className="w-full h-9 bg-white/[0.04] border border-border/60 rounded-lg pl-9 pr-3.5 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 transition-all"
+                className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
               />
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/40 border border-border/30 pointer-events-none">
+                <Command className="h-2.5 w-2.5" />K
+              </kbd>
 
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border/70 rounded-xl shadow-2xl overflow-hidden z-50">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
                   {suggestions.map((item) => (
                     <a
                       key={item.id}
                       href={`/${item.type}/${item.slug}`}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition-colors border-b border-border/30 last:border-0"
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition-colors border-b border-border/20 last:border-0"
                       onClick={() => { setShowSuggestions(false); setSearchQuery(''); }}
                     >
                       <img
                         src={item.posterUrl}
                         alt={item.title}
                         className="w-8 h-12 object-cover rounded-md shrink-0"
-                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/32x48?text=?'; }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-[13px] text-foreground truncate">{item.title}</p>
@@ -279,7 +285,8 @@ export function Navbar() {
                   ))}
                   <a
                     href={`/search?q=${encodeURIComponent(searchQuery)}`}
-                    className="block px-3 py-2.5 text-center text-[12px] text-primary font-medium hover:bg-white/[0.04] transition-colors"
+                    className="block px-3 py-2.5 text-center text-[12px] text-primary font-medium hover:bg-white/[0.04] transition-colors border-t border-border/20"
+                    onClick={() => { setShowSuggestions(false); setSearchQuery(''); }}
                   >
                     Voir tous les résultats pour &ldquo;{searchQuery}&rdquo;
                   </a>
@@ -287,7 +294,7 @@ export function Navbar() {
               )}
 
               {showSuggestions && searchQuery.length >= 2 && suggestions.length === 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border/70 rounded-xl shadow-2xl p-4 text-center z-50">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl p-4 text-center z-50 animate-fade-in">
                   <p className="text-muted-foreground text-[13px]">Aucun résultat pour &ldquo;{searchQuery}&rdquo;</p>
                 </div>
               )}

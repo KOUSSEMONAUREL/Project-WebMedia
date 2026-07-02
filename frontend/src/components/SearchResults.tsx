@@ -99,29 +99,34 @@ export function SearchResults() {
   return (
     <div className="container mx-auto px-6 pt-24 pb-16">
       {/* Header */}
-      <header className="mb-10 animate-fade-in">
-        <h1 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-2">
+      <header className="mb-8 animate-fade-in text-center md:text-left">
+        <h1 className="text-4xl md:text-5xl font-display font-bold mb-2" style={{
+          background: 'linear-gradient(135deg,#f0f4ff 0%,#60a5fa 50%,#3b82f6 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+        }}>
           Recherche
         </h1>
-        <p className="text-muted-foreground">Trouvez vos films, séries, animés et plus encore.</p>
+        <p className="text-muted-foreground text-sm">Trouvez vos films, séries, animés et plus encore.</p>
       </header>
 
       {/* Search input */}
-      <form onSubmit={handleSubmit} className="relative max-w-2xl mb-8 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
-        <div className="relative glass rounded-2xl overflow-hidden border border-white/5 focus-within:border-primary/30 focus-within:shadow-[0_0_30px_rgba(212,175,55,0.06)] transition-all duration-300">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+      <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto md:mx-0 mb-8 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+        <div className="relative glass rounded-2xl overflow-hidden border border-white/[0.06] focus-within:border-primary/30 focus-within:shadow-[0_0_40px_rgba(59,130,246,0.10)] transition-all duration-300">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher un titre..."
-            className="w-full h-14 bg-transparent pl-14 pr-14 text-lg focus:outline-none text-foreground placeholder:text-muted-foreground"
+            className="w-full h-14 bg-transparent pl-14 pr-14 text-lg focus:outline-none text-foreground placeholder:text-muted-foreground/50"
           />
           {query && (
             <button
               type="button"
               onClick={clearSearch}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-white/[0.06]"
             >
               <X className="h-5 w-5" />
             </button>
@@ -130,16 +135,16 @@ export function SearchResults() {
       </form>
 
       {/* Type filters */}
-      <div className="flex flex-wrap gap-2 mb-10 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+      <div className="flex flex-wrap gap-2 mb-10 animate-fade-in-up justify-center md:justify-start" style={{ animationDelay: '0.1s' }}>
         {TYPES.map((t) => (
           <button
             key={t.value}
             onClick={() => handleTypeChange(t.value)}
             className={cn(
-              "px-4 py-2 rounded-full text-sm font-medium transition-all",
+              "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
               activeType === t.value
-                ? "bg-primary/15 text-primary border border-primary/30"
-                : "glass-light text-muted-foreground hover:text-foreground hover:bg-white/5"
+                ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_16px_rgba(59,130,246,0.08)]"
+                : "text-muted-foreground hover:text-foreground border border-transparent hover:border-border/40 hover:bg-white/[0.03]"
             )}
           >
             {t.label}
@@ -174,23 +179,28 @@ export function SearchResults() {
 
       {/* No results */}
       {!isLoading && hasSearched && !error && results.length === 0 && (
-        <div className="glass rounded-2xl p-12 text-center max-w-lg mx-auto animate-fade-in">
-          <div className="text-5xl mb-4 text-muted-foreground">&#128270;</div>
+        <div className="glass rounded-2xl p-16 text-center max-w-lg mx-auto animate-fade-in">
+          <div className="text-5xl mb-5 text-muted-foreground/50">&#128270;</div>
           <h3 className="text-xl font-display font-semibold text-foreground mb-2">Aucun résultat</h3>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             Aucun contenu trouvé pour "<span className="font-medium text-foreground">{query}</span>".
-            Essayez un autre terme ou vérifiez l'orthographe.
           </p>
+          <p className="text-muted-foreground/60 text-xs mt-2">Essayez un autre terme ou vérifiez l'orthographe.</p>
         </div>
       )}
 
       {/* Initial state */}
       {!hasSearched && !isLoading && !error && (
-        <div className="text-center py-20 animate-fade-in">
-          <div className="text-6xl mb-6 text-muted-foreground/40">&#128269;</div>
-          <p className="text-muted-foreground text-lg">
-            Tapez le titre d'un film, série, animé ou jeu pour commencer.
+        <div className="text-center py-24 animate-fade-in">
+          <div className="text-6xl mb-6 text-muted-foreground/30">&#128269;</div>
+          <p className="text-muted-foreground/70 text-base">
+            Tapez un titre pour commencer.
           </p>
+          <div className="flex items-center justify-center gap-5 mt-8 text-[12px] text-muted-foreground/40">
+            {['Film','Série','Animé','Jeu','Livre','Webtoon'].map((t) => (
+              <span key={t} className="px-3 py-1.5 rounded-full border border-border/20">{t}</span>
+            ))}
+          </div>
         </div>
       )}
     </div>
