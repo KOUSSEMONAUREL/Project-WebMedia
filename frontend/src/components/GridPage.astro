@@ -61,13 +61,9 @@ function cardHtml(m: Media): string {
     </header>
 
     <div id="category-grid" data-items={ITEMS_JSON} data-per-page={PER_PAGE}>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
-        {firstPage.map((m) => <Fragment set:html={cardHtml(m)} />)}
-      </div>
-
       {totalPages > 1 && (
-        <div class="flex items-center justify-center gap-2 mt-12 flex-wrap">
-          <button id="prev-page" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+        <div class="flex items-center justify-center gap-2 mb-8 flex-wrap">
+          <button data-page-btn="prev" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
             Precedent
           </button>
           {Array.from({ length: totalPages }, (_, i) => (
@@ -78,7 +74,30 @@ function cardHtml(m: Media): string {
               {i + 1}
             </button>
           ))}
-          <button id="next-page" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
+          <button data-page-btn="next" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
+            Suivant
+          </button>
+        </div>
+      )}
+
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
+        {firstPage.map((m) => <Fragment set:html={cardHtml(m)} />)}
+      </div>
+
+      {totalPages > 1 && (
+        <div class="flex items-center justify-center gap-2 mt-12 flex-wrap">
+          <button data-page-btn="prev" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+            Precedent
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              class={`page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
+              data-page={i + 1}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button data-page-btn="next" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
             Suivant
           </button>
         </div>
@@ -137,10 +156,8 @@ function cardHtml(m: Media): string {
     var e = s + PER_PAGE;
     var g = cat.querySelector('.grid');
     if (g) g.innerHTML = items.slice(s, e).map(card).join('');
-    var prev = cat.querySelector('#prev-page');
-    var next = cat.querySelector('#next-page');
-    if (prev) prev.disabled = page <= 0;
-    if (next) next.disabled = page >= totalPages - 1;
+    cat.querySelectorAll('[data-page-btn="prev"]').forEach(function(b) { b.disabled = page <= 0; });
+    cat.querySelectorAll('[data-page-btn="next"]').forEach(function(b) { b.disabled = page >= totalPages - 1; });
     cat.querySelectorAll('[data-page]').forEach(function(b) {
       var n = Number(b.dataset.page) - 1;
       b.className = 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors '
@@ -151,9 +168,9 @@ function cardHtml(m: Media): string {
 
   cat.addEventListener('click', function(e) {
     var cur = Number(cat.dataset.currentPage || 0);
-    var p = e.target.closest('#prev-page');
-    var n = e.target.closest('#next-page');
     var b = e.target.closest('[data-page]');
+    var p = e.target.closest('[data-page-btn="prev"]');
+    var n = e.target.closest('[data-page-btn="next"]');
     if (!p && !n && !b) return;
     if (p && !p.disabled && cur > 0) { gotoPage(cur - 1); return; }
     if (n && !n.disabled && cur < totalPages - 1) { gotoPage(cur + 1); return; }
