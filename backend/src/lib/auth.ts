@@ -32,6 +32,10 @@ export function getAuth(dbUrl?: string) {
             crossSubDomainCookies: {
                 enabled: false,
             },
+            ipAddress: {
+                ipAddressHeaders: ['x-forwarded-for'],
+                trustProxies: true,
+            },
         },
         trustedOrigins: [
             'https://project-web-media.vercel.app',
