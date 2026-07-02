@@ -9,7 +9,7 @@ binding = "KV"
 id = "c8ad78e7136a40b885547396a971ca5a"
 
 [vars]
-BACKEND_URL = "https://api-webmedia.onrender.com"
+BACKEND_URL = "https://project-webmedia.onrender.com"
 ENVIRONMENT = "production"
 UPSTASH_REDIS_REST_URL="https://dear-marmot-137652.upstash.io"
 
