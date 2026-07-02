@@ -173,7 +173,7 @@ export function Navbar() {
     <>
       <div className="sticky top-4 z-40 w-full px-4">
         <nav
-          className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 overflow-hidden ${
+          className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 ${
             scrolled
               ? 'bg-background/85 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)]'
               : 'bg-background/40 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.3)]'
