@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
-import { hoverStore } from '@/stores/hover';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -13,12 +12,24 @@ const typeLabel: Record<string, string> = {
   novel:   'Novel',
 };
 
+const typeColors: Record<string, string> = {
+  film:    'bg-sky-600',
+  serie:   'bg-violet-600',
+  anime:   'bg-rose-600',
+  jeu:     'bg-emerald-600',
+  webtoon: 'bg-amber-600',
+  book:    'bg-orange-600',
+  novel:   'bg-teal-600',
+};
+
 interface MediaCardProps {
   media: Media;
+  size?: 'normal' | 'large';
 }
 
-export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: MediaCardProps) {
   const detailHref = `/${media.type}/${media.slug || media.id}`;
+  const isLarge = size === 'large';
 
   const toggleFavorite = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,35 +54,27 @@ export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
   return (
     <a
       href={detailHref}
-      className="group relative flex flex-col gap-2.5 flex-shrink-0 w-[152px] sm:w-[172px] poster-row-card transition-all duration-300 hover:-translate-y-2"
-      onMouseEnter={() => hoverStore.setMedia(media)}
-      onMouseLeave={() => hoverStore.setMedia(null)}
+      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] ${
+        isLarge
+          ? 'w-[180px] sm:w-[212px]'
+          : 'w-[164px] sm:w-[192px]'
+      }`}
     >
       {/* Poster */}
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300"
-        style={{
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(59,130,246,0.2), 0 2px 8px rgba(0,0,0,0.4)';
-          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59,130,246,0.25)';
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '';
-          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.06)';
-        }}
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
+        style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
         <img
           src={media.posterUrl}
           alt={media.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x450?text=?'; }}
         />
 
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-250 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
           <button
             className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
             style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
@@ -79,7 +82,7 @@ export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
             <Play className="h-3 w-3 fill-current" />
             Détails
           </button>
-          <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-400">
+          <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
             <button
               onClick={toggleFavorite}
               className="flex items-center gap-1 border border-white/20 hover:border-red-500/60 hover:bg-red-500/20 px-3 py-1 rounded-full text-white transition-all"
@@ -104,17 +107,26 @@ export const MediaCard = memo(function MediaCard({ media }: MediaCardProps) {
         </div>
 
         {/* Type badge */}
-        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-[9px] font-bold text-white/80 uppercase tracking-wider">
+        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-[9px] font-bold text-white/80 uppercase tracking-wider`}>
           {typeLabel[media.type] || media.type}
         </div>
       </div>
 
       {/* Info */}
-      <div className="flex flex-col gap-0.5 px-0.5">
-        <h3 className="font-display font-semibold text-[13px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">
+      <div className="flex flex-col gap-1 px-0.5">
+        <h3 className="font-display font-semibold text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">
           {media.title}
         </h3>
-        <p className="text-[11px] text-muted-foreground">{media.year}</p>
+        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <span>{media.year}</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase text-white ${typeColors[media.type] || 'bg-gray-600'}`}>
+            {typeLabel[media.type] || media.type}
+          </span>
+          <span className="flex items-center gap-0.5 text-primary ml-auto">
+            <Star className="h-3 w-3 fill-current" />
+            {media.rating}
+          </span>
+        </div>
       </div>
     </a>
   );

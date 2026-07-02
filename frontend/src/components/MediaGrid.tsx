@@ -7,10 +7,12 @@ interface MediaGridProps {
   items: Media[];
   viewAllHref?: string;
   minCards?: number;
+  size?: 'normal' | 'large';
 }
 
-export function MediaGrid({ title, items, viewAllHref, minCards }: MediaGridProps) {
+export function MediaGrid({ title, items, viewAllHref, minCards, size = 'normal' }: MediaGridProps) {
   const placeholders = minCards ? Math.max(0, minCards - items.length) : 0;
+  const isLarge = size === 'large';
 
   return (
     <section className="py-2">
@@ -30,9 +32,11 @@ export function MediaGrid({ title, items, viewAllHref, minCards }: MediaGridProp
       </div>
 
       <div className="poster-row">
-        {items.map((media) => <MediaCard key={media.id} media={media} />)}
+        {items.map((media) => <MediaCard key={media.id} media={media} size={size} />)}
         {Array.from({ length: placeholders }).map((_, i) => (
-          <div key={`ph-${i}`} className="flex-shrink-0 w-[152px] sm:w-[172px] poster-row-card">
+          <div key={`ph-${i}`} className={`flex-shrink-0 poster-row-card ${
+            isLarge ? 'w-[180px] sm:w-[212px]' : 'w-[164px] sm:w-[192px]'
+          }`}>
             <div className="aspect-[2/3] w-full rounded-xl bg-secondary/50 border border-border/20" />
             <div className="mt-2 h-3 w-24 rounded bg-secondary/40" />
             <div className="mt-1 h-2.5 w-16 rounded bg-secondary/30" />
