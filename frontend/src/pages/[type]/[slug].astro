@@ -51,13 +51,28 @@ try {
     <div class="relative min-h-[80vh]">
       <div class="absolute inset-0 z-0 h-[60vh] w-full">
         <div class="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent z-10"></div>
-        <img src={media.posterUrl} alt={media.title} class="w-full h-full object-cover opacity-30" />
+        {media.posterUrl ? (
+          <img src={media.posterUrl} alt={media.title} class="w-full h-full object-cover opacity-30" />
+        ) : (
+          <div class="w-full h-full bg-gradient-to-br from-card to-secondary/80"></div>
+        )}
       </div>
 
       <div class="container relative z-10 mx-auto px-6 pt-32 pb-20">
         <div class="flex flex-col md:flex-row gap-12 items-start">
           <div class="w-64 md:w-80 shrink-0 border border-white/10 group shadow-2xl rounded-2xl overflow-hidden">
-            <img src={media.posterUrl} alt={media.title} class="w-full h-auto transition-transform duration-700 group-hover:scale-[1.03]" />
+            {media.posterUrl ? (
+              <img src={media.posterUrl} alt={media.title} class="w-full h-auto transition-transform duration-700 group-hover:scale-[1.03]" />
+            ) : (
+              <div class="aspect-[2/3] w-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-card to-secondary/80">
+                <span class="text-white/30 text-xs font-bold uppercase tracking-widest mb-3">
+                  {media.type}
+                </span>
+                <span class="text-white/50 text-lg font-bold leading-snug line-clamp-8">
+                  {media.title}
+                </span>
+              </div>
+            )}
           </div>
 
           <div class="flex-1 text-white">

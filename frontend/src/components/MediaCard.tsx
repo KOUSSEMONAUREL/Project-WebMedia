@@ -79,13 +79,23 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
         style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
-        <img
-          src={media.posterUrl}
-          alt={media.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x450?text=?'; }}
-        />
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-card to-secondary/80">
+          <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+            {typeLabel[media.type] || media.type}
+          </span>
+          <span className="text-white/50 text-sm font-semibold leading-snug line-clamp-6 px-1">
+            {media.title}
+          </span>
+        </div>
+        {media.posterUrl && (
+          <img
+            src={media.posterUrl}
+            alt={media.title}
+            className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
+            loading="lazy"
+            onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+          />
+        )}
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
