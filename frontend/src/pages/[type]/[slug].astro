@@ -114,33 +114,73 @@ try {
 
   <script>
     const mediaId = '{media?.id}';
+    const mediaType = '{media?.type}';
+    const mediaTitle = '{media?.title}';
+    const mediaSlug = '{media?.slug}';
+    const mediaPoster = '{media?.posterUrl}';
+    const mediaYear = '{media?.year}';
+    const mediaRating = '{media?.rating}';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const r = indexedDB.open('webmedia', 1);
+        r.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('favorites')) db.createObjectStore('favorites', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('watchlist')) db.createObjectStore('watchlist', { keyPath: 'id' });
+        };
+        r.onsuccess = (e) => resolve(e.target.result);
+        r.onerror = () => reject(r.error);
+      });
+    }
+
+    function dbPut(storeName: string, data: any) {
+      return openDB().then((db: any) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put(data);
+        return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
+      });
+    }
+
+    function dbDelete(storeName: string, id: string) {
+      return openDB().then((db: any) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).delete(id);
+        return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
+      });
+    }
+
+    function dbHas(storeName: string, id: string) {
+      return openDB().then((db: any) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(id);
+        return new Promise((resolve) => { req.onsuccess = () => { tx.oncomplete = () => db.close(); resolve(!!req.result); }; });
+      });
+    }
+
     const favBtn = document.querySelector('[data-action="favorite"]');
     const wlBtn = document.querySelector('[data-action="watchlist"]');
 
-    function toggleList(key: string, id: string) {
-      const stored = localStorage.getItem(key);
-      const list: string[] = stored ? JSON.parse(stored) : [];
-      const idx = list.indexOf(id);
-      if (idx === -1) list.push(id); else list.splice(idx, 1);
-      localStorage.setItem(key, JSON.stringify(list));
+    async function toggleList(store: string, id: string, meta: any) {
+      const has = await dbHas(store, id);
+      if (has) {
+        await dbDelete(store, id);
+      } else {
+        await dbPut(store, { id, ...meta, addedAt: Date.now() });
+      }
       updateButtons();
     }
 
-    function isInList(key: string, id: string) {
-      const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored).includes(id) : false;
-    }
-
-    function updateButtons() {
+    async function updateButtons() {
       if (favBtn) {
-        const inFav = isInList('webmedia_favorites', mediaId);
+        const inFav = await dbHas('favorites', mediaId);
         favBtn.innerHTML = inFav ? 'Favori' : 'Favoris';
         favBtn.className = inFav
           ? 'bg-red-500/30 text-red-400 px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2'
           : 'bg-white/10 hover:bg-red-500/30 text-white px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 border border-white/10';
       }
       if (wlBtn) {
-        const inWl = isInList('webmedia_watchlist', mediaId);
+        const inWl = await dbHas('watchlist', mediaId);
         wlBtn.innerHTML = inWl ? 'Dans la liste' : 'À voir plus tard';
         wlBtn.className = inWl
           ? 'bg-blue-500/30 text-blue-400 px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2'
@@ -149,7 +189,7 @@ try {
     }
 
     document.addEventListener('DOMContentLoaded', updateButtons);
-    favBtn?.addEventListener('click', () => toggleList('webmedia_favorites', mediaId));
-    wlBtn?.addEventListener('click', () => toggleList('webmedia_watchlist', mediaId));
+    favBtn?.addEventListener('click', () => toggleList('favorites', mediaId, { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) }));
+    wlBtn?.addEventListener('click', () => toggleList('watchlist', mediaId, { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) }));
   </script>
 </Layout>

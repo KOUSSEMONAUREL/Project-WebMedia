@@ -31,24 +31,38 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
   const detailHref = `/${media.type}/${media.slug || media.id}`;
   const isLarge = size === 'large';
 
-  const toggleFavorite = (e: React.MouseEvent) => {
+  const toggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const stored = localStorage.getItem('webmedia_favorites');
-    const favs: string[] = stored ? JSON.parse(stored) : [];
-    const idx = favs.indexOf(media.id);
-    if (idx === -1) favs.push(media.id); else favs.splice(idx, 1);
-    localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
+    try {
+      const { isFavorite, addFavorite, removeFavorite } = await import('../lib/indexeddb');
+      const has = await isFavorite(media.id);
+      if (has) await removeFavorite(media.id);
+      else await addFavorite({ id: media.id, type: media.type, title: media.title, slug: media.slug || media.id, posterUrl: media.posterUrl, rating: media.rating, year: media.year });
+    } catch {
+      const stored = localStorage.getItem('webmedia_favorites');
+      const favs: string[] = stored ? JSON.parse(stored) : [];
+      const idx = favs.indexOf(media.id);
+      if (idx === -1) favs.push(media.id); else favs.splice(idx, 1);
+      localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
+    }
   };
 
-  const toggleWatchlist = (e: React.MouseEvent) => {
+  const toggleWatchlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const stored = localStorage.getItem('webmedia_watchlist');
-    const wl: string[] = stored ? JSON.parse(stored) : [];
-    const idx = wl.indexOf(media.id);
-    if (idx === -1) wl.push(media.id); else wl.splice(idx, 1);
-    localStorage.setItem('webmedia_watchlist', JSON.stringify(wl));
+    try {
+      const { isInWatchlist, addToWatchlist, removeFromWatchlist } = await import('../lib/indexeddb');
+      const has = await isInWatchlist(media.id);
+      if (has) await removeFromWatchlist(media.id);
+      else await addToWatchlist({ id: media.id, type: media.type, title: media.title, slug: media.slug || media.id, posterUrl: media.posterUrl, rating: media.rating, year: media.year });
+    } catch {
+      const stored = localStorage.getItem('webmedia_watchlist');
+      const wl: string[] = stored ? JSON.parse(stored) : [];
+      const idx = wl.indexOf(media.id);
+      if (idx === -1) wl.push(media.id); else wl.splice(idx, 1);
+      localStorage.setItem('webmedia_watchlist', JSON.stringify(wl));
+    }
   };
 
   return (

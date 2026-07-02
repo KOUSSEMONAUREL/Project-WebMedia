@@ -15,15 +15,21 @@
     "@types/react-dom": "^19.2.3",
     "astro": "^6.4.2",
     "better-auth": "^1.6.23",
+    "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
+    "idb": "^8.0.3",
     "lucide-react": "^0.563.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "sql.js": "^1.14.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.1"
   },
   "overrides": {
     "vite": "^7.3.5",
     "esbuild": "^0.28.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }
