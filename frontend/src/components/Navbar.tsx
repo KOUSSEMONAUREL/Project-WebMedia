@@ -6,6 +6,7 @@ import { ProfileDropdown } from './ProfileDropdown';
 import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
+import Fuse from 'fuse.js';
 
 const navLinks = [
   { label: 'Films', href: '/films' },
@@ -142,19 +143,17 @@ export function Navbar() {
 
   useEffect(function() {
     var ok = true;
-    (async function() {
-      try {
-        var resp = await fetch('/data/search-index.json');
-        var list = await resp.json();
-        var Fuse = (await import('fuse.js')).default;
+    fetch('/data/search-index.json')
+      .then(function(r) { return r.json(); })
+      .then(function(list) {
         if (ok) setFuse(new Fuse(list, {
           keys: ['title'],
           threshold: 0.4,
           distance: 100,
           minMatchCharLength: 2,
         }));
-      } catch (e) { console.warn('[search] fuse init failed', e); }
-    })();
+      })
+      .catch(function(e) { console.warn('[search] fuse init', e); });
     return function() { ok = false; };
   }, []);
 
@@ -164,8 +163,7 @@ export function Navbar() {
       setShowSuggestions(false);
       return;
     }
-    var results = fuse.search(searchQuery, { limit: 6 });
-    setSuggestions(results.map(function(r) { return r.item; }));
+    setSuggestions(fuse.search(searchQuery, { limit: 6 }).map(function(r) { return r.item; }));
     setShowSuggestions(true);
   }, [searchQuery, fuse]);
 
