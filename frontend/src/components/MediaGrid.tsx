@@ -15,7 +15,7 @@ export function MediaGrid({ title, items, viewAllHref, minCards, size = 'normal'
   const isLarge = size === 'large';
 
   return (
-    <section className="py-6">
+    <section className="py-10">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-[16px] md:text-[18px] font-display font-bold text-foreground tracking-tight">
           {title}

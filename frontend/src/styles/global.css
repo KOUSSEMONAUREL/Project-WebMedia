@@ -84,7 +84,7 @@ body {
   display: flex;
   overflow-x: auto;
   scrollbar-width: none;
-  gap: 1.25rem;
+  gap: 1.75rem;
   padding: 0.75rem 0.5rem 1rem;
   margin: 0 -0.5rem;
   scroll-snap-type: x mandatory;
