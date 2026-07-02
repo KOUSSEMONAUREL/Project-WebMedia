@@ -1,6 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
 
 export interface Props {
@@ -11,8 +10,71 @@ export interface Props {
 }
 
 const { title, items, pageTitle, description } = Astro.props;
-const PER_PAGE = 20;
+const PER_PAGE = 16;
 const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
+
+const typeLabels: Record<string, string> = {
+  film: 'Film', serie: 'Serie', anime: 'Anime', jeu: 'Jeu',
+  webtoon: 'Webtoon', book: 'Livre', novel: 'Novel',
+};
+const typeColors: Record<string, string> = {
+  film: 'bg-sky-600/80', serie: 'bg-violet-600/80', anime: 'bg-rose-600/80',
+  jeu: 'bg-emerald-600/80', webtoon: 'bg-amber-600/80', book: 'bg-orange-600/80', novel: 'bg-teal-600/80',
+};
+const typeGradients: Record<string, string> = {
+  film: 'from-sky-950/60 via-sky-900/30 to-card',
+  serie: 'from-violet-950/60 via-violet-900/30 to-card',
+  anime: 'from-rose-950/60 via-rose-900/30 to-card',
+  jeu: 'from-emerald-950/60 via-emerald-900/30 to-card',
+  webtoon: 'from-amber-950/60 via-amber-900/30 to-card',
+  book: 'from-orange-950/60 via-orange-900/30 to-card',
+  novel: 'from-teal-950/60 via-teal-900/30 to-card',
+};
+const typeIcons: Record<string, string> = {
+  film: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="8" y1="2" x2="8" y2="22"/><line x1="16" y1="2" x2="16" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>',
+  serie: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  anime: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M22 14.4c0 .9-.8 1.6-1.6 1.6H12l-4 5V0h12.4c.9 0 1.6.7 1.6 1.6V14.4z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>',
+  jeu: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="18" y1="10" x2="18.01" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59l-1.02 8A2 2 0 0 0 3.66 19h16.68a2 2 0 0 0 1.978-2.41l-1.02-8A4 4 0 0 0 17.32 5z"/></svg>',
+  webtoon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
+  book: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
+  novel: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><line x1="8" y1="7" x2="14" y2="13"/></svg>',
+};
+
+function renderCard(m: Media): string {
+  const detailHref = `/${m.type}/${m.slug || m.id}`;
+  const grad = typeGradients[m.type] || 'from-card to-secondary/80';
+  const icon = typeIcons[m.type] || '';
+  const label = typeLabels[m.type] || m.type;
+  const color = typeColors[m.type] || 'bg-gray-600/80';
+  return `<a href="${detailHref}" class="group block transition-all duration-300 hover:-translate-y-1.5">
+    <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">
+      ${m.posterUrl
+        ? `<img src="${m.posterUrl}" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>`
+        : ''}
+      <div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br ${grad}">
+        <div class="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/[0.03]"></div>
+        <div class="absolute -bottom-5 -left-5 w-20 h-20 rounded-full bg-white/[0.02]"></div>
+        <div class="relative mb-3 opacity-25">${icon}</div>
+        <span class="relative text-white/20 text-[10px] font-bold uppercase tracking-[0.15em] mb-2">${label.toUpperCase()}</span>
+        <span class="relative text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:'Clash Display',sans-serif">${m.title}</span>
+      </div>
+      <div class="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg z-20">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span class="text-[12px] font-bold text-amber-400">${m.rating || ''}</span>
+      </div>
+      <div class="absolute bottom-2.5 left-2.5 z-20">
+        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${color} text-white">${label}</span>
+      </div>
+    </div>
+    <div class="mt-2.5 px-0.5">
+      <h3 class="font-display font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">${m.title}</h3>
+      <div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground">
+        ${m.year ? `<span>${m.year}</span>` : ''}
+        ${m.rating ? `<span class="flex items-center gap-1 ml-auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${m.rating}</span>` : ''}
+      </div>
+    </div>
+  </a>`;
+}
 ---
 
 <Layout title={pageTitle}>
@@ -32,23 +94,21 @@ const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
       {description && <p class="text-muted-foreground text-sm">{description}</p>}
     </header>
 
-    <div id="category-grid" data-items='{JSON.stringify(items)}' data-per-page={PER_PAGE}>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    <div id="category-grid" data-items={JSON.stringify(items)} data-per-page={PER_PAGE}>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
         {items.slice(0, PER_PAGE).map((media) => (
-          <div class="w-full">
-            <MediaCard media={media} size="large" />
-          </div>
+          <Fragment set:html={renderCard(media)} />
         ))}
       </div>
 
       {totalPages > 1 && (
-        <div class="flex items-center justify-center gap-2 mt-10 flex-wrap">
+        <div class="flex items-center justify-center gap-2 mt-12 flex-wrap">
           <button id="prev-page" class="px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
             Precedent
           </button>
           {Array.from({ length: totalPages }, (_, i) => (
             <button
-              class={`page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
+              class={`page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
               data-page={i + 1}
             >
               {i + 1}
@@ -72,74 +132,64 @@ const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
   const prevBtn = document.getElementById('prev-page');
   const nextBtn = document.getElementById('next-page');
   const pageBtns = container.querySelectorAll('.page-btn');
-  let currentPage = 1;
+  let currentPage = 0;
   const totalPages = Math.ceil(items.length / PER_PAGE);
 
-  const typeGrad = {
-    film: 'from-sky-950/60 via-sky-900/30 to-card',
-    serie: 'from-violet-950/60 via-violet-900/30 to-card',
-    anime: 'from-rose-950/60 via-rose-900/30 to-card',
-    jeu: 'from-emerald-950/60 via-emerald-900/30 to-card',
-    webtoon: 'from-amber-950/60 via-amber-900/30 to-card',
-    book: 'from-orange-950/60 via-orange-900/30 to-card',
-    novel: 'from-teal-950/60 via-teal-900/30 to-card',
-  };
-  const typeI = {
-    film: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="8" y1="2" x2="8" y2="22"/><line x1="16" y1="2" x2="16" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>',
-    serie: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
-    anime: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M22 14.4c0 .9-.8 1.6-1.6 1.6H12l-4 5V0h12.4c.9 0 1.6.7 1.6 1.6V14.4z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>',
-    jeu: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="18" y1="10" x2="18.01" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59l-1.02 8A2 2 0 0 0 3.66 19h16.68a2 2 0 0 0 1.978-2.41l-1.02-8A4 4 0 0 0 17.32 5z"/></svg>',
-    webtoon: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
-    book: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
-    novel: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><line x1="8" y1="7" x2="14" y2="13"/></svg>',
-  };
+  const tLbl = { film:'Film', serie:'Serie', anime:'Anime', jeu:'Jeu', webtoon:'Webtoon', book:'Livre', novel:'Novel' };
+  const tCol = { film:'bg-sky-600/80', serie:'bg-violet-600/80', anime:'bg-rose-600/80', jeu:'bg-emerald-600/80', webtoon:'bg-amber-600/80', book:'bg-orange-600/80', novel:'bg-teal-600/80' };
+  const tGrad = { film:'from-sky-950/60 via-sky-900/30 to-card', serie:'from-violet-950/60 via-violet-900/30 to-card', anime:'from-rose-950/60 via-rose-900/30 to-card', jeu:'from-emerald-950/60 via-emerald-900/30 to-card', webtoon:'from-amber-950/60 via-amber-900/30 to-card', book:'from-orange-950/60 via-orange-900/30 to-card', novel:'from-teal-950/60 via-teal-900/30 to-card' };
+  const tIco = { film:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="8" y1="2" x2="8" y2="22"/><line x1="16" y1="2" x2="16" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>', serie:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>', anime:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M22 14.4c0 .9-.8 1.6-1.6 1.6H12l-4 5V0h12.4c.9 0 1.6.7 1.6 1.6V14.4z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>', jeu:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="18" y1="10" x2="18.01" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59l-1.02 8A2 2 0 0 0 3.66 19h16.68a2 2 0 0 0 1.978-2.41l-1.02-8A4 4 0 0 0 17.32 5z"/></svg>', webtoon:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>', book:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>', novel:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><line x1="8" y1="7" x2="14" y2="13"/></svg>' };
+
+  function card(m) {
+    const g = tGrad[m.type] || 'from-card to-secondary/80';
+    const ic = tIco[m.type] || '';
+    const lb = tLbl[m.type] || m.type;
+    const co = tCol[m.type] || 'bg-gray-600/80';
+    const h = `/${m.type}/${m.slug || m.id}`;
+    return `<a href="${h}" class="group block transition-all duration-300 hover:-translate-y-1.5">
+      <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20 relative" style="border:1px solid rgba(255,255,255,0.06)">
+        ${m.posterUrl ? `<img src="${m.posterUrl}" alt="${m.title}" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>` : ''}
+        <div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br ${g}">
+          <div class="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/[0.03]"></div>
+          <div class="absolute -bottom-5 -left-5 w-20 h-20 rounded-full bg-white/[0.02]"></div>
+          <div class="relative mb-3 opacity-25">${ic}</div>
+          <span class="relative text-white/20 text-[10px] font-bold uppercase tracking-[0.15em] mb-2">${lb.toUpperCase()}</span>
+          <span class="relative text-white/50 text-base font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family:'Clash Display',sans-serif">${m.title}</span>
+        </div>
+        <div class="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg z-20">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="text-[12px] font-bold text-amber-400">${m.rating || ''}</span>
+        </div>
+        <div class="absolute bottom-2.5 left-2.5 z-20">
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${co} text-white">${lb}</span>
+        </div>
+      </div>
+      <div class="mt-2.5 px-0.5">
+        <h3 class="font-display font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">${m.title}</h3>
+        <div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground">
+          ${m.year ? `<span>${m.year}</span>` : ''}
+          ${m.rating ? `<span class="flex items-center gap-1 ml-auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${m.rating}</span>` : ''}
+        </div>
+      </div>
+    </a>`;
+  }
 
   function renderPage(page) {
     currentPage = page;
-    const start = (page - 1) * PER_PAGE;
+    const start = page * PER_PAGE;
     const end = start + PER_PAGE;
-    const pageItems = items.slice(start, end);
-    grid.innerHTML = pageItems.map(m => {
-      const detailHref = `/${m.type}/${m.slug || m.id}`;
-      const grad = typeGrad[m.type] || 'from-card to-secondary/80';
-      const icon = typeI[m.type] || '';
-      const typeUpper = (m.type || '').toUpperCase();
-      return `<div class="w-full"><a href="${detailHref}" class="group relative flex flex-col gap-2 w-full transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02]">
-        <div class="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20" style="border:1px solid rgba(255,255,255,0.06)">
-          ${m.posterUrl ? `<img src="${m.posterUrl}" alt="${m.title}" class="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>` : ''}
-          <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br ${grad}">
-            <div class="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03]"></div>
-            <div class="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/[0.02]"></div>
-            <div class="relative mb-2.5 opacity-30">${icon}</div>
-            <span class="relative text-white/25 text-[9px] font-bold uppercase tracking-[0.15em] mb-1.5">${typeUpper}</span>
-            <span class="relative text-white/55 text-sm font-bold leading-snug line-clamp-6 drop-shadow-sm" style="font-family: 'Clash Display', sans-serif">${m.title}</span>
-          </div>
-          <div class="absolute top-2 right-2 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span class="text-[11px] font-bold">${m.rating || ''}</span>
-          </div>
-        </div>
-        <div class="flex flex-col gap-1 px-0.5">
-          <h3 class="font-display font-semibold text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">${m.title}</h3>
-          <div class="flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span>${m.year || ''}</span>
-          </div>
-        </div>
-      </a></div>`;
-    }).join('');
-
-    prevBtn.disabled = page <= 1;
-    nextBtn.disabled = page >= totalPages;
+    grid.innerHTML = items.slice(start, end).map(card).join('');
+    prevBtn.disabled = page <= 0;
+    nextBtn.disabled = page >= totalPages - 1;
     pageBtns.forEach((btn, i) => {
-      const p = i + 1;
-      btn.className = p === page
-        ? 'page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground'
-        : 'page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary';
+      btn.className = i === page
+        ? 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground'
+        : 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary';
     });
     window.scrollTo({ top: container.offsetTop - 80, behavior: 'smooth' });
   }
 
-  prevBtn?.addEventListener('click', () => { if (currentPage > 1) renderPage(currentPage - 1); });
-  nextBtn?.addEventListener('click', () => { if (currentPage < totalPages) renderPage(currentPage + 1); });
-  pageBtns.forEach(btn => btn.addEventListener('click', () => renderPage(Number(btn.dataset.page))));
+  prevBtn?.addEventListener('click', () => { if (currentPage > 0) renderPage(currentPage - 1); });
+  nextBtn?.addEventListener('click', () => { if (currentPage < totalPages - 1) renderPage(currentPage + 1); });
+  pageBtns.forEach(btn => btn.addEventListener('click', () => renderPage(Number(btn.dataset.page) - 1)));
 </script>
