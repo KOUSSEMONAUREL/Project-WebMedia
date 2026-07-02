@@ -14,9 +14,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 const CACHE_TTL = {
     TRENDING: 3600,
-    SEARCH: 600,
-    MEDIA: 21600,
-    STATIC: 86400
+    MEDIA: 21600
 };
 
 async function rateLimit(c: any, ip: string, limit = 100, windowSec = 60) {
@@ -71,35 +69,20 @@ app.all('*', async (c) => {
         }
     }
 
-    // Edge Cache for frequent GET requests (only for Render-backed routes)
-    const cacheablePaths = [
-        '/api/media/trending',
-        '/api/search',
-        '/api/media/',
-        '/api/static/'
-    ];
-    const isCacheableRoute = cacheablePaths.some(p => path === p || path.startsWith(p));
+    // Edge Cache: only trending and media detail (KV write limit: 1000/day)
+    const isCacheableMedia = path === '/api/media/trending' ||
+        (path.startsWith('/api/media/') && path.split('/').length === 5);
 
-    if (c.req.method === 'GET' && isCacheableRoute) {
+    if (c.req.method === 'GET' && isCacheableMedia) {
         let cacheKey = '';
         let ttl = 0;
 
         if (path === '/api/media/trending') {
             cacheKey = 'trending:all';
             ttl = CACHE_TTL.TRENDING;
-        } else if (path === '/api/search') {
-            const q = url.searchParams.get('q') || '';
-            const type = url.searchParams.get('type') || 'all';
-            const offset = url.searchParams.get('offset') || '0';
-            const limit = url.searchParams.get('limit') || '20';
-            cacheKey = `search:${q}:${type}:${offset}:${limit}`;
-            ttl = CACHE_TTL.SEARCH;
         } else if (path.startsWith('/api/media/') && path.split('/').length === 5) {
             cacheKey = `media:${path.replace('/api/media/', '').replace(/\//g, ':')}`;
             ttl = CACHE_TTL.MEDIA;
-        } else if (path.startsWith('/api/static/')) {
-            cacheKey = `static:${path.split('/').pop()}`;
-            ttl = CACHE_TTL.STATIC;
         }
 
         if (cacheKey) {
@@ -131,17 +114,15 @@ app.all('*', async (c) => {
             body: c.req.raw.body
         });
 
-        // Post-processing: Cache successful GET responses (only for cacheable routes)
-        if (response.ok && c.req.method === 'GET' && isCacheableRoute) {
+        // Post-processing: Cache only trending and media detail
+        if (response.ok && c.req.method === 'GET' && isCacheableMedia) {
             const clonedRes = response.clone();
             const data = await clonedRes.json();
 
             let cacheKey = '';
             let ttl = 0;
             if (path === '/api/media/trending') { cacheKey = 'trending:all'; ttl = CACHE_TTL.TRENDING; }
-            else if (path === '/api/search') { cacheKey = `search:${url.searchParams.get('q')}:${url.searchParams.get('type') || 'all'}:${url.searchParams.get('offset') || '0'}:${url.searchParams.get('limit') || '20'}`; ttl = CACHE_TTL.SEARCH; }
             else if (path.startsWith('/api/media/') && path.split('/').length === 5) { cacheKey = `media:${path.replace('/api/media/', '').replace(/\//g, ':')}`; ttl = CACHE_TTL.MEDIA; }
-            else if (path.startsWith('/api/static/')) { cacheKey = `static:${path.split('/').pop()}`; ttl = CACHE_TTL.STATIC; }
 
             if (cacheKey && ttl > 0) {
                 c.executionCtx.waitUntil(
