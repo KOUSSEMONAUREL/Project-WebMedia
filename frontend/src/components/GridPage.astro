@@ -63,19 +63,12 @@ function cardHtml(m: Media): string {
     <div id="category-grid" data-items={ITEMS_JSON} data-per-page={PER_PAGE}>
       {totalPages > 1 && (
         <div class="flex items-center justify-center gap-2 mb-8 flex-wrap">
-          <button data-page-btn="prev" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
-            Precedent
+          <button data-page-btn="first" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+            Debut
           </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              class={`page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
-              data-page={i + 1}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button data-page-btn="next" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
-            Suivant
+          <span class="flex items-center gap-1" data-page-nums></span>
+          <button data-page-btn="last" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
+            Fin
           </button>
         </div>
       )}
@@ -86,19 +79,12 @@ function cardHtml(m: Media): string {
 
       {totalPages > 1 && (
         <div class="flex items-center justify-center gap-2 mt-12 flex-wrap">
-          <button data-page-btn="prev" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
-            Precedent
+          <button data-page-btn="first" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+            Debut
           </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              class={`page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
-              data-page={i + 1}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button data-page-btn="next" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
-            Suivant
+          <span class="flex items-center gap-1" data-page-nums></span>
+          <button data-page-btn="last" class="page-btn px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
+            Fin
           </button>
         </div>
       )}
@@ -150,31 +136,65 @@ function cardHtml(m: Media): string {
       + '</div></div></a>';
   }
 
+  function pageRange(cur, total) {
+    var c = cur + 1;
+    var r = [];
+    if (total <= 7) {
+      for (var i = 1; i <= total; i++) r.push(i);
+      return r;
+    }
+    r.push(1);
+    var s = Math.max(2, c - 2);
+    var e = Math.min(total - 1, c + 2);
+    if (s > 2) r.push('…');
+    for (var i = s; i <= e; i++) r.push(i);
+    if (e < total - 1) r.push('…');
+    r.push(total);
+    return r;
+  }
+
+  function renderNums(page) {
+    cat.querySelectorAll('[data-page-nums]').forEach(function(el) {
+      var html = '';
+      var nums = pageRange(page, totalPages);
+      for (var i = 0; i < nums.length; i++) {
+        var n = nums[i];
+        if (typeof n === 'string') {
+          html += '<span class="px-1 text-muted-foreground text-sm select-none">' + n + '</span>';
+        } else {
+          var active = n === page + 1;
+          html += '<button class="page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors '
+            + (active ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary')
+            + '" data-page="' + n + '">' + n + '</button>';
+        }
+      }
+      el.innerHTML = html;
+    });
+  }
+
   function gotoPage(page) {
     cat.dataset.currentPage = String(page);
     var s = page * PER_PAGE;
     var e = s + PER_PAGE;
     var g = cat.querySelector('.grid');
     if (g) g.innerHTML = items.slice(s, e).map(card).join('');
-    cat.querySelectorAll('[data-page-btn="prev"]').forEach(function(b) { b.disabled = page <= 0; });
-    cat.querySelectorAll('[data-page-btn="next"]').forEach(function(b) { b.disabled = page >= totalPages - 1; });
-    cat.querySelectorAll('[data-page]').forEach(function(b) {
-      var n = Number(b.dataset.page) - 1;
-      b.className = 'page-btn w-9 h-9 rounded-lg text-sm font-bold transition-colors '
-        + (n === page ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary');
-    });
+    cat.querySelectorAll('[data-page-btn="first"]').forEach(function(b) { b.disabled = page <= 0; });
+    cat.querySelectorAll('[data-page-btn="last"]').forEach(function(b) { b.disabled = page >= totalPages - 1; });
+    renderNums(page);
     window.scrollTo({ top: Math.max(0, cat.offsetTop - 80), behavior: 'smooth' });
   }
 
   cat.addEventListener('click', function(e) {
     var cur = Number(cat.dataset.currentPage || 0);
+    var f = e.target.closest('[data-page-btn="first"]');
+    var l = e.target.closest('[data-page-btn="last"]');
     var b = e.target.closest('[data-page]');
-    var p = e.target.closest('[data-page-btn="prev"]');
-    var n = e.target.closest('[data-page-btn="next"]');
-    if (!p && !n && !b) return;
-    if (p && !p.disabled && cur > 0) { gotoPage(cur - 1); return; }
-    if (n && !n.disabled && cur < totalPages - 1) { gotoPage(cur + 1); return; }
+    if (!f && !l && !b) return;
+    if (f && !f.disabled && cur > 0) { gotoPage(0); return; }
+    if (l && !l.disabled && cur < totalPages - 1) { gotoPage(totalPages - 1); return; }
     if (b) { gotoPage(Number(b.dataset.page) - 1); }
   });
+
+  gotoPage(0);
 })();
 </script>
