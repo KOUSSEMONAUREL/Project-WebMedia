@@ -138,8 +138,27 @@ export function Navbar() {
     localStorage.removeItem('webmedia_user');
   };
 
-  var API = typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_API_URL
+  var API = (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_API_URL)
     || 'http://localhost:8787/api';
+
+  function norm(s: string) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+
+  function fuzzyOk(q: string, t: string) {
+    var qi = 0;
+    for (var ti = 0; ti < t.length && qi < q.length; ti++) {
+      if (q[qi] === t[ti]) qi++;
+    }
+    return qi === q.length;
+  }
+
+  function score(q: string, t: string) {
+    var n = norm(t);
+    if (n === q) return 4;
+    if (n.startsWith(q)) return 3;
+    if (n.includes(q)) return 2;
+    if (fuzzyOk(q, n)) return 1;
+    return 0;
+  }
 
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -157,15 +176,18 @@ export function Navbar() {
         setShowSuggestions(json.data ? json.data.length > 0 : false);
         return;
       } catch {}
-      var lower = q.toLowerCase();
-      var fallback = allMockData.filter(function(m) {
-        return m.title && m.title.toLowerCase().includes(lower);
-      });
-      setSuggestions(fallback.slice(0, 6));
+      var nq = norm(q);
+      var fallback = allMockData
+        .map(function(m) { return { m: m, s: score(nq, m.title || '') }; })
+        .filter(function(x) { return x.s > 0; })
+        .sort(function(a, b) { return b.s - a.s; })
+        .slice(0, 6)
+        .map(function(x) { return x.m; });
+      setSuggestions(fallback);
       setShowSuggestions(fallback.length > 0);
     }, 150);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, API]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
