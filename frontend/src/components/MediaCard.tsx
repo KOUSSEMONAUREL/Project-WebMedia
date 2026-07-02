@@ -181,7 +181,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         </div>
 
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
           <button
             className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
             style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
@@ -208,7 +208,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         </div>
 
         {/* Rating badge */}
-        <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
           <Star className="h-2.5 w-2.5 fill-current" />
           <span className="text-[11px] font-bold">{media.rating}</span>
         </div>
