@@ -18,6 +18,11 @@ if (!TURSO_URL) { console.error('TURSO_DATABASE_URL required'); process.exit(1);
 
 type Row = Record<string, any>;
 
+const TYPE_MAP: Record<string, string> = {
+  movie: 'film',
+  game: 'jeu',
+};
+
 async function exportToSQLite() {
   console.log('[export] connecting to Turso...');
   const turso = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
@@ -102,7 +107,7 @@ async function exportToSQLite() {
   const insertAll = db.transaction(() => {
     for (const m of medias) {
       insertMedia.run({
-        id: m.id, external_id: m.external_id, type: m.type,
+        id: m.id, external_id: m.external_id, type: TYPE_MAP[m.type] || m.type,
         title: m.title, original_title: m.original_title, slug: m.slug,
         synopsis: m.synopsis, year: m.year, author: m.author,
         poster_url: m.poster_url, backdrop_url: m.backdrop_url,
