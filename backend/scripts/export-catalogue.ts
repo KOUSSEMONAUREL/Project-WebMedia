@@ -106,11 +106,15 @@ async function exportToSQLite() {
   console.log('[export] inserting medias...');
   const insertAll = db.transaction(() => {
     for (const m of medias) {
+      let posterUrl = m.poster_url;
+      if (posterUrl && typeof posterUrl === 'string' && posterUrl.startsWith('http://books.google.com')) {
+        posterUrl = posterUrl.replace('http://', 'https://');
+      }
       insertMedia.run({
-        id: m.id, external_id: m.external_id, type: TYPE_MAP[m.type] || m.type,
+        id: m.id, external_id: m.external_id, type: TYPE_MAP[m.type] || m.type, poster_url: posterUrl,
         title: m.title, original_title: m.original_title, slug: m.slug,
         synopsis: m.synopsis, year: m.year, author: m.author,
-        poster_url: m.poster_url, backdrop_url: m.backdrop_url,
+        backdrop_url: m.backdrop_url,
         rating: m.rating, vote_count: m.vote_count ?? 0,
         status: m.status, tmdb_id: m.tmdb_id,
         imdb_id: m.imdb_id, anilist_id: m.anilist_id,
