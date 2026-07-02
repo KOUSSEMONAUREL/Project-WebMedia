@@ -1,0 +1,116 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { MediaCard } from './MediaCard';
+import type { Media } from '@/lib/api';
+
+export interface Props {
+  title: string;
+  items: Media[];
+  pageTitle: string;
+}
+
+const { title, items, pageTitle } = Astro.props;
+const PER_PAGE = 20;
+const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
+---
+
+<Layout title={pageTitle}>
+  <div class="container mx-auto px-6 py-10">
+    <h1
+      class="text-2xl md:text-3xl font-display font-bold mb-8"
+      style={{
+        background: 'linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      }}
+    >
+      {title}
+    </h1>
+
+    <div id="category-grid" data-items={JSON.stringify(items)} data-per-page={PER_PAGE}>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {items.slice(0, PER_PAGE).map((media) => (
+          <div class="w-full">
+            <MediaCard media={media} size="large" />
+          </div>
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div class="flex items-center justify-center gap-2 mt-10">
+          <button id="prev-page" class="px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+            Precedent
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              class={`page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors ${i === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}
+              data-page={i + 1}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button id="next-page" class="px-4 py-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
+            Suivant
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const container = document.getElementById('category-grid');
+  if (!container) throw new Error('missing category-grid');
+  const items = JSON.parse(container.dataset.items);
+  const PER_PAGE = Number(container.dataset.perPage);
+  const grid = container.querySelector('.grid');
+  const prevBtn = document.getElementById('prev-page');
+  const nextBtn = document.getElementById('next-page');
+  const pageBtns = container.querySelectorAll('.page-btn');
+  let currentPage = 1;
+  const totalPages = Math.ceil(items.length / PER_PAGE);
+
+  function renderPage(page) {
+    currentPage = page;
+    const start = (page - 1) * PER_PAGE;
+    const end = start + PER_PAGE;
+    const pageItems = items.slice(start, end);
+    grid.innerHTML = pageItems.map(m => {
+      const detailHref = `/${m.type}/${m.slug || m.id}`;
+      return `<div class="w-full"><a href="${detailHref}" class="group relative flex flex-col gap-2 w-full transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02]">
+        <div class="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20" style="border:1px solid rgba(255,255,255,0.06)">
+          ${m.posterUrl ? `<img src="${m.posterUrl}" alt="${m.title}" class="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display='none'"/>` : ''}
+          <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-card to-secondary/80">
+            <span class="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-1.5">${m.type}</span>
+            <span class="text-white/50 text-sm font-semibold leading-snug line-clamp-6 px-1">${m.title}</span>
+          </div>
+          <div class="absolute top-2 right-2 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span class="text-[11px] font-bold">${m.rating || ''}</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1 px-0.5">
+          <h3 class="font-display font-semibold text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">${m.title}</h3>
+          <div class="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <span>${m.year || ''}</span>
+          </div>
+        </div>
+      </a></div>`;
+    }).join('');
+
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= totalPages;
+    pageBtns.forEach((btn, i) => {
+      const p = i + 1;
+      btn.className = p === page
+        ? 'page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground'
+        : 'page-btn px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary';
+    });
+    window.scrollTo({ top: container.offsetTop - 80, behavior: 'smooth' });
+  }
+
+  prevBtn?.addEventListener('click', () => { if (currentPage > 1) renderPage(currentPage - 1); });
+  nextBtn?.addEventListener('click', () => { if (currentPage < totalPages) renderPage(currentPage + 1); });
+  pageBtns.forEach(btn => btn.addEventListener('click', () => renderPage(Number(btn.dataset.page))));
+</script>

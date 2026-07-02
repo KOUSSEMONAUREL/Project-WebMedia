@@ -1,19 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { MediaGrid } from '../components/MediaGrid';
-import { PageHeader } from '../components/PageHeader';
-import { getMediaByType, type Media } from '../lib/api';
+import GridPage from '../components/GridPage.astro';
+import { getMediaByType } from '../lib/api';
 
-let games: Media[] = [];
-try {
-  const res = await getMediaByType('jeu');
-  games = res.data || [];
-} catch {}
+const res = await getMediaByType('jeu');
+const games = res.data || [];
 ---
 
-<Layout title="Jeux Vidéo">
-  <div class="container mx-auto px-6 py-10">
-    <PageHeader title="Jeux Vidéo" subtitle="Le divertissement interactif. Explorez, créez, combattez — le jeu sous toutes ses formes." />
-    <MediaGrid title="Jeux Vidéo" items={games} client:load />
-  </div>
-</Layout>
+<GridPage title="Jeux Video" items={games} pageTitle="Jeux Video" />

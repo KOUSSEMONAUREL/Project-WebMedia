@@ -1,19 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { MediaGrid } from '../components/MediaGrid';
-import { PageHeader } from '../components/PageHeader';
-import { getMediaByType, type Media } from '../lib/api';
+import GridPage from '../components/GridPage.astro';
+import { getMediaByType } from '../lib/api';
 
-let webtoons: Media[] = [];
-try {
-  const res = await getMediaByType('webtoon');
-  webtoons = res.data || [];
-} catch {}
+const res = await getMediaByType('webtoon');
+const webtoons = res.data || [];
 ---
 
-<Layout title="Webtoons">
-  <div class="container mx-auto px-6 py-10">
-    <PageHeader title="Webtoons" subtitle="BD numérique coréenne. Des histoires à dévorer en chapitres, avec un style visuel unique." />
-    <MediaGrid title="Webtoons" items={webtoons} client:load />
-  </div>
-</Layout>
+<GridPage title="Webtoons" items={webtoons} pageTitle="Webtoons" />

@@ -1,19 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { MediaGrid } from '../components/MediaGrid';
-import { PageHeader } from '../components/PageHeader';
-import { getMediaByType, type Media } from '../lib/api';
+import GridPage from '../components/GridPage.astro';
+import { getMediaByType } from '../lib/api';
 
-let series: Media[] = [];
-try {
-  const res = await getMediaByType('serie');
-  series = res.data || [];
-} catch {}
+const res = await getMediaByType('serie');
+const series = res.data || [];
 ---
 
-<Layout title="Séries">
-  <div class="container mx-auto px-6 py-10">
-    <PageHeader title="Séries" subtitle="Des histoires qui durent. Plongez dans des univers captivants, saison après saison." />
-    <MediaGrid title="Séries" items={series} client:load />
-  </div>
-</Layout>
+<GridPage title="Series" items={series} pageTitle="Series" />

@@ -1,19 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { MediaGrid } from '../components/MediaGrid';
-import { PageHeader } from '../components/PageHeader';
-import { getMediaByType, type Media } from '../lib/api';
+import GridPage from '../components/GridPage.astro';
+import { getMediaByType } from '../lib/api';
 
-let novels: Media[] = [];
-try {
-  const res = await getMediaByType('novel');
-  novels = res.data || [];
-} catch {}
+const res = await getMediaByType('novel');
+const novels = res.data || [];
 ---
 
-<Layout title="Light Novels">
-  <div class="container mx-auto px-6 py-10">
-    <PageHeader title="Light Novels" subtitle="Romans japonais illustrés. Des séries addictives entre littérature et manga." />
-    <MediaGrid title="Light Novels" items={novels} client:load />
-  </div>
-</Layout>
+<GridPage title="Light Novels" items={novels} pageTitle="Light Novels" />

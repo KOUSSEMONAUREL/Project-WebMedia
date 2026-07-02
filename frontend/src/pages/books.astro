@@ -1,19 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { MediaGrid } from '../components/MediaGrid';
-import { PageHeader } from '../components/PageHeader';
-import { getMediaByType, type Media } from '../lib/api';
+import GridPage from '../components/GridPage.astro';
+import { getMediaByType } from '../lib/api';
 
-let books: Media[] = [];
-try {
-  const res = await getMediaByType('book');
-  books = res.data || [];
-} catch {}
+const res = await getMediaByType('book');
+const books = res.data || [];
 ---
 
-<Layout title="Livres">
-  <div class="container mx-auto px-6 py-10">
-    <PageHeader title="Livres" subtitle="Des mots qui façonnent des mondes. Plongez dans la littérature, du classique à la fantasy." />
-    <MediaGrid title="Livres" items={books} client:load />
-  </div>
-</Layout>
+<GridPage title="Livres" items={books} pageTitle="Livres" />
