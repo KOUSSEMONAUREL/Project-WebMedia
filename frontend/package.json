@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "node scripts/generate-search-index.mjs && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -17,6 +17,7 @@
     "better-auth": "^1.6.23",
     "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
+    "fuse.js": "^7.4.2",
     "idb": "^8.0.3",
     "lucide-react": "^0.563.0",
     "react": "^19.2.7",

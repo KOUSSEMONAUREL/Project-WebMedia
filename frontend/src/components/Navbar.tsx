@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Bell, Star, Command } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
-import { allMockData, type ApiResponse, type Media } from '@/lib/api';
+import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 
@@ -138,56 +138,38 @@ export function Navbar() {
     localStorage.removeItem('webmedia_user');
   };
 
-  var API = (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_API_URL)
-    || 'http://localhost:8787/api';
+  var fuseRef = useRef(null);
+  var loadRef = useRef(false);
 
-  function norm(s: string) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  useEffect(function() {
+    if (loadRef.current) return;
+    loadRef.current = true;
+    (async function() {
+      try {
+        var resp = await fetch('/data/search-index.json');
+        var list = await resp.json();
+        var Fuse = (await import('fuse.js')).default;
+        fuseRef.current = new Fuse(list, {
+          keys: ['title'],
+          threshold: 0.4,
+          distance: 100,
+          minMatchCharLength: 2,
+        });
+      } catch (e) { console.warn('[search] fuse init failed', e); }
+    })();
+  }, []);
 
-  function fuzzyOk(q: string, t: string) {
-    var qi = 0;
-    for (var ti = 0; ti < t.length && qi < q.length; ti++) {
-      if (q[qi] === t[ti]) qi++;
-    }
-    return qi === q.length;
-  }
-
-  function score(q: string, t: string) {
-    var n = norm(t);
-    if (n === q) return 4;
-    if (n.startsWith(q)) return 3;
-    if (n.includes(q)) return 2;
-    if (fuzzyOk(q, n)) return 1;
-    return 0;
-  }
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
+  useEffect(function() {
+    var fuse = fuseRef.current;
+    if (searchQuery.length < 2 || !fuse) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    var q = searchQuery;
-    var timer = setTimeout(async () => {
-      try {
-        var resp = await fetch(API + '/search?q=' + encodeURIComponent(q) + '&limit=6');
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var json = await resp.json() as ApiResponse<Media[]>;
-        setSuggestions(json.data || []);
-        setShowSuggestions(json.data ? json.data.length > 0 : false);
-        return;
-      } catch {}
-      var nq = norm(q);
-      var fallback = allMockData
-        .map(function(m) { return { m: m, s: score(nq, m.title || '') }; })
-        .filter(function(x) { return x.s > 0; })
-        .sort(function(a, b) { return b.s - a.s; })
-        .slice(0, 6)
-        .map(function(x) { return x.m; });
-      setSuggestions(fallback);
-      setShowSuggestions(fallback.length > 0);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [searchQuery, API]);
+    var results = fuse.search(searchQuery, { limit: 6 });
+    setSuggestions(results.map(function(r) { return r.item; }));
+    setShowSuggestions(true);
+  }, [searchQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
