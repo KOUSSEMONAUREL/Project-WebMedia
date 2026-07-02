@@ -28,14 +28,14 @@ export function getAuth(dbUrl?: string) {
             defaultCookieAttributes: {
                 sameSite: 'none',
                 secure: true,
-                partitioned: true,
             },
             crossSubDomainCookies: {
-                enabled: true,
+                enabled: false,
             },
             trustedOrigins: [
                 'https://project-web-media.vercel.app',
                 'https://webmedia-proxy.koussemonaurel.workers.dev',
+                'https://project-webmedia.onrender.com',
             ],
         },
         emailAndPassword: {
