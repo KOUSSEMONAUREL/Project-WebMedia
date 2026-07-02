@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Bell, Star, Command } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
-import { getAllMedia } from '@/lib/api';
-import type { Media } from '@/lib/api';
+import { allMockData, type ApiResponse, type Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 
@@ -38,7 +37,6 @@ export function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Media[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [searchCache, setSearchCache] = useState<Media[] | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const linksRef = useRef<HTMLDivElement>(null);
@@ -140,9 +138,8 @@ export function Navbar() {
     localStorage.removeItem('webmedia_user');
   };
 
-  useEffect(() => {
-    if (!searchCache) getAllMedia().then(setSearchCache);
-  }, []);
+  var API = typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_API_URL
+    || 'http://localhost:8787/api';
 
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -150,14 +147,25 @@ export function Navbar() {
       setShowSuggestions(false);
       return;
     }
-    if (!searchCache) return;
-    var q = searchQuery.toLowerCase();
-    var matches = searchCache.filter(function(m) {
-      return m.title && m.title.toLowerCase().includes(q);
-    });
-    setSuggestions(matches.slice(0, 6));
-    setShowSuggestions(true);
-  }, [searchQuery, searchCache]);
+    var q = searchQuery;
+    var timer = setTimeout(async () => {
+      try {
+        var resp = await fetch(API + '/search?q=' + encodeURIComponent(q) + '&limit=6');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var json = await resp.json() as ApiResponse<Media[]>;
+        setSuggestions(json.data || []);
+        setShowSuggestions(json.data ? json.data.length > 0 : false);
+        return;
+      } catch {}
+      var lower = q.toLowerCase();
+      var fallback = allMockData.filter(function(m) {
+        return m.title && m.title.toLowerCase().includes(lower);
+      });
+      setSuggestions(fallback.slice(0, 6));
+      setShowSuggestions(fallback.length > 0);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
