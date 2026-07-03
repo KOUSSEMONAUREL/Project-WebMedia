@@ -78,12 +78,12 @@ Un fichier `.sqlite` pré-généré depuis Neon est déployé comme fichier stat
 
 ### Contenu du fichier
 
-| Table | Contenu | Index |
-|-------|---------|-------|
-| `medias` | Tout le catalogue (titre, poster, synopsis, année, note, slug, ids externes...) | `id`, `slug`, `type`, `year`, `title`, `anilist_id`, `tmdb_id` |
-| `episodes` | Épisodes/saisons liés aux médias | `id`, `media_id` |
-| `liens` | URLs de streaming, sources | `id`, `media_id`, `player_host` |
-| `id_mapping` | Correspondances anilist↔tmdb↔mal↔imdb | `anilist_id`, `tmdb_id` |
+| Table          | Contenu                                                                          | Index                                                                        |
+| -------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `medias`     | Tout le catalogue (titre, poster, synopsis, année, note, slug, ids externes...) | `id`, `slug`, `type`, `year`, `title`, `anilist_id`, `tmdb_id` |
+| `episodes`   | Épisodes/saisons liés aux médias                                              | `id`, `media_id`                                                         |
+| `liens`      | URLs de streaming, sources                                                       | `id`, `media_id`, `player_host`                                        |
+| `id_mapping` | Correspondances anilist↔tmdb↔mal↔imdb                                         | `anilist_id`, `tmdb_id`                                                  |
 
 ### Génération (GitHub Actions)
 
@@ -313,14 +313,14 @@ Le Service Worker intercepte tous les appels vers `/api/*` et applique une strat
 
 ### Stratégie par type de route
 
-| Route | Stratégie | TTL | Note |
-|-------|-----------|-----|------|
-| `GET /api/media/*` | **Cache-first** | 5 min | Fallback si SQLite WASM pas chargé |
-| `GET /api/search*` | **Cache-first** | 5 min | Fallback si SQLite WASM pas chargé |
-| `GET /api/episodes/*` | **Cache-first** | 5 min | Fallback si SQLite WASM pas chargé |
-| `GET /api/user/data` | **Network-first** | 24h (invalidation locale) | Données personnelles |
-| `POST /api/*` | **Network-only** | - | Écritures |
-| `GET /api/internal/*` | **Network-only** | - | Clé API requise |
+| Route                   | Stratégie              | TTL                       | Note                                |
+| ----------------------- | ----------------------- | ------------------------- | ----------------------------------- |
+| `GET /api/media/*`    | **Cache-first**   | 5 min                     | Fallback si SQLite WASM pas chargé |
+| `GET /api/search*`    | **Cache-first**   | 5 min                     | Fallback si SQLite WASM pas chargé |
+| `GET /api/episodes/*` | **Cache-first**   | 5 min                     | Fallback si SQLite WASM pas chargé |
+| `GET /api/user/data`  | **Network-first** | 24h (invalidation locale) | Données personnelles               |
+| `POST /api/*`         | **Network-only**  | -                         | Écritures                          |
+| `GET /api/internal/*` | **Network-only**  | -                         | Clé API requise                    |
 
 ```javascript
 const CACHE_NAME = 'webmedia-v1';
@@ -398,14 +398,14 @@ app.get('/api/media/trending', async (c) => {
 
 Supabase est **le backend de vérité pour toutes les données utilisateur** :
 
-| Donnée | Lecture | Écriture |
-|--------|---------|----------|
-| `users` (auth, profil) | Supabase | Supabase |
-| `favorites` | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
-| `history` | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
-| `continueWatch` | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
-| `reviews` | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
-| `scraping_jobs` | Supabase | Orchestrator uniquement |
+| Donnée                  | Lecture                 | Écriture                   |
+| ------------------------ | ----------------------- | --------------------------- |
+| `users` (auth, profil) | Supabase                | Supabase                    |
+| `favorites`            | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
+| `history`              | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
+| `continueWatch`        | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
+| `reviews`              | Supabase (→ IndexedDB) | Supabase (depuis IndexedDB) |
+| `scraping_jobs`        | Supabase                | Orchestrator uniquement     |
 
 ### API backend
 
@@ -457,13 +457,13 @@ jobs:
 
 ### Bande passante Supabase
 
-| Scénario | Requêtes/jour avant | Requêtes/jour après |
-|----------|---------------------|---------------------|
-| Login | 1 | 1 |
-| GET /api/user/data | ~10 (dispersées) | **1** (batch au login) |
-| Sync mutations | - | ~5 (batch toutes les 5 min) |
-| Reviews des autres users (lecture publique) | ~5 | **0** (SQLite WASM) |
-| **Total** | **~16** | **~7** |
+| Scénario                                   | Requêtes/jour avant | Requêtes/jour après        |
+| ------------------------------------------- | -------------------- | ---------------------------- |
+| Login                                       | 1                    | 1                            |
+| GET /api/user/data                          | ~10 (dispersées)    | **1** (batch au login) |
+| Sync mutations                              | -                    | ~5 (batch toutes les 5 min)  |
+| Reviews des autres users (lecture publique) | ~5                   | **0** (SQLite WASM)    |
+| **Total**                             | **~16**        | **~7**                 |
 
 Soit 7 requêtes/jour × 1000 users × 30 jours = **210 000 requêtes/mois**. Dans les 5 Go de bande passante : largement ok.
 
@@ -482,10 +482,10 @@ Neon devient **uniquement** la base des importers et scrapers :
 
 ### Impact
 
-| Métrique | Avant | Après |
-|----------|-------|-------|
-| Compute Neon utilisé | 40-50h/mois | < 5h/mois |
-| Requêtes frontend vers Neon | 30 000+/jour | 0 |
+| Métrique                    | Avant        | Après    |
+| ---------------------------- | ------------ | --------- |
+| Compute Neon utilisé        | 40-50h/mois  | < 5h/mois |
+| Requêtes frontend vers Neon | 30 000+/jour | 0         |
 
 ---
 
@@ -501,25 +501,25 @@ D1 ne sert plus que pour `media_state` (orchestrateur des scraping jobs).
 
 ### Impact
 
-| Métrique | Avant | Après |
-|----------|-------|-------|
-| Reads D1 | > 1M/jour | < 50K/jour |
-| Writes D1 | > 10K/jour | < 5K/jour |
+| Métrique | Avant      | Après     |
+| --------- | ---------- | ---------- |
+| Reads D1  | > 1M/jour  | < 50K/jour |
+| Writes D1 | > 10K/jour | < 5K/jour  |
 
 ---
 
 ## Synthèse : qui sert quoi
 
-| Base de données | Type | Sert à | Read/mois gratuits | Écritures | Risque |
-|-----------------|------|--------|--------------------|-----------|--------|
-| **SQLite (.sqlite)** | Fichier statique | Catalogue frontend (médias, épisodes, liens) | Illimité (CDN) | 0 | Aucun |
-| **IndexedDB** | Navigateur | Données utilisateur locales (favoris, historique, reviews) | Illimité (local) | Synced à Supabase | Aucun |
-| **Turso** | SQLite edge | Replica catalogue read-only (fallback backend) | 1B/mois | 0 | Négligeable |
-| **Supabase** | PostgreSQL | Données utilisateur (auth, favoris, reviews, profil) | 5 Go BW/mois | Oui (via API) | Faible |
-| **Neon** | PostgreSQL | Importers / scrapers (source de vérité) | 60h compute | Oui (importers) | < 5h/mois |
-| **D1** | SQLite edge | Orchestration `media_state` | 5M/jour | Oui (orchestrator) | 50K/jour |
-| **Cloudflare KV** | Edge KV | Verrouillage orchestrateur (1 write/run) | 100K/jour | 1K/jour | Très faible |
-| **Service Worker** | Cache navigateur | Cache des réponses API (fallback) | Illimité | 0 | Aucun |
+| Base de données           | Type             | Sert à                                                     | Read/mois gratuits | Écritures         | Risque       |
+| -------------------------- | ---------------- | ----------------------------------------------------------- | ------------------ | ------------------ | ------------ |
+| **SQLite (.sqlite)** | Fichier statique | Catalogue frontend (médias, épisodes, liens)              | Illimité (CDN)    | 0                  | Aucun        |
+| **IndexedDB**        | Navigateur       | Données utilisateur locales (favoris, historique, reviews) | Illimité (local)  | Synced à Supabase | Aucun        |
+| **Turso**            | SQLite edge      | Replica catalogue read-only (fallback backend)              | 1B/mois            | 0                  | Négligeable |
+| **Supabase**         | PostgreSQL       | Données utilisateur (auth, favoris, reviews, profil)       | 5 Go BW/mois       | Oui (via API)      | Faible       |
+| **Neon**             | PostgreSQL       | Importers / scrapers (source de vérité)                   | 60h compute        | Oui (importers)    | < 5h/mois    |
+| **D1**               | SQLite edge      | Orchestration`media_state`                                | 5M/jour            | Oui (orchestrator) | 50K/jour     |
+| **Cloudflare KV**    | Edge KV          | Verrouillage orchestrateur (1 write/run)                    | 100K/jour          | 1K/jour            | Très faible |
+| **Service Worker**   | Cache navigateur | Cache des réponses API (fallback)                          | Illimité          | 0                  | Aucun        |
 
 ## Flow complet pour une page d'accueil
 
@@ -559,18 +559,18 @@ D1 ne sert plus que pour `media_state` (orchestrateur des scraping jobs).
 
 ## Application : compteur de requêtes réseau
 
-| Action | Requêtes réseau | DB touchée |
-|--------|----------------|------------|
-| Navigation catalogue (10 pages) | **0** | SQLite WASM + IndexedDB |
-| Recherche (5 essais) | **0** | SQLite WASM |
-| Page détail média | **0** | SQLite WASM |
-| Voir ses favoris | **0** | IndexedDB |
-| Voir son historique | **0** | IndexedDB |
-| Ajouter un favori | **1** (async) | Supabase |
-| Poster une review | **1** (async) | Supabase |
-| Login | **1** | Supabase |
-| Sync initiale (login) | **1** | Supabase |
-| Sync périodique (5 min) | **1** (mutations groupées) | Supabase |
+| Action                          | Requêtes réseau                 | DB touchée             |
+| ------------------------------- | --------------------------------- | ----------------------- |
+| Navigation catalogue (10 pages) | **0**                       | SQLite WASM + IndexedDB |
+| Recherche (5 essais)            | **0**                       | SQLite WASM             |
+| Page détail média             | **0**                       | SQLite WASM             |
+| Voir ses favoris                | **0**                       | IndexedDB               |
+| Voir son historique             | **0**                       | IndexedDB               |
+| Ajouter un favori               | **1** (async)               | Supabase                |
+| Poster une review               | **1** (async)               | Supabase                |
+| Login                           | **1**                       | Supabase                |
+| Sync initiale (login)           | **1**                       | Supabase                |
+| Sync périodique (5 min)        | **1** (mutations groupées) | Supabase                |
 
 **Total pour 100 pages vues + 10 actions : 3-5 requêtes réseau.**
 **Dont 0 vers Neon, 0 vers D1, 0 vers Turso.**
@@ -579,26 +579,31 @@ D1 ne sert plus que pour `media_state` (orchestrateur des scraping jobs).
 ## Ordre d'implémentation
 
 ### Phase 1 — Cache-Control headers (15 min)
+
 Ajouter `Cache-Control: public, max-age=300, s-maxage=300` sur toutes les routes GET du backend. Le CDN Cloudflare éponge la majorité du trafic sans effort.
 
 ### Phase 2 — IndexedDB + Supabase User API (2-3 jours)
+
 - Créer l'API Supabase pour les données utilisateur : `GET /api/user/data`, `POST /api/user/sync`
 - Implémenter IndexedDB côté frontend (favoris, historique, continueWatch, reviews)
 - Flux optimistic + sync arrière-plan
 - **C'est le levier #1 : supprime 80% des requêtes réseau**
 
 ### Phase 3 — Service Worker (1 jour)
+
 - Créer `sw.js` avec stratégie cache-first + stale-while-revalidate
 - Registre dans Astro/Next.js
 - Cache des réponses API restantes
 
 ### Phase 4 — SQLite WASM (3-4 jours)
+
 - GitHub Actions exporte Neon → `.sqlite` avec index
 - Déploie sur GitHub Pages / Cloudflare Pages
 - Frontend : remplace tous les appels catalogue par des queries WASM
 - Backend : retire les routes GET catalogue (désormais inutiles)
 
 ### Phase 5 — Recommandations pré-calculées (1-2 jours)
+
 - Job GH Actions calcule les recommandations par cluster d'utilisateurs
 - Stocke dans un fichier JSON statique sur le CDN
 - Frontend les lit depuis le fichier statique
