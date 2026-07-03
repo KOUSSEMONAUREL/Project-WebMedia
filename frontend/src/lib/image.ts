@@ -14,7 +14,7 @@ export function optimizePosterUrl(url?: string): string | undefined {
   }
 
   if (ANILIST_RE.test(url)) {
-    return url.replace(/\/large\//, '/extraLarge/');
+    return url;
   }
 
   return url;
