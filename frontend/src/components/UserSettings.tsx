@@ -3,6 +3,8 @@ import { authClient } from '@/lib/auth-client';
 import { LogOut, Trash2, Palette, Info, User, Mail } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 
+import { clearFavorites, clearWatchlist } from '../lib/indexeddb';
+
 export function UserSettings() {
   const { data: session, isPending } = authClient.useSession();
   const sessionUser = session?.user;
@@ -14,12 +16,12 @@ export function UserSettings() {
     avatar: sessionUser.image || undefined,
   } : null;
 
-  const clearFavs = () => {
-    localStorage.removeItem('webmedia_favorites');
+  const clearFavs = async () => {
+    await clearFavorites();
     window.location.reload();
   };
-  const clearWl = () => {
-    localStorage.removeItem('webmedia_watchlist');
+  const clearWl = async () => {
+    await clearWatchlist();
     window.location.reload();
   };
 

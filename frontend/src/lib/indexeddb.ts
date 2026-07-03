@@ -26,7 +26,7 @@ async function getDb(): Promise<IDBPDatabase> {
   return _db;
 }
 
-interface Favorite {
+export interface Favorite {
   id: string;
   type: string;
   title: string;
@@ -37,7 +37,7 @@ interface Favorite {
   addedAt: number;
 }
 
-interface HistoryEntry {
+export interface HistoryEntry {
   mediaId: string;
   type: string;
   title: string;
@@ -46,7 +46,7 @@ interface HistoryEntry {
   visitedAt: number;
 }
 
-interface OfflineReview {
+export interface OfflineReview {
   id: string;
   mediaId: string;
   rating: number;
@@ -161,4 +161,14 @@ export async function migrateFromLocalStorage(): Promise<void> {
   } catch (err) {
     console.warn('[indexeddb] migration error:', err);
   }
+}
+
+export async function clearFavorites(): Promise<void> {
+  const db = await getDb();
+  await db.clear('favorites');
+}
+
+export async function clearWatchlist(): Promise<void> {
+  const db = await getDb();
+  await db.clear('watchlist');
 }

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { User, LogOut, ChevronDown, Film, Tv, Library, BarChart3 } from 'lucide-react';
 
+import { getAllFavorites, getWatchlist } from '../lib/indexeddb';
+
 interface UserData {
     name: string;
     email: string;
@@ -17,6 +19,7 @@ interface ProfileDropdownProps {
 export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [stats, setStats] = useState({ films: 0, series: 0, animes: 0, total: 0 });
 
     // Fermer au clic extérieur
     useEffect(() => {
@@ -29,13 +32,24 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Stats mockées pour l'utilisateur connecté
-    const userStats = {
-        films: 42,
-        series: 18,
-        animes: 27,
-        watchTime: '312h'
-    };
+    // Charger les statistiques réelles
+    useEffect(() => {
+        if (!user || !isOpen) return;
+        async function fetchCounts() {
+            try {
+                const favs = await getAllFavorites();
+                const wl = await getWatchlist();
+                const combined = [...favs, ...wl];
+                const filmCount = combined.filter(m => m.type === 'film').length;
+                const serieCount = combined.filter(m => m.type === 'serie').length;
+                const animeCount = combined.filter(m => m.type === 'anime').length;
+                setStats({ films: filmCount, series: serieCount, animes: animeCount, total: combined.length });
+            } catch (err) {
+                console.warn('[dropdown-stats] erreur:', err);
+            }
+        }
+        fetchCounts();
+    }, [user, isOpen]);
 
     if (!user) {
         return (
@@ -92,10 +106,10 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
                     {/* Stats rapides */}
                     <div className="grid grid-cols-4 gap-px bg-border/40 border-b border-border/50">
                         {[
-                            { icon: Film, value: userStats.films, label: 'Films' },
-                            { icon: Tv, value: userStats.series, label: 'Séries' },
-                            { icon: Library, value: userStats.animes, label: 'Animés' },
-                            { icon: BarChart3, value: userStats.watchTime, label: 'Temps' },
+                            { icon: Film, value: stats.films, label: 'Films' },
+                            { icon: Tv, value: stats.series, label: 'Séries' },
+                            { icon: Library, value: stats.animes, label: 'Animés' },
+                            { icon: BarChart3, value: stats.total, label: 'Total' },
                         ].map((stat) => (
                             <div key={stat.label} className="flex flex-col items-center py-3 bg-card gap-0.5">
                                 <span className="text-[13px] font-bold text-foreground">{stat.value}</span>

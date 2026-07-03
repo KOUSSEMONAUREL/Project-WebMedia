@@ -1,31 +1,42 @@
 import { useState, useEffect } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { Heart, Clock, Film, Tv, Library, LogOut, Star } from 'lucide-react';
-import { allMockData } from '../lib/api';
+import { Heart, Clock, LogOut, Star, History, Settings } from 'lucide-react';
+import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
+import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
+import { MediaCard } from './MediaCard';
 import { EmptyState } from './EmptyState';
 
-function getLocalIds(key: string): string[] {
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
-}
+type TabType = 'favorites' | 'watchlist' | 'history';
 
 export function UserProfile() {
-  const [favCount, setFavCount] = useState(0);
-  const [wlCount, setWlCount] = useState(0);
-  const [recentItems, setRecentItems] = useState<Media[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('favorites');
+  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [watchlist, setWatchlist] = useState<Favorite[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const { data: session, isPending } = authClient.useSession();
   const sessionUser = session?.user;
 
+  // Charger les données réelles
+  const loadData = async () => {
+    try {
+      const favs = await getAllFavorites();
+      const wl = await getWatchlist();
+      const hist = await getHistory(30);
+      setFavorites(favs);
+      setWatchlist(wl);
+      setHistory(hist);
+    } catch (err) {
+      console.error('Erreur lors du chargement des donnees utilisateur:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const favIds = getLocalIds('webmedia_favorites');
-    const wlIds = getLocalIds('webmedia_watchlist');
-    setFavCount(favIds.length);
-    setWlCount(wlIds.length);
-    const mediaMap: Record<string, Media> = {};
-    for (const m of allMockData) mediaMap[m.id] = m;
-    const combined = [...new Set([...favIds, ...wlIds])].slice(0, 6);
-    setRecentItems(combined.map(id => mediaMap[id]).filter(Boolean));
+    loadData();
   }, []);
 
   const currentUser = sessionUser ? {
@@ -35,103 +46,211 @@ export function UserProfile() {
     avatar: sessionUser.image || undefined,
   } : null;
 
-  if (!currentUser) {
+  if (isPending || loading) {
     return (
-      <div className="container mx-auto px-6 pt-24 pb-16">
-        <EmptyState title="Non connecté" description="Connectez-vous pour accéder à votre profil." action={{ label: "Retour à l'accueil", href: '/' }} />
+      <div className="container mx-auto px-4 pt-24 pb-16 flex items-center justify-center min-h-[400px]">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+          <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+        </div>
       </div>
     );
   }
 
+  if (!currentUser) {
+    return (
+      <div className="container mx-auto px-4 pt-24 pb-16 max-w-xl">
+        <EmptyState
+          title="Non connecté"
+          description="Connectez-vous pour accéder et synchroniser votre bibliothèque de favoris, liste de lecture et historique."
+          action={{ label: "Retour à l'accueil", href: '/' }}
+        />
+      </div>
+    );
+  }
+
+  // Convertir le type local en type Media pour MediaCard
+  const mapToMedia = (item: any): Media => ({
+    id: item.id || item.mediaId,
+    type: item.type as any,
+    title: item.title,
+    slug: item.slug,
+    posterUrl: item.posterUrl || '',
+    rating: typeof item.rating === 'string' ? parseFloat(item.rating) : (item.rating || 0),
+    year: typeof item.year === 'string' ? parseInt(item.year, 10) : (item.year || 0),
+    createdAt: '',
+    updatedAt: ''
+  });
+
   return (
-    <div className="container mx-auto px-6 pt-16 pb-16 animate-fade-in">
-      <div className="relative mb-10">
-        <div className="h-48 bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10 rounded-2xl" />
-        <div className="absolute -bottom-12 left-8 flex items-end gap-6">
-          <div className="h-28 w-28 rounded-full border-4 border-background overflow-hidden bg-card shadow-lg">
-            <img
-              src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`}
-              alt={currentUser.username}
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="mb-4">
-            <h1 className="text-3xl font-black text-white">{currentUser.username}</h1>
-            <p className="text-muted-foreground">{currentUser.email}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <div className="glass rounded-xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-blue-500 mb-2">
-            <Heart className="h-5 w-5 fill-current" />
-            <span className="text-2xl font-black">{favCount}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">Favoris</p>
-        </div>
-        <div className="glass rounded-xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-purple-500 mb-2">
-            <Clock className="h-5 w-5" />
-            <span className="text-2xl font-black">{wlCount}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">À voir</p>
-        </div>
-        <div className="glass rounded-xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-pink-500 mb-2">
-            <Star className="h-5 w-5 fill-current" />
-            <span className="text-2xl font-black">{favCount + wlCount}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">Total sauvegardé</p>
-        </div>
-        <div className="glass rounded-xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-green-500 mb-2">
-            <Film className="h-5 w-5" />
-            <span className="text-2xl font-black">2025</span>
-          </div>
-          <p className="text-sm text-muted-foreground">Membre depuis</p>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 glass rounded-xl p-6">
-          <h2 className="text-xl font-display font-semibold mb-4 flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            Activite récente
-          </h2>
-          {recentItems.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-8 text-center">Ajoutez des favoris pour voir votre activité.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {recentItems.map(m => (
-                <a key={m.id} href={`/${m.type}/${m.slug}`} className="group flex flex-col gap-2 card-lift">
-                  <div className="aspect-[2/3] rounded-xl overflow-hidden border border-white/5">
-                    <img src={m.posterUrl} alt={m.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                  </div>
-                  <p className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">{m.title}</p>
-                </a>
-              ))}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16 animate-fade-in-up">
+      {/* Profil Header Card */}
+      <div className="relative mb-10 overflow-hidden rounded-3xl bg-secondary/35 border border-border/40 shadow-2xl">
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-primary/15 via-purple-500/5 to-transparent" />
+        <div className="h-32 sm:h-40 w-full bg-gradient-to-r from-primary/20 via-blue-600/10 to-transparent" />
+        
+        <div className="relative px-6 pb-6 pt-0 flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-10 sm:-mt-14">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
+            <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full border-4 border-background overflow-hidden bg-card shadow-xl shrink-0 group-hover:scale-105 transition-all">
+              <img
+                src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`}
+                alt={currentUser.username}
+                className="h-full w-full object-cover"
+              />
             </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-6">
-            <h3 className="text-lg font-display font-semibold mb-2">Passez Premium</h3>
-            <p className="text-sm text-muted-foreground mb-4">Téléchargements illimités, pas de pubs, contenu exclusif.</p>
-            <button className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-bold text-sm hover:brightness-110 transition-all">
-              Découvrir
+            <div className="mb-2">
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center justify-center sm:justify-start gap-2">
+                {currentUser.username}
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 tracking-wider">
+                  Membre
+                </span>
+              </h1>
+              <p className="text-[13px] text-muted-foreground mt-0.5">{currentUser.email}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-center gap-3 shrink-0">
+            <a
+              href="/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
+            >
+              <Settings className="w-4 h-4 text-muted-foreground" />
+              Réglages
+            </a>
+            <button
+              onClick={async () => {
+                await authClient.signOut();
+                window.location.href = '/';
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all duration-200"
+            >
+              <LogOut className="w-4 h-4" />
+              Déconnexion
             </button>
           </div>
-
-          <button
-            onClick={() => { authClient.signOut(); window.location.reload(); }}
-            className="flex items-center justify-center gap-2 w-full py-2.5 text-sm text-red-500 rounded-lg border border-red-500/20 hover:bg-red-500/10 transition-all"
-          >
-            <LogOut className="h-4 w-4" />
-            Se déconnecter
-          </button>
         </div>
+      </div>
+
+      {/* Compteurs / Stats */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+        <button
+          onClick={() => setActiveTab('favorites')}
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+            activeTab === 'favorites'
+              ? 'bg-primary/10 border-primary/30 text-primary shadow-[0_4px_16px_rgba(59,130,246,0.1)]'
+              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Heart className="h-5 w-5 mb-1.5 fill-current" />
+          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{favorites.length}</span>
+          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Favoris</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('watchlist')}
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+            activeTab === 'watchlist'
+              ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_4px_16px_rgba(168,85,247,0.1)]'
+              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Clock className="h-5 w-5 mb-1.5" />
+          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{watchlist.length}</span>
+          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">À voir</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+            activeTab === 'history'
+              ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 shadow-[0_4px_16px_rgba(20,184,166,0.1)]'
+              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <History className="h-5 w-5 mb-1.5" />
+          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{history.length}</span>
+          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Historique</span>
+        </button>
+      </div>
+
+      {/* Main Grid Content Column */}
+      <div className="bg-secondary/15 border border-border/40 rounded-3xl p-5 sm:p-7">
+        
+        {/* Contenu de l'onglet favoris */}
+        {activeTab === 'favorites' && (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Heart className="w-5 h-5 text-primary fill-current" />
+              <h2 className="text-lg font-display font-semibold text-foreground">Mes Favoris</h2>
+            </div>
+            
+            {favorites.length === 0 ? (
+              <div className="py-12">
+                <EmptyState
+                  title="Aucun favori"
+                  description="Cliquez sur le bouton favoris de n'importe quel média pour l'ajouter ici."
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
+                {favorites.map(item => (
+                  <MediaCard key={item.id} media={mapToMedia(item)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Contenu de l'onglet watchlist */}
+        {activeTab === 'watchlist' && (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Clock className="w-5 h-5 text-purple-400" />
+              <h2 className="text-lg font-display font-semibold text-foreground">Ma Watchlist (À voir)</h2>
+            </div>
+            
+            {watchlist.length === 0 ? (
+              <div className="py-12">
+                <EmptyState
+                  title="Watchlist vide"
+                  description="Ajoutez des séries ou des films à votre plan de lecture."
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
+                {watchlist.map(item => (
+                  <MediaCard key={item.id} media={mapToMedia(item)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Contenu de l'onglet historique */}
+        {activeTab === 'history' && (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <History className="w-5 h-5 text-teal-400" />
+              <h2 className="text-lg font-display font-semibold text-foreground">Historique récent</h2>
+            </div>
+            
+            {history.length === 0 ? (
+              <div className="py-12">
+                <EmptyState
+                  title="Aucune activité"
+                  description="Parcourez des fiches médias pour commencer à accumuler votre historique."
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
+                {history.map(item => (
+                  <MediaCard key={item.mediaId} media={mapToMedia(item)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
