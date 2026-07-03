@@ -196,10 +196,18 @@ export function Navbar() {
     setShowSuggestions(true);
   }, [searchQuery, fuse, typeFilter]);
 
+  const navContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // Ferme la barre de recherche si clic en dehors
+      if (searchRef.current && !searchRef.current.contains(target)) {
         setShowSuggestions(false);
+      }
+      // Ferme le menu mobile si clic en dehors du container nav
+      if (navContainerRef.current && !navContainerRef.current.contains(target)) {
+        setIsMobileMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -208,7 +216,7 @@ export function Navbar() {
 
   return (
     <>
-      <div className="sticky top-4 z-40 w-full px-4">
+      <div className="sticky top-4 z-40 w-full px-4" ref={navContainerRef}>
         <nav
           className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 ${
             scrolled
@@ -219,18 +227,25 @@ export function Navbar() {
           <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
           <div className="flex items-center relative" ref={linksRef}>
             {/* Bouton Menu Burger sur Mobile */}
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden text-muted-foreground hover:text-foreground h-9 w-9 shrink-0 relative mr-1"
+              aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 mr-1 rounded-xl transition-all duration-200 ${
+                isMobileMenuOpen
+                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+                  : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground'
+              }`}
             >
-              <div className="flex flex-col items-center justify-center gap-[4.5px] w-4 h-4">
-                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-[6px]' : ''}`} />
-                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : ''}`} />
-                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-[6px]' : ''}`} />
-              </div>
-            </Button>
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
+                isMobileMenuOpen ? 'w-4 rotate-45 translate-y-[7px]' : 'w-4'
+              }`} />
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 ${
+                isMobileMenuOpen ? 'w-0 opacity-0' : 'w-3'
+              }`} />
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
+                isMobileMenuOpen ? 'w-4 -rotate-45 -translate-y-[7px]' : 'w-4'
+              }`} />
+            </button>
 
             <div
               ref={indicatorRef}
@@ -247,6 +262,7 @@ export function Navbar() {
             <a
               href="/"
               data-href="/"
+              onClick={() => setIsMobileMenuOpen(false)}
               className={`relative z-10 flex items-center shrink-0 px-3 py-1.5 mr-2 text-[13px] transition-all duration-200 ${
                 pathname === '/'
                   ? 'text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.35)] font-bold'
