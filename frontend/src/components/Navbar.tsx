@@ -39,9 +39,11 @@ export function Navbar() {
   const [suggestions, setSuggestions] = useState<Media[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const linksRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
+  const lastScrollRef = useRef(0);
   const [pathname, setPathname] = useState('/');
 
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -131,7 +133,25 @@ export function Navbar() {
   }, [moveIndicator]);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => {
+      const cur = window.scrollY;
+      setScrolled(cur > 12);
+
+      if (cur <= 0) {
+        setHidden(false);
+        lastScrollRef.current = 0;
+        return;
+      }
+
+      const delta = cur - lastScrollRef.current;
+      if (delta > 8) {
+        setHidden(true);
+      } else if (delta < -8) {
+        setHidden(false);
+      }
+
+      lastScrollRef.current = cur;
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -216,7 +236,7 @@ export function Navbar() {
 
   return (
     <>
-      <div className="sticky top-4 z-40 w-full px-4" ref={navContainerRef}>
+      <div ref={navContainerRef} className={`fixed top-0 left-0 right-0 z-40 px-4 pt-4 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}>
         <nav
           className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 ${
             scrolled
@@ -400,7 +420,7 @@ export function Navbar() {
 
       {/* Mobile Menu Panel */}
       {isMobileMenuOpen && (
-        <div className="absolute top-[70px] left-4 right-4 bg-background/95 backdrop-blur-2xl border border-border/50 rounded-2xl p-4 shadow-[0_16px_48px_rgba(0,0,0,0.8)] z-50 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-4 duration-300 lg:hidden">
+        <div className="fixed top-[74px] left-4 right-4 bg-background/95 backdrop-blur-2xl border border-border/50 rounded-2xl p-4 shadow-[0_16px_48px_rgba(0,0,0,0.8)] z-50 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-4 duration-300 lg:hidden">
           {navLinks.map(link => (
             <a
               key={link.href}
