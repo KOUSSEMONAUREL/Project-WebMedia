@@ -1,6 +1,6 @@
-const CACHE = 'webmedia-v1';
-const DATA_CACHE = 'webmedia-data-v1';
-const STATIC_FILES = ['/'];
+var CACHE = 'webmedia-v1';
+var DATA_CACHE = 'webmedia-data-v1';
+var STATIC_FILES = ['/'];
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
@@ -21,22 +21,8 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
   var url = new URL(event.request.url);
 
-  if (event.request.method === 'GET' && url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      caches.open(DATA_CACHE).then(function(cache) {
-        return cache.match(event.request).then(function(cached) {
-          var fetchPromise = fetch(event.request).then(function(res) {
-            if (res.ok) cache.put(event.request, res.clone());
-            return res;
-          })['catch'](function() { return cached; });
-          return cached || fetchPromise;
-        });
-      })
-    );
-    return;
-  }
-
-  if (url.pathname.startsWith('/_astro/') || url.pathname.startsWith('/assets/')) {
+  // Astro assets (versioned) et catalogue.sqlite -> cache-first, pas de TTL (build)
+  if (url.pathname.startsWith('/_astro/') || url.pathname.startsWith('/assets/') || url.pathname === '/data/catalogue.sqlite') {
     event.respondWith(
       caches.open(CACHE).then(function(cache) {
         return cache.match(event.request).then(function(cached) {
@@ -46,6 +32,21 @@ self.addEventListener('fetch', function(event) {
           });
           return cached || fetchPromise;
         });
+      })
+    );
+    return;
+  }
+
+  // API routes -> network-first, cache en fallback (les donnees viennent du SQLite local)
+  if (event.request.method === 'GET' && url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request).then(function(res) {
+        if (res.ok) {
+          caches.open(DATA_CACHE).then(function(cache) { cache.put(event.request, res.clone()); });
+        }
+        return res;
+      }).catch(function() {
+        return caches.match(event.request).then(function(cached) { return cached; });
       })
     );
     return;

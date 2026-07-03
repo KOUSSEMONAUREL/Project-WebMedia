@@ -1,27 +1,21 @@
-/**
- * sync-queue.ts
- * ─────────────────────────────────────────────────────────────
- * Stratégie "local-first, deferred remote":
- *  - Les favoris sont toujours écrits IMMÉDIATEMENT dans IndexedDB.
- *  - La synchronisation vers Supabase (via API Render) n'est déclenchée
- *    que si l'utilisateur est resté ≥ 15 minutes sur le site ET
- *    qu'il existe des opérations en attente.
- *  - sessionStorage est utilisé pour la persistance inter-pages:
- *    ses données sont effacées à la fermeture du tab → visiteur
- *    passager = 0 écriture en base distante.
- * ─────────────────────────────────────────────────────────────
- */
-
-const SYNC_DELAY_MS = 15 * 60 * 1000; // 15 minutes
+const SYNC_DELAY_MS = 15 * 60 * 1000;
 const SESSION_START_KEY = 'webmedia_session_start';
-const PENDING_OPS_KEY   = 'webmedia_pending_favs';
+const PENDING_FAVS_KEY = 'webmedia_pending_favs';
+const PENDING_HISTORY_KEY = 'webmedia_pending_history';
 
-interface PendingOp {
+interface PendingFavOp {
   action: 'add' | 'remove';
   timestamp: number;
 }
 
-// ─── Helpers sessionStorage ───────────────────────────────────
+interface PendingHistoryEntry {
+  mediaId: string;
+  type: string;
+  title: string;
+  slug: string;
+  posterUrl?: string;
+  visitedAt: number;
+}
 
 function getSessionStart(): number {
   if (typeof sessionStorage === 'undefined') return Date.now();
@@ -32,90 +26,110 @@ function getSessionStart(): number {
   return now;
 }
 
-function loadPendingOps(): Map<string, PendingOp> {
+function loadPendingFavs(): Map<string, PendingFavOp> {
   if (typeof sessionStorage === 'undefined') return new Map();
   try {
-    const raw = sessionStorage.getItem(PENDING_OPS_KEY);
+    const raw = sessionStorage.getItem(PENDING_FAVS_KEY);
     if (!raw) return new Map();
-    return new Map(JSON.parse(raw) as [string, PendingOp][]);
+    return new Map(JSON.parse(raw) as [string, PendingFavOp][]);
   } catch { return new Map(); }
 }
 
-function savePendingOps(ops: Map<string, PendingOp>): void {
+function savePendingFavs(ops: Map<string, PendingFavOp>): void {
   if (typeof sessionStorage === 'undefined') return;
   if (ops.size === 0) {
-    sessionStorage.removeItem(PENDING_OPS_KEY);
+    sessionStorage.removeItem(PENDING_FAVS_KEY);
   } else {
-    sessionStorage.setItem(PENDING_OPS_KEY, JSON.stringify([...ops.entries()]));
+    sessionStorage.setItem(PENDING_FAVS_KEY, JSON.stringify([...ops.entries()]));
   }
 }
 
-// ─── Flush vers Supabase ──────────────────────────────────────
+function loadPendingHistory(): PendingHistoryEntry[] {
+  if (typeof sessionStorage === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem(PENDING_HISTORY_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch { return []; }
+}
+
+function savePendingHistory(entries: PendingHistoryEntry[]): void {
+  if (typeof sessionStorage === 'undefined') return;
+  if (entries.length === 0) {
+    sessionStorage.removeItem(PENDING_HISTORY_KEY);
+  } else {
+    sessionStorage.setItem(PENDING_HISTORY_KEY, JSON.stringify(entries));
+  }
+}
 
 async function flushPendingOps(): Promise<void> {
-  const ops = loadPendingOps();
-  if (ops.size === 0) return;
+  const favOps = loadPendingFavs();
+  const historyEntries = loadPendingHistory();
+  if (favOps.size === 0 && historyEntries.length === 0) return;
 
+  let token: string | null = null;
   try {
     const { getAuthToken } = await import('./auth-client');
-    const token = await getAuthToken();
-    if (!token) return; // Utilisateur non connecté → on ne tente pas
+    token = await getAuthToken();
+  } catch {}
+  if (!token) return;
 
-    const apiBaseUrl = (import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787/api';
+  const apiBaseUrl = (import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787/api';
 
-    // On vide la file avant les appels pour éviter un double-flush en cas d'erreur partielle
-    savePendingOps(new Map());
+  savePendingFavs(new Map());
+  savePendingHistory([]);
 
-    const reqs = [...ops.entries()].map(([mediaId, op]) => {
-      if (op.action === 'add') {
-        return fetch(`${apiBaseUrl}/user/favorites`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ mediaId }),
-          credentials: 'include',
-        });
-      } else {
-        return fetch(`${apiBaseUrl}/user/favorites/${mediaId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-          credentials: 'include',
-        });
-      }
+  const body: any = {};
+
+  if (favOps.size > 0) {
+    body.favorites = [...favOps.entries()].map(([mediaId, op]) => ({
+      mediaId, action: op.action,
+    }));
+  }
+
+  if (historyEntries.length > 0) {
+    body.history = historyEntries;
+  }
+
+  try {
+    const res = await fetch(`${apiBaseUrl}/user/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body),
+      credentials: 'include',
     });
-
-    await Promise.allSettled(reqs);
-    console.info(`[sync-queue] ${ops.size} opération(s) synchronisée(s) avec Supabase`);
+    if (res.ok) {
+      const total = (favOps.size + historyEntries.length);
+      console.info(`[sync-queue] ${total} operation(s) synchronisees en batch`);
+    } else {
+      console.warn('[sync-queue] echec sync batch:', res.status);
+    }
   } catch (err) {
-    console.warn('[sync-queue] erreur lors du flush:', err);
+    console.warn('[sync-queue] erreur flush batch:', err);
   }
 }
 
-// ─── API publique ─────────────────────────────────────────────
-
-/**
- * Ajoute ou met à jour une opération de favori dans la file.
- * La dernière action pour un même mediaId efface la précédente.
- */
 export function queueFavoriteSync(mediaId: string, action: 'add' | 'remove'): void {
   if (typeof sessionStorage === 'undefined') return;
-
-  const ops = loadPendingOps();
+  const ops = loadPendingFavs();
   ops.set(mediaId, { action, timestamp: Date.now() });
-  savePendingOps(ops);
+  savePendingFavs(ops);
 }
 
-/**
- * À appeler une seule fois au chargement du site.
- * Démarre le compteur de 15 minutes et planifie le flush automatique.
- */
+export function queueHistorySync(entry: PendingHistoryEntry): void {
+  if (typeof sessionStorage === 'undefined') return;
+  const entries = loadPendingHistory().filter(e => e.mediaId !== entry.mediaId);
+  entries.push(entry);
+  savePendingHistory(entries);
+}
+
 export function initSyncSession(): void {
   if (typeof sessionStorage === 'undefined') return;
 
-  const start   = getSessionStart();
+  const start = getSessionStart();
   const elapsed = Date.now() - start;
 
   if (elapsed >= SYNC_DELAY_MS) {
-    // L'utilisateur a déjà dépassé les 15 minutes, flush immédiat
     flushPendingOps();
   } else {
     const remaining = SYNC_DELAY_MS - elapsed;
@@ -123,6 +137,13 @@ export function initSyncSession(): void {
     if (timer && typeof (timer as any).unref === 'function') {
       (timer as any).unref();
     }
-    console.debug(`[sync-queue] flush planifié dans ${Math.round(remaining / 1000)}s`);
+  }
+
+  if (typeof window !== 'undefined' && 'visibilitychange' in document) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingOps();
+      }
+    });
   }
 }

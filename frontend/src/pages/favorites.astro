@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { UserProfile } from '../components/UserProfile';
+---
+
+<Layout title="Mes Favoris">
+  <UserProfile initialTab="favorites" client:load />
+</Layout>

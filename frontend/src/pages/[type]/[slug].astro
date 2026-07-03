@@ -298,6 +298,37 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
       });
     }
 
+    function syncQueueOp(mediaId, action) {
+      try {
+        const key = 'webmedia_pending_favs';
+        const raw = sessionStorage.getItem(key);
+        const ops = raw ? new Map(JSON.parse(raw)) : new Map();
+        ops.set(mediaId, { action, timestamp: Date.now() });
+        sessionStorage.setItem(key, JSON.stringify([...ops.entries()]));
+      } catch {}
+    }
+
+    function syncQueueHistory(entry) {
+      try {
+        const key = 'webmedia_pending_history';
+        const raw = sessionStorage.getItem(key);
+        const entries = raw ? JSON.parse(raw) : [];
+        const filtered = entries.filter(e => e.mediaId !== entry.mediaId);
+        filtered.push(entry);
+        sessionStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
+
+    // Enregistrer la visite dans l'historique
+    if (mediaId) {
+      (async () => {
+        await dbPut('history', { mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
+        if (typeof sessionStorage !== 'undefined') {
+          syncQueueHistory({ mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
+        }
+      })();
+    }
+
     const favBtn = document.querySelector('[data-action="favorite"]');
     const wlBtn = document.querySelector('[data-action="watchlist"]');
 
@@ -305,6 +336,10 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
       const has = await dbHas(store, id);
       if (has) { await dbDelete(store, id); }
       else { await dbPut(store, { id, ...meta, addedAt: Date.now() }); }
+      // Queue sync for favorites
+      if (store === 'favorites' && typeof sessionStorage !== 'undefined') {
+        syncQueueOp(id, has ? 'remove' : 'add');
+      }
       updateButtons();
     }
 

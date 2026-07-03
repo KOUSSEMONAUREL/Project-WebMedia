@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { UserProfile } from '../components/UserProfile';
+---
+
+<Layout title="Ma Watchlist">
+  <UserProfile initialTab="watchlist" client:load />
+</Layout>

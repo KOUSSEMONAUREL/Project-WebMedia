@@ -9,8 +9,8 @@ import { EmptyState } from './EmptyState';
 
 type TabType = 'favorites' | 'watchlist' | 'history' | 'settings';
 
-export function UserProfile() {
-  const [activeTab, setActiveTab] = useState<TabType>('favorites');
+export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType }) {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [watchlist, setWatchlist] = useState<Favorite[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);

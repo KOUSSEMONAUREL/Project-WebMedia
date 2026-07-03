@@ -68,6 +68,19 @@ export const favorites = pgTable('favorites', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
+// ========== TABLE WATCH_HISTORY ==========
+export const watchHistory = pgTable('watch_history', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    mediaId: varchar('media_id', { length: 100 }).notNull(),
+    type: varchar('type', { length: 20 }).notNull(),
+    title: text('title').notNull(),
+    slug: varchar('slug', { length: 255 }).notNull(),
+    posterUrl: text('poster_url'),
+    visitedAt: timestamp('visited_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
 // ========== TABLE SCRAPING_JOBS ==========
 export const scrapingJobs = pgTable('scraping_jobs', {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -96,6 +109,7 @@ export const keiyoushiState = pgTable('keiyoushi_state', {
 export const userRelations = relations(user, ({ many }) => ({
     reviews: many(reviews),
     favorites: many(favorites),
+    watchHistory: many(watchHistory),
 }));
 
 export const reviewRelations = relations(reviews, ({ one }) => ({
