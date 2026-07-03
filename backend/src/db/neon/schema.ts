@@ -28,6 +28,11 @@ export const medias = pgTable('medias', {
     metadataFreshAt: timestamp('metadata_fresh_at', { withTimezone: true }),
     linksLastScrapedAt: timestamp('links_last_scraped_at', { withTimezone: true }),
     activeLinksCount: integer('active_links_count').default(0),
+    genres: text('genres'),
+    trailerUrl: text('trailer_url'),
+    tagline: text('tagline'),
+    studios: text('studios'),
+    episodeCount: integer('episode_count'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS medias (
     metadata_fresh_at TIMESTAMPTZ,
     links_last_scraped_at TIMESTAMPTZ,
     active_links_count INTEGER DEFAULT 0,
+    genres TEXT,
+    trailer_url TEXT,
+    tagline TEXT,
+    studios TEXT,
+    episode_count INTEGER,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

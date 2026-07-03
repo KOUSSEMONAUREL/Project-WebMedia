@@ -28,6 +28,11 @@ export const medias = sqliteTable('medias', {
     metadataFreshAt: integer('metadata_fresh_at', { mode: 'timestamp' }),
     linksLastScrapedAt: integer('links_last_scraped_at', { mode: 'timestamp' }),
     activeLinksCount: integer('active_links_count').default(0),
+    genres: text('genres'),
+    trailerUrl: text('trailer_url'),
+    tagline: text('tagline'),
+    studios: text('studios'),
+    episodeCount: integer('episode_count'),
     createdAt: integer('created_at', { mode: 'timestamp' }),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
