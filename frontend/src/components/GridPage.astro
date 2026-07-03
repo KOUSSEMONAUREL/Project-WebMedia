@@ -185,7 +185,6 @@ function cardHtml(m: Media): string {
       var u = m.posterUrl;
       if (/image\.tmdb\.org/.test(u)) u = u.replace(/\/t\/p\/\w+\//, '/t/p/original/');
       else if (/books\.google\.com/.test(u)) u = u.replace(/zoom=\d+/, 'zoom=6');
-      else if (/anilist\.co/.test(u)) u = u.replace(/\/large\//, '/extraLarge/');
       var ss = '';
       if (/image\.tmdb\.org/.test(m.posterUrl)) {
         var sizes = [342,500,780,1200];
