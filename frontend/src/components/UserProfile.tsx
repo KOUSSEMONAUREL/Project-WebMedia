@@ -368,10 +368,10 @@ function PrivacySettings() {
   };
 
   const storageItems = [
-    { icon: '🔑', label: 'Cookie de session', desc: 'Maintient votre connexion. Supprimé à la déconnexion.', type: 'Nécessaire', color: 'emerald' },
-    { icon: '💾', label: 'IndexedDB (favoris, watchlist, historique)', desc: 'Stocké uniquement sur votre appareil. Jamais envoyé à un tiers.', type: 'Fonctionnel', color: 'blue' },
-    { icon: '⏱️', label: 'sessionStorage (sync différée)', desc: 'Queue de sync Supabase. Effacée à la fermeture du tab.', type: 'Fonctionnel', color: 'blue' },
-    { icon: '📦', label: 'Service Worker Cache', desc: 'Cache hors-ligne du site et du catalogue. Optionnel.', type: 'Optionnel', color: 'purple' },
+    { label: 'Cookie de session', desc: 'Maintient votre connexion active. Supprimé à la déconnexion.', type: 'Nécessaire', color: 'emerald' },
+    { label: 'IndexedDB — favoris, watchlist, historique', desc: 'Stocké sur votre appareil uniquement. Jamais transmis à un tiers.', type: 'Fonctionnel', color: 'blue' },
+    { label: 'sessionStorage — file de synchronisation', desc: 'Queue temporaire pour la sync Supabase. Effacée à la fermeture du tab.', type: 'Fonctionnel', color: 'blue' },
+    { label: 'Service Worker — cache hors-ligne', desc: 'Met le site en cache local pour une navigation sans réseau. Désactivable ci-dessus.', type: 'Optionnel', color: 'purple' },
   ];
 
   return (
@@ -430,7 +430,10 @@ function PrivacySettings() {
       <div className="space-y-2">
         {storageItems.map(item => (
           <div key={item.label} className="flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-border/30">
-            <span className="text-lg shrink-0 mt-0.5">{item.icon}</span>
+            <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${
+              item.color === 'emerald' ? 'bg-emerald-400' :
+              item.color === 'blue' ? 'bg-blue-400' : 'bg-purple-400'
+            }`} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[13px] font-medium text-foreground">{item.label}</span>
