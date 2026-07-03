@@ -141,6 +141,20 @@ export function Navbar() {
 
   var [fuse, setFuse] = useState(null);
 
+  function pathToTypeFilter(p: string): string | null {
+    return ({
+      '/films': 'film',
+      '/series': 'serie',
+      '/animes': 'anime',
+      '/games': 'jeu',
+      '/webtoons': 'webtoon',
+      '/books': 'book',
+      '/novels': 'novel',
+    } as Record<string, string>)[p] || null;
+  }
+
+  var typeFilter = pathToTypeFilter(pathname);
+
   useEffect(function() {
     var ok = true;
     fetch('/data/search-index.json')
@@ -163,9 +177,11 @@ export function Navbar() {
       setShowSuggestions(false);
       return;
     }
-    setSuggestions(fuse.search(searchQuery, { limit: 6 }).map(function(r) { return r.item; }));
+    var results = fuse.search(searchQuery, { limit: 20 }).map(function(r) { return r.item; });
+    if (typeFilter) results = results.filter(function(item) { return item.type === typeFilter; });
+    setSuggestions(results.slice(0, 6));
     setShowSuggestions(true);
-  }, [searchQuery, fuse]);
+  }, [searchQuery, fuse, typeFilter]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -258,6 +274,12 @@ export function Navbar() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.length >= 2) {
+                    const p = typeFilter ? `&type=${typeFilter}` : '';
+                    window.location.href = `/search?q=${encodeURIComponent(searchQuery)}${p}`;
+                  }
+                }}
                 placeholder="Rechercher..."
                 className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
               />
@@ -296,7 +318,7 @@ export function Navbar() {
                     </a>
                   ))}
                   <a
-                    href={`/search?q=${encodeURIComponent(searchQuery)}`}
+                    href={`/search?q=${encodeURIComponent(searchQuery)}${typeFilter ? `&type=${typeFilter}` : ''}`}
                     className="block px-3 py-2.5 text-center text-[12px] text-primary font-medium hover:bg-white/[0.04] transition-colors border-t border-border/20"
                     onClick={() => { setShowSuggestions(false); setSearchQuery(''); }}
                   >

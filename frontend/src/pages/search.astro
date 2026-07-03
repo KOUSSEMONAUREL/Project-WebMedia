@@ -1,16 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import GridPage from '../components/GridPage.astro';
-import { searchMedia, type Media } from '../lib/api';
+import { searchMedia, type Media, type MediaType } from '../lib/api';
 
 const query = Astro.url.searchParams.get('q') || '';
+const type = Astro.url.searchParams.get('type') || undefined;
 
 let results: Media[] = [];
 let error = '';
 
 if (query) {
   try {
-    const res = await searchMedia(query);
+    const res = await searchMedia(query, type ? { type: type as MediaType } : {});
     results = res.data || [];
   } catch (e) {
     error = "Erreur lors de la recherche.";
@@ -20,10 +21,10 @@ if (query) {
 
 {query && !error ? (
   <GridPage
-    title={`Recherche: ${query}`}
+    title={`Recherche${type ? ` ${type}s` : ''}: ${query}`}
     items={results}
-    pageTitle={`Recherche: ${query}`}
-    description={`${results.length} résultat${results.length > 1 ? 's' : ''} pour "${query}"`}
+    pageTitle={`Recherche${type ? ` ${type}s` : ''}: ${query}`}
+    description={`${results.length} résultat${results.length > 1 ? 's' : ''} pour "${query}"${type ? ` dans ${type}s` : ''}`}
   />
 ) : (
   <Layout title="Recherche">
