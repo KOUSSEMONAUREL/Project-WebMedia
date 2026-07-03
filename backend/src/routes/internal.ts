@@ -58,11 +58,21 @@ const ingestLiensSchema = z.object({
         qualite: z.string().optional(),
         langue: z.string().optional(),
         sous_titres: z.boolean().optional().default(false),
-        headers: z.record(z.string()).optional()
+        headers: z.record(z.string(), z.string()).optional()
     }))
 });
 
-internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any), async (c) => {
+// [DEBUG TEMP] Log body avant validation pour identifier les 400
+internalRoutes.post('/ingest/liens', async (c, next) => {
+    // Cloner la requête pour lire le body SANS le consommer
+    const cloned = c.req.raw.clone();
+    let parsed: any;
+    try { parsed = await cloned.json(); } catch { parsed = null; }
+    if (!parsed || !parsed.links || !Array.isArray(parsed.links)) {
+        console.warn('[DEBUG /ingest/liens] Body invalide reçu:', JSON.stringify(parsed)?.slice(0, 500));
+    }
+    await next();
+}, zValidator('json', ingestLiensSchema as any), async (c) => {
     const data = c.req.valid('json') as z.infer<typeof ingestLiensSchema>;
     const { mediaId, episodeId, links } = data;
 
@@ -89,20 +99,43 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
         const connStr = getVar(c, 'NEON_DATABASE_URL');
         const hyperdrive = c.env?.HYPERDRIVE;
         const db = getNeonDb(connStr, hyperdrive) as any;
-        inserted = await db.insert(liens).values(
-            safeLinks.map(link => ({
-                sourceSite: link.source_site,
-                playerHost: link.player_host,
-                url: link.url,
-                quality: link.qualite || null,
-                language: link.langue || null,
-                hasSubtitles: link.sous_titres ?? false,
-                headers: link.headers || null,
-                mediaId,
-                episodeId: episodeId || null,
-                scrapedAt: new Date()
-            }))
-        ).returning();
+
+        // Warm-up Hyperdrive : simple ping avant d'insérer pour réveiller la connexion
+        try {
+            await db.execute('SELECT 1');
+        } catch {
+            // Pas grave si le ping échoue, on tente quand même l'insert
+        }
+
+        // Retry 2x sur l'insert (cold start Hyperdrive)
+        let lastInsertError: any;
+        for (let attempt = 0; attempt <= 2; attempt++) {
+            try {
+                inserted = await db.insert(liens).values(
+                    safeLinks.map(link => ({
+                        sourceSite: link.source_site,
+                        playerHost: link.player_host,
+                        url: link.url,
+                        quality: link.qualite || null,
+                        language: link.langue || null,
+                        hasSubtitles: link.sous_titres ?? false,
+                        headers: link.headers || null,
+                        mediaId,
+                        episodeId: episodeId || null,
+                        scrapedAt: new Date()
+                    }))
+                ).returning();
+                lastInsertError = null;
+                break; // succès
+            } catch (e: any) {
+                lastInsertError = e;
+                if (attempt < 2) {
+                    console.warn(`[IngestWorker] Insert échoué (tentative ${attempt + 1}/3), retry dans 400ms...`);
+                    await new Promise(r => setTimeout(r, 400));
+                }
+            }
+        }
+        if (lastInsertError) throw lastInsertError;
 
         if (c.env?.DB) {
             await c.env.DB.prepare(`
