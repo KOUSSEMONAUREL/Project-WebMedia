@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
@@ -43,7 +43,7 @@ const typeLabelUpper: Record<string, string> = {
   novel:   'NOVEL',
 };
 
-const typeIcons: Record<string, JSX.Element> = {
+const typeIcons: Record<string, ReactNode> = {
   film: (
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <rect x="2" y="2" width="20" height="20" rx="2.5"/>
