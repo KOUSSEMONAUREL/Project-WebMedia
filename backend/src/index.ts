@@ -54,6 +54,8 @@ app.use('*', cors({
         return null;
     },
     credentials: true,
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Internal-API-Key'],
+    exposeHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use('*', logger());

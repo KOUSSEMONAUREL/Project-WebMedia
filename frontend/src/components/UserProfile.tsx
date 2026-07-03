@@ -26,8 +26,19 @@ export function UserProfile() {
 
       if (sessionUser) {
         try {
+          const sessionData = await authClient.getSession();
+          const token = sessionData?.data?.session?.token;
+
           const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
-          const res = await fetch(`${apiBaseUrl}/user/favorites`, { credentials: 'include' });
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const res = await fetch(`${apiBaseUrl}/user/favorites`, { 
+            headers,
+            credentials: 'include' 
+          });
           if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {

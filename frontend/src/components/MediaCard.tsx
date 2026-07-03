@@ -155,19 +155,26 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
 
       // Sync Supabase distant via render si connecté
       const session = await authClient.getSession();
-      if (session?.data?.user) {
+      if (session?.data?.session) {
+        const token = session.data.session.token;
         const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
         const targetUrl = `${apiBaseUrl}/user/favorites`;
         if (nextVal) {
           await fetch(targetUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ mediaId: media.id }),
             credentials: 'include'
           });
         } else {
           await fetch(`${targetUrl}/${media.id}`, {
             method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
             credentials: 'include'
           });
         }
