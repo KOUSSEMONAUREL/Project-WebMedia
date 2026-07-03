@@ -1,8 +1,12 @@
 (() => {
+  // Enregistrement SW conditionnel au consentement utilisateur
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    });
+    const consent = localStorage.getItem('webmedia_storage_consent');
+    if (consent === 'full') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
   }
   const favKey = 'webmedia_favorites';
   const wlKey = 'webmedia_watchlist';
