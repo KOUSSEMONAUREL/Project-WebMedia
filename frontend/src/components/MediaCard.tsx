@@ -3,7 +3,6 @@ import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
-import { getAuthToken } from '@/lib/auth-client';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -139,6 +138,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
     setIsFav(nextVal);
 
     try {
+      // 1. Écriture immédiate dans IndexedDB (locale, instantanée)
       if (nextVal) {
         await addFavorite({
           id: media.id,
@@ -153,37 +153,18 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         await removeFavorite(media.id);
       }
 
-      // Sync Supabase distant via Render si connecté
-      const token = await getAuthToken();
-      if (token) {
-        const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
-        const targetUrl = `${apiBaseUrl}/user/favorites`;
-        if (nextVal) {
-          await fetch(targetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ mediaId: media.id }),
-            credentials: 'include'
-          });
-        } else {
-          await fetch(`${targetUrl}/${media.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` },
-            credentials: 'include'
-          });
-        }
-      }
+      // 2. File d'attente différée → Supabase seulement après 15 min de session
+      const { queueFavoriteSync } = await import('../lib/sync-queue');
+      queueFavoriteSync(media.id, nextVal ? 'add' : 'remove');
+
     } catch (err) {
-      console.warn('[sync-favorite] error:', err);
+      console.warn('[toggle-favorite] erreur locale:', err);
       try {
         const stored = localStorage.getItem('webmedia_favorites');
         const favs: string[] = stored ? JSON.parse(stored) : [];
         const idx = favs.indexOf(media.id);
-        if (nextVal) {
-          if (idx === -1) favs.push(media.id);
-        } else {
-          if (idx !== -1) favs.splice(idx, 1);
-        }
+        if (nextVal) { if (idx === -1) favs.push(media.id); }
+        else          { if (idx !== -1) favs.splice(idx, 1); }
         localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
       } catch {}
     }

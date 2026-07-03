@@ -38,5 +38,8 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
             <p class="text-muted-foreground text-xs">© 2025 WebMedia · Tous droits réservés</p>
         </footer>
     </body>
-    <script src="/init.js" is:inline></script>
+    <script>
+        import { initSyncSession } from '../lib/sync-queue';
+        initSyncSession();
+    </script>
 </html>
