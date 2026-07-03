@@ -180,6 +180,27 @@ async function exportToSQLite() {
   return OUTPUT;
 }
 
+async function deleteOldVersions(authToken: string, apiUrl: string) {
+  console.log('[b2] listing old versions...');
+  const listRes = await fetch(`${apiUrl}/b2api/v3/b2_list_file_versions`, {
+    method: 'POST',
+    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: B2_BUCKET_ID, prefix: 'catalogue.sqlite' }),
+  });
+  if (!listRes.ok) return;
+  const list = await listRes.json() as any;
+  for (const f of (list.files || [])) {
+    if (f.fileName === 'catalogue.sqlite') {
+      console.log(`[b2] deleting old version: ${f.fileId}`);
+      await fetch(`${apiUrl}/b2api/v3/b2_delete_file_version`, {
+        method: 'POST',
+        headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: f.fileName, fileId: f.fileId }),
+      });
+    }
+  }
+}
+
 async function uploadToB2(filePath: string) {
   console.log('[b2] authorizing...');
   const basicAuth = Buffer.from(`${B2_KEY_ID}:${B2_APP_KEY}`).toString('base64');
@@ -190,6 +211,8 @@ async function uploadToB2(filePath: string) {
   const auth = await authRes.json() as any;
   const apiUrl = auth.apiInfo?.storageApi?.apiUrl || auth.apiUrl;
   const authToken = auth.authorizationToken;
+
+  await deleteOldVersions(authToken, apiUrl);
 
   console.log('[b2] getting upload URL...');
   const uploadUrlRes = await fetch(`${apiUrl}/b2api/v3/b2_get_upload_url`, {
