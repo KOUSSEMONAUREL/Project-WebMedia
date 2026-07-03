@@ -18,6 +18,8 @@ interface MdManga {
     year: number;
     status: string;
     contentRating: string;
+    originalLanguage: string;
+    publicationDemographic: string;
     tags: { attributes: { name: Record<string, string>; group: string } }[];
   };
   relationships: { type: string; attributes?: { fileName: string } }[];
@@ -53,7 +55,7 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
     try {
         const offset = await getOffset('mangadex-offset', databaseUrl, 0, db);
 
-        const params: any = { limit, offset, includes: ['cover_art'] };
+        const params: any = { limit, offset, includes: ['cover_art', 'author', 'artist'] };
         if (searchTerm && searchTerm !== 'trending') {
           params.title = searchTerm;
           params.order = { relevance: 'desc' };
@@ -95,10 +97,36 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
               const fn = coverArt?.attributes?.fileName;
               if (fn) posterUrl = `https://uploads.mangadex.org/covers/${manga.id}/${fn}`;
             }
+            const genreTags = (attr.tags || [])
+                .filter(t => t.attributes?.group === 'genre')
+                .map(t => {
+                    const name = t.attributes?.name;
+                    return Object.values(name || {}).find(Boolean) as string;
+                })
+                .filter(Boolean);
+            const formatTags = (attr.tags || [])
+                .filter(t => t.attributes?.group === 'format')
+                .map(t => {
+                    const name = t.attributes?.name;
+                    return Object.values(name || {}).find(Boolean) as string;
+                })
+                .filter(Boolean);
+            const allGenres = [...new Set([...genreTags, ...formatTags])];
+            const author = manga.relationships?.find(r => r.type === 'author')?.attributes?.fileName ? undefined : undefined;
+            const authorName = (manga.relationships || [])
+                .filter(r => r.type === 'author' || r.type === 'artist')
+                .map(r => r.attributes as any)
+                .filter(Boolean)
+                .map(a => Object.values(a.name || {}).find(Boolean) as string)
+                .filter(Boolean)
+                .join(', ');
             return {
                 type: 'webtoon', title, synopsis: desc,
                 posterUrl: posterUrl || undefined,
-                year: attr.year || undefined, status: attr.status || undefined,
+                year: attr.year || undefined,
+                status: attr.status || undefined,
+                genres: allGenres.length ? JSON.stringify(allGenres) : undefined,
+                author: authorName || undefined,
                 externalId: `mangadex-${manga.id}`, slug,
                 metadataSource: 'mangadex', metadataFreshAt: new Date(),
             };

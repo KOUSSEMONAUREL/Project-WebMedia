@@ -61,7 +61,9 @@ async function exportToSQLite() {
       mal_id INTEGER, kitsu_id INTEGER, igdb_id INTEGER, anidb_id INTEGER,
       metadata_source TEXT DEFAULT 'tmdb', metadata_fresh_at INTEGER,
       links_last_scraped_at INTEGER, active_links_count INTEGER DEFAULT 0,
-      created_at INTEGER, updated_at INTEGER
+      created_at INTEGER, updated_at INTEGER,
+      genres TEXT, trailer_url TEXT, duration INTEGER,
+      tagline TEXT, studios TEXT, episode_count INTEGER
     );
     CREATE INDEX idx_medias_type ON medias(type);
     CREATE INDEX idx_medias_slug ON medias(slug);
@@ -93,7 +95,8 @@ async function exportToSQLite() {
     $year, $author, $poster_url, $backdrop_url, $rating, $vote_count,
     $status, $tmdb_id, $imdb_id, $anilist_id, $mal_id, $kitsu_id,
     $igdb_id, $anidb_id, $metadata_source, $metadata_fresh_at,
-    $links_last_scraped_at, $active_links_count, $created_at, $updated_at
+    $links_last_scraped_at, $active_links_count, $created_at, $updated_at,
+    $genres, $trailer_url, $duration, $tagline, $studios, $episode_count
   )`);
 
   const insertEpisode = db.prepare(`INSERT INTO episodes VALUES (
@@ -129,6 +132,9 @@ async function exportToSQLite() {
         links_last_scraped_at: m.links_last_scraped_at,
         active_links_count: m.active_links_count ?? 0,
         created_at: m.created_at, updated_at: m.updated_at,
+        genres: m.genres, trailer_url: m.trailer_url,
+        duration: m.duration, tagline: m.tagline,
+        studios: m.studios, episode_count: m.episode_count,
       });
     }
   });

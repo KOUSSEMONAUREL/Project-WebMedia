@@ -87,6 +87,12 @@ function formatMedia(row: any): Media {
     anilistId: row.anilist_id || undefined,
     metadataSource: row.metadata_source || undefined,
     activeLinksCount: row.active_links_count ?? 0,
+    genres: row.genres ? JSON.parse(row.genres) : undefined,
+    trailerUrl: row.trailer_url || undefined,
+    duration: row.duration || undefined,
+    tagline: row.tagline || undefined,
+    studios: row.studios ? JSON.parse(row.studios) : undefined,
+    episodeCount: row.episode_count || undefined,
     createdAt: row.created_at ? new Date(row.created_at * 1000).toISOString() : '',
     updatedAt: row.updated_at ? new Date(row.updated_at * 1000).toISOString() : '',
   };
@@ -98,6 +104,7 @@ const MEDIA_COLS = [
   'rating', 'vote_count', 'status', 'tmdb_id', 'imdb_id',
   'anilist_id', 'mal_id', 'kitsu_id', 'igdb_id', 'anidb_id',
   'metadata_source', 'active_links_count', 'created_at', 'updated_at',
+  'genres', 'trailer_url', 'duration', 'tagline', 'studios', 'episode_count',
 ].join(', ');
 
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
@@ -196,6 +203,8 @@ export interface Media {
   metadataSource?: string; activeLinksCount?: number;
   createdAt?: string; updatedAt?: string;
   backdropUrl?: string; episodes?: any[]; links?: any[];
+  trailerUrl?: string; duration?: number; tagline?: string;
+  studios?: string[]; episodeCount?: number;
 }
 
 export interface LegalLink { platform: string; url: string; type: 'stream' | 'buy' | 'rent'; }

@@ -164,7 +164,7 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
             </h1>
 
             {media.genres && media.genres.length > 0 && (
-              <div class="flex flex-wrap gap-2 mb-8">
+              <div class="flex flex-wrap gap-2 mb-4">
                 {media.genres.map(g => (
                   <a href={`/genres/${g.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`}
                      class="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-white/60 hover:text-primary hover:bg-primary/10 border border-white/10 hover:border-primary/30 transition-all">
@@ -172,6 +172,32 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
                   </a>
                 ))}
               </div>
+            )}
+            {media.tagline && (
+              <p class="text-lg text-white/50 italic mb-6">"{media.tagline}"</p>
+            )}
+            {media.duration && (
+              <div class="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                <span class="flex items-center gap-1.5">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {media.type === 'film' ? `${media.duration} min` : `~${media.duration} min/épisode`}
+                </span>
+                {media.episodeCount && (media.type === 'serie' || media.type === 'anime') && (
+                  <span>{media.episodeCount} épisodes</span>
+                )}
+              </div>
+            )}
+            {media.trailerUrl && (
+              <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
+                 class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30 transition-all text-sm mb-6">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Bande-annonce
+              </a>
+            )}
+            {media.studios && media.studios.length > 0 && (
+              <p class="text-sm text-muted-foreground mb-6">
+                <span class="text-white/50">Studios:</span> {media.studios.join(', ')}
+              </p>
             )}
 
             <div class="mb-8 max-w-3xl">

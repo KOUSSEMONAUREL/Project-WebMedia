@@ -49,12 +49,22 @@ export async function importPopularBooks(apiKey: string, databaseUrl: string, in
                 const title = info.title || 'Titre inconnu';
                 const externalId = `googlebooks-${item.id}`;
                 const author = info.authors ? info.authors.join(', ') : 'Unknown';
+                const isbn = (info.industryIdentifiers || [])
+                    .map((id: any) => id.identifier)
+                    .join(', ');
                 return {
                     type: 'book', title, originalTitle: info.title, author,
                     slug: `book-${externalId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
-                    synopsis: info.description, year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
-                    posterUrl: info.imageLinks?.thumbnail, externalId,
-                    metadataSource: 'google-books', metadataFreshAt: new Date()
+                    synopsis: info.description,
+                    year: info.publishedDate ? parseInt(info.publishedDate.split('-')[0]) : null,
+                    posterUrl: info.imageLinks?.thumbnail,
+                    rating: info.averageRating ? String(info.averageRating) : undefined,
+                    voteCount: info.ratingsCount || 0,
+                    genres: info.categories?.length ? JSON.stringify(info.categories) : undefined,
+                    studios: info.publisher ? JSON.stringify([info.publisher]) : undefined,
+                    duration: info.pageCount || undefined,
+                    externalId,
+                    metadataSource: 'google-books', metadataFreshAt: new Date(),
                 };
             });
 

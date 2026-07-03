@@ -14,8 +14,15 @@ const POPULAR_QUERY = `
     Page(page: $page, perPage: $perPage) {
       pageInfo { hasNextPage }
       media(sort: POPULARITY_DESC, type: ANIME) {
-        id idMal title { romaji english native } format episodes
-        description coverImage { large } genres averageScore startDate { year }
+        id idMal title { romaji english native }
+        format episodes duration status season seasonYear
+        description coverImage { extraLarge large }
+        genres averageScore popularity
+        studios { nodes { name } }
+        trailer { id site }
+        bannerImage
+        tags { name rank }
+        nextAiringEpisode { episode airingAt }
       }
     }
   }
@@ -53,12 +60,31 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
         const mediaValues = toInsert.map((entry: any) => {
             const title = entry.title?.romaji || entry.title?.english || entry.title?.native || 'Unknown';
             const synopsis = entry.description?.replace(/<[^>]*>/g, '').slice(0, 2000);
+            const genreNames = entry.genres || [];
+            const studios = entry.studios?.nodes?.length
+                ? JSON.stringify(entry.studios.nodes.map((s: any) => s.name))
+                : undefined;
+            const trailerUrl = entry.trailer?.site === 'youtube' ? entry.trailer.id : undefined;
+            const seasonStr = entry.season && entry.seasonYear
+                ? `${entry.season}-${entry.seasonYear}`
+                : undefined;
+
             return {
                 type: 'anime', title, originalTitle: entry.title?.native,
                 slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
-                synopsis, posterUrl: entry.coverImage?.large,
-                externalId: `al-${entry.id}`, anilistId: entry.id, year: entry.startDate?.year,
-                metadataSource: 'anilist', metadataFreshAt: new Date()
+                synopsis, posterUrl: entry.coverImage?.extraLarge || entry.coverImage?.large,
+                backdropUrl: entry.bannerImage || undefined,
+                externalId: `al-${entry.id}`, anilistId: entry.id, malId: entry.idMal || undefined,
+                year: entry.startDate?.year,
+                rating: entry.averageScore ? String((entry.averageScore / 10).toFixed(1)) : undefined,
+                voteCount: entry.popularity || 0,
+                genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
+                status: entry.status || undefined,
+                trailerUrl: trailerUrl || undefined,
+                duration: entry.duration || undefined,
+                episodeCount: entry.episodes || undefined,
+                studios,
+                metadataSource: 'anilist', metadataFreshAt: new Date(),
             };
         });
 

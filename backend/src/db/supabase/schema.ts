@@ -48,18 +48,6 @@ export const verification = pgTable('verification', {
     updatedAt: timestamp('updated_at').notNull(),
 });
 
-// ========== LEGACY USERS TABLE (keep for migration) ==========
-export const users = pgTable('users', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    email: varchar('email', { length: 255 }).notNull().unique(),
-    username: varchar('username', { length: 100 }).notNull().unique(),
-    passwordHash: varchar('password_hash', { length: 255 }),
-    avatarUrl: text('avatar_url'),
-    isVerified: boolean('is_verified').default(false),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
-
 // ========== TABLE REVIEWS ==========
 export const reviews = pgTable('reviews', {
     id: uuid('id').primaryKey().defaultRandom(),

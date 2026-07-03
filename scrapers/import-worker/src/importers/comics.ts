@@ -19,7 +19,7 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
         const response = await withRetry(() => axios.get(COMICVINE_URL, {
             params: {
                 api_key: apiKey, format: 'json', sort: 'date_added:desc',
-                limit, offset, field_list: 'id,name,description,image,start_year,deck'
+                limit, offset, field_list: 'id,name,description,image,start_year,deck,count_of_issues,publisher,site_detail_url'
             }
         }));
 
@@ -43,8 +43,13 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
         const mediaValues = toInsert.map((item: any) => ({
             type: 'comic', title: item.name,
             slug: `comic-${item.id}-${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.substring(0, 490),
-            synopsis: item.deck || item.description, year: item.start_year ? parseInt(item.start_year) : null,
-            posterUrl: item.image?.super_url || item.image?.original_url, externalId: `cv-${item.id}`,
+            synopsis: item.deck || item.description,
+            year: item.start_year ? parseInt(item.start_year) : null,
+            posterUrl: item.image?.super_url || item.image?.original_url,
+            duration: item.count_of_issues || undefined,
+            studios: item.publisher?.name ? JSON.stringify([item.publisher.name]) : undefined,
+            voteCount: item.count_of_issues || undefined,
+            externalId: `cv-${item.id}`,
             metadataSource: 'comicvine', metadataFreshAt: new Date()
         }));
 

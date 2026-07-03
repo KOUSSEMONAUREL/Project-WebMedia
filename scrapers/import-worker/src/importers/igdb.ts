@@ -27,7 +27,7 @@ export async function importTrendingGames(clientId: string, clientSecret: string
         const token = await getTwitchToken(clientId, clientSecret);
 
         const response = await withRetry(() => axios.post(IGDB_URL,
-            `fields name,summary,cover.url,first_release_date,total_rating; sort total_rating desc; limit ${limit}; offset ${offset}; where total_rating != null;`,
+            `fields name,summary,cover.url,first_release_date,total_rating,aggregated_rating,genres.name,themes.name,platforms.name,game_modes.name,player_perspectives.name,screenshots.url,videos.video_id,websites.*,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,similar_games.name,storyline,franchise.name,game_engines.name; sort total_rating desc; limit ${limit}; offset ${offset}; where total_rating != null;`,
             { headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` } }
         ));
 
@@ -48,16 +48,44 @@ export async function importTrendingGames(clientId: string, clientSecret: string
             return 0;
         }
 
-        const mediaValues = toInsert.map((item: any) => ({
-            type: 'game', title: item.name,
-            synopsis: item.summary,
-            year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
-            posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
-            rating: item.total_rating ? (item.total_rating / 10).toString() : "0",
-            igdbId: item.id, externalId: `igdb-${item.id}`,
-            slug: item.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
-            metadataSource: 'igdb', metadataFreshAt: new Date()
-        }));
+        const mediaValues = toInsert.map((item: any) => {
+            const genres = (item.genres || []).map((g: any) => g.name);
+            const themes = (item.themes || []).map((g: any) => g.name);
+            const platforms = (item.platforms || []).map((p: any) => p.name);
+            const modes = (item.game_modes || []).map((m: any) => m.name);
+            const perspectives = (item.player_perspectives || []).map((p: any) => p.name);
+            const dev = (item.involved_companies || [])
+                .filter((c: any) => c.developer)
+                .map((c: any) => c.company?.name)
+                .filter(Boolean);
+            const pub = (item.involved_companies || [])
+                .filter((c: any) => c.publisher)
+                .map((c: any) => c.company?.name)
+                .filter(Boolean);
+            const allStudios = [...new Set([...dev, ...pub])];
+            const screenshot = item.screenshots?.[0]?.url
+                ? `https:${item.screenshots[0].url.replace('t_thumb', 't_screenshot_big')}`
+                : undefined;
+            const trailer = item.videos?.[0]?.video_id || undefined;
+            const similar = (item.similar_games || []).map((s: any) => s.name);
+
+            return {
+                type: 'game', title: item.name,
+                synopsis: item.storyline || item.summary,
+                year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
+                posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
+                backdropUrl: screenshot,
+                rating: item.total_rating ? (item.total_rating / 10).toString() : "0",
+                voteCount: item.aggregated_rating ? Math.round(item.aggregated_rating) : undefined,
+                igdbId: item.id, externalId: `igdb-${item.id}`,
+                slug: item.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+                genres: genres.length ? JSON.stringify([...new Set([...genres, ...themes])]) : undefined,
+                trailerUrl: trailer || undefined,
+                studios: allStudios.length ? JSON.stringify(allStudios) : undefined,
+                tagline: item.franchise?.name ? `Franchise ${item.franchise.name}` : undefined,
+                metadataSource: 'igdb', metadataFreshAt: new Date(),
+            };
+        });
 
         const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, igdbId: medias.igdbId }) as any;
 
