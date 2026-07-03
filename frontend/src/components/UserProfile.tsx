@@ -19,13 +19,65 @@ export function UserProfile() {
   const { data: session, isPending } = authClient.useSession();
   const sessionUser = session?.user;
 
-  // Charger les données réelles
+  // Charger les données réelles avec synchronisation Supabase (si authentifié)
   const loadData = async () => {
     try {
-      const favs = await getAllFavorites();
+      let localFavs = await getAllFavorites();
+
+      if (sessionUser) {
+        try {
+          const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+          const res = await fetch(`${apiBaseUrl}/user/favorites`, { credentials: 'include' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+              const remoteIds: string[] = json.data.map((f: any) => f.mediaId);
+              const localIds = localFavs.map(f => f.id);
+              const missingIds = remoteIds.filter(id => !localIds.includes(id));
+
+              if (missingIds.length > 0) {
+                const { getMediaDetails } = await import('../lib/api');
+                const { addFavorite } = await import('../lib/indexeddb');
+                
+                for (const id of missingIds) {
+                  try {
+                    // Tentative d'obtention de métadonnées riches
+                    const details = await getMediaDetails('', id);
+                    if (details.success && details.data) {
+                      const media = details.data;
+                      await addFavorite({
+                        id: media.id,
+                        type: media.type,
+                        title: media.title,
+                        slug: media.slug || media.id,
+                        posterUrl: media.posterUrl,
+                        rating: media.rating,
+                        year: media.year
+                      });
+                    }
+                  } catch {
+                    // Fallback basique
+                    await addFavorite({
+                      id,
+                      type: 'film',
+                      title: 'Média de ma bibliothèque',
+                      slug: id
+                    });
+                  }
+                }
+                // Refetch local
+                localFavs = await getAllFavorites();
+              }
+            }
+          }
+        } catch (syncErr) {
+          console.warn('[sync-profile] Echec de la recuperation des favoris Supabase:', syncErr);
+        }
+      }
+
       const wl = await getWatchlist();
       const hist = await getHistory(30);
-      setFavorites(favs);
+      setFavorites(localFavs);
       setWatchlist(wl);
       setHistory(hist);
     } catch (err) {
@@ -36,8 +88,10 @@ export function UserProfile() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!isPending) {
+      loadData();
+    }
+  }, [sessionUser, isPending]);
 
   const currentUser = sessionUser ? {
     id: sessionUser.id,

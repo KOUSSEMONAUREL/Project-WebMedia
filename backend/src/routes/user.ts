@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
 import { user, favorites } from '../db/supabase/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
@@ -96,6 +96,62 @@ userRoutes.get('/favorites', async (c) => {
         });
     } catch (error: any) {
         console.error('Erreur favoris:', error.message);
+        return c.json({ success: false, error: 'Erreur serveur' }, 500);
+    }
+});
+
+// ========== POST /api/user/favorites ==========
+const addFavoriteSchema = z.object({
+    mediaId: z.string().min(1)
+});
+
+userRoutes.post('/favorites', zValidator('json', addFavoriteSchema as any), async (c) => {
+    const sessionUser = c.get('user')!;
+    const userId = sessionUser.id;
+    const { mediaId } = c.req.valid('json');
+
+    try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
+        const db = getSupabaseClient(dbUrl);
+
+        // Vérifier si le favori existe déjà
+        const existing = await db.select()
+            .from(favorites)
+            .where(and(eq(favorites.userId, userId), eq(favorites.mediaId, mediaId)))
+            .limit(1);
+
+        if (existing.length > 0) {
+            return c.json({ success: true, message: 'Déjà en favoris' });
+        }
+
+        await db.insert(favorites).values({
+            userId,
+            mediaId
+        });
+
+        return c.json({ success: true, message: 'Favori ajouté sur Supabase' });
+    } catch (error: any) {
+        console.error('Erreur ajout favori Supabase:', error.message);
+        return c.json({ success: false, error: 'Erreur serveur' }, 500);
+    }
+});
+
+// ========== DELETE /api/user/favorites/:mediaId ==========
+userRoutes.delete('/favorites/:mediaId', async (c) => {
+    const sessionUser = c.get('user')!;
+    const userId = sessionUser.id;
+    const mediaId = c.req.param('mediaId');
+
+    try {
+        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
+        const db = getSupabaseClient(dbUrl);
+
+        await db.delete(favorites)
+            .where(and(eq(favorites.userId, userId), eq(favorites.mediaId, mediaId)));
+
+        return c.json({ success: true, message: 'Favori retiré de Supabase' });
+    } catch (error: any) {
+        console.error('Erreur suppression favori Supabase:', error.message);
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });

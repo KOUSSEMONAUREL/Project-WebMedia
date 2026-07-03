@@ -1,7 +1,9 @@
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, useState, useEffect } from 'react';
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
+import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
+import { authClient } from '@/lib/auth-client';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -101,37 +103,125 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
   const detailHref = `/${media.type}/${media.slug || media.id}`;
   const isLarge = size === 'large';
 
+  const [isFav, setIsFav] = useState(false);
+  const [isWl, setIsWl] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function checkStatus() {
+      try {
+        const fav = await isFavorite(media.id);
+        const wl = await isInWatchlist(media.id);
+        if (active) {
+          setIsFav(fav);
+          setIsWl(wl);
+        }
+      } catch (err) {
+        try {
+          const storedFavs = JSON.parse(localStorage.getItem('webmedia_favorites') || '[]');
+          const storedWl = JSON.parse(localStorage.getItem('webmedia_watchlist') || '[]');
+          if (active) {
+            setIsFav(storedFavs.includes(media.id));
+            setIsWl(storedWl.includes(media.id));
+          }
+        } catch {}
+      }
+    }
+    checkStatus();
+    return () => { active = false; };
+  }, [media.id]);
+
   const toggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const nextVal = !isFav;
+    setIsFav(nextVal);
+
     try {
-      const { isFavorite, addFavorite, removeFavorite } = await import('../lib/indexeddb');
-      const has = await isFavorite(media.id);
-      if (has) await removeFavorite(media.id);
-      else await addFavorite({ id: media.id, type: media.type, title: media.title, slug: media.slug || media.id, posterUrl: media.posterUrl, rating: media.rating, year: media.year });
-    } catch {
-      const stored = localStorage.getItem('webmedia_favorites');
-      const favs: string[] = stored ? JSON.parse(stored) : [];
-      const idx = favs.indexOf(media.id);
-      if (idx === -1) favs.push(media.id); else favs.splice(idx, 1);
-      localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
+      if (nextVal) {
+        await addFavorite({
+          id: media.id,
+          type: media.type,
+          title: media.title,
+          slug: media.slug || media.id,
+          posterUrl: media.posterUrl,
+          rating: media.rating,
+          year: media.year
+        });
+      } else {
+        await removeFavorite(media.id);
+      }
+
+      // Sync Supabase distant via render si connecté
+      const session = await authClient.getSession();
+      if (session?.data?.user) {
+        const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+        const targetUrl = `${apiBaseUrl}/user/favorites`;
+        if (nextVal) {
+          await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mediaId: media.id }),
+            credentials: 'include'
+          });
+        } else {
+          await fetch(`${targetUrl}/${media.id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[sync-favorite] error:', err);
+      try {
+        const stored = localStorage.getItem('webmedia_favorites');
+        const favs: string[] = stored ? JSON.parse(stored) : [];
+        const idx = favs.indexOf(media.id);
+        if (nextVal) {
+          if (idx === -1) favs.push(media.id);
+        } else {
+          if (idx !== -1) favs.splice(idx, 1);
+        }
+        localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
+      } catch {}
     }
   };
 
   const toggleWatchlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const nextVal = !isWl;
+    setIsWl(nextVal);
+
     try {
-      const { isInWatchlist, addToWatchlist, removeFromWatchlist } = await import('../lib/indexeddb');
-      const has = await isInWatchlist(media.id);
-      if (has) await removeFromWatchlist(media.id);
-      else await addToWatchlist({ id: media.id, type: media.type, title: media.title, slug: media.slug || media.id, posterUrl: media.posterUrl, rating: media.rating, year: media.year });
-    } catch {
-      const stored = localStorage.getItem('webmedia_watchlist');
-      const wl: string[] = stored ? JSON.parse(stored) : [];
-      const idx = wl.indexOf(media.id);
-      if (idx === -1) wl.push(media.id); else wl.splice(idx, 1);
-      localStorage.setItem('webmedia_watchlist', JSON.stringify(wl));
+      if (nextVal) {
+        await addToWatchlist({
+          id: media.id,
+          type: media.type,
+          title: media.title,
+          slug: media.slug || media.id,
+          posterUrl: media.posterUrl,
+          rating: media.rating,
+          year: media.year
+        });
+      } else {
+        await removeFromWatchlist(media.id);
+      }
+    } catch (err) {
+      console.warn('[watchlist] local error:', err);
+      try {
+        const stored = localStorage.getItem('webmedia_watchlist');
+        const wl: string[] = stored ? JSON.parse(stored) : [];
+        const idx = wl.indexOf(media.id);
+        if (nextVal) {
+          if (idx === -1) wl.push(media.id);
+        } else {
+          if (idx !== -1) wl.splice(idx, 1);
+        }
+        localStorage.setItem('webmedia_watchlist', JSON.stringify(wl));
+      } catch {}
     }
   };
 
@@ -192,17 +282,25 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
           <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
             <button
               onClick={toggleFavorite}
-              className="flex items-center gap-1 border border-white/20 hover:border-red-500/60 hover:bg-red-500/20 px-3 py-1 rounded-full text-white transition-all"
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+                isFav
+                  ? 'border-red-500/80 bg-red-500/25 text-red-400 hover:bg-red-500/35'
+                  : 'border-white/20 hover:border-red-500/60 hover:bg-red-500/20'
+              }`}
               title="Favoris"
             >
-              <Heart className="h-3 w-3" />
+              <Heart className={`h-3 w-3 ${isFav ? 'fill-red-500 text-red-500' : ''}`} />
             </button>
             <button
               onClick={toggleWatchlist}
-              className="flex items-center gap-1 border border-white/20 hover:border-primary/60 hover:bg-primary/15 px-3 py-1 rounded-full text-white transition-all"
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+                isWl
+                  ? 'border-primary/80 bg-primary/25 text-primary hover:bg-primary/35'
+                  : 'border-white/20 hover:border-primary/60 hover:bg-primary/15'
+              }`}
               title="À voir"
             >
-              <BookmarkPlus className="h-3 w-3" />
+              <BookmarkPlus className={`h-3 w-3 ${isWl ? 'fill-primary text-primary' : ''}`} />
             </button>
           </div>
         </div>
