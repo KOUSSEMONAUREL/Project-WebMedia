@@ -21,7 +21,7 @@ var rows = db.prepare(
 
 db.close();
 
-var index = rows.map(function(r) {
+var index = rows.map(function (r) {
   return {
     id: r.id,
     title: r.title,
