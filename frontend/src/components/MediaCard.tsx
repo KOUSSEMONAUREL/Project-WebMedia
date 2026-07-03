@@ -138,10 +138,10 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
   return (
     <a
       href={detailHref}
-      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] ${
+      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] ${
         isLarge
-          ? 'w-[180px] sm:w-[212px]'
-          : 'w-[164px] sm:w-[192px]'
+          ? 'w-[130px] xs:w-[148px] sm:w-[180px] md:w-[200px] lg:w-[212px]'
+          : 'w-[120px] xs:w-[138px] sm:w-[160px] md:w-[180px] lg:w-[192px]'
       }`}
     >
       {/* Poster */}

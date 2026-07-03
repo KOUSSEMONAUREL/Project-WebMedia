@@ -28,6 +28,9 @@
 
   --font-sans: 'Satoshi', sans-serif;
   --font-display: 'Clash Display', sans-serif;
+
+  /* Breakpoints custom */
+  --breakpoint-xs: 375px;
 }
 
 :root {
@@ -37,6 +40,13 @@
 html {
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 * {
@@ -84,9 +94,9 @@ body {
   display: flex;
   overflow-x: auto;
   scrollbar-width: none;
-  gap: 1.75rem;
-  padding: 0.75rem 0.5rem 1rem;
-  margin: 0 -0.5rem;
+  gap: 1rem;
+  padding: 0.75rem 0.25rem 1rem;
+  margin: 0 -0.25rem;
   scroll-snap-type: x mandatory;
   -ms-overflow-style: none;
   &::-webkit-scrollbar { display: none; }
@@ -94,6 +104,7 @@ body {
 
 @utility poster-row-card {
   scroll-snap-align: start;
+  flex-shrink: 0;
 }
 
 @utility blue-text {

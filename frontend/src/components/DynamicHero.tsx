@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react';
 
 export function DynamicHero() {
   return (
-    <section className="relative overflow-hidden pt-12 pb-2 md:pt-16 md:pb-2">
+    <section className="relative overflow-hidden pt-8 pb-2 sm:pt-12 md:pt-16 md:pb-2 w-full">
       <div
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
@@ -14,7 +14,7 @@ export function DynamicHero() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center">
         <h1 className="font-display font-bold leading-[1.1] tracking-tight text-white max-w-3xl
-          text-3xl sm:text-4xl md:text-[52px]">
+          text-2xl xs:text-3xl sm:text-4xl md:text-[52px]">
           Tout le divertissement,{' '}
           <span
             style={{

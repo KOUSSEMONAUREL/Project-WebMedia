@@ -309,7 +309,7 @@ export function Navbar() {
             </div>
           </div>
 
-          <div className="relative flex-1 md:flex-initial md:w-36 lg:w-36 xl:w-48 focus-within:md:w-56 focus-within:lg:w-56 focus-within:xl:w-72 transition-all duration-200" ref={searchRef}>
+          <div className="relative w-28 sm:w-36 md:w-44 lg:w-36 xl:w-48 focus-within:w-36 focus-within:sm:w-48 focus-within:md:w-60 focus-within:lg:w-56 focus-within:xl:w-72 transition-all duration-200 shrink-0" ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
