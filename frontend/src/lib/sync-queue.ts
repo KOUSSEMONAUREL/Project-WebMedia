@@ -119,7 +119,10 @@ export function initSyncSession(): void {
     flushPendingOps();
   } else {
     const remaining = SYNC_DELAY_MS - elapsed;
-    setTimeout(() => flushPendingOps(), remaining);
+    const timer = setTimeout(() => flushPendingOps(), remaining);
+    if (timer && typeof (timer as any).unref === 'function') {
+      (timer as any).unref();
+    }
     console.debug(`[sync-queue] flush planifié dans ${Math.round(remaining / 1000)}s`);
   }
 }
