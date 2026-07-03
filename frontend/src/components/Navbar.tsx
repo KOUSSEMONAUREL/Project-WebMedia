@@ -45,6 +45,17 @@ export function Navbar() {
   const [pathname, setPathname] = useState('/');
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { data: session, isPending } = authClient.useSession();
   const sessionUser = session?.user;
@@ -139,7 +150,7 @@ export function Navbar() {
     localStorage.removeItem('webmedia_user');
   };
 
-  var [fuse, setFuse] = useState(null);
+  const [fuse, setFuse] = useState<Fuse<Media> | null>(null);
 
   function pathToTypeFilter(p: string): string | null {
     return ({
@@ -153,19 +164,21 @@ export function Navbar() {
     } as Record<string, string>)[p] || null;
   }
 
-  var typeFilter = pathToTypeFilter(pathname);
+  const typeFilter = pathToTypeFilter(pathname);
 
   useEffect(function() {
-    var ok = true;
+    let ok = true;
     fetch('/data/search-index.json')
-      .then(function(r) { return r.json(); })
-      .then(function(list) {
-        if (ok) setFuse(new Fuse(list, {
-          keys: ['title'],
-          threshold: 0.4,
-          distance: 100,
-          minMatchCharLength: 2,
-        }));
+      .then(function(r: Response) { return r.json(); })
+      .then(function(list: Media[]) {
+        if (ok) {
+          setFuse(new Fuse<Media>(list, {
+            keys: ['title'],
+            threshold: 0.4,
+            distance: 100,
+            minMatchCharLength: 2,
+          }));
+        }
       })
       .catch(function(e) { console.warn('[search] fuse init', e); });
     return function() { ok = false; };
@@ -177,8 +190,8 @@ export function Navbar() {
       setShowSuggestions(false);
       return;
     }
-    var results = fuse.search(searchQuery, { limit: 20 }).map(function(r) { return r.item; });
-    if (typeFilter) results = results.filter(function(item) { return item.type === typeFilter; });
+    let results = fuse.search(searchQuery, { limit: 20 }).map(function(r) { return r.item; });
+    if (typeFilter) results = results.filter(function(item: Media) { return item.type === typeFilter; });
     setSuggestions(results.slice(0, 6));
     setShowSuggestions(true);
   }, [searchQuery, fuse, typeFilter]);
@@ -205,6 +218,20 @@ export function Navbar() {
         >
           <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
           <div className="flex items-center relative" ref={linksRef}>
+            {/* Bouton Menu Burger sur Mobile */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden text-muted-foreground hover:text-foreground h-9 w-9 shrink-0 relative mr-1"
+            >
+              <div className="flex flex-col items-center justify-center gap-[4.5px] w-4 h-4">
+                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-[6px]' : ''}`} />
+                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : ''}`} />
+                <span className={`block h-[1.5px] w-4 bg-current rounded-full transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-[6px]' : ''}`} />
+              </div>
+            </Button>
+
             <div
               ref={indicatorRef}
               className="absolute top-1/2 -translate-y-1/2 rounded-full pointer-events-none opacity-0"
@@ -220,7 +247,7 @@ export function Navbar() {
             <a
               href="/"
               data-href="/"
-              className={`relative z-10 flex items-center shrink-0 px-3 py-1.5 mr-4 text-[13px] transition-all duration-200 ${
+              className={`relative z-10 flex items-center shrink-0 px-3 py-1.5 mr-2 text-[13px] transition-all duration-200 ${
                 pathname === '/'
                   ? 'text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.35)] font-bold'
                   : 'text-muted-foreground hover:text-foreground hover:drop-shadow-[0_0_4px_rgba(255,255,255,0.06)] font-medium'
@@ -354,6 +381,29 @@ export function Navbar() {
           </div>
         </div>
       </nav>
+
+      {/* Mobile Menu Panel */}
+      {isMobileMenuOpen && (
+        <div className="absolute top-[70px] left-4 right-4 bg-background/95 backdrop-blur-2xl border border-border/50 rounded-2xl p-4 shadow-[0_16px_48px_rgba(0,0,0,0.8)] z-50 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-4 duration-300 lg:hidden">
+          {navLinks.map(link => (
+            <a
+              key={link.href}
+              href={link.href}
+              className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 ${
+                pathname === link.href
+                  ? 'bg-primary/10 text-primary font-bold shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]'
+                  : 'text-muted-foreground hover:bg-white/[0.03] hover:text-foreground font-medium'
+              }`}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <span className="text-[14px]">{link.label}</span>
+              {pathname === link.href && (
+                <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+              )}
+            </a>
+          ))}
+        </div>
+      )}
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onLogin={handleLogin} />
