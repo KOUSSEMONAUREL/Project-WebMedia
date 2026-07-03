@@ -18,7 +18,7 @@ type Variables = {
     } | null;
 };
 
-export const sessionMiddleware = createMiddleware<{ Variables: Variables }>(async (c, next) => {
+export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Variables }>(async (c, next) => {
     try {
         const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
         if (!dbUrl) {
@@ -28,6 +28,12 @@ export const sessionMiddleware = createMiddleware<{ Variables: Variables }>(asyn
             return;
         }
         const auth = getAuth(dbUrl);
+        if (!auth) {
+            c.set('user', null);
+            c.set('session', null);
+            await next();
+            return;
+        }
         const session = await auth.api.getSession({
             headers: c.req.raw.headers,
         });

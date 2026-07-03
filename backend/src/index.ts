@@ -71,7 +71,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
         BETTER_AUTH_URL: c.env?.BETTER_AUTH_URL,
     });
     const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
-    return getAuth(dbUrl).handler(c.req.raw);
+    return getAuth(dbUrl)!.handler(c.req.raw);
 });
 
 // ========== API MIDDLEWARES (skip auth paths) ==========
@@ -85,7 +85,7 @@ app.use('/api/*', async (c, next) => {
 
 app.use('/api/*', async (c, next) => {
     if (c.req.path.startsWith('/api/auth/')) return next();
-    if (c.env.ENVIRONMENT === 'development' || c.env.ENVIRONMENT === 'test') return next();
+    if (c.env?.ENVIRONMENT === 'development' || c.env?.ENVIRONMENT === 'test') return next();
 
     const path = c.req.path;
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
