@@ -42,9 +42,14 @@ internalRoutes.use('*', async (c, next) => {
 });
 
 const ALLOWED_PLAYERS = [
+    // Streaming (films/séries/anime)
     'vidsrc.me', 'vidsrc.to', 'vidsrc.icu', '2embed.cc', 'embed.su', 'multiembed.mov', 'ezvidapi.com',
     'voe.sx', 'streamwish.to', 'doodstream.com', 'filemoon.sx', 'upstream.to',
-    'royalroad.com', 'wuxiaworld.com', 'lightnovelpub.com', 'boxnovel.com', 'novel-bin.com'
+    // Novels
+    'royalroad.com', 'wuxiaworld.com', 'lightnovelpub.com', 'boxnovel.com', 'novel-bin.com',
+    // Jeux (playwright-worker)
+    'steamunlocked.org', 'fitgirl-repacks.site', 'gamedrive.org', 'elamigos.site',
+    'romspure.cc', 'cfinder.xyz', 'emulatorgamesx.net', 'romsfun.com', 'games4u.org', 'steamrip.com'
 ];
 
 // ========== POST /api/internal/ingest/liens ==========
@@ -54,7 +59,8 @@ const ingestLiensSchema = z.object({
     links: z.array(z.object({
         source_site: z.string(),
         player_host: z.string(),
-        url: z.string().url(),
+        // Accepte http/https ET magnet: (jeux) ET toute URI non-vide
+        url: z.union([z.string().url(), z.string().startsWith('magnet:'), z.string().min(1)]),
         qualite: z.string().optional(),
         langue: z.string().optional(),
         sous_titres: z.boolean().optional().default(false),
@@ -76,16 +82,19 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
     const data = c.req.valid('json') as z.infer<typeof ingestLiensSchema>;
     const { mediaId, episodeId, links } = data;
 
-    // Filter links: All links MUST match hostname whitelist
+    // Filter links: URL hostname dans whitelist OU magnet: validé via source_site
     const safeLinks = links.filter(l => {
+        // magnet: ou URI non-http → vérifier source_site
+        if (l.url.startsWith('magnet:') || !l.url.startsWith('http')) {
+            return ALLOWED_PLAYERS.some(p => p === l.source_site || l.source_site?.includes(p));
+        }
+        // http/https → vérifier hostname
         try {
-            const url = new URL(l.url);
-            const hostname = url.hostname.replace('www.', '');
-            return ALLOWED_PLAYERS.some(player => 
-                hostname === player || hostname.endsWith('.' + player)
-            );
+            const hostname = new URL(l.url).hostname.replace('www.', '');
+            return ALLOWED_PLAYERS.some(p => hostname === p || hostname.endsWith('.' + p));
         } catch {
-            return false;
+            // URL malformée → fallback source_site
+            return ALLOWED_PLAYERS.some(p => p === l.source_site || l.source_site?.includes(p));
         }
     });
 
