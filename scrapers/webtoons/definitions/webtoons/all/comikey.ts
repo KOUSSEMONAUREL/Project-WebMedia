@@ -51,7 +51,7 @@ interface ComikeyAlternatePage {
 
 const PREFIX_SLUG_SEARCH = 'slug:';
 
-const RELAY_HOST_REGEX = /relay-\w+\.epub\.rocks/;
+const RELAY_HOST_REGEX = /relay-\w+\.(?:epub\.rocks|comikey\.com)/;
 
 export class ComikeyScraper extends BaseScraper {
   readonly name = 'Comikey';
