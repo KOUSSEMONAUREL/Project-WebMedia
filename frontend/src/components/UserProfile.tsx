@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authClient } from '@/lib/auth-client';
+import { authClient, getAuthToken } from '@/lib/auth-client';
 import { Heart, Clock, LogOut, Star, History, Settings } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
@@ -26,14 +26,11 @@ export function UserProfile() {
 
       if (sessionUser) {
         try {
-          const sessionData = await authClient.getSession();
-          const token = sessionData?.data?.session?.token;
+          const token = await getAuthToken();
 
           const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
           const headers: Record<string, string> = {};
-          if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-          }
+          if (token) headers['Authorization'] = `Bearer ${token}`;
 
           const res = await fetch(`${apiBaseUrl}/user/favorites`, { 
             headers,

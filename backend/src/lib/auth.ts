@@ -1,9 +1,10 @@
 import { betterAuth } from 'better-auth';
+import { bearer } from 'better-auth/plugins';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { getSupabaseClient } from '../db/singleton';
 import * as schema from '../db/supabase/schema';
 
-let _auth: ReturnType<typeof betterAuth> | null = null;
+let _auth: any = null;
 
 export function getAuth(dbUrl?: string) {
     if (_auth) return _auth;
@@ -61,6 +62,7 @@ export function getAuth(dbUrl?: string) {
                 },
             },
         },
+        plugins: [bearer()],
     });
     return _auth;
 }

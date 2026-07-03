@@ -3,7 +3,7 @@ import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
-import { authClient } from '@/lib/auth-client';
+import { getAuthToken } from '@/lib/auth-client';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -153,28 +153,22 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         await removeFavorite(media.id);
       }
 
-      // Sync Supabase distant via render si connecté
-      const session = await authClient.getSession();
-      if (session?.data?.session) {
-        const token = session.data.session.token;
+      // Sync Supabase distant via Render si connecté
+      const token = await getAuthToken();
+      if (token) {
         const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
         const targetUrl = `${apiBaseUrl}/user/favorites`;
         if (nextVal) {
           await fetch(targetUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ mediaId: media.id }),
             credentials: 'include'
           });
         } else {
           await fetch(`${targetUrl}/${media.id}`, {
             method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Authorization': `Bearer ${token}` },
             credentials: 'include'
           });
         }

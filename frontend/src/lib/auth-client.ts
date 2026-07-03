@@ -16,3 +16,13 @@ export const {
     signOut,
     getSession,
 } = authClient;
+
+/** Récupère le token de session Bearer pour les appels cross-domain */
+export async function getAuthToken(): Promise<string | null> {
+    try {
+        const session = await authClient.getSession();
+        return session?.data?.session?.token ?? null;
+    } catch {
+        return null;
+    }
+}
