@@ -7,179 +7,116 @@ import LinkFooter from '../../components/LinkFooter.astro';
 
 export async function getStaticPaths() {
   const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
-  let paths: { params: { type: string; slug: string } }[] = [];
+  const paths: { params: { type: string; slug: string } }[] = [];
   for (const t of types) {
     try {
       const res = await getMediaByType(t);
       if (res.data) {
-        const typePaths = res.data.map(m => ({ params: { type: m.type, slug: m.slug || m.id } }));
-        paths = [...paths, ...typePaths];
+        for (const m of res.data) paths.push({ params: { type: m.type, slug: m.slug || m.id } });
       }
-    } catch { console.log(`Erreur lors de la generation des chemins pour ${t}`); }
+    } catch { /* skip */ }
   }
   return paths;
 }
 
 const { type, slug } = Astro.params;
-
 let media: Media | null = null;
 let error: string | null = null;
 
 try {
   const response = await getMediaDetails(type!, slug!);
   if (response.success && response.data) media = response.data;
-  else error = "Media non trouve.";
+  else error = "Media non trouvé.";
 } catch (e: any) {
-  error = e.message || "Erreur lors du chargement des details.";
+  error = e.message || "Erreur lors du chargement.";
 }
 
-const isEpisodeBased = type === 'serie' || type === 'anime';
+const isEpisode = type === 'serie' || type === 'anime';
+const hasEpisodes = isEpisode && (media?.episodes?.length ?? 0) > 0;
 const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
-const hasEpisodes = (media?.episodes?.length ?? 0) > 0 && isEpisodeBased;
 
-const scriptData = media ? {
+const data = media ? {
   id: media.id, type: media.type, title: media.title, slug: media.slug,
   posterUrl: media.posterUrl, year: media.year, rating: media.rating
 } : null;
 ---
 
-<Layout title={media ? media.title : 'Details'}>
+<Layout title={media ? media.title : 'Détails'}>
   {error ? (
     <div class="container mx-auto px-6 py-20 text-center">
       <h1 class="text-4xl font-bold mb-4" style="color: #EF4444;">Erreur</h1>
       <p class="text-lg" style="color: rgba(255,255,255,0.6);">{error}</p>
-      <a href="/" class="mt-6 inline-block text-sm" style="color: rgba(96,165,250,0.8);">Retour a l'accueil</a>
+      <a href="/" class="mt-6 inline-block text-sm" style="color: rgba(96,165,250,0.8);">Retour à l'accueil</a>
     </div>
   ) : media ? (
     <div class="relative min-h-screen">
       <MediaHero media={media} />
 
-      <div class="container mx-auto px-4 sm:px-6 pb-20 -mt-6 space-y-10">
+      <div class="container mx-auto px-4 sm:px-6 pb-20 -mt-4 space-y-12">
         {hasEpisodes && <ContentList media={media} />}
-
-        {hasLinks && (
-          <LinkFooter
-            links={media.links}
-            legalLinks={media.legalLinks}
-            type={media.type}
-          />
-        )}
+        {hasLinks && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} />}
       </div>
     </div>
   ) : null}
 
-  <div id="detail-page-data" data-media={scriptData ? JSON.stringify(scriptData) : ''} style="display:none"></div>
+  <div id="detail-data" data-media={data ? JSON.stringify(data) : ''} style="display:none"></div>
 
   <script>
-    const el = document.getElementById('detail-page-data');
-    const raw = el?.dataset.media;
-    const d = raw ? JSON.parse(raw) : null;
-    const mediaId = d?.id;
-    const mediaType = d?.type;
-    const mediaTitle = d?.title;
-    const mediaSlug = d?.slug;
-    const mediaPoster = d?.posterUrl;
-    const mediaYear = d?.year;
-    const mediaRating = d?.rating;
+    const el = document.getElementById('detail-data');
+    const d = el?.dataset.media ? JSON.parse(el.dataset.media) : null;
+    const mid = d?.id, mtype = d?.type, mtitle = d?.title;
+    const mslug = d?.slug, mposter = d?.posterUrl;
+    const myear = d?.year, mrating = d?.rating;
 
-    function openDB() {
-      return new Promise((resolve, reject) => {
+    function db() {
+      return new Promise((ok, no) => {
         const r = indexedDB.open('webmedia', 1);
         r.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('favorites')) db.createObjectStore('favorites', { keyPath: 'id' });
           if (!db.objectStoreNames.contains('watchlist')) db.createObjectStore('watchlist', { keyPath: 'id' });
         };
-        r.onsuccess = (e) => resolve(e.target.result);
-        r.onerror = () => reject(r.error);
+        r.onsuccess = (e) => ok(e.target.result);
+        r.onerror = () => no(r.error);
       });
     }
+    function put(store, data) { return db().then(db => new Promise(ok => { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(data); tx.oncomplete = () => { db.close(); ok(null); }; })); }
+    function del(store, id) { return db().then(db => new Promise(ok => { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(id); tx.oncomplete = () => { db.close(); ok(null); }; })); }
+    function has(store, id) { return db().then(db => new Promise(ok => { const tx = db.transaction(store, 'readonly'); const r = tx.objectStore(store).get(id); r.onsuccess = () => { tx.oncomplete = () => db.close(); ok(!!r.result); }; })); }
+    function syncFav(id, action) { try { const k = 'webmedia_pending_favs'; const r = sessionStorage.getItem(k); const m = r ? new Map(JSON.parse(r)) : new Map(); m.set(id, { action, timestamp: Date.now() }); sessionStorage.setItem(k, JSON.stringify([...m.entries()])); } catch {} }
+    function syncHist(e) { try { const k = 'webmedia_pending_history'; const r = sessionStorage.getItem(k); const a = r ? JSON.parse(r) : []; const f = a.filter((x: any) => x.mediaId !== e.mediaId); f.push(e); sessionStorage.setItem(k, JSON.stringify(f)); } catch {} }
 
-    function dbPut(store, data) {
-      return openDB().then((db) => {
-        const tx = db.transaction(store, 'readwrite');
-        tx.objectStore(store).put(data);
-        return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
-      });
-    }
-    function dbDelete(store, id) {
-      return openDB().then((db) => {
-        const tx = db.transaction(store, 'readwrite');
-        tx.objectStore(store).delete(id);
-        return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
-      });
-    }
-    function dbHas(store, id) {
-      return openDB().then((db) => {
-        const tx = db.transaction(store, 'readonly');
-        const req = tx.objectStore(store).get(id);
-        return new Promise((resolve) => { req.onsuccess = () => { tx.oncomplete = () => db.close(); resolve(!!req.result); }; });
-      });
-    }
-    function syncQueueOp(id, action) {
-      try {
-        const key = 'webmedia_pending_favs';
-        const raw = sessionStorage.getItem(key);
-        const ops = raw ? new Map(JSON.parse(raw)) : new Map();
-        ops.set(id, { action, timestamp: Date.now() });
-        sessionStorage.setItem(key, JSON.stringify([...ops.entries()]));
-      } catch {}
-    }
-    function syncQueueHistory(entry) {
-      try {
-        const key = 'webmedia_pending_history';
-        const raw = sessionStorage.getItem(key);
-        const entries = raw ? JSON.parse(raw) : [];
-        const filtered = entries.filter((e: any) => e.mediaId !== entry.mediaId);
-        filtered.push(entry);
-        sessionStorage.setItem(key, JSON.stringify(filtered));
-      } catch {}
+    if (mid) {
+      put('history', { mediaId: mid, type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, visitedAt: Date.now() });
+      if (typeof sessionStorage !== 'undefined') syncHist({ mediaId: mid, type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, visitedAt: Date.now() });
     }
 
-    if (mediaId) {
-      (async () => {
-        await dbPut('history', { mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
-        if (typeof sessionStorage !== 'undefined') syncQueueHistory({ mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
-      })();
-    }
+    const fav = document.querySelector('[data-action="favorite"]') as HTMLElement | null;
+    const wl = document.querySelector('[data-action="watchlist"]') as HTMLElement | null;
 
-    const favBtn: HTMLElement | null = document.querySelector('[data-action="favorite"]');
-    const wlBtn: HTMLElement | null = document.querySelector('[data-action="watchlist"]');
-
-    async function updateButtons() {
-      if (favBtn) {
-        const inFav = await dbHas('favorites', mediaId);
-        favBtn.innerHTML = inFav
+    async function upd() {
+      if (fav) {
+        const inf = await has('favorites', mid);
+        fav.innerHTML = inf
           ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favori'
           : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favoris';
-        favBtn.className = inFav
-          ? `flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200`
-          : `flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200`;
-        favBtn.style.cssText = inFav
-          ? 'background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.2); color: #F87171;'
-          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
+        fav.style.cssText = inf
+          ? 'background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.2); color: #F87171; flex: 1; padding: 10px 0; border-radius: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; cursor: pointer;'
+          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); flex: 1; padding: 10px 0; border-radius: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; cursor: pointer;';
       }
-      if (wlBtn) {
-        const inWl = await dbHas('watchlist', mediaId);
-        wlBtn.innerHTML = inWl
+      if (wl) {
+        const inwl = await has('watchlist', mid);
+        wl.innerHTML = inwl
           ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dans la liste'
           : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> A voir';
-        wlBtn.style.cssText = inWl
-          ? 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2); color: #60A5FA;'
-          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
+        wl.style.cssText = inwl
+          ? 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2); color: #60A5FA; flex: 1; padding: 10px 0; border-radius: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; cursor: pointer;'
+          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); flex: 1; padding: 10px 0; border-radius: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; cursor: pointer;';
       }
     }
 
-    document.addEventListener('DOMContentLoaded', updateButtons);
-    favBtn?.addEventListener('click', () => {
-      const meta = { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) };
-      dbHas('favorites', mediaId).then((inFav) => inFav ? dbDelete('favorites', mediaId) : dbPut('favorites', { id: mediaId, ...meta, addedAt: Date.now() }))
-        .then(() => { if (typeof sessionStorage !== 'undefined') syncQueueOp(mediaId, inFav ? 'remove' : 'add'); updateButtons(); });
-    });
-    wlBtn?.addEventListener('click', () => {
-      const meta = { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) };
-      dbHas('watchlist', mediaId).then((inWl) => inWl ? dbDelete('watchlist', mediaId) : dbPut('watchlist', { id: mediaId, ...meta, addedAt: Date.now() }))
-        .then(() => updateButtons());
-    });
+    document.addEventListener('DOMContentLoaded', upd);
+    fav?.addEventListener('click', () => { const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) }; has('favorites', mid).then(i => i ? del('favorites', mid) : put('favorites', { id: mid, ...m, addedAt: Date.now() })).then(() => { if (typeof sessionStorage !== 'undefined') { has('favorites', mid).then(i => syncFav(mid, i ? 'remove' : 'add')); } upd(); }); });
+    wl?.addEventListener('click', () => { const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) }; has('watchlist', mid).then(i => i ? del('watchlist', mid) : put('watchlist', { id: mid, ...m, addedAt: Date.now() })).then(() => upd()); });
   </script>
 </Layout>

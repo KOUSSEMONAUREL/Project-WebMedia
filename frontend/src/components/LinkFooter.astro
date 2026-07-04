@@ -3,24 +3,24 @@ interface Props { links?: any[]; legalLinks?: any[]; type: string }
 
 const { links = [], legalLinks = [], type } = Astro.props;
 const active = links.filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
-const hasAny = active.length > 0 || legalLinks.length > 0;
+const show = active.length > 0 || legalLinks.length > 0;
 
+const label = type === 'jeu' ? 'Téléchargement' : (type === 'book' || type === 'novel') ? 'Lecture' : 'Streaming';
 const groups = new Map<string, any[]>();
 for (const l of active) { const s = l.source_site || l.sourceSite || 'Source'; if (!groups.has(s)) groups.set(s, []); groups.get(s)!.push(l); }
-
-const label = type === 'jeu' ? 'Telechargement' : (type === 'book' || type === 'novel') ? 'Lecture' : 'Streaming';
 ---
 
-{hasAny && (
-<div class="max-w-5xl mx-auto space-y-6">
+{show && (
+<div class="max-w-5xl mx-auto space-y-8">
+
   {legalLinks.length > 0 && (
-    <div class="rounded-2xl p-5" style="background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.08);">
-      <h3 class="text-sm font-semibold mb-3" style="color: rgba(16,185,129,0.6);">LEGAUX</h3>
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(16,185,129,0.5);">Légal</h3>
       <div class="flex flex-wrap gap-2">
         {legalLinks.map((ll: any) => (
           <a href={ll.url} target="_blank"
-             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-             style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.12); color: #34D399;">
+             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+             style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.1); color: #34D399;">
             {ll.platform || ll.site || ll.label || ll.url}
           </a>
         ))}
@@ -30,30 +30,21 @@ const label = type === 'jeu' ? 'Telechargement' : (type === 'book' || type === '
 
   {active.length > 0 && (
     <div>
-      <h3 class="text-sm font-semibold mb-3" style="color: rgba(255,255,255,0.5);">AUTRES SOURCES {label.toUpperCase()}</h3>
-      <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(255,255,255,0.4);">{label}</h3>
+      <div class="flex flex-wrap gap-2">
         {[...groups.entries()].map(([site, siteLinks]) => {
           const best = siteLinks[0];
           return (
             <a href={best.url} target="_blank"
-               class="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200"
-               style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-              <span class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
-                    style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3);">
-                {site.slice(0, 2).toUpperCase()}
-              </span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium truncate" style="color: rgba(255,255,255,0.7);">{site}</p>
-                <div class="flex items-center gap-1.5 mt-0.5">
-                  {best.quality && (
-                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded" style="background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.35);">{best.quality}</span>
-                  )}
-                  {best.language && (
-                    <span class="text-[10px]" style="color: rgba(255,255,255,0.25);">{best.language}</span>
-                  )}
-                </div>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: rgba(255,255,255,0.15);"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+               style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
+              {site}
+              {best.quality && (
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded" style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4);">{best.quality}</span>
+              )}
+              {best.language && (
+                <span class="text-[10px]" style="color: rgba(255,255,255,0.25);">{best.language}</span>
+              )}
             </a>
           );
         })}

@@ -1,8 +1,6 @@
 ---
 import { optimizePosterUrl, posterSrcSet } from '../lib/image';
-
 interface Props { media: any }
-
 const { media } = Astro.props;
 
 const typeLabel: Record<string, string> = {
@@ -18,11 +16,6 @@ const grad: Record<string, string> = {
 }[media.type] || 'from-indigo-700/60 via-indigo-900/30';
 
 const isEpisode = media.type === 'serie' || media.type === 'anime';
-const links: any[] = (media.links || []).filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
-const legal: any[] = media.legalLinks || [];
-const showLinks = !isEpisode && links.length > 0;
-const sites = new Map<string, any[]>();
-for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if (!sites.has(s)) sites.set(s, []); sites.get(s)!.push(l); }
 ---
 
 <div class="relative">
@@ -38,27 +31,26 @@ for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if
     <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-8 md:gap-12 items-start">
 
       <div class="w-44 sm:w-56 md:w-72 shrink-0 mx-auto md:mx-0">
-        <div class="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/[0.08]" style="border-radius: 16px;">
+        <div class="rounded-2xl overflow-hidden shadow-2xl" style="border: 1px solid rgba(255,255,255,0.08);">
           {media.posterUrl ? (
             <img src={optimizePosterUrl(media.posterUrl)} srcset={posterSrcSet(media.posterUrl)}
                  sizes="(max-width:640px) 176px, (max-width:768px) 224px, 288px"
                  alt={media.title} class="w-full h-auto" />
           ) : (
-            <div class="aspect-[2/3] flex items-center justify-center bg-gradient-to-br from-white/[0.04] to-white/[0.01]">
+            <div class="aspect-[2/3] flex items-center justify-center" style="background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));">
               <span class="text-white/15 text-sm font-bold uppercase tracking-widest">{typeLabel[media.type]}</span>
             </div>
           )}
         </div>
-
         <div class="flex gap-2 mt-4">
           <button data-action="favorite" data-id={media.id}
-            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
             Favoris
           </button>
           <button data-action="watchlist" data-id={media.id}
-            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             A voir
@@ -69,12 +61,8 @@ for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if
       <div class="flex-1 min-w-0 pt-2 md:pt-8">
         <div class="flex flex-wrap items-center gap-2 mb-3">
           <span class="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-lg"
-                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);">
-            {typeLabel[media.type]}
-          </span>
-          {media.year && (
-            <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">{media.year}</span>
-          )}
+                style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);">{typeLabel[media.type]}</span>
+          {media.year && <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">{media.year}</span>}
           {media.rating && (
             <span class="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-lg" style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.12); color: #FBBF24;">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -91,13 +79,9 @@ for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if
           )}
         </div>
 
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-3" style="color: rgba(255,255,255,0.92);">
-          {media.title}
-        </h1>
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-3" style="color: rgba(255,255,255,0.92);">{media.title}</h1>
 
-        {media.tagline && (
-          <p class="text-sm md:text-base italic mb-4" style="color: rgba(255,255,255,0.35);">&ldquo;{media.tagline}&rdquo;</p>
-        )}
+        {media.tagline && <p class="text-sm md:text-base italic mb-4" style="color: rgba(255,255,255,0.35);">&ldquo;{media.tagline}&rdquo;</p>}
 
         {media.genres?.length > 0 && (
           <div class="flex flex-wrap gap-1.5 mb-4">
@@ -110,7 +94,7 @@ for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if
         {media.studios?.length > 0 && (
           <p class="text-xs mb-4" style="color: rgba(255,255,255,0.35);">
             <span style="color: rgba(255,255,255,0.5);">
-              {media.type === 'jeu' ? 'Developpeur' : media.type === 'book' ? 'Editeur' : 'Studios'}:
+              {media.type === 'jeu' ? 'Développeur' : media.type === 'book' ? 'Éditeur' : 'Studios'}:
             </span> {media.studios.join(', ')}
           </p>
         )}
@@ -121,28 +105,14 @@ for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if
           </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          {media.trailerUrl && (
-            <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
-               class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
-               style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.2); color: #F87171;">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Bande-annonce
-            </a>
-          )}
-
-          {showLinks && [...sites.entries()].slice(0, 4).map(([site, siteLinks]) => {
-            const best = siteLinks[0];
-            return (
-              <a href={best.url} target="_blank"
-                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
-                 style="background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.18); color: #60A5FA;">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                {site}{best.quality ? ` (${best.quality})` : ''}
-              </a>
-            );
-          })}
-        </div>
+        {media.trailerUrl && (
+          <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
+             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+             style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.18); color: #F87171;">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Bande-annonce
+          </a>
+        )}
       </div>
     </div>
   </div>

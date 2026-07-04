@@ -2,20 +2,11 @@
 interface Props { media: any }
 
 const { media } = Astro.props;
-
 const episodes: any[] = media.episodes || [];
-const isEpisodeBased = media.type === 'serie' || media.type === 'anime';
-const show = isEpisodeBased && episodes.length > 0;
+const hasEpisodes = episodes.length > 0;
 
-// All links from media, with and without episodeId
 const allLinks: any[] = (media.links || []).filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
-const generalLinks = allLinks.filter((l: any) => !l.episode_id && !l.episodeId);
 
-// Group by site for general links display
-const genSites = new Map<string, any[]>();
-for (const l of generalLinks) { const s = l.source_site || l.sourceSite || 'Source'; if (!genSites.has(s)) genSites.set(s, []); genSites.get(s)!.push(l); }
-
-// Build season groups
 const seasons = new Map<number, any[]>();
 for (const ep of episodes) {
   const s = ep.season_number ?? ep.seasonNumber ?? 1;
@@ -25,103 +16,70 @@ for (const ep of episodes) {
 const seasonNums = [...seasons.keys()].sort();
 ---
 
-{show && (
+{hasEpisodes && (
 <div class="space-y-10 max-w-5xl mx-auto">
-
-  {generalLinks.length > 0 && (
-    <div class="rounded-2xl p-5" style="background: rgba(59,130,246,0.04); border: 1px solid rgba(59,130,246,0.08);">
-      <h3 class="text-sm font-semibold mb-3" style="color: rgba(255,255,255,0.5);">LIENS DE STREAMING</h3>
-      <div class="flex flex-wrap gap-2">
-        {[...genSites.entries()].map(([site, siteLinks]) => {
-          const best = siteLinks[0];
-          return (
-            <a href={best.url} target="_blank"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-               style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.15); color: #60A5FA;">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              {site}
-              {best.quality && <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4);">{best.quality}</span>}
-            </a>
-          );
-        })}
-      </div>
-    </div>
-  )}
-
-  {seasonNums.map((sn, si) => {
+  {seasonNums.map((sn) => {
     const eps = seasons.get(sn)!;
     return (
-      <div>
-        <div class="flex items-center gap-4 mb-5">
-          <h2 class="text-xl font-bold" style="color: rgba(255,255,255,0.85);">Saison {sn}</h2>
-          <span class="text-xs px-2.5 py-0.5 rounded-full" style="background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.35);">{eps.length} ep.</span>
-          <div class="flex-1 h-px" style="background: linear-gradient(to right, rgba(255,255,255,0.06), transparent);"></div>
+      <section>
+        <div class="flex items-center gap-3 mb-5">
+          <h2 class="text-lg font-bold" style="color: rgba(255,255,255,0.85);">Saison {sn}</h2>
+          <span class="text-xs" style="color: rgba(255,255,255,0.3);">{eps.length} épisode{eps.length > 1 ? 's' : ''}</span>
+          <div class="flex-1 h-px" style="background: linear-gradient(90deg, rgba(255,255,255,0.06), transparent);"></div>
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-2.5 sm:grid-cols-2">
           {eps.map(ep => {
-            const epNum = ep.episode_number ?? ep.episodeNumber;
-            const epTitle = ep.title || `Episode ${epNum}`;
+            const num = ep.episode_number ?? ep.episodeNumber;
+            const title = ep.title || `Épisode ${num}`;
             const dur = ep.duration;
-            const epSynopsis = ep.synopsis;
+            const synopsis = ep.synopsis;
             const epLinks = allLinks.filter((l: any) => {
               const lid = l.episode_id ?? l.episodeId;
-              return lid === ep.id;
+              return lid && lid === ep.id;
             });
-            const thumb = ep.thumbnail_url || ep.thumbnailUrl;
 
             return (
-              <div class="rounded-2xl overflow-hidden transition-all duration-200"
-                   style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                <div class="flex flex-col sm:flex-row">
-                  {thumb ? (
-                    <div class="sm:w-36 shrink-0">
-                      <img src={thumb} alt={epTitle} class="w-full h-full object-cover aspect-video sm:aspect-auto sm:h-full" loading="lazy" />
-                    </div>
+              <div class="rounded-xl p-3 flex gap-3 transition-colors"
+                   style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
+                <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center"
+                     style="background: rgba(255,255,255,0.03);">
+                  {(ep.thumbnail_url || ep.thumbnailUrl) ? (
+                    <img src={ep.thumbnail_url || ep.thumbnailUrl} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
                   ) : (
-                    <div class="sm:w-24 shrink-0 flex items-center justify-center aspect-video sm:aspect-auto sm:min-h-[100px]"
-                         style="background: rgba(255,255,255,0.03);">
-                      <span class="text-2xl font-bold" style="color: rgba(255,255,255,0.08);">{String(epNum).padStart(2, '0')}</span>
+                    <span class="text-lg font-bold" style="color: rgba(255,255,255,0.08);">{String(num).padStart(2, '0')}</span>
+                  )}
+                </div>
+                <div class="flex-1 min-w-0 flex flex-col justify-center">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold shrink-0" style="color: rgba(255,255,255,0.25);">E{String(num).padStart(2, '0')}</span>
+                    <span class="text-sm font-medium truncate" style="color: rgba(255,255,255,0.8);">{title}</span>
+                    {dur && <span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">{dur}min</span>}
+                  </div>
+                  {synopsis && (
+                    <p class="text-xs mt-1 line-clamp-2 leading-relaxed" style="color: rgba(255,255,255,0.35);">{synopsis}</p>
+                  )}
+                  {epLinks.length > 0 && (
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                      {epLinks.slice(0, 4).map((l: any) => (
+                        <a href={l.url} target="_blank"
+                           class="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                           style="background: rgba(59,130,246,0.08); color: #60A5FA;">
+                          {l.source_site || l.sourceSite || 'Voir'}
+                          {l.quality ? ` ${l.quality}` : ''}
+                        </a>
+                      ))}
                     </div>
                   )}
-                  <div class="flex-1 p-3.5 flex flex-col justify-between min-w-0">
-                    <div>
-                      <div class="flex items-start gap-2 mb-1">
-                        <span class="text-[11px] font-mono font-bold shrink-0 mt-0.5" style="color: rgba(255,255,255,0.25);">E{String(epNum).padStart(2, '0')}</span>
-                        <h4 class="text-sm font-semibold leading-snug line-clamp-1" style="color: rgba(255,255,255,0.8);">{epTitle}</h4>
-                        {dur && <span class="text-[11px] shrink-0 mt-0.5 ml-auto" style="color: rgba(255,255,255,0.25);">{dur}min</span>}
-                      </div>
-                      {epSynopsis && (
-                        <p class="text-xs leading-relaxed line-clamp-2 mb-2" style="color: rgba(255,255,255,0.35);">{epSynopsis}</p>
-                      )}
-                    </div>
-                    {epLinks.length > 0 && (
-                      <div class="flex flex-wrap gap-1.5 mt-1.5">
-                        {epLinks.slice(0, 3).map((l: any) => {
-                          const site = l.source_site || l.sourceSite || 'Voir';
-                          return (
-                            <a href={l.url} target="_blank"
-                               class="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all duration-200"
-                               style="background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.12); color: rgba(96,165,250,0.8);">
-                              {site}{l.quality ? ` ${l.quality}` : ''}
-                            </a>
-                          );
-                        })}
-                        {epLinks.length > 3 && (
-                          <span class="text-[11px] px-2.5 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.25);">+{epLinks.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-                    {epLinks.length === 0 && (
-                      <span class="text-[11px]" style="color: rgba(255,255,255,0.15);">Aucun lien disponible</span>
-                    )}
-                  </div>
+                  {epLinks.length === 0 && (
+                    <span class="text-[11px] mt-1.5" style="color: rgba(255,255,255,0.12);">Aucun lien disponible</span>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
     );
   })}
 </div>
