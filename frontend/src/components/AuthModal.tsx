@@ -10,7 +10,7 @@ interface AuthModalProps {
     onLogin: (user: { name: string; email: string; avatar?: string }) => void;
 }
 
-type ViewState = 'form' | 'signup-success' | 'forgot-password';
+type ViewState = 'form' | 'signup-success' | 'forgot-password' | 'reset-sent';
 
 export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -213,6 +213,28 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 </button>
                             </div>
                         </div>
+                    ) : view === 'reset-sent' ? (
+                        <div className="text-center py-4">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                                <Mail className="h-8 w-8 text-primary" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">Email envoye</h3>
+                            <p className="text-sm text-muted-foreground mb-1">
+                                Un lien de reinitialisation a ete envoye a :
+                            </p>
+                            <p className="text-sm font-medium text-foreground mb-4">{formData.email}</p>
+                            <p className="text-xs text-muted-foreground mb-6">
+                                Clique sur le lien dans l'email pour choisir un nouveau mot de passe.
+                            </p>
+                            <div>
+                                <button
+                                    onClick={() => { setView('form'); setError(''); }}
+                                    className="text-sm text-primary font-medium hover:underline"
+                                >
+                                    Retour a la connexion
+                                </button>
+                            </div>
+                        </div>
                     ) : view === 'forgot-password' ? (
                         <div className="text-center py-4">
                             <h3 className="text-lg font-semibold mb-2">Mot de passe oublie</h3>
@@ -235,7 +257,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     if (resetError) {
                                         setError(resetError.message || 'Erreur');
                                     } else {
-                                        setView('signup-success');
+                                        setView('reset-sent');
                                     }
                                 } catch (err: any) {
                                     setError(err?.message || 'Erreur');

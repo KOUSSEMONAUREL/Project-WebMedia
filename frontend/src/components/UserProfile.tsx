@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { authClient, getAuthToken, sendVerificationEmail } from '@/lib/auth-client';
-import { Heart, Clock, LogOut, Star, History, Settings, Shield, Wifi, WifiOff, Trash2, Mail, RefreshCw } from 'lucide-react';
+import { authClient, getAuthToken, sendVerificationEmail, changePassword } from '@/lib/auth-client';
+import { Heart, Clock, LogOut, Star, History, Settings, Shield, Wifi, WifiOff, Trash2, Mail, RefreshCw, Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
@@ -384,6 +385,10 @@ function PrivacySettings({ userEmail }: { userEmail: string }) {
     setTimeout(() => setCacheCleared(false), 3000);
   };
 
+  const [pwError, setPwError] = useState('');
+  const [pwSending, setPwSending] = useState(false);
+  const [pwDone, setPwDone] = useState(false);
+
   const storageItems = [
     { label: 'Cookie de session', desc: 'Maintient votre connexion active. Supprimé à la déconnexion.', type: 'Nécessaire', color: 'emerald' },
     { label: 'IndexedDB — favoris, watchlist, historique', desc: 'Stocké sur votre appareil uniquement. Jamais transmis à un tiers.', type: 'Fonctionnel', color: 'blue' },
@@ -433,6 +438,64 @@ function PrivacySettings({ userEmail }: { userEmail: string }) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Changer mot de passe */}
+      <div className="mb-6 p-5 rounded-2xl bg-secondary/20 border border-border/40">
+        <div className="flex items-center gap-3 mb-4">
+          <Lock className="w-5 h-5 text-muted-foreground" />
+          <p className="text-[14px] font-semibold text-foreground">Changer le mot de passe</p>
+        </div>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const form = e.target as HTMLFormElement;
+          const currentPw = (form.elements.namedItem('currentPw') as HTMLInputElement).value;
+          const newPw = (form.elements.namedItem('newPw') as HTMLInputElement).value;
+          const confirmPw = (form.elements.namedItem('confirmPw') as HTMLInputElement).value;
+          if (newPw.length < 6) return setPwError('Minimum 6 caracteres');
+          if (newPw !== confirmPw) return setPwError('Les mots de passe ne correspondent pas');
+          setPwSending(true);
+          setPwError('');
+          try {
+            const { error: changeErr } = await changePassword({ currentPassword: currentPw, newPassword: newPw });
+            if (changeErr) {
+              setPwError(changeErr.message || 'Erreur');
+            } else {
+              setPwDone(true);
+              form.reset();
+              setTimeout(() => setPwDone(false), 4000);
+            }
+          } catch (err: any) {
+            setPwError(err?.message || 'Erreur');
+          }
+          setPwSending(false);
+        }} className="space-y-3">
+          <input
+            type="password"
+            name="currentPw"
+            placeholder="Mot de passe actuel"
+            required
+            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <input
+            type="password"
+            name="newPw"
+            placeholder="Nouveau mot de passe"
+            required
+            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <input
+            type="password"
+            name="confirmPw"
+            placeholder="Confirmer"
+            required
+            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          {pwError && <p className="text-xs text-red-400">{pwError}</p>}
+          <Button type="submit" disabled={pwSending} className="w-full h-10 text-sm font-semibold">
+            {pwSending ? 'Enregistrement...' : pwDone ? 'Modifie !' : 'Modifier'}
+          </Button>
+        </form>
       </div>
 
       {/* Toggle hors-ligne */}
