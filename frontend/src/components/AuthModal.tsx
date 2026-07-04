@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
+import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome, CheckCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 
 interface AuthModalProps {
@@ -10,9 +10,12 @@ interface AuthModalProps {
     onLogin: (user: { name: string; email: string; avatar?: string }) => void;
 }
 
+type ViewState = 'form' | 'signup-success' | 'forgot-password';
+
 export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [mode, setMode] = useState<'login' | 'signup'>('login');
     const [showPassword, setShowPassword] = useState(false);
+    const [view, setView] = useState<ViewState>('form');
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -21,8 +24,33 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [resending, setResending] = useState(false);
 
     if (!isOpen) return null;
+
+    const resetForm = () => {
+        setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+        setError('');
+        setView('form');
+    };
+
+    const handleResendVerification = async () => {
+        setResending(true);
+        setError('');
+        try {
+            const { error: resendError } = await sendVerificationEmail({
+                email: formData.email,
+                callbackURL: window.location.origin + '/verify-success',
+            });
+            if (resendError) {
+                setError(resendError.message || 'Erreur lors de l\'envoi');
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Erreur lors de l\'envoi');
+        } finally {
+            setResending(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,7 +86,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 });
 
                 if (signInError) {
-                    setError(signInError.message || 'Erreur de connexion');
+                    const msg = signInError.message || 'Erreur de connexion';
+                    if (msg.toLowerCase().includes('email not verified') || msg.toLowerCase().includes('verify')) {
+                        setError('Email non verifié. Veuillez vérifier votre boite de réception.');
+                    } else {
+                        setError(msg);
+                    }
                     return;
                 }
 
@@ -79,10 +112,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     onClose();
                 }
             } else {
-                const { data, error: signUpError } = await authClient.signUp.email({
+                const { error: signUpError } = await authClient.signUp.email({
                     email: formData.email,
                     password: formData.password,
                     name: formData.name,
+                    callbackURL: window.location.origin + '/verify-success',
                 });
 
                 if (signUpError) {
@@ -90,22 +124,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     return;
                 }
 
-                if (data?.user) {
-                    const userData = {
-                        name: data.user.name,
-                        email: data.user.email,
-                        avatar: data.user.image || undefined,
-                    };
-                    const authUser = {
-                        id: data.user.id,
-                        email: data.user.email,
-                        username: data.user.name,
-                        avatar: data.user.image || undefined,
-                    };
-                    authStore.setSession(authUser);
-                    onLogin(userData);
-                    onClose();
-                }
+                setView('signup-success');
             }
         } catch (err: any) {
             setError(err?.message || 'Une erreur est survenue');
@@ -148,7 +167,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         WebkitTextFillColor: 'transparent',
                         backgroundClip: 'text',
                     }}>
-                        {mode === 'login' ? 'Connexion' : 'Inscription'}
+                        {view === 'signup-success'
+                            ? 'Verification envoyee'
+                            : mode === 'login' ? 'Connexion' : 'Inscription'}
                     </h2>
                     <Button
                         variant="ghost"
@@ -161,13 +182,101 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 </div>
 
                 <div className="p-6">
+                    {view === 'signup-success' ? (
+                        <div className="text-center py-4">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                                <Mail className="h-8 w-8 text-primary" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">Verifie ta boite email</h3>
+                            <p className="text-sm text-muted-foreground mb-1">
+                                Un email de confirmation a ete envoye a :
+                            </p>
+                            <p className="text-sm font-medium text-foreground mb-4">{formData.email}</p>
+                            <p className="text-xs text-muted-foreground mb-6">
+                                Clique sur le lien dans l'email pour activer ton compte.
+                            </p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleResendVerification}
+                                disabled={resending}
+                                className="gap-2 mb-3"
+                            >
+                                <RefreshCw className={`h-3.5 w-3.5 ${resending ? 'animate-spin' : ''}`} />
+                                {resending ? 'Envoi...' : 'Renvoyer'}
+                            </Button>
+                            <div>
+                                <button
+                                    onClick={() => { setMode('login'); resetForm(); }}
+                                    className="text-sm text-primary font-medium hover:underline"
+                                >
+                                    Retour a la connexion
+                                </button>
+                            </div>
+                        </div>
+                    ) : view === 'forgot-password' ? (
+                        <div className="text-center py-4">
+                            <h3 className="text-lg font-semibold mb-2">Mot de passe oublie</h3>
+                            <p className="text-sm text-muted-foreground mb-6">
+                                Saisis ton email pour recevoir un lien de reinitialisation.
+                            </p>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setError('');
+                                if (!formData.email.includes('@')) {
+                                    setError('Email invalide');
+                                    return;
+                                }
+                                setLoading(true);
+                                try {
+                                    const { error: resetError } = await authClient.requestPasswordReset({
+                                        email: formData.email,
+                                        redirectTo: window.location.origin + '/reset-password',
+                                    });
+                                    if (resetError) {
+                                        setError(resetError.message || 'Erreur');
+                                    } else {
+                                        setView('signup-success');
+                                    }
+                                } catch (err: any) {
+                                    setError(err?.message || 'Erreur');
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }} className="space-y-4">
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                    />
+                                </div>
+                                {error && (
+                                    <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
+                                )}
+                                <Button type="submit" className="w-full h-11 font-bold" disabled={loading}>
+                                    {loading ? 'Envoi...' : 'Envoyer le lien'}
+                                </Button>
+                            </form>
+                            <button
+                                onClick={() => { setView('form'); setError(''); }}
+                                className="mt-4 text-sm text-primary font-medium hover:underline"
+                            >
+                                Retour a la connexion
+                            </button>
+                        </div>
+                    ) : (
+                        <>
                     {mode === 'login' && (
                         <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
                         <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>
                         <ul className="text-xs text-muted-foreground space-y-1">
                             <li>Sauvegarder vos favoris</li>
-                            <li>Télécharger du contenu</li>
-                            <li>Suivre vos séries préférées</li>
+                            <li>Telecharger du contenu</li>
+                            <li>Suivre vos series preferees</li>
                             <li>Voir vos statistiques</li>
                         </ul>
                         </div>
@@ -257,6 +366,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         <Button type="submit" className="w-full h-11 font-bold" disabled={loading}>
                             {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
                         </Button>
+
+                        {mode === 'login' && (
+                            <p className="text-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setView('forgot-password')}
+                                    className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                >
+                                    Mot de passe oublie ?
+                                </button>
+                            </p>
+                        )}
                     </form>
 
                     <p className="mt-6 text-center text-sm text-muted-foreground">
@@ -272,7 +393,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </>
                         ) : (
                             <>
-                                Déjà un compte ?{' '}
+                                Deja un compte ?{' '}
                                 <button
                                     onClick={() => { setMode('login'); setError(''); }}
                                     className="text-primary font-medium hover:underline"
@@ -282,6 +403,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </>
                         )}
                     </p>
+                    </>
+                    )}
                 </div>
             </div>
         </div>

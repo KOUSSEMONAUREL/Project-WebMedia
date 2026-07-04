@@ -15,6 +15,9 @@ export const {
     useSession,
     signOut,
     getSession,
+    sendVerificationEmail,
+    requestPasswordReset,
+    resetPassword,
 } = authClient;
 
 /** Récupère le token de session Bearer pour les appels cross-domain */

@@ -47,18 +47,20 @@ export function getAuth(dbUrl?: string) {
             enabled: true,
             autoSignIn: false,
             requireEmailVerification: true,
-            sendEmailVerificationOnSignUp: true,
-        },
-        sendEmail: async ({ user, url, type }: { user: { id: string; name: string; email: string }; url: string; type: string }) => {
-            if (type === 'email-verification') {
-                const { sendMail, buildVerificationEmail } = await import('./email');
-                const { subject, html } = buildVerificationEmail(user.name, url);
-                await sendMail(user.email, subject, html);
-            } else if (type === 'forgot-password') {
+            sendResetPassword: async ({ user, url }) => {
                 const { sendMail, buildResetEmail } = await import('./email');
                 const { subject, html } = buildResetEmail(user.name, url);
                 await sendMail(user.email, subject, html);
-            }
+            },
+        },
+        emailVerification: {
+            sendVerificationEmail: async ({ user, url }) => {
+                const { sendMail, buildVerificationEmail } = await import('./email');
+                const { subject, html } = buildVerificationEmail(user.name, url);
+                await sendMail(user.email, subject, html);
+            },
+            sendOnSignUp: true,
+            autoSignInAfterVerification: true,
         },
         socialProviders: {
             google: {
