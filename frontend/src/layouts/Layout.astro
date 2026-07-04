@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
+import { VerificationBanner } from '../components/VerificationBanner';
 import ClientRouter from 'astro/components/ClientRouter.astro';
 
 interface Props {
@@ -32,6 +33,7 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
     </head>
     <body class="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
         <Navbar client:load transition:persist />
+        <VerificationBanner client:load />
         <main class="flex-1 pt-[74px]">
             <slot />
         </main>

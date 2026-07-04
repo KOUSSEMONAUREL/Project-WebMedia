@@ -16,7 +16,13 @@ function createAuthStore() {
         setSession(user: AuthUser) {
             if (typeof window === 'undefined') return;
             localStorage.setItem('webmedia_user', JSON.stringify(user));
+            localStorage.setItem('webmedia_email_verified', String(!!user.emailVerified));
             listeners.forEach(l => l());
+        },
+
+        isEmailVerified(): boolean {
+            if (typeof window === 'undefined') return true;
+            return localStorage.getItem('webmedia_email_verified') !== 'false';
         },
 
         logout() {

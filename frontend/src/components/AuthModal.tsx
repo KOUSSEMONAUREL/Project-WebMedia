@@ -86,12 +86,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 });
 
                 if (signInError) {
-                    const msg = signInError.message || 'Erreur de connexion';
-                    if (msg.toLowerCase().includes('email not verified') || msg.toLowerCase().includes('verify')) {
-                        setError('Email non verifié. Veuillez vérifier votre boite de réception.');
-                    } else {
-                        setError(msg);
-                    }
+                    setError(signInError.message || 'Erreur de connexion');
                     return;
                 }
 
@@ -106,6 +101,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         email: data.user.email,
                         username: data.user.name,
                         avatar: data.user.image || undefined,
+                        emailVerified: data.user.emailVerified,
                     };
                     authStore.setSession(authUser);
                     onLogin(userData);
@@ -192,8 +188,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 Un email de confirmation a ete envoye a :
                             </p>
                             <p className="text-sm font-medium text-foreground mb-4">{formData.email}</p>
-                            <p className="text-xs text-muted-foreground mb-6">
+                            <p className="text-xs text-muted-foreground mb-2">
                                 Clique sur le lien dans l'email pour activer ton compte.
+                            </p>
+                            <p className="text-xs text-primary/80 mb-6">
+                                Tu peux deja te connecter sans attendre.
                             </p>
                             <Button
                                 variant="outline"

@@ -46,7 +46,7 @@ export function getAuth(dbUrl?: string) {
         emailAndPassword: {
             enabled: true,
             autoSignIn: false,
-            requireEmailVerification: true,
+            requireEmailVerification: false,
             sendResetPassword: async ({ user, url }) => {
                 const { sendMail, buildResetEmail } = await import('./email');
                 const { subject, html } = buildResetEmail(user.name, url);

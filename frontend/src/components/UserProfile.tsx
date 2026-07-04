@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { authClient, getAuthToken } from '@/lib/auth-client';
-import { Heart, Clock, LogOut, Star, History, Settings, Shield, Wifi, WifiOff, Trash2 } from 'lucide-react';
+import { authClient, getAuthToken, sendVerificationEmail } from '@/lib/auth-client';
+import { Heart, Clock, LogOut, Star, History, Settings, Shield, Wifi, WifiOff, Trash2, Mail, RefreshCw } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
@@ -327,19 +327,36 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
 
         {/* Onglet Paramètres & Confidentialité */}
         {activeTab === 'settings' && (
-          <PrivacySettings />
+          <PrivacySettings userEmail={currentUser.email} />
         )}
 
       </div>
     </div>
   );
 }
-function PrivacySettings() {
+function PrivacySettings({ userEmail }: { userEmail: string }) {
   const CONSENT_KEY = 'webmedia_storage_consent';
   const [offlineEnabled, setOfflineEnabled] = useState<boolean>(
     () => localStorage.getItem(CONSENT_KEY) === 'full'
   );
   const [cacheCleared, setCacheCleared] = useState(false);
+  const [verifSending, setVerifSending] = useState(false);
+  const [verifSent, setVerifSent] = useState(false);
+
+  const isVerified = authStore.isEmailVerified();
+
+  const handleSendVerification = async () => {
+    setVerifSending(true);
+    try {
+      await sendVerificationEmail({
+        email: userEmail,
+        callbackURL: window.location.origin + '/verify-success',
+      });
+      setVerifSent(true);
+      setTimeout(() => setVerifSent(false), 4000);
+    } catch {}
+    setVerifSending(false);
+  };
 
   const toggleOffline = async (enable: boolean) => {
     setOfflineEnabled(enable);
@@ -379,6 +396,43 @@ function PrivacySettings() {
       <div className="flex items-center gap-2 mb-6">
         <Shield className="w-5 h-5 text-slate-400" />
         <h2 className="text-lg font-display font-semibold text-foreground">Confidentialité & Stockage</h2>
+      </div>
+
+      {/* Verification email */}
+      <div className="mb-6 p-5 rounded-2xl bg-secondary/20 border border-border/40">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {isVerified ? (
+              <>
+                <Mail className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <p className="text-[14px] font-semibold text-foreground">Email verifie</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">{userEmail}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <Mail className="w-5 h-5 text-amber-400" />
+                <div>
+                  <p className="text-[14px] font-semibold text-foreground">Email non verifie</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    Verifie ton email pour acceder aux options de securite.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+          {!isVerified && (
+            <button
+              onClick={handleSendVerification}
+              disabled={verifSending}
+              className="shrink-0 text-xs font-medium text-amber-300 hover:text-amber-100 transition-colors px-3 py-1.5 rounded-lg border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <RefreshCw className={`h-3 w-3 ${verifSending ? 'animate-spin' : ''}`} />
+              {verifSending ? 'Envoi...' : verifSent ? 'Envoye !' : 'Renvoyer'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Toggle hors-ligne */}

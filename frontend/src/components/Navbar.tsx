@@ -72,6 +72,7 @@ export function Navbar() {
         email: sessionUser.email,
         username: sessionUser.name,
         avatar: sessionUser.image || undefined,
+        emailVerified: sessionUser.emailVerified,
       });
     }
   }, [sessionUser]);
