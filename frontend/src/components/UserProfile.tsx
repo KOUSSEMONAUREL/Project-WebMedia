@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { authClient, getAuthToken, sendVerificationEmail, changePassword } from '@/lib/auth-client';
-import { Heart, Clock, LogOut, Star, History, Settings, Shield, Wifi, WifiOff, Trash2, Mail, RefreshCw, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { authClient, getAuthToken } from '@/lib/auth-client';
+import { Heart, Clock, LogOut, Star, History, Settings } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
 import { MediaCard } from './MediaCard';
 import { EmptyState } from './EmptyState';
 
-type TabType = 'favorites' | 'watchlist' | 'history' | 'settings';
+type TabType = 'favorites' | 'watchlist' | 'history';
 
 export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType }) {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -234,18 +233,6 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{history.length}</span>
           <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Historique</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
-            activeTab === 'settings'
-              ? 'bg-slate-500/10 border-slate-500/30 text-slate-300 shadow-[0_4px_16px_rgba(100,116,139,0.1)]'
-              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Shield className="h-5 w-5 mb-1.5" />
-          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-2">Paramètres</span>
-        </button>
       </div>
 
       {/* Main Grid Content Column */}
@@ -326,250 +313,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           </div>
         )}
 
-        {/* Onglet Paramètres & Confidentialité */}
-        {activeTab === 'settings' && (
-          <PrivacySettings userEmail={currentUser.email} />
-        )}
-
       </div>
-    </div>
-  );
-}
-function PrivacySettings({ userEmail }: { userEmail: string }) {
-  const CONSENT_KEY = 'webmedia_storage_consent';
-  const [offlineEnabled, setOfflineEnabled] = useState<boolean>(
-    () => localStorage.getItem(CONSENT_KEY) === 'full'
-  );
-  const [cacheCleared, setCacheCleared] = useState(false);
-  const [verifSending, setVerifSending] = useState(false);
-  const [verifSent, setVerifSent] = useState(false);
-
-  const isVerified = authStore.isEmailVerified();
-
-  const handleSendVerification = async () => {
-    setVerifSending(true);
-    try {
-      await sendVerificationEmail({
-        email: userEmail,
-        callbackURL: window.location.origin + '/verify-success',
-      });
-      setVerifSent(true);
-      setTimeout(() => setVerifSent(false), 4000);
-    } catch {}
-    setVerifSending(false);
-  };
-
-  const toggleOffline = async (enable: boolean) => {
-    setOfflineEnabled(enable);
-    localStorage.setItem(CONSENT_KEY, enable ? 'full' : 'minimal');
-    if (enable) {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
-      }
-    } else {
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister()));
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-    }
-  };
-
-  const clearCache = async () => {
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
-    }
-    setCacheCleared(true);
-    setTimeout(() => setCacheCleared(false), 3000);
-  };
-
-  const [pwError, setPwError] = useState('');
-  const [pwSending, setPwSending] = useState(false);
-  const [pwDone, setPwDone] = useState(false);
-
-  const storageItems = [
-    { label: 'Cookie de session', desc: 'Maintient votre connexion active. Supprimé à la déconnexion.', type: 'Nécessaire', color: 'emerald' },
-    { label: 'IndexedDB — favoris, watchlist, historique', desc: 'Stocké sur votre appareil uniquement. Jamais transmis à un tiers.', type: 'Fonctionnel', color: 'blue' },
-    { label: 'sessionStorage — file de synchronisation', desc: 'Queue temporaire pour la sync Supabase. Effacée à la fermeture du tab.', type: 'Fonctionnel', color: 'blue' },
-    { label: 'Service Worker — cache hors-ligne', desc: 'Met le site en cache local pour une navigation sans réseau. Désactivable ci-dessus.', type: 'Optionnel', color: 'purple' },
-  ];
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-6">
-        <Shield className="w-5 h-5 text-slate-400" />
-        <h2 className="text-lg font-display font-semibold text-foreground">Confidentialité & Stockage</h2>
-      </div>
-
-      {/* Verification email */}
-      <div className="mb-6 p-5 rounded-2xl bg-secondary/20 border border-border/40">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {isVerified ? (
-              <>
-                <Mail className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <p className="text-[14px] font-semibold text-foreground">Email verifie</p>
-                  <p className="text-[12px] text-muted-foreground mt-0.5">{userEmail}</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <Mail className="w-5 h-5 text-amber-400" />
-                <div>
-                  <p className="text-[14px] font-semibold text-foreground">Email non verifie</p>
-                  <p className="text-[12px] text-muted-foreground mt-0.5">
-                    Verifie ton email pour acceder aux options de securite.
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-          {!isVerified && (
-            <button
-              onClick={handleSendVerification}
-              disabled={verifSending}
-              className="shrink-0 text-xs font-medium text-amber-300 hover:text-amber-100 transition-colors px-3 py-1.5 rounded-lg border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <RefreshCw className={`h-3 w-3 ${verifSending ? 'animate-spin' : ''}`} />
-              {verifSending ? 'Envoi...' : verifSent ? 'Envoye !' : 'Renvoyer'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Changer mot de passe */}
-      <div className="mb-6 p-5 rounded-2xl bg-secondary/20 border border-border/40">
-        <div className="flex items-center gap-3 mb-4">
-          <Lock className="w-5 h-5 text-muted-foreground" />
-          <p className="text-[14px] font-semibold text-foreground">Changer le mot de passe</p>
-        </div>
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          const form = e.target as HTMLFormElement;
-          const currentPw = (form.elements.namedItem('currentPw') as HTMLInputElement).value;
-          const newPw = (form.elements.namedItem('newPw') as HTMLInputElement).value;
-          const confirmPw = (form.elements.namedItem('confirmPw') as HTMLInputElement).value;
-          if (newPw.length < 6) return setPwError('Minimum 6 caracteres');
-          if (newPw !== confirmPw) return setPwError('Les mots de passe ne correspondent pas');
-          setPwSending(true);
-          setPwError('');
-          try {
-            const { error: changeErr } = await changePassword({ currentPassword: currentPw, newPassword: newPw });
-            if (changeErr) {
-              setPwError(changeErr.message || 'Erreur');
-            } else {
-              setPwDone(true);
-              form.reset();
-              setTimeout(() => setPwDone(false), 4000);
-            }
-          } catch (err: any) {
-            setPwError(err?.message || 'Erreur');
-          }
-          setPwSending(false);
-        }} className="space-y-3">
-          <input
-            type="password"
-            name="currentPw"
-            placeholder="Mot de passe actuel"
-            required
-            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <input
-            type="password"
-            name="newPw"
-            placeholder="Nouveau mot de passe"
-            required
-            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <input
-            type="password"
-            name="confirmPw"
-            placeholder="Confirmer"
-            required
-            className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          {pwError && <p className="text-xs text-red-400">{pwError}</p>}
-          <Button type="submit" disabled={pwSending} className="w-full h-10 text-sm font-semibold">
-            {pwSending ? 'Enregistrement...' : pwDone ? 'Modifie !' : 'Modifier'}
-          </Button>
-        </form>
-      </div>
-
-      {/* Toggle hors-ligne */}
-      <div className="mb-6 p-5 rounded-2xl bg-secondary/20 border border-border/40">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {offlineEnabled
-              ? <Wifi className="w-5 h-5 text-blue-400" />
-              : <WifiOff className="w-5 h-5 text-muted-foreground" />}
-            <div>
-              <p className="text-[14px] font-semibold text-foreground">Mode hors-ligne</p>
-              <p className="text-[12px] text-muted-foreground mt-0.5">
-                {offlineEnabled
-                  ? 'Actif — le site est mis en cache pour fonctionner sans réseau.'
-                  : 'Inactif — aucun contenu n\'est mis en cache sur votre appareil.'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => toggleOffline(!offlineEnabled)}
-            className={`relative w-12 h-6 rounded-full border transition-all duration-300 ${
-              offlineEnabled
-                ? 'bg-blue-600 border-blue-500'
-                : 'bg-secondary border-border'
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${
-              offlineEnabled ? 'translate-x-6' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
-
-        {offlineEnabled && (
-          <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between gap-3">
-            <p className="text-[12px] text-muted-foreground">Vider le cache pour libérer de l'espace</p>
-            <button
-              onClick={clearCache}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border border-border hover:bg-red-950/20 hover:border-red-500/30 hover:text-red-400 transition-all duration-200"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {cacheCleared ? '✓ Cache vidé' : 'Vider le cache'}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Ce qui est stocké */}
-      <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Ce qui est stocké sur votre appareil</h3>
-      <div className="space-y-2">
-        {storageItems.map(item => (
-          <div key={item.label} className="flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-border/30">
-            <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${
-              item.color === 'emerald' ? 'bg-emerald-400' :
-              item.color === 'blue' ? 'bg-blue-400' : 'bg-purple-400'
-            }`} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[13px] font-medium text-foreground">{item.label}</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  item.color === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' :
-                  item.color === 'blue' ? 'bg-blue-500/15 text-blue-400' :
-                  'bg-purple-500/15 text-purple-400'
-                }`}>{item.type}</span>
-              </div>
-              <p className="text-[12px] text-muted-foreground mt-0.5">{item.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-[11.5px] text-muted-foreground/60 mt-5 leading-relaxed">
-        WebMedia ne vend ni ne partage vos données avec des tiers. Vos favoris et watchlist sont uniquement
-        synchronisés avec notre base de données pour les retrouver sur d'autres appareils si vous êtes connecté.
-      </p>
     </div>
   );
 }

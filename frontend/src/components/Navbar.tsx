@@ -251,7 +251,7 @@ export function Navbar() {
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-              className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 mr-1 rounded-xl transition-all duration-200 ${
+              className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 mr-1 rounded-xl transition-all duration-200 cursor-pointer ${
                 isMobileMenuOpen
                   ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
                   : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground'
