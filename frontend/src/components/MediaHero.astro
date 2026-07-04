@@ -22,9 +22,14 @@ const isEpisode = media.type === 'serie' || media.type === 'anime';
   <div class="absolute inset-0 z-0">
     <div class={`absolute inset-0 bg-gradient-to-b ${grad} to-background`}></div>
     <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
-    {media.posterUrl && (
-      <img src={optimizePosterUrl(media.posterUrl)} alt="" class="w-full h-full object-cover opacity-20 scale-110 filter blur-[2px]" />
-    )}
+    {(() => {
+      const img = media.backdropUrl || media.posterUrl;
+      const isPoster = !media.backdropUrl && media.posterUrl;
+      return img ? (
+        <img src={optimizePosterUrl(img)} alt=""
+             class={`w-full h-full object-cover ${isPoster ? 'object-top' : 'object-center'} opacity-25`} />
+      ) : null;
+    })()}
   </div>
 
   <div class="container relative z-10 mx-auto px-4 sm:px-6 pt-32 pb-16">
