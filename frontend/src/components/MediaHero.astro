@@ -1,129 +1,148 @@
 ---
 import { optimizePosterUrl, posterSrcSet } from '../lib/image';
 
-interface Props {
-  media: any;
-}
+interface Props { media: any }
 
 const { media } = Astro.props;
 
-const typeLabels: Record<string, string> = {
+const typeLabel: Record<string, string> = {
   film: 'Film', serie: 'Serie', anime: 'Anime', jeu: 'Jeu',
   webtoon: 'Webtoon', book: 'Livre', novel: 'Novel',
 };
 
-const gradColors: Record<string, string> = {
-  film: 'from-sky-700/70 via-sky-900/40', serie: 'from-violet-700/70 via-violet-900/40',
-  anime: 'from-rose-700/70 via-rose-900/40', jeu: 'from-emerald-700/70 via-emerald-900/40',
-  webtoon: 'from-amber-700/70 via-amber-900/40', book: 'from-orange-700/70 via-orange-900/40',
-  novel: 'from-teal-700/70 via-teal-900/40',
-};
+const grad: Record<string, string> = {
+  film: 'from-indigo-700/60 via-indigo-900/30', serie: 'from-violet-700/60 via-violet-900/30',
+  anime: 'from-rose-700/60 via-rose-900/30', jeu: 'from-emerald-700/60 via-emerald-900/30',
+  webtoon: 'from-amber-700/60 via-amber-900/30', book: 'from-orange-700/60 via-orange-900/30',
+  novel: 'from-teal-700/60 via-teal-900/30',
+}[media.type] || 'from-indigo-700/60 via-indigo-900/30';
 
-const grad = gradColors[media.type] || gradColors.film;
-const isEpisodeBased = media.type === 'serie' || media.type === 'anime';
+const isEpisode = media.type === 'serie' || media.type === 'anime';
+const links: any[] = (media.links || []).filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
+const legal: any[] = media.legalLinks || [];
+const showLinks = !isEpisode && links.length > 0;
+const sites = new Map<string, any[]>();
+for (const l of links) { const s = l.source_site || l.sourceSite || 'Source'; if (!sites.has(s)) sites.set(s, []); sites.get(s)!.push(l); }
 ---
 
 <div class="relative">
-  <div class="absolute inset-0 h-[75vh] overflow-hidden">
+  <div class="absolute inset-0 h-[80vh] min-h-[600px] overflow-hidden">
     <div class={`absolute inset-0 bg-gradient-to-b ${grad} to-background z-10`}></div>
     <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10"></div>
     {media.posterUrl && (
-      <img src={optimizePosterUrl(media.posterUrl)} srcset={posterSrcSet(media.posterUrl)} sizes="100vw"
-           alt="" class="w-full h-full object-cover opacity-25 scale-110" />
+      <img src={optimizePosterUrl(media.posterUrl)} alt="" class="w-full h-full object-cover opacity-20 scale-110" />
     )}
   </div>
 
-  <div class="container relative z-10 mx-auto px-4 sm:px-6 pt-20 pb-6">
-    <div class="flex flex-col md:flex-row gap-6 md:gap-10 items-start max-w-6xl mx-auto">
+  <div class="container relative z-10 mx-auto px-4 sm:px-6 pt-24 pb-8">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-8 md:gap-12 items-start">
 
-      <div class="w-44 sm:w-52 md:w-64 shrink-0 mx-auto md:mx-0">
-        <div class="glass-card rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/[0.06]">
+      <div class="w-44 sm:w-56 md:w-72 shrink-0 mx-auto md:mx-0">
+        <div class="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/[0.08]" style="border-radius: 16px;">
           {media.posterUrl ? (
             <img src={optimizePosterUrl(media.posterUrl)} srcset={posterSrcSet(media.posterUrl)}
-                 sizes="(max-width:640px) 176px, (max-width:768px) 208px, 256px"
+                 sizes="(max-width:640px) 176px, (max-width:768px) 224px, 288px"
                  alt={media.title} class="w-full h-auto" />
           ) : (
-            <div class="aspect-[2/3] flex items-center justify-center bg-gradient-to-br from-white/5 to-white/[0.02]">
-              <span class="text-white/20 text-sm font-bold uppercase tracking-widest">{typeLabels[media.type]}</span>
+            <div class="aspect-[2/3] flex items-center justify-center bg-gradient-to-br from-white/[0.04] to-white/[0.01]">
+              <span class="text-white/15 text-sm font-bold uppercase tracking-widest">{typeLabel[media.type]}</span>
             </div>
           )}
         </div>
 
         <div class="flex gap-2 mt-4">
           <button data-action="favorite" data-id={media.id}
-            class="flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80">
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200"
+            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
             Favoris
           </button>
           <button data-action="watchlist" data-id={media.id}
-            class="flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80">
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200"
+            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             A voir
           </button>
         </div>
       </div>
 
-      <div class="flex-1 min-w-0 pt-2 md:pt-6">
+      <div class="flex-1 min-w-0 pt-2 md:pt-8">
         <div class="flex flex-wrap items-center gap-2 mb-3">
-          <span class="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md glass-card text-white/60">
-            {typeLabels[media.type]}
+          <span class="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-lg"
+                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);">
+            {typeLabel[media.type]}
           </span>
           {media.year && (
-            <span class="text-xs text-white/40 glass-card px-2.5 py-1 rounded-md">{media.year}</span>
+            <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">{media.year}</span>
           )}
           {media.rating && (
-            <span class="flex items-center gap-1 text-xs font-bold text-amber-400 glass-card px-2.5 py-1 rounded-md border border-amber-400/10">
+            <span class="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-lg" style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.12); color: #FBBF24;">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               {media.rating}/10
             </span>
           )}
           {media.duration && (
-            <span class="text-xs text-white/40 glass-card px-2.5 py-1 rounded-md">
-              {media.type === 'film' ? `${media.duration} min` : `~${media.duration} min${isEpisodeBased ? '/ep' : ''}`}
+            <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">
+              {media.type === 'film' ? `${media.duration} min` : `~${media.duration} min${isEpisode ? '/ep' : ''}`}
             </span>
           )}
-          {isEpisodeBased && media.episodeCount && (
-            <span class="text-xs text-white/40 glass-card px-2.5 py-1 rounded-md">{media.episodeCount} ep.</span>
+          {isEpisode && media.episodeCount && (
+            <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">{media.episodeCount} ep.</span>
           )}
         </div>
 
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-display font-bold leading-tight mb-3 text-white/90">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-3" style="color: rgba(255,255,255,0.92);">
           {media.title}
         </h1>
 
         {media.tagline && (
-          <p class="text-sm md:text-base text-white/40 italic mb-4">&ldquo;{media.tagline}&rdquo;</p>
+          <p class="text-sm md:text-base italic mb-4" style="color: rgba(255,255,255,0.35);">&ldquo;{media.tagline}&rdquo;</p>
         )}
 
         {media.genres?.length > 0 && (
           <div class="flex flex-wrap gap-1.5 mb-4">
             {media.genres.map((g: string) => (
-              <span class="text-[11px] px-2.5 py-1 rounded-md glass-card text-white/50">{g}</span>
+              <span class="text-[11px] px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.45);">{g}</span>
             ))}
           </div>
         )}
 
         {media.studios?.length > 0 && (
-          <p class="text-xs text-white/40 mb-4">
-            <span class="text-white/50">
+          <p class="text-xs mb-4" style="color: rgba(255,255,255,0.35);">
+            <span style="color: rgba(255,255,255,0.5);">
               {media.type === 'jeu' ? 'Developpeur' : media.type === 'book' ? 'Editeur' : 'Studios'}:
             </span> {media.studios.join(', ')}
           </p>
         )}
 
-        <div class="glass-card rounded-xl p-4 mb-4 max-w-2xl">
-          <p class="text-sm md:text-base text-white/60 leading-relaxed">
+        <div class="rounded-xl p-4 mb-4 max-w-2xl" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);">
+          <p class="text-sm md:text-base leading-relaxed" style="color: rgba(255,255,255,0.55);">
             {media.synopsis || "Aucun synopsis disponible."}
           </p>
         </div>
 
-        {media.trailerUrl && (
-          <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
-             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl glass-card glass-hover text-red-400 text-sm font-semibold">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Bande-annonce
-          </a>
-        )}
+        <div class="flex flex-wrap items-center gap-3">
+          {media.trailerUrl && (
+            <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
+               class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+               style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.2); color: #F87171;">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Bande-annonce
+            </a>
+          )}
+
+          {showLinks && [...sites.entries()].slice(0, 4).map(([site, siteLinks]) => {
+            const best = siteLinks[0];
+            return (
+              <a href={best.url} target="_blank"
+                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+                 style="background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.18); color: #60A5FA;">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                {site}{best.quality ? ` (${best.quality})` : ''}
+              </a>
+            );
+          })}
+        </div>
       </div>
     </div>
   </div>

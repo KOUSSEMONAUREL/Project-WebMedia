@@ -3,26 +3,20 @@ import Layout from '../../layouts/Layout.astro';
 import { getMediaDetails, getMediaByType, type Media } from '../../lib/api';
 import MediaHero from '../../components/MediaHero.astro';
 import ContentList from '../../components/ContentList.astro';
-import LinkList from '../../components/LinkList.astro';
+import LinkFooter from '../../components/LinkFooter.astro';
 
 export async function getStaticPaths() {
   const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
   let paths: { params: { type: string; slug: string } }[] = [];
-
   for (const t of types) {
     try {
       const res = await getMediaByType(t);
       if (res.data) {
-        const typePaths = res.data.map(m => ({
-          params: { type: m.type, slug: m.slug || m.id }
-        }));
+        const typePaths = res.data.map(m => ({ params: { type: m.type, slug: m.slug || m.id } }));
         paths = [...paths, ...typePaths];
       }
-    } catch {
-      console.log(`Erreur lors de la generation des chemins pour ${t}`);
-    }
+    } catch { console.log(`Erreur lors de la generation des chemins pour ${t}`); }
   }
-
   return paths;
 }
 
@@ -33,44 +27,42 @@ let error: string | null = null;
 
 try {
   const response = await getMediaDetails(type!, slug!);
-  if (response.success && response.data) {
-    media = response.data;
-  } else {
-    error = "Media non trouve.";
-  }
+  if (response.success && response.data) media = response.data;
+  else error = "Media non trouve.";
 } catch (e: any) {
   error = e.message || "Erreur lors du chargement des details.";
 }
 
-const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
-const hasEpisodes = (media?.episodes?.length ?? 0) > 0;
 const isEpisodeBased = type === 'serie' || type === 'anime';
+const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
+const hasEpisodes = (media?.episodes?.length ?? 0) > 0 && isEpisodeBased;
 
-const scriptData = media ? { id: media.id, type: media.type, title: media.title, slug: media.slug, posterUrl: media.posterUrl, year: media.year, rating: media.rating, links: media.links } : null;
+const scriptData = media ? {
+  id: media.id, type: media.type, title: media.title, slug: media.slug,
+  posterUrl: media.posterUrl, year: media.year, rating: media.rating
+} : null;
 ---
 
 <Layout title={media ? media.title : 'Details'}>
   {error ? (
     <div class="container mx-auto px-6 py-20 text-center">
-      <h1 class="text-4xl text-red-500 font-bold mb-4">Erreur</h1>
-      <p class="text-white text-lg">{error}</p>
-      <a href="/" class="text-primary mt-6 inline-block hover:underline">Retour a l'accueil</a>
+      <h1 class="text-4xl font-bold mb-4" style="color: #EF4444;">Erreur</h1>
+      <p class="text-lg" style="color: rgba(255,255,255,0.6);">{error}</p>
+      <a href="/" class="mt-6 inline-block text-sm" style="color: rgba(96,165,250,0.8);">Retour a l'accueil</a>
     </div>
   ) : media ? (
     <div class="relative min-h-screen">
       <MediaHero media={media} />
 
-      <div class="container mx-auto px-4 sm:px-6 pb-16 space-y-10">
+      <div class="container mx-auto px-4 sm:px-6 pb-20 -mt-6 space-y-10">
         {hasEpisodes && <ContentList media={media} />}
 
         {hasLinks && (
-          <LinkList links={media.links} legalLinks={media.legalLinks} type={media.type} />
-        )}
-
-        {!hasEpisodes && !hasLinks && (
-          <div class="text-center py-12">
-            <p class="text-white/20 text-sm">Aucun contenu disponible pour ce media.</p>
-          </div>
+          <LinkFooter
+            links={media.links}
+            legalLinks={media.legalLinks}
+            type={media.type}
+          />
         )}
       </div>
     </div>
@@ -82,16 +74,13 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
     const el = document.getElementById('detail-page-data');
     const raw = el?.dataset.media;
     const d = raw ? JSON.parse(raw) : null;
-    const mediaId = d && d.id;
-    const mediaType = d && d.type;
-    const mediaTitle = d && d.title;
-    const mediaSlug = d && d.slug;
-    const mediaPoster = d && d.posterUrl;
-    const mediaYear = d && d.year;
-    const mediaRating = d && d.rating;
-
-    // Pass links to ContentList script
-    (window as any).__mediaLinks = d?.links || [];
+    const mediaId = d?.id;
+    const mediaType = d?.type;
+    const mediaTitle = d?.title;
+    const mediaSlug = d?.slug;
+    const mediaPoster = d?.posterUrl;
+    const mediaYear = d?.year;
+    const mediaRating = d?.rating;
 
     function openDB() {
       return new Promise((resolve, reject) => {
@@ -106,46 +95,42 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
       });
     }
 
-    function dbPut(storeName, data) {
+    function dbPut(store, data) {
       return openDB().then((db) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        tx.objectStore(storeName).put(data);
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(data);
         return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
       });
     }
-
-    function dbDelete(storeName, id) {
+    function dbDelete(store, id) {
       return openDB().then((db) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        tx.objectStore(storeName).delete(id);
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(id);
         return new Promise((resolve) => { tx.oncomplete = () => { db.close(); resolve(null); }; });
       });
     }
-
-    function dbHas(storeName, id) {
+    function dbHas(store, id) {
       return openDB().then((db) => {
-        const tx = db.transaction(storeName, 'readonly');
-        const req = tx.objectStore(storeName).get(id);
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).get(id);
         return new Promise((resolve) => { req.onsuccess = () => { tx.oncomplete = () => db.close(); resolve(!!req.result); }; });
       });
     }
-
-    function syncQueueOp(mediaId, action) {
+    function syncQueueOp(id, action) {
       try {
         const key = 'webmedia_pending_favs';
         const raw = sessionStorage.getItem(key);
         const ops = raw ? new Map(JSON.parse(raw)) : new Map();
-        ops.set(mediaId, { action, timestamp: Date.now() });
+        ops.set(id, { action, timestamp: Date.now() });
         sessionStorage.setItem(key, JSON.stringify([...ops.entries()]));
       } catch {}
     }
-
     function syncQueueHistory(entry) {
       try {
         const key = 'webmedia_pending_history';
         const raw = sessionStorage.getItem(key);
         const entries = raw ? JSON.parse(raw) : [];
-        const filtered = entries.filter(e => e.mediaId !== entry.mediaId);
+        const filtered = entries.filter((e: any) => e.mediaId !== entry.mediaId);
         filtered.push(entry);
         sessionStorage.setItem(key, JSON.stringify(filtered));
       } catch {}
@@ -154,24 +139,12 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
     if (mediaId) {
       (async () => {
         await dbPut('history', { mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
-        if (typeof sessionStorage !== 'undefined') {
-          syncQueueHistory({ mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
-        }
+        if (typeof sessionStorage !== 'undefined') syncQueueHistory({ mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
       })();
     }
 
-    const favBtn = document.querySelector('[data-action="favorite"]');
-    const wlBtn = document.querySelector('[data-action="watchlist"]');
-
-    async function toggleList(store, id, meta) {
-      const has = await dbHas(store, id);
-      if (has) { await dbDelete(store, id); }
-      else { await dbPut(store, { id, ...meta, addedAt: Date.now() }); }
-      if (store === 'favorites' && typeof sessionStorage !== 'undefined') {
-        syncQueueOp(id, has ? 'remove' : 'add');
-      }
-      updateButtons();
-    }
+    const favBtn: HTMLElement | null = document.querySelector('[data-action="favorite"]');
+    const wlBtn: HTMLElement | null = document.querySelector('[data-action="watchlist"]');
 
     async function updateButtons() {
       if (favBtn) {
@@ -180,22 +153,33 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
           ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favori'
           : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favoris';
         favBtn.className = inFav
-          ? 'flex-1 glass-card py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-red-400 border-red-500/20'
-          : 'flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80';
+          ? `flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200`
+          : `flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200`;
+        favBtn.style.cssText = inFav
+          ? 'background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.2); color: #F87171;'
+          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
       }
       if (wlBtn) {
         const inWl = await dbHas('watchlist', mediaId);
         wlBtn.innerHTML = inWl
           ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dans la liste'
           : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> A voir';
-        wlBtn.className = inWl
-          ? 'flex-1 glass-card py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-blue-400 border-blue-500/20'
-          : 'flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80';
+        wlBtn.style.cssText = inWl
+          ? 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2); color: #60A5FA;'
+          : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
       }
     }
 
     document.addEventListener('DOMContentLoaded', updateButtons);
-    favBtn?.addEventListener('click', () => toggleList('favorites', mediaId, { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) }));
-    wlBtn?.addEventListener('click', () => toggleList('watchlist', mediaId, { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) }));
+    favBtn?.addEventListener('click', () => {
+      const meta = { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) };
+      dbHas('favorites', mediaId).then((inFav) => inFav ? dbDelete('favorites', mediaId) : dbPut('favorites', { id: mediaId, ...meta, addedAt: Date.now() }))
+        .then(() => { if (typeof sessionStorage !== 'undefined') syncQueueOp(mediaId, inFav ? 'remove' : 'add'); updateButtons(); });
+    });
+    wlBtn?.addEventListener('click', () => {
+      const meta = { type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, rating: Number(mediaRating), year: Number(mediaYear) };
+      dbHas('watchlist', mediaId).then((inWl) => inWl ? dbDelete('watchlist', mediaId) : dbPut('watchlist', { id: mediaId, ...meta, addedAt: Date.now() }))
+        .then(() => updateButtons());
+    });
   </script>
 </Layout>
