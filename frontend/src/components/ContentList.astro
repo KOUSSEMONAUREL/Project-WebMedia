@@ -1,0 +1,83 @@
+---
+import type { Media } from '../lib/api';
+
+interface Props {
+  media: Media;
+}
+
+const { media } = Astro.props;
+
+const episodes = media.episodes || [];
+const isEpisodeBased = media.type === 'serie' || media.type === 'anime';
+
+const showContent = isEpisodeBased && episodes.length > 0;
+
+const seasons = new Map<number, typeof episodes>();
+for (const ep of episodes) {
+  const s = ep.season_number ?? 1;
+  if (!seasons.has(s)) seasons.set(s, []);
+  seasons.get(s)!.push(ep);
+}
+
+const seasonNumbers = [...seasons.keys()].sort();
+const singleSeason = seasonNumbers.length === 1;
+---
+
+{showContent && (
+<div class="mb-8">
+  <h3 class="text-lg font-bold mb-4 text-white/80">
+    Episodes
+    {media.episodeCount && <span class="text-sm font-normal text-muted-foreground ml-2">({media.episodeCount} au total)</span>}
+  </h3>
+
+  {singleSeason ? (
+    <div class="space-y-2 max-h-96 overflow-y-auto pr-2">
+      {seasons.get(seasonNumbers[0])!.map(ep => (
+        <div class="flex items-center gap-4 bg-white/5 rounded-xl px-4 py-3 border border-white/5 hover:bg-white/[0.07] transition-colors">
+          <span class="text-white/30 text-sm font-mono w-24 shrink-0">
+            E{String(ep.episode_number ?? ep.episodeNumber).padStart(2, '0')}
+          </span>
+          <span class="text-sm text-white/80 leading-snug line-clamp-1 flex-1">
+            {ep.title || `Episode ${ep.episode_number ?? ep.episodeNumber}`}
+          </span>
+          {ep.duration && (
+            <span class="text-xs text-muted-foreground shrink-0">{ep.duration} min</span>
+          )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div class="space-y-4">
+      {seasonNumbers.map(sn => {
+        const seasonEps = seasons.get(sn)!;
+        return (
+          <details class="group" open={sn === seasonNumbers[0]}>
+            <summary class="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/[0.07] transition-colors list-none">
+              <svg class="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+              <span class="text-sm font-semibold text-white/80">Saison {sn}</span>
+              <span class="text-xs text-muted-foreground">({seasonEps.length} épisodes)</span>
+            </summary>
+            <div class="mt-2 space-y-1.5 pl-4">
+              {seasonEps.map(ep => (
+                <div class="flex items-center gap-4 bg-white/5 rounded-xl px-4 py-3 border border-white/5 hover:bg-white/[0.07] transition-colors">
+                  <span class="text-white/30 text-sm font-mono w-24 shrink-0">
+                    S{String(sn).padStart(2, '0')}E{String(ep.episode_number ?? ep.episodeNumber).padStart(2, '0')}
+                  </span>
+                  <span class="text-sm text-white/80 leading-snug line-clamp-1 flex-1">
+                    {ep.title || `Episode ${ep.episode_number ?? ep.episodeNumber}`}
+                  </span>
+                  {ep.duration && (
+                    <span class="text-xs text-muted-foreground shrink-0">{ep.duration} min</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  )}
+</div>
+)}

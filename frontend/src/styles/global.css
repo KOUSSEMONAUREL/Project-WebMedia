@@ -118,6 +118,23 @@ body {
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
+/* Custom cursor for links */
+a:not([class*="cursor"]), summary {
+  cursor: pointer;
+}
+
+/* Custom scrollbar for episode lists */
+.detail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.detail-scroll::-webkit-scrollbar-thumb {
+  background: #1a1a2e;
+  border-radius: 3px;
+}
+.detail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Animations */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
