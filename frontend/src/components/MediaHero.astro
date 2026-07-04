@@ -18,16 +18,16 @@ const grad: Record<string, string> = {
 const isEpisode = media.type === 'serie' || media.type === 'anime';
 ---
 
-<div class="relative">
-  <div class="absolute inset-0 h-[80vh] min-h-[600px] overflow-hidden">
-    <div class={`absolute inset-0 bg-gradient-to-b ${grad} to-background z-10`}></div>
-    <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10"></div>
+<div class="relative overflow-hidden">
+  <div class="absolute inset-0 z-0">
+    <div class={`absolute inset-0 bg-gradient-to-b ${grad} to-background`}></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
     {media.posterUrl && (
-      <img src={optimizePosterUrl(media.posterUrl)} alt="" class="w-full h-full object-cover opacity-20 scale-110" />
+      <img src={optimizePosterUrl(media.posterUrl)} alt="" class="w-full h-full object-cover opacity-20 scale-110 filter blur-[2px]" />
     )}
   </div>
 
-  <div class="container relative z-10 mx-auto px-4 sm:px-6 pt-24 pb-8">
+  <div class="container relative z-10 mx-auto px-4 sm:px-6 pt-32 pb-16">
     <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-8 md:gap-12 items-start">
 
       <div class="w-44 sm:w-56 md:w-72 shrink-0 mx-auto md:mx-0">

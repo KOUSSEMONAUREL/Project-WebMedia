@@ -17,70 +17,285 @@ const seasonNums = [...seasons.keys()].sort();
 ---
 
 {hasEpisodes && (
-<div class="space-y-10 max-w-5xl mx-auto">
-  {seasonNums.map((sn) => {
-    const eps = seasons.get(sn)!;
-    return (
-      <section>
-        <div class="flex items-center gap-3 mb-5">
-          <h2 class="text-lg font-bold" style="color: rgba(255,255,255,0.85);">Saison {sn}</h2>
-          <span class="text-xs" style="color: rgba(255,255,255,0.3);">{eps.length} épisode{eps.length > 1 ? 's' : ''}</span>
-          <div class="flex-1 h-px" style="background: linear-gradient(90deg, rgba(255,255,255,0.06), transparent);"></div>
-        </div>
+<div class="space-y-6 max-w-5xl mx-auto">
+  {/* Season Tabs Selector */}
+  <div class="flex flex-wrap gap-2 pb-1.5 overflow-x-auto scrollbar-hide border-b border-white/5">
+    {seasonNums.map((sn) => (
+      <button
+        class="season-tab px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer border"
+        style="background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);"
+        data-season={sn}
+      >
+        Saison {sn}
+      </button>
+    ))}
+  </div>
 
-        <div class="grid gap-2.5 sm:grid-cols-2">
-          {eps.map(ep => {
-            const num = ep.episode_number ?? ep.episodeNumber;
-            const title = ep.title || `Épisode ${num}`;
-            const dur = ep.duration;
-            const synopsis = ep.synopsis;
-            const epLinks = allLinks.filter((l: any) => {
-              const lid = l.episode_id ?? l.episodeId;
-              return lid && lid === ep.id;
-            });
+  {/* Episodes Grids by Season */}
+  <div class="season-groups">
+    {seasonNums.map((sn) => {
+      const eps = seasons.get(sn)!;
+      return (
+        <div class="season-group" data-season={sn} style="display: none;">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {eps.map(ep => {
+              const num = ep.episode_number ?? ep.episodeNumber;
+              const title = ep.title || `Épisode ${num}`;
+              const dur = ep.duration;
+              const synopsis = ep.synopsis;
+              const epLinks = allLinks.filter((l: any) => {
+                const lid = l.episode_id ?? l.episodeId;
+                return lid && String(lid) === String(ep.id);
+              });
 
-            return (
-              <div class="rounded-xl p-3 flex gap-3 transition-colors"
-                   style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
-                <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center"
-                     style="background: rgba(255,255,255,0.03);">
-                  {(ep.thumbnail_url || ep.thumbnailUrl) ? (
-                    <img src={ep.thumbnail_url || ep.thumbnailUrl} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
-                  ) : (
-                    <span class="text-lg font-bold" style="color: rgba(255,255,255,0.08);">{String(num).padStart(2, '0')}</span>
-                  )}
-                </div>
-                <div class="flex-1 min-w-0 flex flex-col justify-center">
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold shrink-0" style="color: rgba(255,255,255,0.25);">E{String(num).padStart(2, '0')}</span>
-                    <span class="text-sm font-medium truncate" style="color: rgba(255,255,255,0.8);">{title}</span>
-                    {dur && <span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">{dur}min</span>}
+              return (
+                <div
+                  class="episode-card rounded-xl p-3 flex gap-3 transition-all cursor-pointer border active:scale-[0.99] select-none"
+                  style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);"
+                  data-episode-id={ep.id}
+                  data-season={sn}
+                  data-episode-data={JSON.stringify({
+                    id: ep.id,
+                    num: num,
+                    title: title,
+                    duration: dur,
+                    synopsis: synopsis || '',
+                    links: epLinks
+                  })}
+                >
+                  <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center relative overflow-hidden"
+                       style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                    {(ep.thumbnail_url || ep.thumbnailUrl) ? (
+                      <img src={ep.thumbnail_url || ep.thumbnailUrl} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
+                    ) : (
+                      <span class="text-xl font-bold font-mono" style="color: rgba(255,255,255,0.08);">{String(num).padStart(2, '0')}</span>
+                    )}
                   </div>
-                  {synopsis && (
-                    <p class="text-xs mt-1 line-clamp-2 leading-relaxed" style="color: rgba(255,255,255,0.35);">{synopsis}</p>
-                  )}
-                  {epLinks.length > 0 && (
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                      {epLinks.slice(0, 4).map((l: any) => (
-                        <a href={l.url} target="_blank"
-                           class="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                           style="background: rgba(59,130,246,0.08); color: #60A5FA;">
-                          {l.source_site || l.sourceSite || 'Voir'}
-                          {l.quality ? ` ${l.quality}` : ''}
-                        </a>
-                      ))}
+                  <div class="flex-1 min-w-0 flex flex-col justify-center">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-mono font-bold shrink-0" style="color: rgba(255,255,255,0.25);">E{String(num).padStart(2, '0')}</span>
+                      <h4 class="text-sm font-semibold truncate leading-none" style="color: rgba(255,255,255,0.8);">{title}</h4>
+                      {dur && <span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">{dur}m</span>}
                     </div>
-                  )}
-                  {epLinks.length === 0 && (
-                    <span class="text-[11px] mt-1.5" style="color: rgba(255,255,255,0.12);">Aucun lien disponible</span>
-                  )}
+                    {synopsis && (
+                      <p class="text-xs mt-1.5 line-clamp-1 leading-relaxed" style="color: rgba(255,255,255,0.35);">{synopsis}</p>
+                    )}
+                    <div class="mt-2.5 flex items-center gap-1.5">
+                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.35);">
+                        {epLinks.length > 0 ? `${epLinks.length} source${epLinks.length > 1 ? 's' : ''}` : 'Aucune source'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </section>
-    );
-  })}
+      );
+    })}
+  </div>
+
+  {/* Drawer / Detail Panel (Placed below the grid) */}
+  <div id="episode-detail-panel" class="hidden rounded-xl p-5 border transition-all duration-300"
+       style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06);">
+    <div class="flex items-start justify-between gap-4 mb-3">
+      <div>
+        <h3 id="ep-detail-title" class="text-base font-bold text-white/95"></h3>
+        <p id="ep-detail-duration" class="text-xs text-white/40 mt-1"></p>
+      </div>
+      <button id="ep-detail-close" class="text-white/40 hover:text-white/70 transition-colors p-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    
+    <div id="ep-detail-synopsis-container" class="rounded-lg p-3.5 mb-4" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+      <p id="ep-detail-synopsis" class="text-sm leading-relaxed" style="color: rgba(255,255,255,0.6);"></p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">Liens de visionnage</h4>
+      <div id="ep-detail-links" class="flex flex-wrap gap-2"></div>
+    </div>
+  </div>
 </div>
 )}
+
+<script>
+  let activeEpisodeId: string | null = null;
+  let activeSeasonNum: string | null = null;
+
+  const tabs = document.querySelectorAll('.season-tab');
+  const groups = document.querySelectorAll('.season-group');
+  const cards = document.querySelectorAll('.episode-card');
+  const panel = document.getElementById('episode-detail-panel');
+  const closeBtn = document.getElementById('ep-detail-close');
+
+  const titleEl = document.getElementById('ep-detail-title');
+  const durEl = document.getElementById('ep-detail-duration');
+  const synEl = document.getElementById('ep-detail-synopsis');
+  const synContainer = document.getElementById('ep-detail-synopsis-container');
+  const linksEl = document.getElementById('ep-detail-links');
+
+  // Activate Season Tab
+  function setActiveSeason(sn: string) {
+    activeSeasonNum = sn;
+    tabs.forEach(t => {
+      const el = t as HTMLElement;
+      if (el.dataset.season === sn) {
+        el.style.background = 'rgba(5b,131,246,0.12)';
+        el.style.borderColor = 'rgba(96,165,250,0.25)';
+        el.style.color = '#60A5FA';
+      } else {
+        el.style.background = 'rgba(255,255,255,0.04)';
+        el.style.borderColor = 'rgba(255,255,255,0.06)';
+        el.style.color = 'rgba(255,255,255,0.5)';
+      }
+    });
+
+    groups.forEach(g => {
+      const el = g as HTMLElement;
+      if (el.dataset.season === sn) {
+        el.style.display = 'block';
+      } else {
+        el.style.display = 'none';
+      }
+    });
+  }
+
+  // Open Episode Detail
+  function selectEpisode(id: string, updateHash = true) {
+    let selectedCard: HTMLElement | null = null;
+    cards.forEach(c => {
+      const el = c as HTMLElement;
+      if (el.dataset.episodeId === id) {
+        selectedCard = el;
+        el.style.borderColor = 'rgba(96,165,250,0.35)';
+        el.style.background = 'rgba(59,130,246,0.04)';
+      } else {
+        el.style.borderColor = 'rgba(255,255,255,0.05)';
+        el.style.background = 'rgba(255,255,255,0.02)';
+      }
+    });
+
+    if (!selectedCard) return;
+
+    activeEpisodeId = id;
+    const epData = JSON.parse(selectedCard.dataset.episodeData || '{}');
+
+    // Automatically switch season tab if the selected episode belongs to another season
+    const epSeason = selectedCard.dataset.season;
+    if (epSeason && epSeason !== activeSeasonNum) {
+      setActiveSeason(epSeason);
+    }
+
+    // Populate panel content
+    if (titleEl) titleEl.textContent = `Épisode ${epData.num} — ${epData.title}`;
+    if (durEl) durEl.textContent = epData.duration ? `Durée : ${epData.duration} minutes` : 'Durée inconnue';
+    
+    if (synEl && synContainer) {
+      if (epData.synopsis) {
+        synEl.textContent = epData.synopsis;
+        synContainer.style.display = 'block';
+      } else {
+        synContainer.style.display = 'none';
+      }
+    }
+
+    if (linksEl) {
+      linksEl.innerHTML = '';
+      const links = epData.links || [];
+      if (links.length > 0) {
+        links.forEach((l: any) => {
+          const site = l.source_site || l.sourceSite || 'Lien';
+          const a = document.createElement('a');
+          a.href = l.url;
+          a.target = '_blank';
+          a.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
+          a.style.background = 'rgba(59,130,246,0.08)';
+          a.style.border = '1px solid rgba(59,130,246,0.15)';
+          a.style.color = '#60A5FA';
+          
+          let content = site;
+          if (l.quality) {
+            content += ` <span style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; padding: 1px 4.5px; border-radius: 4px; margin-left: 4px;">${l.quality}</span>`;
+          }
+          a.innerHTML = content;
+          linksEl.appendChild(a);
+        });
+      } else {
+        const span = document.createElement('span');
+        span.className = 'text-xs text-white/35';
+        span.textContent = 'Aucun lien de visionnage disponible pour cet épisode';
+        linksEl.appendChild(span);
+      }
+    }
+
+    if (panel) {
+      panel.classList.remove('hidden');
+      setTimeout(() => {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+
+    if (updateHash) {
+      history.replaceState(null, '', `#episode-${id}`);
+    }
+  }
+
+  // Close Panel
+  function closePanel() {
+    activeEpisodeId = null;
+    cards.forEach(c => {
+      const el = c as HTMLElement;
+      el.style.borderColor = 'rgba(255,255,255,0.05)';
+      el.style.background = 'rgba(255,255,255,0.02)';
+    });
+
+    if (panel) panel.classList.add('hidden');
+    history.replaceState(null, '', window.location.pathname);
+  }
+
+  // Init event listeners
+  tabs.forEach(t => {
+    t.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      const sn = btn.dataset.season;
+      if (sn) setActiveSeason(sn);
+    });
+  });
+
+  cards.forEach(c => {
+    c.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      const id = el.dataset.episodeId;
+      if (id) selectEpisode(id);
+    });
+  });
+
+  closeBtn?.addEventListener('click', closePanel);
+
+  // Initial routing
+  document.addEventListener('DOMContentLoaded', () => {
+    // 1. Show first season default
+    const firstTab = tabs[0] as HTMLElement | undefined;
+    if (firstTab && firstTab.dataset.season) {
+      setActiveSeason(firstTab.dataset.season);
+    }
+
+    // 2. Open hashed episode
+    if (window.location.hash.startsWith('#episode-')) {
+      const id = window.location.hash.replace('#episode-', '');
+      setTimeout(() => selectEpisode(id, false), 150);
+    }
+  });
+
+  // Watch for hash change
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash.startsWith('#episode-')) {
+      const id = window.location.hash.replace('#episode-', '');
+      if (id !== activeEpisodeId) selectEpisode(id, false);
+    } else {
+      closePanel();
+    }
+  });
+</script>

@@ -2,7 +2,10 @@
 interface Props { links?: any[]; legalLinks?: any[]; type: string }
 
 const { links = [], legalLinks = [], type } = Astro.props;
-const active = links.filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
+const active = links.filter((l: any) => {
+  const isActive = (l.is_active ?? l.isActive ?? 1) !== 0;
+  return isActive && !l.episode_id && !l.episodeId;
+});
 const show = active.length > 0 || legalLinks.length > 0;
 
 const label = type === 'jeu' ? 'Téléchargement' : (type === 'book' || type === 'novel') ? 'Lecture' : 'Streaming';

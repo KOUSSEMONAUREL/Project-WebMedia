@@ -52,7 +52,7 @@ const data = media ? {
     <div class="relative min-h-screen">
       <MediaHero media={media} />
 
-      <div class="container mx-auto px-4 sm:px-6 pb-20 -mt-4 space-y-12">
+      <div class="container mx-auto px-4 sm:px-6 pb-20 mt-8 space-y-12">
         {hasEpisodes && <ContentList media={media} />}
         {hasLinks && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} />}
       </div>
