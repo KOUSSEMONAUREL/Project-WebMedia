@@ -1,18 +1,12 @@
-import nodemailer from 'nodemailer';
-
-const FROM = process.env.BETTER_AUTH_EMAIL_FROM || 'noreply@webmedia.app';
+const API_URL = 'https://api.brevo.com/v3/smtp/email';
+const FROM_EMAIL = process.env.BETTER_AUTH_EMAIL_FROM || 'reyseilfullbryger@gmail.com';
 const APP_NAME = 'WebMedia';
 const BRAND_GRADIENT = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
 
-function createTransporter() {
+function apiKey(): string {
   const key = process.env.BREVO_SMTP_KEY?.trim();
   if (!key) throw new Error('BREVO_SMTP_KEY is not set');
-  return nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 587,
-    secure: false,
-    auth: { user: 'brevo', pass: key },
-  });
+  return key;
 }
 
 function baseHtml(content: string): string {
@@ -83,6 +77,22 @@ Si vous n'&ecirc;tes pas &agrave; l'origine de cette demande, ignorez cet email.
 }
 
 export async function sendMail(to: string, subject: string, html: string): Promise<void> {
-  const transporter = createTransporter();
-  await transporter.sendMail({ from: `${APP_NAME} <${FROM}>`, to, subject, html });
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey(),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: APP_NAME, email: FROM_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Brevo API ${res.status}: ${body.slice(0, 200)}`);
+  }
 }

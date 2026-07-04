@@ -37,16 +37,17 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // API routes -> network-first, cache en fallback (les donnees viennent du SQLite local)
+  // API routes -> network-first, cache en fallback
   if (event.request.method === 'GET' && url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request).then(function(res) {
         if (res.ok) {
-          caches.open(DATA_CACHE).then(function(cache) { cache.put(event.request, res.clone()); });
+          var copy = res.clone();
+          caches.open(DATA_CACHE).then(function(cache) { cache.put(event.request, copy); }).catch(function() {});
         }
         return res;
       }).catch(function() {
-        return caches.match(event.request).then(function(cached) { return cached; });
+        return caches.match(event.request);
       })
     );
     return;
