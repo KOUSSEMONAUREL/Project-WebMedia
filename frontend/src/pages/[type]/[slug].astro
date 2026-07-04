@@ -13,8 +13,8 @@ export async function getStaticPaths() {
     try {
       const res = await getMediaByType(t);
       if (res.data) {
-        const typePaths = res.data.map(media => ({
-          params: { type: media.type, slug: media.slug || media.id }
+        const typePaths = res.data.map(m => ({
+          params: { type: m.type, slug: m.slug || m.id }
         }));
         paths = [...paths, ...typePaths];
       }
@@ -44,8 +44,9 @@ try {
 
 const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
 const hasEpisodes = (media?.episodes?.length ?? 0) > 0;
+const isEpisodeBased = type === 'serie' || type === 'anime';
 
-const scriptData = media ? { id: media.id, type: media.type, title: media.title, slug: media.slug, posterUrl: media.posterUrl, year: media.year, rating: media.rating } : null;
+const scriptData = media ? { id: media.id, type: media.type, title: media.title, slug: media.slug, posterUrl: media.posterUrl, year: media.year, rating: media.rating, links: media.links } : null;
 ---
 
 <Layout title={media ? media.title : 'Details'}>
@@ -59,21 +60,19 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
     <div class="relative min-h-screen">
       <MediaHero media={media} />
 
-      {hasEpisodes && (
-        <div class="container relative z-10 mx-auto px-6 pb-10 -mt-8">
-          <div class="max-w-3xl">
-            <ContentList media={media} />
-          </div>
-        </div>
-      )}
+      <div class="container mx-auto px-4 sm:px-6 pb-16 space-y-10">
+        {hasEpisodes && <ContentList media={media} />}
 
-      {hasLinks && (
-        <div class="container relative z-10 mx-auto px-6 pb-20 -mt-4">
-          <div class="max-w-3xl">
-            <LinkList links={media.links} legalLinks={media.legalLinks} type={media.type} />
+        {hasLinks && (
+          <LinkList links={media.links} legalLinks={media.legalLinks} type={media.type} />
+        )}
+
+        {!hasEpisodes && !hasLinks && (
+          <div class="text-center py-12">
+            <p class="text-white/20 text-sm">Aucun contenu disponible pour ce media.</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   ) : null}
 
@@ -90,6 +89,9 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
     const mediaPoster = d && d.posterUrl;
     const mediaYear = d && d.year;
     const mediaRating = d && d.rating;
+
+    // Pass links to ContentList script
+    (window as any).__mediaLinks = d?.links || [];
 
     function openDB() {
       return new Promise((resolve, reject) => {
@@ -149,7 +151,6 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
       } catch {}
     }
 
-    // Enregistrer la visite dans l'historique
     if (mediaId) {
       (async () => {
         await dbPut('history', { mediaId, type: mediaType, title: mediaTitle, slug: mediaSlug, posterUrl: mediaPoster, visitedAt: Date.now() });
@@ -176,20 +177,20 @@ const scriptData = media ? { id: media.id, type: media.type, title: media.title,
       if (favBtn) {
         const inFav = await dbHas('favorites', mediaId);
         favBtn.innerHTML = inFav
-          ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favori'
-          : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favoris';
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favori'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Favoris';
         favBtn.className = inFav
-          ? 'flex-1 bg-red-500/20 text-red-400 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border border-red-500/30 text-sm cursor-pointer'
-          : 'flex-1 bg-white/10 hover:bg-red-500/30 text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border border-white/10 hover:border-red-500/40 text-sm cursor-pointer';
+          ? 'flex-1 glass-card py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-red-400 border-red-500/20'
+          : 'flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80';
       }
       if (wlBtn) {
         const inWl = await dbHas('watchlist', mediaId);
         wlBtn.innerHTML = inWl
-          ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dans la liste'
-          : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> A voir';
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dans la liste'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> A voir';
         wlBtn.className = inWl
-          ? 'flex-1 bg-blue-500/20 text-blue-400 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border border-blue-500/30 text-sm cursor-pointer'
-          : 'flex-1 bg-white/10 hover:bg-blue-500/30 text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border border-white/10 hover:border-blue-500/40 text-sm cursor-pointer';
+          ? 'flex-1 glass-card py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-blue-400 border-blue-500/20'
+          : 'flex-1 glass-card glass-hover py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 text-white/80';
       }
     }
 

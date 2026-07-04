@@ -1,86 +1,79 @@
 ---
-interface LinkItem {
-  source_site?: string;
-  sourceSite?: string;
-  url: string;
-  quality?: string;
-  language?: string;
-  is_active?: number | boolean;
-  isActive?: number | boolean;
-  player_host?: string;
-  playerHost?: string;
-}
-
-interface LegalLink {
-  site: string;
-  url: string;
-  label?: string;
-}
-
 interface Props {
-  links?: LinkItem[];
-  legalLinks?: LegalLink[];
+  links?: any[];
+  legalLinks?: any[];
   type: string;
 }
 
 const { links = [], legalLinks = [], type } = Astro.props;
-const activeLinks = links.filter(l => (l.is_active ?? l.isActive ?? 1) !== 0);
+const active = links.filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
+const hasAny = active.length > 0 || legalLinks.length > 0;
 
-const hasAny = activeLinks.length > 0 || legalLinks.length > 0;
-
-const sourceGroups = new Map<string, LinkItem[]>();
-for (const l of activeLinks) {
+const groups = new Map<string, any[]>();
+for (const l of active) {
   const site = l.source_site || l.sourceSite || 'source';
-  if (!sourceGroups.has(site)) sourceGroups.set(site, []);
-  sourceGroups.get(site)!.push(l);
+  if (!groups.has(site)) groups.set(site, []);
+  groups.get(site)!.push(l);
 }
 
-const linkType = type === 'jeu' ? 'Telechargement' :
-                 type === 'book' || type === 'novel' ? 'Lecture / Achat' :
-                 'Streaming';
+const linkLabel = type === 'jeu' ? 'Telechargement'
+  : (type === 'book' || type === 'novel') ? 'Lecture / Achat'
+  : 'Streaming';
 
-const qualityColors: Record<string, string> = {
-  'HD': 'bg-green-500/10 text-green-400 border-green-500/20',
-  'FHD': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  '4K': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  'SD': 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+const siteIcons: Record<string, string> = {
+  'youtube': 'YT', 'vimeo': 'VM', 'dailymotion': 'DM',
+  'netflix': 'NF', 'prime': 'PV', 'disney': 'D+', 'paramount': 'PP',
+  'canal': 'C+', 'ocs': 'OCS', 'molotov': 'ML', 'mycanal': 'C+',
+  'france.tv': 'FTV', 'arte': 'AR', 'tf1': 'TF1', 'm6': 'M6',
 };
 ---
 
 {hasAny && (
-<div class="space-y-6">
+<div class="max-w-4xl mx-auto space-y-6">
   {legalLinks.length > 0 && (
     <div>
-      <h3 class="text-lg font-bold mb-3 text-white/80">Legaux</h3>
+      <h3 class="text-sm font-bold text-white/70 uppercase tracking-wider mb-3">Legaux</h3>
       <div class="flex flex-wrap gap-2">
-        {legalLinks.map(ll => (
+        {legalLinks.map((ll: any) => (
           <a href={ll.url} target="_blank"
-             class="text-xs px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 transition-all">
-            {ll.label || ll.site}
+             class="glass-card glass-hover rounded-lg px-4 py-2.5 text-sm text-emerald-400 font-medium inline-flex items-center gap-2">
+            <span class="w-5 h-5 rounded bg-emerald-500/10 text-[10px] font-bold flex items-center justify-center text-emerald-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            {ll.platform || ll.site || ll.label || ll.url}
           </a>
         ))}
       </div>
     </div>
   )}
 
-  {activeLinks.length > 0 && (
+  {active.length > 0 && (
     <div>
-      <h3 class="text-lg font-bold mb-3 text-white/80">{linkType}</h3>
-      <div class="flex flex-wrap gap-2">
-        {[...sourceGroups.entries()].map(([site, siteLinks]) => {
+      <h3 class="text-sm font-bold text-white/70 uppercase tracking-wider mb-3">{linkLabel}</h3>
+      <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {[...groups.entries()].map(([site, siteLinks]) => {
           const best = siteLinks[0];
+          const icon = siteIcons[site.toLowerCase()];
           return (
             <a href={best.url} target="_blank"
-               class="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:border-primary/40 transition-all">
-              {site}
-              {best.quality && (
-                <span class={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${qualityColors[best.quality] || 'bg-white/5 text-muted-foreground border-white/10'}`}>
-                  {best.quality}
-                </span>
-              )}
-              {best.language && (
-                <span class="text-[10px] text-muted-foreground">{best.language}</span>
-              )}
+               class="glass-card glass-hover rounded-xl px-4 py-3.5 flex items-center gap-3 text-sm no-underline transition-all">
+              <span class="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-[10px] font-bold text-white/30 shrink-0 uppercase">
+                {icon || site.slice(0, 2).toUpperCase()}
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="text-white/80 font-medium leading-tight truncate">{site}</p>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                  {best.quality && (
+                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border text-white/40 border-white/10">
+                      {best.quality}
+                    </span>
+                  )}
+                  {best.language && (
+                    <span class="text-[10px] text-white/30">{best.language}</span>
+                  )}
+                </div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-white/20 shrink-0"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
             </a>
           );
         })}

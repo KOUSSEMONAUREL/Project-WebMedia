@@ -118,21 +118,24 @@ body {
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
-/* Custom cursor for links */
-a:not([class*="cursor"]), summary {
-  cursor: pointer;
+@utility glass-card {
+  background: color-mix(in srgb, var(--color-secondary) 70%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Custom scrollbar for episode lists */
-.detail-scroll::-webkit-scrollbar {
-  width: 6px;
+@utility glass-hover {
+  transition: all 0.2s ease;
+  &:hover {
+    background: color-mix(in srgb, var(--color-secondary) 85%, transparent);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
 }
-.detail-scroll::-webkit-scrollbar-thumb {
-  background: #1a1a2e;
-  border-radius: 3px;
-}
-.detail-scroll::-webkit-scrollbar-track {
-  background: transparent;
+
+/* Custom cursor for interactive elements */
+a, summary, button, [role="button"], label {
+  cursor: pointer;
 }
 
 /* Animations */
