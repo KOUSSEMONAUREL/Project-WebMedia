@@ -207,7 +207,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <div>
                                 <button
                                     onClick={() => { setMode('login'); resetForm(); }}
-                                    className="text-sm text-primary font-medium hover:underline"
+                                    className="text-sm text-primary font-medium hover:underline cursor-pointer"
                                 >
                                     Retour a la connexion
                                 </button>
@@ -229,7 +229,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <div>
                                 <button
                                     onClick={() => { setView('form'); setError(''); }}
-                                    className="text-sm text-primary font-medium hover:underline"
+                                    className="text-sm text-primary font-medium hover:underline cursor-pointer"
                                 >
                                     Retour a la connexion
                                 </button>
@@ -284,7 +284,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </form>
                             <button
                                 onClick={() => { setView('form'); setError(''); }}
-                                className="mt-4 text-sm text-primary font-medium hover:underline"
+                                className="mt-4 text-sm text-primary font-medium hover:underline cursor-pointer"
                             >
                                 Retour a la connexion
                             </button>
@@ -361,7 +361,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                             >
                                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
@@ -393,7 +393,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 <button
                                     type="button"
                                     onClick={() => setView('forgot-password')}
-                                    className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                    className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
                                 >
                                     Mot de passe oublie ?
                                 </button>
@@ -407,7 +407,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 Pas encore de compte ?{' '}
                                 <button
                                     onClick={() => { setMode('signup'); setError(''); }}
-                                    className="text-primary font-medium hover:underline"
+                                    className="text-primary font-medium hover:underline cursor-pointer"
                                 >
                                     S'inscrire
                                 </button>
@@ -417,7 +417,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 Deja un compte ?{' '}
                                 <button
                                     onClick={() => { setMode('login'); setError(''); }}
-                                    className="text-primary font-medium hover:underline"
+                                    className="text-primary font-medium hover:underline cursor-pointer"
                                 >
                                     Se connecter
                                 </button>

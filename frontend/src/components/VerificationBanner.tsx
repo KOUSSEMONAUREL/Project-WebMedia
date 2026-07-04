@@ -50,7 +50,7 @@ export function VerificationBanner() {
           <button
             onClick={handleResend}
             disabled={sending}
-            className="text-xs font-medium text-blue-300 hover:text-blue-100 transition-colors px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-500/10 disabled:opacity-50 flex items-center gap-1.5"
+            className="text-xs font-medium text-blue-300 hover:text-blue-100 transition-colors px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-500/10 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
           >
             <RefreshCw className={`h-3 w-3 ${sending ? 'animate-spin' : ''}`} />
             {sending ? 'Envoi...' : sent ? 'Envoye !' : 'Renvoyer'}
@@ -60,7 +60,7 @@ export function VerificationBanner() {
               sessionStorage.setItem(DISMISS_KEY, String(Date.now()));
               setDismissed(true);
             }}
-            className="text-blue-400/60 hover:text-blue-300 transition-colors p-1"
+            className="text-blue-400/60 hover:text-blue-300 transition-colors p-1 cursor-pointer"
             title="Rappeler plus tard"
           >
             <X className="h-3.5 w-3.5" />
