@@ -119,43 +119,58 @@ async function handleStreaming(mediaId: string, type: string, tmdbId?: number | 
   const isTv = type === 'serie' || type === 'anime';
 
   if (isMovie) {
-    for (const src of STREAMING_SOURCES) {
-      try {
+    const results = await Promise.allSettled(
+      STREAMING_SOURCES.map(async (src) => {
         const url = src.buildUrl(tmdbId, 'film');
         if (await checkStream(url)) {
-          links.push({ source_site: src.name, player_host: src.host, url, qualite: 'auto' });
+          return { source_site: src.name, player_host: src.host, url, qualite: 'auto' };
         }
-      } catch { /* skip */ }
-    }
+        return null;
+      })
+    );
+    for (const r of results) if (r.status === 'fulfilled' && r.value) links.push(r.value);
   } else if (isTv) {
     const episodes = await neonSql`
       SELECT id, season_number, episode_number FROM episodes WHERE media_id = ${mediaId} ORDER BY season_number, episode_number
     `;
 
     if (episodes.length > 0) {
-      for (const ep of episodes) {
-        for (const src of STREAMING_SOURCES) {
-          try {
-            const url = src.buildUrl(tmdbId, 'serie', ep.season_number, ep.episode_number);
-            if (await checkStream(url)) {
-              links.push({
-                source_site: src.name, player_host: src.host, url,
-                qualite: 'auto',
-                episodeId: ep.id,
-              });
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < episodes.length; i += BATCH_SIZE) {
+        const batch = episodes.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+          batch.map(async (ep) => {
+            const sourceResults = await Promise.allSettled(
+              STREAMING_SOURCES.map(async (src) => {
+                const url = src.buildUrl(tmdbId, 'serie', ep.season_number, ep.episode_number);
+                if (await checkStream(url)) {
+                  return { source_site: src.name, player_host: src.host, url, qualite: 'auto', episodeId: ep.id };
+                }
+                return null;
+              })
+            );
+            return sourceResults;
+          })
+        );
+        for (const batchResult of batchResults) {
+          if (batchResult.status === 'fulfilled') {
+            for (const r of batchResult.value) {
+              if (r.status === 'fulfilled' && r.value) links.push(r.value);
             }
-          } catch { /* skip */ }
+          }
         }
       }
     } else {
-      for (const src of STREAMING_SOURCES) {
-        try {
+      const results = await Promise.allSettled(
+        STREAMING_SOURCES.map(async (src) => {
           const url = src.buildUrl(tmdbId, 'serie', 1, 1);
           if (await checkStream(url)) {
-            links.push({ source_site: src.name, player_host: src.host, url, qualite: 'auto' });
+            return { source_site: src.name, player_host: src.host, url, qualite: 'auto' };
           }
-        } catch { /* skip */ }
-      }
+          return null;
+        })
+      );
+      for (const r of results) if (r.status === 'fulfilled' && r.value) links.push(r.value);
     }
   }
 

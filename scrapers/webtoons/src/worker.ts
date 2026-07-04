@@ -20,15 +20,19 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
   for (const result of results) {
     if (result.chapters.length === 0) continue;
 
-    const links = result.chapters.map((ch, i) => ({
-      source_site: result.source,
-      player_host: new URL(ch.url).hostname,
-      url: ch.url,
-      qualite: 'webtoon',
-      langue: 'EN',
-      titre: ch.name,
-      numero: ch.chapterNumber ?? i + 1,
-    }));
+    const links = result.chapters.map((ch, i) => {
+      let playerHost = result.source;
+      try { playerHost = new URL(ch.url).hostname; } catch { /* relative url */ }
+      return {
+        source_site: result.source,
+        player_host: playerHost,
+        url: ch.url,
+        qualite: 'webtoon',
+        langue: 'EN',
+        titre: ch.name,
+        numero: ch.chapterNumber ?? i + 1,
+      };
+    });
 
     try {
       await callInternal('/ingest/liens', {
