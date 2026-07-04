@@ -26,7 +26,7 @@ export class ArtlapsaScraper extends KeyoappScraper {
     const url = `${this.baseUrl}/search?title=${encodeURIComponent(query)}`;
     const res = await this.get(url);
     const $ = this.$(res.data);
-    const mangas = $(`main#main-content [wire:key*='serie']`).toArray()
+    const mangas = $(`main#main-content [wire\\:key*='serie']`).toArray()
       .map(el => this.searchMangaFromElement($(el)));
     return { mangas, hasNextPage: mangas.length >= 20 };
   }

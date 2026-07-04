@@ -18,7 +18,13 @@ jobs:
           curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
           sudo apt-get update && sudo apt-get install -y cloudflare-warp
-          sudo warp-cli --accept-tos registration new && sudo warp-cli --accept-tos connect
+          sudo warp-cli --accept-tos registration new
+          sudo systemctl start warp-svc
+          sleep 2
+          sudo warp-cli --accept-tos connect
+          sleep 3
+          echo "Warp status: $(sudo warp-cli status)"
+          echo "Public IP: $(curl -s https://ifconfig.me)"
       - name: Install dependencies
         run: cd scrapers/webtoons && npm ci
       - name: Fetch stale webtoons from queue

@@ -26,7 +26,7 @@ export class RitharScansScraper extends KeyoappScraper {
     const url = `${this.baseUrl}/search?title=${encodeURIComponent(query)}`;
     const res = await this.get(url);
     const $ = this.$(res.data);
-    const mangas = $('[wire:snapshot*=pages.search] button[tags]').toArray()
+    const mangas = $('[wire\\:snapshot*=pages.search] button[tags]').toArray()
       .map(el => this.searchMangaFromElement($(el)));
     return { mangas, hasNextPage: false };
   }
