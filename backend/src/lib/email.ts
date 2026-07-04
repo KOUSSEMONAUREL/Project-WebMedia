@@ -4,8 +4,8 @@ const APP_NAME = 'WebMedia';
 const BRAND_GRADIENT = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
 
 function apiKey(): string {
-  const key = process.env.BREVO_SMTP_KEY?.trim();
-  if (!key) throw new Error('BREVO_SMTP_KEY is not set');
+  const key = process.env.BREVO_API_KEY?.trim();
+  if (!key) throw new Error('BREVO_API_KEY is not set');
   return key;
 }
 
