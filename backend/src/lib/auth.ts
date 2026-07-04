@@ -45,7 +45,20 @@ export function getAuth(dbUrl?: string) {
         ],
         emailAndPassword: {
             enabled: true,
-            autoSignIn: true,
+            autoSignIn: false,
+            requireEmailVerification: true,
+            sendEmailVerificationOnSignUp: true,
+        },
+        sendEmail: async ({ user, url, type }: { user: { id: string; name: string; email: string }; url: string; type: string }) => {
+            if (type === 'email-verification') {
+                const { sendMail, buildVerificationEmail } = await import('./email');
+                const { subject, html } = buildVerificationEmail(user.name, url);
+                await sendMail(user.email, subject, html);
+            } else if (type === 'forgot-password') {
+                const { sendMail, buildResetEmail } = await import('./email');
+                const { subject, html } = buildResetEmail(user.name, url);
+                await sendMail(user.email, subject, html);
+            }
         },
         socialProviders: {
             google: {
