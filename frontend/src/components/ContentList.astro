@@ -121,181 +121,190 @@ const seasonNums = [...seasons.keys()].sort();
 )}
 
 <script>
-  let activeEpisodeId: string | null = null;
-  let activeSeasonNum: string | null = null;
+  function init() {
+    const tabs = document.querySelectorAll('.season-tab');
+    const groups = document.querySelectorAll('.season-group');
+    const cards = document.querySelectorAll('.episode-card');
+    const panel = document.getElementById('episode-detail-panel');
+    const closeBtn = document.getElementById('ep-detail-close');
 
-  const tabs = document.querySelectorAll('.season-tab');
-  const groups = document.querySelectorAll('.season-group');
-  const cards = document.querySelectorAll('.episode-card');
-  const panel = document.getElementById('episode-detail-panel');
-  const closeBtn = document.getElementById('ep-detail-close');
+    const titleEl = document.getElementById('ep-detail-title');
+    const durEl = document.getElementById('ep-detail-duration');
+    const synEl = document.getElementById('ep-detail-synopsis');
+    const synContainer = document.getElementById('ep-detail-synopsis-container');
+    const linksEl = document.getElementById('ep-detail-links');
 
-  const titleEl = document.getElementById('ep-detail-title');
-  const durEl = document.getElementById('ep-detail-duration');
-  const synEl = document.getElementById('ep-detail-synopsis');
-  const synContainer = document.getElementById('ep-detail-synopsis-container');
-  const linksEl = document.getElementById('ep-detail-links');
+    if (tabs.length === 0) return;
 
-  // Activate Season Tab
-  function setActiveSeason(sn: string) {
-    activeSeasonNum = sn;
-    tabs.forEach(t => {
-      const el = t as HTMLElement;
-      if (el.dataset.season === sn) {
-        el.style.background = 'rgba(5b,131,246,0.12)';
-        el.style.borderColor = 'rgba(96,165,250,0.25)';
-        el.style.color = '#60A5FA';
-      } else {
-        el.style.background = 'rgba(255,255,255,0.04)';
-        el.style.borderColor = 'rgba(255,255,255,0.06)';
-        el.style.color = 'rgba(255,255,255,0.5)';
+    let activeEpisodeId: string | null = null;
+    let activeSeasonNum: string | null = null;
+
+    // Activate Season Tab
+    function setActiveSeason(sn: string) {
+      activeSeasonNum = sn;
+      tabs.forEach(t => {
+        const el = t as HTMLElement;
+        if (el.dataset.season === sn) {
+          el.style.background = 'rgba(5b,131,246,0.12)';
+          el.style.borderColor = 'rgba(96,165,250,0.25)';
+          el.style.color = '#60A5FA';
+        } else {
+          el.style.background = 'rgba(255,255,255,0.04)';
+          el.style.borderColor = 'rgba(255,255,255,0.06)';
+          el.style.color = 'rgba(255,255,255,0.5)';
+        }
+      });
+
+      groups.forEach(g => {
+        const el = g as HTMLElement;
+        if (el.dataset.season === sn) {
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    }
+
+    // Open Episode Detail
+    function selectEpisode(id: string, updateHash = true) {
+      let selectedCard: HTMLElement | null = null;
+      cards.forEach(c => {
+        const el = c as HTMLElement;
+        if (el.dataset.episodeId === id) {
+          selectedCard = el;
+          el.style.borderColor = 'rgba(96,165,250,0.35)';
+          el.style.background = 'rgba(59,130,246,0.04)';
+        } else {
+          el.style.borderColor = 'rgba(255,255,255,0.05)';
+          el.style.background = 'rgba(255,255,255,0.02)';
+        }
+      });
+
+      if (!selectedCard) return;
+
+      activeEpisodeId = id;
+      const epData = JSON.parse(selectedCard.dataset.episodeData || '{}');
+
+      // Automatically switch season tab if the selected episode belongs to another season
+      const epSeason = selectedCard.dataset.season;
+      if (epSeason && epSeason !== activeSeasonNum) {
+        setActiveSeason(epSeason);
       }
-    });
 
-    groups.forEach(g => {
-      const el = g as HTMLElement;
-      if (el.dataset.season === sn) {
-        el.style.display = 'block';
-      } else {
-        el.style.display = 'none';
+      // Populate panel content
+      if (titleEl) titleEl.textContent = `Épisode ${epData.num} — ${epData.title}`;
+      if (durEl) durEl.textContent = epData.duration ? `Durée : ${epData.duration} minutes` : 'Durée inconnue';
+      
+      if (synEl && synContainer) {
+        if (epData.synopsis) {
+          synEl.textContent = epData.synopsis;
+          synContainer.style.display = 'block';
+        } else {
+          synContainer.style.display = 'none';
+        }
       }
-    });
-  }
 
-  // Open Episode Detail
-  function selectEpisode(id: string, updateHash = true) {
-    let selectedCard: HTMLElement | null = null;
-    cards.forEach(c => {
-      const el = c as HTMLElement;
-      if (el.dataset.episodeId === id) {
-        selectedCard = el;
-        el.style.borderColor = 'rgba(96,165,250,0.35)';
-        el.style.background = 'rgba(59,130,246,0.04)';
-      } else {
+      if (linksEl) {
+        linksEl.innerHTML = '';
+        const links = epData.links || [];
+        if (links.length > 0) {
+          links.forEach((l: any) => {
+            const site = l.source_site || l.sourceSite || 'Lien';
+            const a = document.createElement('a');
+            a.href = l.url;
+            a.target = '_blank';
+            a.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
+            a.style.background = 'rgba(59,130,246,0.08)';
+            a.style.border = '1px solid rgba(59,130,246,0.15)';
+            a.style.color = '#60A5FA';
+            
+            let content = site;
+            if (l.quality) {
+              content += ` <span style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; padding: 1px 4.5px; border-radius: 4px; margin-left: 4px;">${l.quality}</span>`;
+            }
+            a.innerHTML = content;
+            linksEl.appendChild(a);
+          });
+        } else {
+          const span = document.createElement('span');
+          span.className = 'text-xs text-white/35';
+          span.textContent = 'Aucun lien de visionnage disponible pour cet épisode';
+          linksEl.appendChild(span);
+        }
+      }
+
+      if (panel) {
+        panel.classList.remove('hidden');
+        setTimeout(() => {
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+
+      if (updateHash) {
+        history.replaceState(null, '', `#episode-${id}`);
+      }
+    }
+
+    // Close Panel
+    function closePanel() {
+      activeEpisodeId = null;
+      cards.forEach(c => {
+        const el = c as HTMLElement;
         el.style.borderColor = 'rgba(255,255,255,0.05)';
         el.style.background = 'rgba(255,255,255,0.02)';
-      }
+      });
+
+      if (panel) panel.classList.add('hidden');
+      history.replaceState(null, '', window.location.pathname);
+    }
+
+    // Init event listeners
+    tabs.forEach(t => {
+      t.addEventListener('click', (e) => {
+        const btn = e.currentTarget as HTMLElement;
+        const sn = btn.dataset.season;
+        if (sn) setActiveSeason(sn);
+      });
     });
 
-    if (!selectedCard) return;
-
-    activeEpisodeId = id;
-    const epData = JSON.parse(selectedCard.dataset.episodeData || '{}');
-
-    // Automatically switch season tab if the selected episode belongs to another season
-    const epSeason = selectedCard.dataset.season;
-    if (epSeason && epSeason !== activeSeasonNum) {
-      setActiveSeason(epSeason);
-    }
-
-    // Populate panel content
-    if (titleEl) titleEl.textContent = `Épisode ${epData.num} — ${epData.title}`;
-    if (durEl) durEl.textContent = epData.duration ? `Durée : ${epData.duration} minutes` : 'Durée inconnue';
-    
-    if (synEl && synContainer) {
-      if (epData.synopsis) {
-        synEl.textContent = epData.synopsis;
-        synContainer.style.display = 'block';
-      } else {
-        synContainer.style.display = 'none';
-      }
-    }
-
-    if (linksEl) {
-      linksEl.innerHTML = '';
-      const links = epData.links || [];
-      if (links.length > 0) {
-        links.forEach((l: any) => {
-          const site = l.source_site || l.sourceSite || 'Lien';
-          const a = document.createElement('a');
-          a.href = l.url;
-          a.target = '_blank';
-          a.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
-          a.style.background = 'rgba(59,130,246,0.08)';
-          a.style.border = '1px solid rgba(59,130,246,0.15)';
-          a.style.color = '#60A5FA';
-          
-          let content = site;
-          if (l.quality) {
-            content += ` <span style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; padding: 1px 4.5px; border-radius: 4px; margin-left: 4px;">${l.quality}</span>`;
-          }
-          a.innerHTML = content;
-          linksEl.appendChild(a);
-        });
-      } else {
-        const span = document.createElement('span');
-        span.className = 'text-xs text-white/35';
-        span.textContent = 'Aucun lien de visionnage disponible pour cet épisode';
-        linksEl.appendChild(span);
-      }
-    }
-
-    if (panel) {
-      panel.classList.remove('hidden');
-      setTimeout(() => {
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
-    }
-
-    if (updateHash) {
-      history.replaceState(null, '', `#episode-${id}`);
-    }
-  }
-
-  // Close Panel
-  function closePanel() {
-    activeEpisodeId = null;
     cards.forEach(c => {
-      const el = c as HTMLElement;
-      el.style.borderColor = 'rgba(255,255,255,0.05)';
-      el.style.background = 'rgba(255,255,255,0.02)';
+      c.addEventListener('click', (e) => {
+        const el = e.currentTarget as HTMLElement;
+        const id = el.dataset.episodeId;
+        if (id) selectEpisode(id);
+      });
     });
 
-    if (panel) panel.classList.add('hidden');
-    history.replaceState(null, '', window.location.pathname);
-  }
+    closeBtn?.addEventListener('click', closePanel);
 
-  // Init event listeners
-  tabs.forEach(t => {
-    t.addEventListener('click', (e) => {
-      const btn = e.currentTarget as HTMLElement;
-      const sn = btn.dataset.season;
-      if (sn) setActiveSeason(sn);
-    });
-  });
-
-  cards.forEach(c => {
-    c.addEventListener('click', (e) => {
-      const el = e.currentTarget as HTMLElement;
-      const id = el.dataset.episodeId;
-      if (id) selectEpisode(id);
-    });
-  });
-
-  closeBtn?.addEventListener('click', closePanel);
-
-  // Initial routing
-  document.addEventListener('DOMContentLoaded', () => {
-    // 1. Show first season default
+    // Initial routing: default view first season
     const firstTab = tabs[0] as HTMLElement | undefined;
     if (firstTab && firstTab.dataset.season) {
       setActiveSeason(firstTab.dataset.season);
     }
 
-    // 2. Open hashed episode
+    // Route hash on load
     if (window.location.hash.startsWith('#episode-')) {
       const id = window.location.hash.replace('#episode-', '');
       setTimeout(() => selectEpisode(id, false), 150);
     }
-  });
 
-  // Watch for hash change
-  window.addEventListener('hashchange', () => {
-    if (window.location.hash.startsWith('#episode-')) {
-      const id = window.location.hash.replace('#episode-', '');
-      if (id !== activeEpisodeId) selectEpisode(id, false);
-    } else {
-      closePanel();
-    }
-  });
+    const onHashChange = () => {
+      if (window.location.hash.startsWith('#episode-')) {
+        const id = window.location.hash.replace('#episode-', '');
+        if (id !== activeEpisodeId) selectEpisode(id, false);
+      } else {
+        closePanel();
+      }
+    };
+
+    window.addEventListener('hashchange', onHashChange);
+
+    document.addEventListener('astro:before-swap', () => {
+      window.removeEventListener('hashchange', onHashChange);
+    }, { once: true });
+  }
+
+  // Runs on initial page load and after every page transition
+  document.addEventListener('astro:page-load', init);
 </script>
