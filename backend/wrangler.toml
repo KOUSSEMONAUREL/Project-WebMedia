@@ -9,7 +9,7 @@ ENVIRONMENT = "development"
 
 # Trigger quotidien à 06:00 UTC
 [triggers]
-crons = ["0 6 * * *"]
+crons = ["0 9 * * *"]
 
 # Configuration pour le développement local
 [dev]
