@@ -89,6 +89,8 @@ export class OrchestratorService {
             const mediaInfo = mediaInfoMap.get(media_id);
             if (!mediaInfo) continue;
 
+            if (type === 'book') continue;
+
             const workerType =
                 (type === 'game' || type === 'jeu') ? 'playwright' :
                 type === 'novel' ? 'novel' :
