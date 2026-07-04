@@ -60,6 +60,7 @@ const seasonNums = [...seasons.keys()].sort();
                     title: title,
                     duration: dur,
                     synopsis: synopsis || '',
+                    airDate: ep.air_date ?? ep.airDate ?? null,
                     links: epLinks
                   })}
                 >
@@ -193,7 +194,16 @@ const seasonNums = [...seasons.keys()].sort();
 
       // Populate panel content
       if (titleEl) titleEl.textContent = `Épisode ${epData.num} — ${epData.title}`;
-      if (durEl) durEl.textContent = epData.duration ? `Durée : ${epData.duration} minutes` : 'Durée inconnue';
+      if (durEl) {
+        let meta = epData.duration ? `Durée : ${epData.duration} minutes` : 'Durée inconnue';
+        if (epData.airDate) {
+          try {
+            const d = new Date(typeof epData.airDate === 'number' ? epData.airDate * 1000 : epData.airDate);
+            meta += ` · ${d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+          } catch {}
+        }
+        durEl.textContent = meta;
+      }
       
       if (synEl && synContainer) {
         if (epData.synopsis) {
@@ -221,6 +231,12 @@ const seasonNums = [...seasons.keys()].sort();
             let content = site;
             if (l.quality) {
               content += ` <span style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; padding: 1px 4.5px; border-radius: 4px; margin-left: 4px;">${l.quality}</span>`;
+            }
+            if (l.player_host || l.playerHost) {
+              content += ` <span style="color: rgba(255,255,255,0.25); font-size:9px; margin-left:3px;">(${l.player_host || l.playerHost})</span>`;
+            }
+            if (l.has_subtitles ?? l.hasSubtitles) {
+              content += ` <span style="color: rgba(251,191,36,0.5); font-size:9px; margin-left:3px;">SOUS-TITRES</span>`;
             }
             a.innerHTML = content;
             linksEl.appendChild(a);

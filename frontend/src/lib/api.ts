@@ -93,6 +93,13 @@ function formatMedia(row: any): Media {
     tagline: row.tagline || undefined,
     studios: row.studios ? JSON.parse(row.studios) : undefined,
     episodeCount: row.episode_count || undefined,
+    author: row.author || undefined,
+    originalTitle: row.original_title || undefined,
+    externalId: row.external_id || undefined,
+    malId: row.mal_id || undefined,
+    kitsuId: row.kitsu_id || undefined,
+    igdbId: row.igdb_id || undefined,
+    anidbId: row.anidb_id || undefined,
     createdAt: row.created_at ? new Date(row.created_at * 1000).toISOString() : '',
     updatedAt: row.updated_at ? new Date(row.updated_at * 1000).toISOString() : '',
   };
@@ -205,6 +212,8 @@ export interface Media {
   backdropUrl?: string; episodes?: any[]; links?: any[];
   trailerUrl?: string; duration?: number; tagline?: string;
   studios?: string[]; episodeCount?: number;
+  author?: string; originalTitle?: string;
+  externalId?: string; malId?: number; kitsuId?: number; igdbId?: number; anidbId?: number;
 }
 
 export interface LegalLink { platform: string; url: string; type: 'stream' | 'buy' | 'rent'; }

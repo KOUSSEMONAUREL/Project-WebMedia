@@ -63,6 +63,11 @@ const isEpisode = media.type === 'serie' || media.type === 'anime';
           <span class="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-lg"
                 style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);">{typeLabel[media.type]}</span>
           {media.year && <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4);">{media.year}</span>}
+          {media.status && media.status !== 'Released' && media.status !== 'released' && (
+            <span class="text-xs px-3 py-1 rounded-lg" style="background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.1); color: #FBBF24;">
+              {media.status === 'Ended' ? 'Terminé' : media.status === 'Upcoming' ? 'À venir' : media.status}
+            </span>
+          )}
           {media.rating && (
             <span class="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-lg" style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.12); color: #FBBF24;">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -79,7 +84,11 @@ const isEpisode = media.type === 'serie' || media.type === 'anime';
           )}
         </div>
 
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-3" style="color: rgba(255,255,255,0.92);">{media.title}</h1>
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-1" style="color: rgba(255,255,255,0.92);">{media.title}</h1>
+
+        {media.originalTitle && media.originalTitle !== media.title && (
+          <p class="text-sm md:text-base mb-1" style="color: rgba(255,255,255,0.3);">{media.originalTitle}</p>
+        )}
 
         {media.tagline && <p class="text-sm md:text-base italic mb-4" style="color: rgba(255,255,255,0.35);">&ldquo;{media.tagline}&rdquo;</p>}
 
@@ -91,6 +100,11 @@ const isEpisode = media.type === 'serie' || media.type === 'anime';
           </div>
         )}
 
+        {media.author && (
+          <p class="text-xs mb-1" style="color: rgba(255,255,255,0.35);">
+            <span style="color: rgba(255,255,255,0.5);">Auteur:</span> {media.author}
+          </p>
+        )}
         {media.studios?.length > 0 && (
           <p class="text-xs mb-4" style="color: rgba(255,255,255,0.35);">
             <span style="color: rgba(255,255,255,0.5);">
