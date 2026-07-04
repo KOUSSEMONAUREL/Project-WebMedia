@@ -23,7 +23,7 @@ jobs:
           sleep 2
           sudo warp-cli --accept-tos connect
           sleep 3
-          echo "Warp status: $(sudo warp-cli status)"
+          sudo warp-cli --accept-tos status
           echo "Public IP: $(curl -s https://ifconfig.me)"
       - name: Install dependencies
         run: cd scrapers/webtoons && npm ci
