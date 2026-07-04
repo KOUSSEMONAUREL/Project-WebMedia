@@ -56,39 +56,43 @@ export async function findMatchingScrapers(media: MediaTarget): Promise<{ name: 
   // 1. Si metadataSource est renseigné, chercher un scraper dont le nom correspond
   if (media.metadataSource) {
     const sourceLower = media.metadataSource.toLowerCase();
-    for (const { name, scraper } of all) {
-      if (name.toLowerCase().includes(sourceLower) || scraper.baseUrl.toLowerCase().includes(sourceLower)) {
-        // Trouver l'URL du manga via search
-        try {
-          const search = await scraper.getSearch(media.title, 1);
-          const found = search.mangas.find(
-            m => m.title.toLowerCase().includes(media.title.toLowerCase())
-          );
-          if (found) {
-            matches.push({ name, scraper, url: found.url });
-          }
-        } catch (err) {
-          console.error(`Search failed for scraper ${name} with title "${media.title}": ${err instanceof Error ? err.message : err}`);
-        }
-      }
+    const candidates = all.filter(
+      ({ name, scraper }) => name.toLowerCase().includes(sourceLower) || scraper.baseUrl.toLowerCase().includes(sourceLower)
+    );
+    const metaResults = await Promise.allSettled(
+      candidates.map(async ({ name, scraper }) => {
+        const search = await scraper.getSearch(media.title, 1);
+        const found = search.mangas.find(m => m.title.toLowerCase().includes(media.title.toLowerCase()));
+        if (found) return { name, scraper, url: found.url };
+        return null;
+      })
+    );
+    for (const r of metaResults) {
+      if (r.status === 'fulfilled' && r.value) matches.push(r.value);
+      else if (r.status === 'rejected')
+        console.error(`Search failed: ${r.reason instanceof Error ? r.reason.message : r.reason}`);
     }
   }
 
-  // 2. Chercher par titre dans TOUS les scrapers
-  for (const { name, scraper } of all) {
-    try {
-      const search = await scraper.getSearch(media.title, 1);
-      const found = search.mangas.find(
-        m => m.title.toLowerCase().includes(media.title.toLowerCase())
-      );
-      if (found) {
-        const exists = matches.some(m => m.name === name);
-        if (!exists) {
+  // 2. Chercher par titre dans TOUS les scrapers en parallele
+  type SearchOutcome = { name: string; error: string } | undefined;
+  const searchOutcomes = (await Promise.allSettled(
+    all.map(async ({ name, scraper }): Promise<SearchOutcome> => {
+      try {
+        const search = await scraper.getSearch(media.title, 1);
+        const found = search.mangas.find(m => m.title.toLowerCase().includes(media.title.toLowerCase()));
+        if (found && !matches.some(m => m.name === name)) {
           matches.push({ name, scraper, url: found.url });
         }
+      } catch (err) {
+        return { name, error: err instanceof Error ? err.message : String(err) };
       }
-    } catch (err) {
-      console.error(`Search failed for scraper ${name} with title "${media.title}": ${err instanceof Error ? err.message : err}`);
+    })
+  )) as PromiseSettledResult<SearchOutcome>[];
+
+  for (const outcome of searchOutcomes) {
+    if (outcome.status === 'fulfilled' && outcome.value) {
+      console.error(`Search failed for scraper ${outcome.value.name} with title "${media.title}": ${outcome.value.error}`);
     }
   }
 
