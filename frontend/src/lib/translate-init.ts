@@ -143,6 +143,12 @@ export function bootstrapTranslate(): void {
   })
   document.addEventListener('astro:after-swap', () => {
     lastHash = ''
+    lastLang = ''
+    sessionStorage.removeItem(CACHE_KEY)
+    if (window.translate) {
+      window.translate.nodeHistory = {}
+      window.translate.nodeQueue = {}
+    }
     const lang = getStoredLang()
     if (lang === 'french') return
     if (!loaded) {
