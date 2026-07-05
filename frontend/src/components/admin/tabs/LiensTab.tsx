@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Edit, Trash2, Search, ExternalLink } from 'lucide-react';
+import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
 
@@ -41,6 +42,8 @@ export default function LiensTab() {
   const [deleteTarget, setDeleteTarget] = useState<LienRow | null>(null);
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
 
   useEffect(() => { load(); }, []);
 
@@ -80,6 +83,11 @@ export default function LiensTab() {
     }
     return list;
   }, [liens, search, activeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, activeFilter]);
 
   function openEdit(l: LienRow) {
     setForm({
@@ -175,7 +183,7 @@ export default function LiensTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(l => (
+            {pageItems.map(l => (
               <TableRow key={l.id}>
                 <TableCell className="max-w-[200px] truncate text-sm">{l.media_title}</TableCell>
                 <TableCell><Badge variant="outline" className="text-[10px]">{l.source_site}</Badge></TableCell>
@@ -206,7 +214,7 @@ export default function LiensTab() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {pageItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Aucun lien trouve</TableCell>
               </TableRow>
@@ -214,6 +222,8 @@ export default function LiensTab() {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
       {/* Edit Dialog */}
       <Dialog open={!!editTarget} onOpenChange={o => { if (!o) setEditTarget(null); }}>

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Edit, Trash2, Search } from 'lucide-react';
+import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
 
@@ -37,6 +38,8 @@ export default function EpisodesTab() {
   const [deleteTarget, setDeleteTarget] = useState<EpisodeRow | null>(null);
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
 
   useEffect(() => { load(); }, []);
 
@@ -70,6 +73,11 @@ export default function EpisodesTab() {
       e.media_title?.toLowerCase().includes(q)
     );
   }, [episodes, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search]);
 
   function openEdit(ep: EpisodeRow) {
     setForm({
@@ -154,7 +162,7 @@ export default function EpisodesTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(ep => (
+            {pageItems.map(ep => (
               <TableRow key={ep.id}>
                 <TableCell>
                   <div className="text-sm font-medium truncate max-w-[250px]">{ep.media_title}</div>
@@ -175,7 +183,7 @@ export default function EpisodesTab() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {pageItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Aucun episode trouve</TableCell>
               </TableRow>
@@ -183,6 +191,8 @@ export default function EpisodesTab() {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
       {/* Edit Dialog */}
       <Dialog open={!!editTarget} onOpenChange={o => { if (!o) setEditTarget(null); }}>

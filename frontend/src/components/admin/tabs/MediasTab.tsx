@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Edit, Trash2, Plus, Search, ExternalLink } from 'lucide-react';
+import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
 
@@ -51,6 +52,8 @@ export default function MediasTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
 
   useEffect(() => {
     loadMedias();
@@ -76,6 +79,11 @@ export default function MediasTab() {
     }
     return list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [medias, search, typeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
 
   function fillForm(m: Media): FormData {
     const g = m.genres ? (Array.isArray(m.genres) ? m.genres.join(', ') : m.genres) : '';
@@ -221,7 +229,7 @@ export default function MediasTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(m => (
+            {pageItems.map(m => (
               <TableRow key={m.id}>
                 <TableCell>
                   {m.posterUrl ? (
@@ -256,7 +264,7 @@ export default function MediasTab() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {pageItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   Aucun media trouve
@@ -266,6 +274,8 @@ export default function MediasTab() {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
       {/* Edit Dialog */}
       <Dialog open={!!editTarget} onOpenChange={o => { if (!o) setEditTarget(null); }}>
