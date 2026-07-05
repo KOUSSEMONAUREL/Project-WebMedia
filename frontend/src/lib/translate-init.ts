@@ -99,7 +99,7 @@ function configureOnce(): void {
   configured = true
 }
 
-function translateTo(lang: string, delay: number): void {
+function execute(lang: string, delay: number): void {
   const before = pageHash()
   if (lang === lastLang && before === lastHash) return
   if (isCached(location.pathname, before)) return
@@ -109,7 +109,8 @@ function translateTo(lang: string, delay: number): void {
     configureOnce()
     const t = window.translate
     if (!t) return
-    t.changeLanguage(lang)
+    t.to = lang
+    t.execute()
     setCache(location.pathname, pageHash())
   }, delay)
 }
@@ -122,13 +123,13 @@ export async function setLanguage(lang: LangId): Promise<void> {
   }
   localStorage.setItem(STORAGE_KEY, lang)
   if (!loaded) await loadScript()
-  translateTo(lang, loaded ? 50 : 400)
+  execute(lang, loaded ? 50 : 400)
 }
 
 export function bootstrapTranslate(): void {
   const stored = getStoredLang()
   if (stored !== 'french') {
-    loadScript().then(() => translateTo(stored, 400))
+    loadScript().then(() => execute(stored, 400))
   }
   window.addEventListener('pageshow', (e) => {
     lastHash = ''
@@ -136,7 +137,7 @@ export function bootstrapTranslate(): void {
     if (e.persisted) {
       const lang = getStoredLang()
       if (lang !== 'french') {
-        loadScript().then(() => translateTo(lang, 400))
+        loadScript().then(() => execute(lang, 400))
       }
     }
   })
@@ -145,9 +146,9 @@ export function bootstrapTranslate(): void {
     const lang = getStoredLang()
     if (lang === 'french') return
     if (!loaded) {
-      loadScript().then(() => translateTo(lang, 100))
+      loadScript().then(() => execute(lang, 100))
     } else {
-      translateTo(lang, 100)
+      execute(lang, 100)
     }
   })
 }
