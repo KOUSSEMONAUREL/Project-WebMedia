@@ -228,18 +228,29 @@ async function uploadToB2(filePath: string) {
   console.log('[b2] uploading catalogue.sqlite...');
   const fileBuffer = readFileSync(filePath);
   const sha1 = createHash('sha1').update(fileBuffer).digest('hex');
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: uploadAuthToken, 'X-Bz-File-Name': 'catalogue.sqlite',
-      'Content-Type': 'application/octet-stream', 'X-Bz-Content-Sha1': sha1,
-      'Content-Length': String(fileBuffer.length),
-    },
-    body: fileBuffer,
-  });
-  if (!uploadRes.ok) throw new Error(`B2 upload failed: ${uploadRes.status} ${await uploadRes.text()}`);
-  const result = await uploadRes.json() as any;
-  console.log(`[b2] uploaded: ${result.fileName} (${result.fileId})`);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: uploadAuthToken, 'X-Bz-File-Name': 'catalogue.sqlite',
+          'Content-Type': 'application/octet-stream', 'X-Bz-Content-Sha1': sha1,
+          'Content-Length': String(fileBuffer.length),
+        },
+        body: fileBuffer,
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!uploadRes.ok) throw new Error(`B2 upload failed: ${uploadRes.status} ${await uploadRes.text()}`);
+      const result = await uploadRes.json() as any;
+      console.log(`[b2] uploaded: ${result.fileName} (${result.fileId})`);
+      return;
+    } catch (err) {
+      if (attempt === 3) throw err;
+      console.log(`[b2] upload attempt ${attempt} failed, retrying...`);
+      await new Promise(r => setTimeout(r, 3000 * attempt));
+    }
+  }
 }
 
 async function fillMissingCovers(db: any) {
