@@ -27,3 +27,6 @@ public/data/*.sqlite-shm
 public/data/*.sqlite-wal
 public/data/*.sqlite-wal2
 
+# Generated from node_modules during build
+public/data/sql-wasm.wasm
+

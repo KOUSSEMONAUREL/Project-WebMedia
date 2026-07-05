@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "node scripts/generate-search-index.mjs && astro build && rm -f public/data/catalogue.sqlite-shm public/data/catalogue.sqlite-wal public/data/catalogue.sqlite-wal2",
+    "build": "cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/data/sql-wasm.wasm && node scripts/generate-search-index.mjs && astro build && rm -f public/data/catalogue.sqlite-shm public/data/catalogue.sqlite-wal public/data/catalogue.sqlite-wal2",
     "preview": "astro preview",
     "astro": "astro",
     "check-lockfile": "npm ls --package-lock-only"
