@@ -19,10 +19,14 @@ export const SUPPORTED_LANGS = [
 type LangId = (typeof SUPPORTED_LANGS)[number]['id']
 
 const STORAGE_KEY = 'webmedia_lang'
+const CACHE_KEY = 'webmedia_trans_page'
 const CDN = 'https://res.zvo.cn/translate/translate.js'
+const THROTTLE_MS = 10_000
 
 let loaded = false
 let loading: Promise<void> | null = null
+let lastHash = ''
+let lastLang = ''
 
 export function getStoredLang(): LangId {
   if (typeof localStorage === 'undefined') return 'french'
@@ -31,6 +35,17 @@ export function getStoredLang(): LangId {
 
 export function getCurrentLang(): LangId {
   return getStoredLang()
+}
+
+function pageHash(): string {
+  const main = document.querySelector('main')
+  if (!main) return location.pathname
+  const text = main.textContent || ''
+  let h = 0
+  for (let i = 0; i < Math.min(text.length, 200); i++) {
+    h = ((h << 5) - h + text.charCodeAt(i)) | 0
+  }
+  return location.pathname + ':' + h
 }
 
 function loadScript(): Promise<void> {
@@ -51,14 +66,39 @@ function loadScript(): Promise<void> {
   return loading
 }
 
+function setup(t: typeof window.translate, lang: string): void {
+  t.language.setLocal('french')
+  t.selectLanguageTag.show = false
+  t.service.use('client.edge')
+}
+
 function apply(lang: string, delay: number): void {
+  if (lang === lastLang && lastHash === pageHash()) return
   setTimeout(() => {
     const t = window.translate
     if (!t) return
-    t.language.setLocal('french')
-    t.selectLanguageTag.show = false
-    t.service.use('client.edge')
+    setup(t, lang)
     t.changeLanguage(lang)
+    lastLang = lang
+    lastHash = pageHash()
+    try {
+      const cache = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}')
+      cache[location.pathname] = { lang, ts: Date.now() }
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache))
+    } catch {}
+  }, delay)
+}
+
+function applyIncremental(lang: string, delay: number): void {
+  const h = pageHash()
+  if (lang === lastLang && h === lastHash) return
+  setTimeout(() => {
+    const t = window.translate
+    if (!t) return
+    setup(t, lang)
+    t.execute()
+    lastLang = lang
+    lastHash = h
   }, delay)
 }
 
@@ -70,21 +110,22 @@ export async function setLanguage(lang: LangId): Promise<void> {
   }
   localStorage.setItem(STORAGE_KEY, lang)
   if (!loaded) await loadScript()
-  apply(lang, loaded ? 100 : 500)
+  apply(lang, loaded ? 50 : 400)
 }
 
 export function bootstrapTranslate(): void {
   const stored = getStoredLang()
   if (stored !== 'french') {
-    loadScript().then(() => apply(stored, 500))
+    loadScript().then(() => apply(stored, 400))
   }
   document.addEventListener('astro:after-swap', () => {
+    lastHash = ''
     const lang = getStoredLang()
     if (lang === 'french') return
     if (!loaded) {
       loadScript().then(() => apply(lang, 100))
     } else {
-      apply(lang, 100)
+      applyIncremental(lang, 100)
     }
   })
 }
