@@ -386,9 +386,16 @@ internalRoutes.get('/resolve/tmdb', async (c) => {
                 }
                 searchTitle = media?.title ?? undefined;
             } else if (mediaId) {
-                const [media] = await db.select({ title: medias.title, anilistId: medias.anilistId })
+                const [media] = await db.select({ title: medias.title, anilistId: medias.anilistId, tmdbId: medias.tmdbId })
                     .from(medias)
                     .where(eq(medias.id, mediaId));
+                if (media?.tmdbId && media.anilistId) {
+                    await c.env.DB.prepare(`
+                        INSERT INTO id_mapping (anilist_id, tmdb_id) VALUES (?, ?)
+                        ON CONFLICT(anilist_id) DO UPDATE SET tmdb_id = excluded.tmdb_id
+                    `).bind(String(media.anilistId), String(media.tmdbId)).run();
+                    return c.json({ success: true, tmdb_id: media.tmdbId });
+                }
                 searchTitle = media?.title ?? undefined;
                 resolvedAnilist = media?.anilistId ? String(media.anilistId) : undefined;
             }
@@ -396,21 +403,44 @@ internalRoutes.get('/resolve/tmdb', async (c) => {
             if (searchTitle && resolvedAnilist) {
                 const tmdbKey = getVar(c, 'TMDB_API_KEY');
                 if (tmdbKey) {
-                    const searchRes = await fetch(
-                        `https://api.themoviedb.org/3/search/tv?api_key=${tmdbKey}&query=${encodeURIComponent(searchTitle)}&language=fr-FR`
-                    );
-                    if (searchRes.ok) {
-                        const data = await searchRes.json() as any;
-                        const found = data?.results?.[0];
-                        if (found?.id) {
-                            await c.env.DB.prepare(`
-                                INSERT INTO id_mapping (anilist_id, tmdb_id) VALUES (?, ?)
-                                ON CONFLICT(anilist_id) DO UPDATE SET tmdb_id = excluded.tmdb_id
-                            `).bind(resolvedAnilist, String(found.id)).run();
-                            await db.update(medias).set({ tmdbId: found.id })
-                                .where(eq(medias.anilistId, parseInt(resolvedAnilist)));
-                            return c.json({ success: true, tmdb_id: found.id });
-                        }
+                    async function tmdbSearch(type: string, lang: string) {
+                        const res = await fetch(
+                            `https://api.themoviedb.org/3/search/${type}?api_key=${tmdbKey}&query=${encodeURIComponent(searchTitle!)}&language=${lang}`
+                        );
+                        if (!res.ok) return null;
+                        const data = await res.json() as any;
+                        return data?.results?.[0]?.id ?? null;
+                    }
+
+                    let foundId = await tmdbSearch('tv', 'en-US')
+                        ?? await tmdbSearch('tv', 'fr-FR')
+                        ?? await tmdbSearch('movie', 'en-US')
+                        ?? await tmdbSearch('movie', 'fr-FR');
+
+                    // Fribb fallback: lookup anilist_id in upstream mapping
+                    if (!foundId) {
+                        try {
+                            const fribbRes = await fetch('https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json');
+                            if (fribbRes.ok) {
+                                const fribbData = await fribbRes.json() as any[];
+                                const match = fribbData.find(e => String(e.anilist_id) === resolvedAnilist);
+                                if (match?.themoviedb_id) {
+                                    foundId = typeof match.themoviedb_id === 'number'
+                                        ? match.themoviedb_id
+                                        : (match.themoviedb_id.tv ?? match.themoviedb_id.movie ?? null);
+                                }
+                            }
+                        } catch { /* Fribb unreachable, continue */ }
+                    }
+
+                    if (foundId) {
+                        await c.env.DB.prepare(`
+                            INSERT INTO id_mapping (anilist_id, tmdb_id) VALUES (?, ?)
+                            ON CONFLICT(anilist_id) DO UPDATE SET tmdb_id = excluded.tmdb_id
+                        `).bind(resolvedAnilist, String(foundId)).run();
+                        await db.update(medias).set({ tmdbId: foundId })
+                            .where(eq(medias.anilistId, parseInt(resolvedAnilist)));
+                        return c.json({ success: true, tmdb_id: foundId });
                     }
                 }
             }

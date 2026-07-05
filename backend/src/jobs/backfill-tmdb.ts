@@ -4,7 +4,49 @@ import { medias } from '../db/neon/schema';
 import { eq, and, isNull, isNotNull } from 'drizzle-orm';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
-const TMDB_SEARCH_URL = 'https://api.themoviedb.org/3/search/tv';
+const FRIBB_URL = 'https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json';
+
+async function searchTmdb(title: string, type: 'tv' | 'movie', lang: string): Promise<number | null> {
+    const url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=${lang}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data?.results?.[0]?.id ?? null;
+}
+
+async function findTmdbId(title: string): Promise<number | null> {
+    let id = await searchTmdb(title, 'tv', 'en-US');
+    if (id) return id;
+    id = await searchTmdb(title, 'tv', 'fr-FR');
+    if (id) return id;
+    id = await searchTmdb(title, 'movie', 'en-US');
+    if (id) return id;
+    id = await searchTmdb(title, 'movie', 'fr-FR');
+    return id ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+type FribbEntry = { anilist_id?: number | string; themoviedb_id?: number | { tv?: number; movie?: number } };
+
+function extractTmdbFromFribb(entry: FribbEntry): number | null {
+    if (!entry.themoviedb_id) return null;
+    if (typeof entry.themoviedb_id === 'number') return entry.themoviedb_id;
+    return entry.themoviedb_id.tv ?? entry.themoviedb_id.movie ?? null;
+}
+
+async function fetchFribbMapping(): Promise<Map<string, number>> {
+    const res = await fetch(FRIBB_URL);
+    if (!res.ok) return new Map();
+    const data = await res.json() as FribbEntry[];
+    const map = new Map<string, number>();
+    for (const entry of data) {
+        const id = extractTmdbFromFribb(entry);
+        if (entry.anilist_id && id) {
+            map.set(String(entry.anilist_id), id);
+        }
+    }
+    return map;
+}
 
 async function backfill() {
     console.log('Backfilling TMDB IDs for anime...');
@@ -29,6 +71,16 @@ async function backfill() {
 
     console.log(`Found ${rows.length} anime without TMDB ID`);
 
+    if (rows.length === 0) {
+        console.log('Nothing to do.');
+        await pgClient.end();
+        process.exit(0);
+    }
+
+    console.log('Fetching Fribb mapping (fallback for TMDB search misses)...');
+    const fribbMap = await fetchFribbMapping();
+    console.log(`Fribb: ${fribbMap.size} entries loaded`);
+
     let updated = 0;
     let notFound = 0;
 
@@ -37,24 +89,24 @@ async function backfill() {
         const title = row.title || `Anime ${row.anilistId}`;
 
         try {
-            const res = await fetch(
-                `${TMDB_SEARCH_URL}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=fr-FR`
-            );
-            if (!res.ok) {
-                console.warn(`[${i + 1}/${rows.length}] TMDB error ${res.status} for ${title}`);
-                continue;
+            // 1) TMDB search
+            let tmdbId = await findTmdbId(title);
+
+            // 2) Fribb fallback
+            if (!tmdbId && row.anilistId) {
+                tmdbId = fribbMap.get(String(row.anilistId)) ?? null;
+                if (tmdbId) console.log(`  Fribb fallback for ${title} -> TMDB ${tmdbId}`);
             }
-            const data = await res.json() as any;
-            const found = data?.results?.[0];
-            if (found?.id) {
+
+            if (tmdbId) {
                 await db.update(medias)
-                    .set({ tmdbId: found.id, metadataSource: 'tmdb' })
+                    .set({ tmdbId, metadataSource: 'tmdb' })
                     .where(eq(medias.id, row.id));
                 updated++;
-                console.log(`[${i + 1}/${rows.length}] OK  ${title} -> TMDB ${found.id}`);
+                console.log(`[${i + 1}/${rows.length}] OK  ${title} -> TMDB ${tmdbId}`);
             } else {
                 notFound++;
-                console.warn(`[${i + 1}/${rows.length}] --  ${title} -> not found on TMDB`);
+                console.warn(`[${i + 1}/${rows.length}] --  ${title} -> not found`);
             }
         } catch (err: any) {
             console.error(`[${i + 1}/${rows.length}] ERR ${title}: ${err.message}`);

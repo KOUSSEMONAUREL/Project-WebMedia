@@ -17,7 +17,7 @@ export const medias = pgTable('medias', {
     rating: decimal('rating', { precision: 3, scale: 1 }),
     voteCount: integer('vote_count').default(0),
     status: varchar('status', { length: 20 }), // Released, Upcoming, Ended
-    tmdbId: integer('tmdb_id').unique(),
+    tmdbId: integer('tmdb_id'),
     imdbId: varchar('imdb_id', { length: 20 }),
     anilistId: integer('anilist_id').unique(),
     malId: integer('mal_id'),
