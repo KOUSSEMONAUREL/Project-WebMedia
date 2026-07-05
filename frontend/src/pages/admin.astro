@@ -1,10 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import AdminDashboard from '../components/admin/AdminDashboard';
+import AdminApp from '../components/admin/AdminApp';
 ---
 
 <Layout title="Admin - WebMedia">
   <div class="min-h-screen">
-    <AdminDashboard client:only="react" />
+    <AdminApp client:only="react" />
   </div>
 </Layout>
