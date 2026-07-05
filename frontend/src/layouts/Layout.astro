@@ -44,6 +44,8 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
     <CookieBanner client:load />
     <script>
         import { initSyncSession } from '../lib/sync-queue';
+        import { bootstrapTranslate } from '../lib/translate-init';
         initSyncSession();
+        bootstrapTranslate();
     </script>
 </html>
