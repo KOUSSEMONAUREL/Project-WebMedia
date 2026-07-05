@@ -3,7 +3,7 @@ import { adminMiddleware } from '../middleware/admin';
 import { getSupabaseClient } from '../db/singleton';
 import { createClient } from '@libsql/client';
 import { scrapingJobs } from '../db/supabase/schema';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, desc } from 'drizzle-orm';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
@@ -73,7 +73,7 @@ adminRoutes.get('/recent', async (c) => {
         if (!tursoUrl) return c.json([]);
         const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
         const rs = await client.execute(`
-            SELECT id, title, type, image, created_at
+            SELECT id, title, type, poster_url AS image, created_at * 1000 AS created_at
             FROM medias
             ORDER BY created_at DESC
             LIMIT 10
@@ -354,7 +354,7 @@ adminRoutes.get('/jobs', async (c) => {
         const jobs = await supabase
             .select()
             .from(scrapingJobs)
-            .order(sql`created_at desc`)
+            .orderBy(desc(scrapingJobs.createdAt))
             .limit(200);
         return c.json(jobs);
     } catch (err) {
