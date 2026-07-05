@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme {
   --color-background: #09090c;
@@ -19,6 +20,14 @@
   --color-input: #141420;
   --color-ring: #3b82f6;
   --color-surface: #0f0f15f2;
+  --color-sidebar: var(--color-background);
+  --color-sidebar-foreground: var(--color-foreground);
+  --color-sidebar-primary: var(--color-primary);
+  --color-sidebar-primary-foreground: var(--color-primary-foreground);
+  --color-sidebar-accent: var(--color-accent);
+  --color-sidebar-accent-foreground: var(--color-accent-foreground);
+  --color-sidebar-border: var(--color-border);
+  --color-sidebar-ring: var(--color-ring);
 
   --glow-blue: 0 0 40px rgba(59, 130, 246, 0.2);
   --glow-blue-strong: 0 0 60px rgba(59, 130, 246, 0.3);
