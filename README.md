@@ -1,5 +1,29 @@
 <div align="center">
 
+<br/>
+```
+██╗    ██╗███████╗██████╗ ███╗   ███╗███████╗██████╗ ██╗  █████╗ 
+██║    ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██║ ██╔══██╗
+██║ █╗ ██║█████╗  ██████╔╝██╔████╔██║█████╗  ██║  ██║██║ ███████║
+██║███╗██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ██║  ██║██║ ██╔══██║
+╚███╔███╔╝███████╗██████╔╝██║ ╚═╝ ██║███████╗██████╔╝██║ ██║  ██║
+ ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝     ╚═╝╚══════╝╚═════╝ ╚═╝ ╚═╚═╝╚═╝
+```
+
+**WebMedia — Distributed Media Archiver & Recommendation Engine**
+
+<br/>
+
+![Neon](https://img.shields.io/badge/Master-Neon_Postgres-336791?style=flat-square&logo=postgresql)
+![Turso](https://img.shields.io/badge/Edge-Turso_SQLite-4FC08D?style=flat-square&logo=sqlite)
+![Astro](https://img.shields.io/badge/Frontend-Astro_+_React-FF5D01?style=flat-square&logo=astro)
+![GitHub](https://img.shields.io/badge/Scraping-GitHub_Actions-181717?style=flat-square&logo=github)
+![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript)
+
+<br/>
+
+</div>
+
 ---
 
 > **WebMedia** is a distributed media recommendation and archival platform. It scrapes metadata from 12+ external APIs (TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, MangaDex, Comic Vine, etc.) and 188+ webtoon sources across 3 languages. Data flows into Neon Postgres (source of truth) with a Turso SQLite edge replica for low-latency reads.
@@ -41,16 +65,16 @@ graph TD
 
 ## Components
 
-| Component                 | Technology          | Role                                            |
-| :------------------------ | :------------------ | :---------------------------------------------- |
-| **Backend API**     | Hono (TypeScript)   | API REST — ingestion, auth, search, media CRUD |
-| **Source of Truth** | Neon (Postgres)     | Catalogue médias, métadonnées, utilisateurs  |
-| **Edge Replica**    | Turso (SQLite)      | Read replica edge — lectures frontend          |
-| **Queue & Auth**    | Supabase (Postgres) | File scraping jobs + auth utilisateurs          |
-| **Orchestrateur**   | Cloudflare Worker   | Cron 1x/jour, préparation file                 |
-| **Import Worker**   | GitHub Actions      | Import metadata externe (12 sources)            |
-| **Scrapers**        | GitHub Actions      | Cheerio, Playwright, Novel, 188+ webtoon defs   |
-| **Recommender**     | Python (Flask)      | ML-based recommendations                        |
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Backend API** | Hono (TypeScript) | API REST — ingestion, auth, search, media CRUD |
+| **Source of Truth** | Neon (Postgres) | Catalogue médias, métadonnées, utilisateurs |
+| **Edge Replica** | Turso (SQLite) | Read replica edge — lectures frontend |
+| **Queue & Auth** | Supabase (Postgres) | File scraping jobs + auth utilisateurs |
+| **Orchestrateur** | Cloudflare Worker | Cron 2x/jour, préparation file |
+| **Import Worker** | GitHub Actions | Import metadata externe (12 sources) |
+| **Scrapers** | GitHub Actions | Cheerio, Playwright, Novel, 188+ webtoon defs |
+| **Recommender** | Python (Flask) | ML-based recommendations |
 
 ## Type System (8 media types)
 
@@ -64,19 +88,19 @@ Each type has dedicated importer(s), scraper(s), and frontend pages.
 
 Exécuté quotidiennement (GitHub Actions `import-metadata.yml`). Importe via APIs externes :
 
-| Source                                  | Types       | Rate Limit / Volume |
-| :-------------------------------------- | :---------- | :------------------ |
-| **TMDB** (movie, series)          | film, serie | ~40/day (free tier) |
-| **AniList** (anime)               | anime       | ∞ (no auth)        |
-| **Comic Vine** (comics)           | comic       | 200/day             |
-| **Google Books**                  | book        | ∞                  |
-| **Gutenberg** (Project Gutenberg) | book        | RapidAPI            |
-| **OpenLibrary**                   | book        | ∞                  |
-| **NosLivres** (French books)      | book        | ∞                  |
-| **IGDB** (games)                  | jeu         | 4 req/s OAuth       |
-| **RoyalRoad** (web novels)        | novel       | 200/min             |
-| **MangaDex** (manga)              | manga       | ∞                  |
-| **Fribb** (fan fiction)           | book        | ∞                  |
+| Source | Types | Rate Limit / Volume |
+| :--- | :--- | :--- |
+| **TMDB** (movie, series) | film, serie | ~40/day (free tier) |
+| **AniList** (anime) | anime | ∞ (no auth) |
+| **Comic Vine** (comics) | comic | 200/day |
+| **Google Books** | book | ∞ |
+| **Gutenberg** (Project Gutenberg) | book | RapidAPI |
+| **OpenLibrary** | book | ∞ |
+| **NosLivres** (French books) | book | ∞ |
+| **IGDB** (games) | jeu | 4 req/s OAuth |
+| **RoyalRoad** (web novels) | novel | 200/min |
+| **MangaDex** (manga) | manga | ∞ |
+| **Fribb** (fan fiction) | book | ∞ |
 
 ### Optimisations
 
@@ -89,11 +113,11 @@ Exécuté quotidiennement (GitHub Actions `import-metadata.yml`). Importe via AP
 
 188+ définitions de scrapers organisées par langue :
 
-| Locale         | Count | Examples                                                  |
-| :------------- | :---- | :-------------------------------------------------------- |
-| **en/**  | 110   | Mangadex, AsuraScans, MangaBuddy, VizShonenJump, Webtoons |
-| **fr/**  | 16    | ScantradUnion, PhenixScans, PoseidonScans, AnimesSama     |
-| **all/** | 62    | e-hentai (multi-lang), Komga, XKCD, Cubari                |
+| Locale | Count | Examples |
+| :--- | :--- | :--- |
+| **en/** | 110 | Mangadex, AsuraScans, MangaBuddy, VizShonenJump, Webtoons |
+| **fr/** | 16 | ScantradUnion, PhenixScans, PoseidonScans, AnimesSama |
+| **all/** | 62 | e-hentai (multi-lang), Komga, XKCD, Cubari |
 
 **Engines** : `Madara`, `MangaThemesia`, `MangaHub`, `MangaCatalog`, `KeyoApp`, `Iken` — templates de scraping paramétrables.
 
@@ -107,13 +131,13 @@ Flask app avec embeddings ML. Analyse le catalogue Neon pour recommandations per
 
 ## Scheduling
 
-| Job                                | Cadence (UTC) | Action                         |
-| :--------------------------------- | :------------ | :----------------------------- |
-| **Metadata Import**          | Daily 03:00   | Import worker (12 sources)     |
-| **Orchestration**            | 07:00 & 19:00 | Queue stale media for scraping |
-| **Cheerio/Playwright/Novel** | 08:00 & 20:00 | Execute scraping jobs          |
-| **Webtoon Scrapers**         | 08:00 & 20:00 | Execute webtoon scraping       |
-| **Maintenance**              | Sunday 04:00  | Health checks, cleanup         |
+| Job | Cadence (UTC) | Action |
+| :--- | :--- | :--- |
+| **Metadata Import** | Daily 03:00 | Import worker (12 sources) |
+| **Orchestration** | 07:00 & 19:00 | Queue stale media for scraping |
+| **Cheerio/Playwright/Novel** | 08:00 & 20:00 | Execute scraping jobs |
+| **Webtoon Scrapers** | 08:00 & 20:00 | Execute webtoon scraping |
+| **Maintenance** | Sunday 04:00 | Health checks, cleanup |
 
 ## Development
 
@@ -135,3 +159,9 @@ cd test && docker-compose up
 ---
 
 <div align="center">
+
+**WebMedia — Distributed Media Engine**
+
+*Scale. Automate. Persist.*
+
+</div>
