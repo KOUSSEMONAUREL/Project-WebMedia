@@ -46,11 +46,18 @@ export default function LiensTab() {
 
   async function load() {
     try {
-      const rows = await queryLocalDb(
+      let rows = await queryLocalDb(
         `SELECT l.*, m.title as media_title, m.type as media_type
          FROM liens l JOIN medias m ON l.media_id = m.id
          ORDER BY m.title, l.source_site`
       );
+      if (!rows) {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/admin/liens`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) rows = await res.json();
+      }
       setLiens(rows || []);
     } catch (e) {
       console.error('load liens', e);

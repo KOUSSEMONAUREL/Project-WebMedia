@@ -304,6 +304,46 @@ adminRoutes.delete('/liens/:id', async (c) => {
     }
 });
 
+// ========== EPISODES LIST (API fallback pour admin) ==========
+
+adminRoutes.get('/episodes', async (c) => {
+    try {
+        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
+        if (!tursoUrl) return c.json([]);
+        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
+        const rs = await client.execute(`
+            SELECT e.*, m.title as media_title, m.type as media_type, m.slug as media_slug
+            FROM episodes e JOIN medias m ON e.media_id = m.id
+            ORDER BY m.title, e.season_number, e.episode_number
+        `);
+        client.close();
+        return c.json(rs.rows);
+    } catch (err) {
+        console.error('[admin/episodes/list]', err);
+        return c.json([]);
+    }
+});
+
+// ========== LIENS LIST (API fallback pour admin) ==========
+
+adminRoutes.get('/liens', async (c) => {
+    try {
+        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
+        if (!tursoUrl) return c.json([]);
+        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
+        const rs = await client.execute(`
+            SELECT l.*, m.title as media_title, m.type as media_type
+            FROM liens l JOIN medias m ON l.media_id = m.id
+            ORDER BY m.title, l.source_site
+        `);
+        client.close();
+        return c.json(rs.rows);
+    } catch (err) {
+        console.error('[admin/liens/list]', err);
+        return c.json([]);
+    }
+});
+
 // ========== JOBS ==========
 
 adminRoutes.get('/jobs', async (c) => {

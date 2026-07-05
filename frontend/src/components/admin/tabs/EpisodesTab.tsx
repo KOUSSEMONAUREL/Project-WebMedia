@@ -3,7 +3,6 @@ import { queryLocalDb } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -43,11 +42,18 @@ export default function EpisodesTab() {
 
   async function load() {
     try {
-      const rows = await queryLocalDb(
+      let rows = await queryLocalDb(
         `SELECT e.*, m.title as media_title, m.type as media_type, m.slug as media_slug
          FROM episodes e JOIN medias m ON e.media_id = m.id
          ORDER BY m.title, e.season_number, e.episode_number`
       );
+      if (!rows) {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/admin/episodes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) rows = await res.json();
+      }
       setEpisodes(rows || []);
     } catch (e) {
       console.error('load episodes', e);

@@ -204,18 +204,6 @@ export async function queryLocalDb(sql: string, params?: any[]) {
   return queryMedias(sql, params);
 }
 
-export async function queryAllEpisodes() {
-  return queryMedias(`SELECT e.*, m.title as media_title, m.type as media_type, m.slug as media_slug
-    FROM episodes e JOIN medias m ON e.media_id = m.id
-    ORDER BY m.title, e.season_number, e.episode_number`);
-}
-
-export async function queryAllLiens() {
-  return queryMedias(`SELECT l.*, m.title as media_title, m.type as media_type
-    FROM liens l JOIN medias m ON l.media_id = m.id
-    ORDER BY m.title, l.source_site`);
-}
-
 export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon' | 'book' | 'novel';
 
 export interface Media {
