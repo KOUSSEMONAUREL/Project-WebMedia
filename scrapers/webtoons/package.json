@@ -5,6 +5,9 @@
     "postgres": "^3.4.5",
     "tsx": "^4.19.0"
   },
+  "scripts": {
+    "check-lockfile": "npm ls --package-lock-only"
+  },
   "devDependencies": {
     "@types/node": "^26.0.0",
     "typescript": "^5.8.0"

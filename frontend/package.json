@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check-lockfile": "npm ls --package-lock-only"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
