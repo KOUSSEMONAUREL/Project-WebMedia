@@ -13,7 +13,7 @@ async function backfill() {
     if (!neonUrl) throw new Error('NEON_DATABASE_URL is missing');
     if (!TMDB_API_KEY) throw new Error('TMDB_API_KEY is missing');
 
-    const { db } = getNeonClient(neonUrl);
+    const { db, client: pgClient } = getNeonClient(neonUrl);
 
     const rows = await db.select({
         id: medias.id,
@@ -62,6 +62,9 @@ async function backfill() {
     }
 
     console.log(`\nDone. Updated: ${updated}, Not found: ${notFound}, Total: ${rows.length}`);
+
+    await pgClient.end();
+    process.exit(0);
 }
 
 backfill().catch((err) => {
