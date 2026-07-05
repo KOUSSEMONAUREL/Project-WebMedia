@@ -67,4 +67,42 @@ adminRoutes.get('/stats', async (c) => {
     }
 });
 
+adminRoutes.get('/recent', async (c) => {
+    try {
+        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
+        if (!tursoUrl) return c.json([]);
+        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
+        const rs = await client.execute(`
+            SELECT id, title, type, image, created_at
+            FROM medias
+            ORDER BY created_at DESC
+            LIMIT 10
+        `);
+        client.close();
+        return c.json(rs.rows);
+    } catch (err) {
+        console.error('[admin/recent]', err);
+        return c.json([]);
+    }
+});
+
+adminRoutes.get('/by-type', async (c) => {
+    try {
+        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
+        if (!tursoUrl) return c.json([]);
+        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
+        const rs = await client.execute(`
+            SELECT type, COUNT(*) as count
+            FROM medias
+            GROUP BY type
+            ORDER BY count DESC
+        `);
+        client.close();
+        return c.json(rs.rows);
+    } catch (err) {
+        console.error('[admin/by-type]', err);
+        return c.json([]);
+    }
+});
+
 export default adminRoutes;
