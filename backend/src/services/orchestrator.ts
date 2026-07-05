@@ -76,6 +76,25 @@ export class OrchestratorService {
             }
         }
 
+        // 3a-bis. Valider que les UUIDs D1 existent dans Neon (supprime les stale)
+        if (mediaInfoMap.size > 0) {
+            const d1Ids = [...mediaInfoMap.keys()];
+            try {
+                const existingInNeon = await this.neon.select({ id: medias.id })
+                    .from(medias)
+                    .where(inArray(medias.id, d1Ids));
+                const validIds = new Set(existingInNeon.map((m: any) => m.id));
+                for (const id of d1Ids) {
+                    if (!validIds.has(id)) {
+                        mediaInfoMap.delete(id);
+                        console.warn(`UUID stale retiré de D1: ${id}`);
+                    }
+                }
+            } catch {
+                console.warn('Neon indisponible pour validation UUIDs D1, skip');
+            }
+        }
+
         // 3b. Pour ceux sans title/slug dans D1, fallback Neon avec retry
         const missingFromD1 = readyMedia.filter(m => !mediaInfoMap.has(m.media_id));
         if (missingFromD1.length > 0) {

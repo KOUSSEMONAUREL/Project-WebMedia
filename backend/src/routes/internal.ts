@@ -13,6 +13,7 @@ type Bindings = {
     HYPERDRIVE: Hyperdrive;
     INTERNAL_API_KEY: string;
     MONGODB_URI: string;
+    TMDB_API_KEY: string;
     DB: D1Database;
 };
 
@@ -218,6 +219,11 @@ internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any
     const { id, type, metadata_ok, active_links, has_content, title, slug } = c.req.valid('json');
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+        if (slug) {
+            await c.env.DB.prepare(
+                `DELETE FROM media_state WHERE slug = ? AND media_id != ?`
+            ).bind(slug, id).run();
+        }
         await c.env.DB.prepare(`
         INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -251,6 +257,16 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
     const { items } = c.req.valid('json') as z.infer<typeof ingestMediaBatchSchema>;
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+        const cleanStatements = items
+            .filter(item => item.slug)
+            .map(item =>
+                c.env.DB!.prepare(
+                    `DELETE FROM media_state WHERE slug = ? AND media_id != ?`
+                ).bind(item.slug, item.id)
+            );
+        if (cleanStatements.length > 0) {
+            await c.env.DB.batch(cleanStatements);
+        }
         const statements = items.map(item =>
             c.env.DB!.prepare(`
                 INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
@@ -349,6 +365,55 @@ internalRoutes.get('/resolve/tmdb', async (c) => {
         }
 
         if (!mapping?.tmdb_id) {
+            // Fallback: TMDB search live par titre anime
+            const connStr = getVar(c, 'NEON_DATABASE_URL');
+            const hyperdrive = c.env?.HYPERDRIVE;
+            const db = getNeonDb(connStr, hyperdrive) as any;
+
+            let searchTitle: string | undefined;
+            let resolvedAnilist: string | undefined = anilistId;
+
+            if (anilistId) {
+                const [media] = await db.select({ title: medias.title, tmdbId: medias.tmdbId })
+                    .from(medias)
+                    .where(eq(medias.anilistId, parseInt(anilistId)));
+                if (media?.tmdbId) {
+                    await c.env.DB.prepare(`
+                        INSERT INTO id_mapping (anilist_id, tmdb_id) VALUES (?, ?)
+                        ON CONFLICT(anilist_id) DO UPDATE SET tmdb_id = excluded.tmdb_id
+                    `).bind(anilistId, String(media.tmdbId)).run();
+                    return c.json({ success: true, tmdb_id: media.tmdbId });
+                }
+                searchTitle = media?.title ?? undefined;
+            } else if (mediaId) {
+                const [media] = await db.select({ title: medias.title, anilistId: medias.anilistId })
+                    .from(medias)
+                    .where(eq(medias.id, mediaId));
+                searchTitle = media?.title ?? undefined;
+                resolvedAnilist = media?.anilistId ? String(media.anilistId) : undefined;
+            }
+
+            if (searchTitle && resolvedAnilist) {
+                const tmdbKey = getVar(c, 'TMDB_API_KEY');
+                if (tmdbKey) {
+                    const searchRes = await fetch(
+                        `https://api.themoviedb.org/3/search/tv?api_key=${tmdbKey}&query=${encodeURIComponent(searchTitle)}&language=fr-FR`
+                    );
+                    if (searchRes.ok) {
+                        const data = await searchRes.json() as any;
+                        const found = data?.results?.[0];
+                        if (found?.id) {
+                            await c.env.DB.prepare(`
+                                INSERT INTO id_mapping (anilist_id, tmdb_id) VALUES (?, ?)
+                                ON CONFLICT(anilist_id) DO UPDATE SET tmdb_id = excluded.tmdb_id
+                            `).bind(resolvedAnilist, String(found.id)).run();
+                            await db.update(medias).set({ tmdbId: found.id })
+                                .where(eq(medias.anilistId, parseInt(resolvedAnilist)));
+                            return c.json({ success: true, tmdb_id: found.id });
+                        }
+                    }
+                }
+            }
             return c.json({ success: false, error: 'Mapping non trouvé' }, 404);
         }
         const parsed = parseInt(String(mapping.tmdb_id), 10);

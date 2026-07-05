@@ -1,0 +1,34 @@
+name: Backfill TMDB IDs
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Nombre max d anime a traiter (defaut: 500)'
+        required: false
+        default: '500'
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Backfill TMDB IDs
+        run: npx tsx src/jobs/backfill-tmdb.ts
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          LIMIT: ${{ inputs.limit }}

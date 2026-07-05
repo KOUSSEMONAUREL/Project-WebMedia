@@ -213,15 +213,32 @@ export async function startWorker() {
       const { id: jobId, media_id: mediaId, media_type: mediaType, title, slug, attempts } = job;
       log.start(`Processing`, { title, type: mediaType });
 
-      const [media] = await neonSql`
-        SELECT tmdb_id, anilist_id, metadata_source
+      let [media] = await neonSql`
+        SELECT id, tmdb_id, anilist_id, metadata_source
         FROM medias WHERE id = ${mediaId}
       `;
+
+      if (!media && slug) {
+        [media] = await neonSql`
+          SELECT id, tmdb_id, anilist_id, metadata_source
+          FROM medias WHERE slug = ${slug}
+        `;
+      }
+
+      if (!media) {
+        log.warn(`Media not found in Neon: ${title}`);
+        await supabaseSql`
+          UPDATE scraping_jobs SET status = 'failed', last_error = 'Media not found in Neon'
+          WHERE id = ${jobId}
+        `;
+        processed++;
+        continue;
+      }
 
       let savedLinks = 0;
 
       if (['film', 'movie', 'serie', 'anime'].includes(mediaType)) {
-        savedLinks = await handleStreaming(mediaId, mediaType, media?.tmdb_id, media?.anilist_id);
+        savedLinks = await handleStreaming(media.id, mediaType, media.tmdb_id, media.anilist_id);
       } else {
         log.skip(`Delegated: ${mediaType}`);
         savedLinks = 1;
