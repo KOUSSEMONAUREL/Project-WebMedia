@@ -23,7 +23,7 @@ async function initLocalDb(): Promise<any> {
   try {
     if (typeof window !== 'undefined') {
       const { default: initSqlJs } = await import('sql.js');
-      const SQL = await initSqlJs({ locateFile: (f: string) => `/data/${f}` });
+      const SQL = await initSqlJs({ locateFile: () => '/data/sql-wasm.wasm' });
       const resp = await fetch('/data/catalogue.sqlite');
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const buf = await resp.arrayBuffer();

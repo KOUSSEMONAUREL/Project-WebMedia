@@ -22,6 +22,8 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-# SQLite catalogue (downloaded during build)
-public/data/catalogue.sqlite*
-public/data/*.sqlite*
+# SQLite temporary files (WAL/SHM generated at runtime)
+public/data/*.sqlite-shm
+public/data/*.sqlite-wal
+public/data/*.sqlite-wal2
+

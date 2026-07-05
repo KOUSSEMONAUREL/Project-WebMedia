@@ -41,3 +41,4 @@ PROD_CONFIG.md
 node_modules
 **/node_modules/
 __pycache__/
+.playwright-mcp/
