@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
 import Database from 'better-sqlite3';
-import { existsSync, unlinkSync, readFileSync, statSync } from 'fs';
+import { existsSync, unlinkSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
+import { gzipSync } from 'zlib';
 
 const MANGADEX_API = 'https://api.mangadex.org';
 const ANILIST_API = 'https://graphql.anilist.co';
@@ -177,7 +178,15 @@ async function exportToSQLite() {
 
   const size = statSync(OUTPUT).size;
   console.log(`[export] SQLite file: ${OUTPUT} (${Math.round(size / 1024 / 1024 * 100) / 100} MB)`);
-  return OUTPUT;
+
+  console.log('[export] compressing with gzip...');
+  const gzPath = OUTPUT + '.gz';
+  writeFileSync(gzPath, gzipSync(readFileSync(OUTPUT)));
+  const gzSize = statSync(gzPath).size;
+  const ratio = Math.round((1 - gzSize / size) * 100);
+  console.log(`[export] gzip: ${OUTPUT}.gz (${Math.round(gzSize / 1024 / 1024 * 100) / 100} MB, ${ratio}% reduction)`);
+
+  return gzPath;
 }
 
 async function deleteOldVersions(authToken: string, apiUrl: string) {
@@ -225,7 +234,9 @@ async function uploadToB2(filePath: string) {
   const uploadUrl = uploadData.uploadUrl;
   const uploadAuthToken = uploadData.authorizationToken;
 
-  console.log('[b2] uploading catalogue.sqlite...');
+  const fileName = 'catalogue.sqlite.gz';
+
+  console.log(`[b2] uploading ${fileName}...`);
   const fileBuffer = readFileSync(filePath);
   const sha1 = createHash('sha1').update(fileBuffer).digest('hex');
 
@@ -234,8 +245,8 @@ async function uploadToB2(filePath: string) {
       const uploadRes = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          Authorization: uploadAuthToken, 'X-Bz-File-Name': 'catalogue.sqlite',
-          'Content-Type': 'application/octet-stream', 'X-Bz-Content-Sha1': sha1,
+          Authorization: uploadAuthToken, 'X-Bz-File-Name': fileName,
+          'Content-Type': 'application/gzip', 'X-Bz-Content-Sha1': sha1,
           'Content-Length': String(fileBuffer.length),
         },
         body: fileBuffer,
