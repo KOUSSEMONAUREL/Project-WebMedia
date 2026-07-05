@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authClient, getAuthToken } from '@/lib/auth-client';
-import { Heart, Clock, LogOut, Star, History, Settings } from 'lucide-react';
+import { Heart, Clock, LogOut, Star, History, Settings, Shield } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
@@ -172,6 +172,13 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           </div>
           
           <div className="flex items-center justify-center gap-3 shrink-0">
+            <a
+              href="/admin"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
+            >
+              <Shield className="w-4 h-4 text-muted-foreground" />
+              Admin
+            </a>
             <a
               href="/settings"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"

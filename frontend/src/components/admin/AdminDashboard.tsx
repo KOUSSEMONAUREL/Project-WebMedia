@@ -40,8 +40,8 @@ export default function AdminDashboard() {
 
   if (status === 'loading') {
     return (
-      <div class="flex items-center justify-center min-h-screen">
-        <div class="text-white/40 text-sm">Verification...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-white/40 text-sm">Verification...</div>
       </div>
     );
   }
