@@ -9,6 +9,10 @@ import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import MediasTab from './tabs/MediasTab';
+import EpisodesTab from './tabs/EpisodesTab';
+import LiensTab from './tabs/LiensTab';
+import JobsTab from './tabs/JobsTab';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
 
@@ -78,10 +82,10 @@ export default function AdminApp() {
       </Header>
       <Main>
         {tab === 'dashboard' && <DashboardTab stats={stats} byType={byType} recent={recent} />}
-        {tab === 'medias' && <Placeholder title="Medias" />}
-        {tab === 'episodes' && <Placeholder title="Episodes" />}
-        {tab === 'liens' && <Placeholder title="Liens" />}
-        {tab === 'jobs' && <Placeholder title="Jobs" />}
+        {tab === 'medias' && <MediasTab />}
+        {tab === 'episodes' && <EpisodesTab />}
+        {tab === 'liens' && <LiensTab />}
+        {tab === 'jobs' && <JobsTab />}
       </Main>
     </AuthenticatedLayout>
   );
@@ -197,10 +201,4 @@ function StatCard({ title, value }: { title: string; value: number | string }) {
   );
 }
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-muted-foreground/50">{title} - a venir</p>
-    </div>
-  );
-}
+
