@@ -1,46 +1,39 @@
-const TRANSLATE_CDN = 'https://res.zvo.cn/translate/translate.js'
+export const SUPPORTED_LANGS = [
+  { id: 'french', label: 'Francais' },
+  { id: 'english', label: 'English' },
+  { id: 'spanish', label: 'Espanol' },
+  { id: 'german', label: 'Deutsch' },
+  { id: 'italian', label: 'Italiano' },
+  { id: 'portuguese', label: 'Portugues' },
+  { id: 'japanese', label: '日本語' },
+  { id: 'korean', label: '한국어' },
+  { id: 'chinese_simplified', label: '简体中文' },
+  { id: 'russian', label: 'Русский' },
+  { id: 'arabic', label: 'العربية' },
+  { id: 'dutch', label: 'Nederlands' },
+  { id: 'polish', label: 'Polski' },
+  { id: 'turkish', label: 'Turkce' },
+  { id: 'swedish', label: 'Svenska' },
+]
 
-declare global {
-  interface Window {
-    translate?: {
-      version: string
-      to: string
-      language: {
-        setLocal: (lang: string) => void
-        getLocal: () => string
-        getCurrent: () => string
-      }
-      selectLanguageTag: { show: boolean }
-      service: { use: (name: string) => void }
-      execute: () => void
-      changeLanguage: (lang: string) => void
-      request: {
-        translateText: (
-          text: string | string[] | { texts: string[]; from?: string; to?: string },
-          callback: (data: { result: number; from: string; to: string; text: string[] }) => void,
-        ) => void
-      }
-      ignore: {
-        tagname: string[]
-        class: string[]
-        id: string[]
-      }
-      storage: {
-        set: (key: string, value: string) => void
-        get: (key: string) => string | null
-      }
-    }
-  }
+type LangId = (typeof SUPPORTED_LANGS)[number]['id']
+
+const STORAGE_KEY = 'webmedia_lang'
+const CDN = 'https://res.zvo.cn/translate/translate.js'
+
+export function getStoredLang(): LangId {
+  if (typeof localStorage === 'undefined') return 'french'
+  return (localStorage.getItem(STORAGE_KEY) as LangId) || 'french'
 }
 
-export function loadTranslate(): Promise<void> {
+function loadTranslateScript(): Promise<void> {
   return new Promise((resolve) => {
     if (window.translate && typeof window.translate.version === 'string') {
       resolve()
       return
     }
     const s = document.createElement('script')
-    s.src = TRANSLATE_CDN
+    s.src = CDN
     s.async = true
     s.onload = () => resolve()
     s.onerror = () => {
@@ -51,45 +44,37 @@ export function loadTranslate(): Promise<void> {
   })
 }
 
-export function initTranslate(): void {
+export async function setLanguage(lang: LangId): Promise<void> {
+  if (lang === 'french') {
+    localStorage.removeItem(STORAGE_KEY)
+    location.reload()
+    return
+  }
+  localStorage.setItem(STORAGE_KEY, lang)
+  await loadTranslateScript()
   const t = window.translate
   if (!t) return
-
   t.language.setLocal('french')
   t.selectLanguageTag.show = false
-
-  t.ignore.tagname = t.ignore.tagname || []
-  t.ignore.tagname.push('ASTRO-ISLAND', 'SCRIPT', 'STYLE')
-
+  t.ignore = t.ignore || {}
+  t.ignore.tagname = ['ASTRO-ISLAND', 'SCRIPT', 'STYLE']
   t.service.use('client.edge')
-}
-
-export async function bootstrapTranslate(): Promise<void> {
-  await loadTranslate()
-  initTranslate()
-}
-
-export function translateText(text: string): Promise<string> {
-  const t = window.translate
-  if (!t) return Promise.resolve(text)
-  const to = t.to
-  if (!to || to === 'french') return Promise.resolve(text)
-  return new Promise((resolve) => {
-    t.request.translateText(text, (data) => {
-      resolve(data.text?.[0] ?? text)
-    })
-  })
-}
-
-export function setLanguage(lang: string): void {
-  const t = window.translate
-  if (!t) return
   t.changeLanguage(lang)
-  t.execute()
 }
 
-export function getCurrentLang(): string {
-  const t = window.translate
-  if (!t) return 'french'
-  return t.to || 'french'
+export function getCurrentLang(): LangId {
+  return getStoredLang()
+}
+
+export function bootstrapTranslate(): void {
+  const stored = getStoredLang()
+  if (stored !== 'french') {
+    setLanguage(stored)
+  }
+  document.addEventListener('astro:after-swap', () => {
+    const t = window.translate
+    if (t && t.to && t.to !== 'french') {
+      t.execute()
+    }
+  })
 }
