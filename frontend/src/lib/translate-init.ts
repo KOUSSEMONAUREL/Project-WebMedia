@@ -21,6 +21,9 @@ type LangId = (typeof SUPPORTED_LANGS)[number]['id']
 const STORAGE_KEY = 'webmedia_lang'
 const CDN = 'https://res.zvo.cn/translate/translate.js'
 
+let loaded = false
+let loading: Promise<void> | null = null
+
 export function getStoredLang(): LangId {
   if (typeof localStorage === 'undefined') return 'french'
   return (localStorage.getItem(STORAGE_KEY) as LangId) || 'french'
@@ -30,22 +33,33 @@ export function getCurrentLang(): LangId {
   return getStoredLang()
 }
 
-function loadTranslateScript(): Promise<void> {
-  return new Promise((resolve) => {
-    if (window.translate && typeof window.translate.version === 'string') {
+function loadScript(): Promise<void> {
+  if (loading) return loading
+  loading = new Promise((resolve) => {
+    if (window.translate?.version) {
+      loaded = true
       resolve()
       return
     }
     const s = document.createElement('script')
     s.src = CDN
     s.async = true
-    s.onload = () => resolve()
-    s.onerror = () => {
-      console.warn('[translate] CDN failed')
-      resolve()
-    }
+    s.onload = () => { loaded = true; resolve() }
+    s.onerror = () => { console.warn('[translate] CDN failed'); resolve() }
     document.head.appendChild(s)
   })
+  return loading
+}
+
+function apply(lang: string, delay: number): void {
+  setTimeout(() => {
+    const t = window.translate
+    if (!t) return
+    t.language.setLocal('french')
+    t.selectLanguageTag.show = false
+    t.service.use('client.edge')
+    t.changeLanguage(lang)
+  }, delay)
 }
 
 export async function setLanguage(lang: LangId): Promise<void> {
@@ -55,23 +69,22 @@ export async function setLanguage(lang: LangId): Promise<void> {
     return
   }
   localStorage.setItem(STORAGE_KEY, lang)
-  await loadTranslateScript()
-  const t = window.translate
-  if (!t) return
-  t.language.setLocal('french')
-  t.selectLanguageTag.show = false
-  t.ignore = t.ignore || {}
-  t.ignore.tagname = ['ASTRO-ISLAND', 'SCRIPT', 'STYLE']
-  t.service.use('client.edge')
-  t.changeLanguage(lang)
-  document.addEventListener('astro:after-swap', () => {
-    if (t.to && t.to !== 'french') t.execute()
-  })
+  if (!loaded) await loadScript()
+  apply(lang, loaded ? 100 : 500)
 }
 
 export function bootstrapTranslate(): void {
   const stored = getStoredLang()
   if (stored !== 'french') {
-    setLanguage(stored)
+    loadScript().then(() => apply(stored, 500))
   }
+  document.addEventListener('astro:after-swap', () => {
+    const lang = getStoredLang()
+    if (lang === 'french') return
+    if (!loaded) {
+      loadScript().then(() => apply(lang, 100))
+    } else {
+      apply(lang, 100)
+    }
+  })
 }
