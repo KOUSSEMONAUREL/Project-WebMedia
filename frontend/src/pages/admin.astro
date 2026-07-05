@@ -1,4 +1,5 @@
 ---
+import '../styles/global.css';
 import AdminApp from '../components/admin/AdminApp';
 ---
 
@@ -9,7 +10,8 @@ import AdminApp from '../components/admin/AdminApp';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin - WebMedia</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="generator" content="Astro v6.4.8" />
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" />
   </head>
   <body class="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
     <AdminApp client:only="react" />
