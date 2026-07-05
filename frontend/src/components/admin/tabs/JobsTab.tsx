@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { RotateCcw, Search, RefreshCw } from 'lucide-react';
+import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
 
@@ -38,6 +39,8 @@ export default function JobsTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
 
   async function load() {
     try {
@@ -55,6 +58,7 @@ export default function JobsTab() {
   }
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
 
   const filtered = useMemo(() => {
     let list = jobs;
@@ -74,6 +78,9 @@ export default function JobsTab() {
     for (const j of jobs) s[j.status] = (s[j.status] || 0) + 1;
     return s;
   }, [jobs]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -159,7 +166,7 @@ export default function JobsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(job => (
+            {pageItems.map(job => (
               <TableRow key={job.id}>
                 <TableCell className="font-medium text-sm truncate max-w-[200px]">
                   {job.title || job.media_id?.slice(0, 8)}
@@ -195,6 +202,7 @@ export default function JobsTab() {
           </TableBody>
         </Table>
       </div>
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

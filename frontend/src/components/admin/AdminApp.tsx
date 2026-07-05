@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ErrorBoundary from './ErrorBoundary';
 import { authClient } from '../../lib/auth-client';
 import { AuthenticatedLayout } from './layout/authenticated-layout';
 import { Header } from './layout/header';
@@ -81,11 +82,11 @@ export default function AdminApp() {
         <ProfileDropdown />
       </Header>
       <Main>
-        {tab === 'dashboard' && <DashboardTab stats={stats} byType={byType} recent={recent} />}
-        {tab === 'medias' && <MediasTab />}
-        {tab === 'episodes' && <EpisodesTab />}
-        {tab === 'liens' && <LiensTab />}
-        {tab === 'jobs' && <JobsTab />}
+        {tab === 'dashboard' && <ErrorBoundary key="dash"><DashboardTab stats={stats} byType={byType} recent={recent} /></ErrorBoundary>}
+        {tab === 'medias' && <ErrorBoundary key="med"><MediasTab /></ErrorBoundary>}
+        {tab === 'episodes' && <ErrorBoundary key="ep"><EpisodesTab /></ErrorBoundary>}
+        {tab === 'liens' && <ErrorBoundary key="ln"><LiensTab /></ErrorBoundary>}
+        {tab === 'jobs' && <ErrorBoundary key="jb"><JobsTab /></ErrorBoundary>}
       </Main>
     </AuthenticatedLayout>
   );
