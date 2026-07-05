@@ -21,7 +21,7 @@ type LangId = (typeof SUPPORTED_LANGS)[number]['id']
 const STORAGE_KEY = 'webmedia_lang'
 const CACHE_KEY = 'webmedia_trans_page'
 const CDN = 'https://res.zvo.cn/translate/translate.js'
-const THROTTLE_MS = 10_000
+const TTL = 5 * 60 * 1000
 
 let loaded = false
 let loading: Promise<void> | null = null
@@ -46,6 +46,28 @@ function pageHash(): string {
     h = ((h << 5) - h + text.charCodeAt(i)) | 0
   }
   return location.pathname + ':' + h
+}
+
+function getCache(): Record<string, { lang: string; ts: number }> {
+  try {
+    return JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function setCache(url: string, lang: string): void {
+  try {
+    const c = getCache()
+    c[url] = { lang, ts: Date.now() }
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(c))
+  } catch {}
+}
+
+function isCached(url: string, lang: string): boolean {
+  const c = getCache()
+  const entry = c[url]
+  return !!entry && entry.lang === lang && Date.now() - entry.ts < TTL
 }
 
 function loadScript(): Promise<void> {
@@ -73,19 +95,16 @@ function setup(t: typeof window.translate, lang: string): void {
 }
 
 function apply(lang: string, delay: number): void {
-  if (lang === lastLang && lastHash === pageHash()) return
+  const h = pageHash()
+  if (lang === lastLang && h === lastHash) return
   setTimeout(() => {
     const t = window.translate
     if (!t) return
     setup(t, lang)
     t.changeLanguage(lang)
     lastLang = lang
-    lastHash = pageHash()
-    try {
-      const cache = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}')
-      cache[location.pathname] = { lang, ts: Date.now() }
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache))
-    } catch {}
+    lastHash = h
+    setCache(location.pathname, lang)
   }, delay)
 }
 
@@ -99,6 +118,7 @@ function applyIncremental(lang: string, delay: number): void {
     t.execute()
     lastLang = lang
     lastHash = h
+    setCache(location.pathname, lang)
   }, delay)
 }
 
@@ -115,9 +135,19 @@ export async function setLanguage(lang: LangId): Promise<void> {
 
 export function bootstrapTranslate(): void {
   const stored = getStoredLang()
-  if (stored !== 'french') {
+  if (stored !== 'french' && !isCached(location.pathname, stored)) {
     loadScript().then(() => apply(stored, 400))
   }
+  window.addEventListener('pageshow', (e) => {
+    lastHash = ''
+    lastLang = ''
+    if (e.persisted) {
+      const lang = getStoredLang()
+      if (lang !== 'french' && !isCached(location.pathname, lang)) {
+        loadScript().then(() => apply(lang, 400))
+      }
+    }
+  })
   document.addEventListener('astro:after-swap', () => {
     lastHash = ''
     const lang = getStoredLang()
