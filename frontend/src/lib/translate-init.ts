@@ -95,33 +95,20 @@ function setup(t: typeof window.translate, lang: string): void {
   t.service.use('client.edge')
 }
 
-function apply(lang: string, delay: number): void {
+function translate(lang: string, delay: number): void {
   const before = pageHash()
   if (lang === lastLang && before === lastHash) return
   if (isCached(location.pathname, before)) return
   lastLang = lang
   lastHash = before
   setTimeout(() => {
-    const t = window.translate
-    if (!t) return
-    setup(t, lang)
-    t.changeLanguage(lang)
-    setCache(location.pathname, pageHash())
-  }, delay)
-}
-
-function applyIncremental(lang: string, delay: number): void {
-  const before = pageHash()
-  if (lang === lastLang && before === lastHash) return
-  if (isCached(location.pathname, before)) return
-  lastLang = lang
-  lastHash = before
-  setTimeout(() => {
-    const t = window.translate
-    if (!t) return
-    setup(t, lang)
-    t.execute()
-    setCache(location.pathname, pageHash())
+    requestAnimationFrame(() => {
+      const t = window.translate
+      if (!t) return
+      setup(t, lang)
+      t.changeLanguage(lang)
+      setCache(location.pathname, pageHash())
+    })
   }, delay)
 }
 
@@ -133,13 +120,13 @@ export async function setLanguage(lang: LangId): Promise<void> {
   }
   localStorage.setItem(STORAGE_KEY, lang)
   if (!loaded) await loadScript()
-  apply(lang, loaded ? 50 : 400)
+  translate(lang, loaded ? 50 : 400)
 }
 
 export function bootstrapTranslate(): void {
   const stored = getStoredLang()
   if (stored !== 'french') {
-    loadScript().then(() => apply(stored, 400))
+    loadScript().then(() => translate(stored, 400))
   }
   window.addEventListener('pageshow', (e) => {
     lastHash = ''
@@ -147,7 +134,7 @@ export function bootstrapTranslate(): void {
     if (e.persisted) {
       const lang = getStoredLang()
       if (lang !== 'french') {
-        loadScript().then(() => apply(lang, 400))
+        loadScript().then(() => translate(lang, 400))
       }
     }
   })
@@ -156,9 +143,9 @@ export function bootstrapTranslate(): void {
     const lang = getStoredLang()
     if (lang === 'french') return
     if (!loaded) {
-      loadScript().then(() => apply(lang, 100))
+      loadScript().then(() => translate(lang, 100))
     } else {
-      applyIncremental(lang, 100)
+      translate(lang, 100)
     }
   })
 }
