@@ -98,6 +98,13 @@ export const scrapingJobs = pgTable('scraping_jobs', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// ========== TABLE ADMIN_USERS ==========
+export const adminUsers = pgTable('admin_users', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
 // ========== TABLE KEiyoushi_STATE ==========
 export const keiyoushiState = pgTable('keiyoushi_state', {
     key: varchar('key', { length: 50 }).primaryKey(),

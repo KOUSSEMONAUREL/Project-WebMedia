@@ -13,6 +13,7 @@ import searchRoutes from './routes/search';
 import reviewRoutes from './routes/reviews';
 import staticRoutes from './routes/static';
 import internalRoutes from './routes/internal';
+import adminRoutes from './routes/admin';
 
 // Types pour les bindings Cloudflare
 type Bindings = {
@@ -99,6 +100,7 @@ app.route('/api/search', searchRoutes);
 app.route('/api/reviews', reviewRoutes);
 app.route('/api/static', staticRoutes);
 app.route('/api/internal', internalRoutes);
+app.route('/api/admin', adminRoutes);
 
 // Health check
 app.get('/', (c) => {
