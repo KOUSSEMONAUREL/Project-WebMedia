@@ -1,4 +1,4 @@
-const TRANSLATE_CDN = 'https://cdn.staticfile.net/translate.js/4.0.0/translate.js'
+const TRANSLATE_CDN = 'https://cdn.jsdelivr.net/npm/i18n-jsautotranslate@4.0.0/translate.js'
 
 export const LANG_MAP: Record<string, string> = {
   fr: 'french',
@@ -71,6 +71,8 @@ declare global {
   }
 }
 
+const FALLBACK_CDN = 'https://res.zvo.cn/translate/translate.js'
+
 export function loadTranslate(): Promise<void> {
   return new Promise((resolve) => {
     if (window.translate && typeof window.translate.version === 'string') {
@@ -82,8 +84,16 @@ export function loadTranslate(): Promise<void> {
     s.async = true
     s.onload = () => resolve()
     s.onerror = () => {
-      console.warn('[translate] Failed to load translate.js')
-      resolve()
+      console.warn('[translate] Primary CDN failed, trying fallback...')
+      const fallback = document.createElement('script')
+      fallback.src = FALLBACK_CDN
+      fallback.async = true
+      fallback.onload = () => resolve()
+      fallback.onerror = () => {
+        console.warn('[translate] Fallback CDN also failed')
+        resolve()
+      }
+      document.head.appendChild(fallback)
     }
     document.head.appendChild(s)
   })

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Bell, Star, Command } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
+import { LanguageSwitcher } from './language-switcher';
 import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
@@ -410,6 +411,7 @@ export function Navbar() {
                 <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-primary rounded-full ring-1 ring-background" />
               )}
             </Button>
+            <LanguageSwitcher />
             <ProfileDropdown
               user={user}
               onLoginClick={() => setShowAuthModal(true)}
