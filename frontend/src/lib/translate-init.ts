@@ -1,35 +1,4 @@
-const TRANSLATE_CDN = 'https://cdn.jsdelivr.net/npm/i18n-jsautotranslate@4.0.0/translate.js'
-
-export const LANG_MAP: Record<string, string> = {
-  fr: 'french',
-  en: 'english',
-  es: 'spanish',
-  de: 'german',
-  it: 'italian',
-  pt: 'portuguese',
-  ja: 'japanese',
-  ko: 'korean',
-  zh: 'chinese_simplified',
-  ru: 'russian',
-  ar: 'arabic',
-  nl: 'dutch',
-  pl: 'polish',
-  tr: 'turkish',
-  sv: 'swedish',
-  da: 'danish',
-  fi: 'finnish',
-  no: 'norwegian',
-  cs: 'czech',
-  ro: 'romanian',
-  hu: 'hungarian',
-  el: 'greek',
-  he: 'hebrew',
-  th: 'thai',
-  vi: 'vietnamese',
-  hi: 'hindi',
-  id: 'indonesian',
-  ms: 'malay',
-}
+const TRANSLATE_CDN = 'https://res.zvo.cn/translate/translate.js'
 
 declare global {
   interface Window {
@@ -41,17 +10,8 @@ declare global {
         getLocal: () => string
         getCurrent: () => string
       }
-      selectLanguageTag: {
-        show: boolean
-      }
-      service: {
-        use: (name: string) => void
-      }
-      setAutoDiscriminateLocalLanguage: () => void
-      listener: {
-        start: () => void
-        isStart: boolean
-      }
+      selectLanguageTag: { show: boolean }
+      service: { use: (name: string) => void }
       execute: () => void
       changeLanguage: (lang: string) => void
       request: {
@@ -60,8 +20,10 @@ declare global {
           callback: (data: { result: number; from: string; to: string; text: string[] }) => void,
         ) => void
       }
-      nomenclature: {
-        append: (from: string, to: string, properties: string) => void
+      ignore: {
+        tagname: string[]
+        class: string[]
+        id: string[]
       }
       storage: {
         set: (key: string, value: string) => void
@@ -70,8 +32,6 @@ declare global {
     }
   }
 }
-
-const FALLBACK_CDN = 'https://res.zvo.cn/translate/translate.js'
 
 export function loadTranslate(): Promise<void> {
   return new Promise((resolve) => {
@@ -84,26 +44,11 @@ export function loadTranslate(): Promise<void> {
     s.async = true
     s.onload = () => resolve()
     s.onerror = () => {
-      console.warn('[translate] Primary CDN failed, trying fallback...')
-      const fallback = document.createElement('script')
-      fallback.src = FALLBACK_CDN
-      fallback.async = true
-      fallback.onload = () => resolve()
-      fallback.onerror = () => {
-        console.warn('[translate] Fallback CDN also failed')
-        resolve()
-      }
-      document.head.appendChild(fallback)
+      console.warn('[translate] CDN failed')
+      resolve()
     }
     document.head.appendChild(s)
   })
-}
-
-export function detectBrowserLang(): string | null {
-  const raw = navigator.language?.split('-')[0] || ''
-  if (!raw) return null
-  if (raw === 'fr') return null
-  return LANG_MAP[raw] || null
 }
 
 export function initTranslate(): void {
@@ -112,23 +57,11 @@ export function initTranslate(): void {
 
   t.language.setLocal('french')
   t.selectLanguageTag.show = false
+
+  t.ignore.tagname = t.ignore.tagname || []
+  t.ignore.tagname.push('ASTRO-ISLAND', 'SCRIPT', 'STYLE')
+
   t.service.use('client.edge')
-
-  const target = detectBrowserLang()
-
-  if (target && target !== 'french') {
-    t.to = target
-    t.storage.set('to', target)
-    t.execute()
-  }
-
-  t.execute()
-
-  t.listener.start()
-
-  document.addEventListener('astro:after-swap', () => {
-    t.execute()
-  })
 }
 
 export async function bootstrapTranslate(): Promise<void> {
@@ -140,7 +73,7 @@ export function translateText(text: string): Promise<string> {
   const t = window.translate
   if (!t) return Promise.resolve(text)
   const to = t.to
-  if (!to || to === 'french' || to === t.language.getLocal()) return Promise.resolve(text)
+  if (!to || to === 'french') return Promise.resolve(text)
   return new Promise((resolve) => {
     t.request.translateText(text, (data) => {
       resolve(data.text?.[0] ?? text)
@@ -152,6 +85,7 @@ export function setLanguage(lang: string): void {
   const t = window.translate
   if (!t) return
   t.changeLanguage(lang)
+  t.execute()
 }
 
 export function getCurrentLang(): string {
