@@ -44,12 +44,12 @@ export default function DashboardTab() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6" style="color: rgba(255,255,255,0.9);">Dashboard</h2>
+      <h2 className="text-xl font-bold mb-6" style={{ color: 'rgba(255,255,255,0.9)' }}>Dashboard</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {items.map(({ label, value }) => (
-          <div key={label} className="rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-            <div className="text-xs uppercase tracking-widest mb-1" style="color: rgba(255,255,255,0.35);">{label}</div>
-            <div className="text-2xl font-bold" style="color: rgba(255,255,255,0.9);">{value}</div>
+          <div key={label} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="text-xs uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
+            <div className="text-2xl font-bold" style={{ color: 'rgba(255,255,255,0.9)' }}>{value}</div>
           </div>
         ))}
       </div>

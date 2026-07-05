@@ -15,10 +15,10 @@ export default function AdminLayout() {
   const [tab, setTab] = useState<Tab>('dashboard');
 
   return (
-    <div className="flex min-h-screen" style="background: #0a0a0f;">
-      <aside className="w-56 shrink-0 border-r" style="border-color: rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-        <div className="p-4 border-b" style="border-color: rgba(255,255,255,0.06);">
-          <h1 className="text-sm font-bold tracking-widest" style="color: rgba(255,255,255,0.5);">ADMIN</h1>
+    <div className="flex min-h-screen" style={{ background: '#0a0a0f' }}>
+      <aside className="w-56 shrink-0 border-r" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="p-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          <h1 className="text-sm font-bold tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>ADMIN</h1>
         </div>
         <nav className="p-2 space-y-1">
           {NAV.map(({ key, label }) => (
@@ -50,7 +50,7 @@ export default function AdminLayout() {
 function Placeholder({ title }: { title: string }) {
   return (
     <div className="flex items-center justify-center h-64">
-      <p style="color: rgba(255,255,255,0.3);">{title} - a venir</p>
+      <p style={{ color: 'rgba(255,255,255,0.3)' }}>{title} - a venir</p>
     </div>
   );
 }
