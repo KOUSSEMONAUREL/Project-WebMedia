@@ -35,12 +35,12 @@ export class OrchestratorService {
 
         // 1. UNE seule query D1 : récupère les médias à rafraîchir (LIMIT 100)
         const { results: staleMedia } = await this.db.prepare(`
-            SELECT media_id, type, metadata_ok
+            SELECT media_id, type, metadata_ok, title, slug
             FROM media_state
             WHERE next_scrape < ?
             ORDER BY next_scrape ASC
             LIMIT 100
-        `).bind(now).all<{ media_id: string; type: string; metadata_ok: number }>();
+        `).bind(now).all<{ media_id: string; type: string; metadata_ok: number; title: string | null; slug: string | null }>();
 
         if (staleMedia.length === 0) {
             console.log("✅ Aucun média stale trouvé.");
@@ -66,16 +66,51 @@ export class OrchestratorService {
 
         const existingMediaIds = new Set(existingJobs.map((j: any) => j.mediaId));
 
-        // 3. UNE seule query Neon : récupère les infos de tous les médias
-        const mediaInfos = await this.neon.select({
-            id: medias.id,
-            title: medias.title,
-            slug: medias.slug
-        })
-            .from(medias)
-            .where(inArray(medias.id, mediaIds));
+        // 3. Récupère title/slug : priorité D1 (stocké à l'ingest), fallback Neon avec retry
+        const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>();
 
-        const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>(mediaInfos.map((m: any) => [m.id, m]));
+        // 3a. D'abord, récupérer ceux qui ont déjà title/slug dans D1
+        for (const m of readyMedia) {
+            if (m.title && m.slug) {
+                mediaInfoMap.set(m.media_id, { id: m.media_id, title: m.title, slug: m.slug });
+            }
+        }
+
+        // 3b. Pour ceux sans title/slug dans D1, fallback Neon avec retry
+        const missingFromD1 = readyMedia.filter(m => !mediaInfoMap.has(m.media_id));
+        if (missingFromD1.length > 0) {
+            const missingIds = [...new Set(missingFromD1.map(m => m.media_id))];
+            const maxRetries = 3;
+            let neonSuccess = false;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    // Wake-up Neon avant la query
+                    if (attempt > 0) await this.neon.execute('SELECT 1');
+                    const mediaInfos = await this.neon.select({
+                        id: medias.id,
+                        title: medias.title,
+                        slug: medias.slug
+                    })
+                        .from(medias)
+                        .where(inArray(medias.id, missingIds));
+                    for (const m of mediaInfos as any[]) {
+                        mediaInfoMap.set(m.id, { id: m.id, title: m.title, slug: m.slug });
+                    }
+                    neonSuccess = true;
+                    break;
+                } catch (e: any) {
+                    if (attempt < maxRetries) {
+                        console.warn(`Neon query échouée (tentative ${attempt + 1}/${maxRetries}), retry dans 1s...`);
+                        await new Promise(r => setTimeout(r, 1000));
+                    } else {
+                        console.error(`Neon query définitivement échouée après ${maxRetries} tentatives: ${e.message}`);
+                    }
+                }
+            }
+            if (!neonSuccess) {
+                console.warn(`${missingFromD1.length} médias sans title/slug dans D1 seront ignorés ce cycle`);
+            }
+        }
 
         // 4. Construire les batchs pour les inserts + updates
         const insertValues: any[] = [];

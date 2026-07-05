@@ -17,7 +17,9 @@ export async function notifyBrain(
   mediaId: string,
   mediaType: string,
   internalApiUrl: string,
-  internalApiKey: string
+  internalApiKey: string,
+  title?: string,
+  slug?: string,
 ): Promise<void> {
   if (!internalApiUrl || !internalApiKey) return;
   try {
@@ -26,6 +28,8 @@ export async function notifyBrain(
       id: mediaId,
       type: mediaType,
       metadata_ok: 1,
+      title,
+      slug,
     }, {
       headers: { 'X-Internal-API-Key': internalApiKey },
       timeout: 5000,
@@ -36,7 +40,7 @@ export async function notifyBrain(
 }
 
 export async function notifyBrainBatch(
-  items: { id: string; type: string }[],
+  items: { id: string; type: string; title?: string; slug?: string }[],
   internalApiUrl: string,
   internalApiKey: string
 ): Promise<void> {
@@ -44,7 +48,7 @@ export async function notifyBrainBatch(
   try {
     const { default: axios } = await import('axios');
     await axios.post(`${internalApiUrl}/ingest/media/batch`, {
-      items: items.map(i => ({ id: i.id, type: i.type, metadata_ok: 1 }))
+      items: items.map(i => ({ id: i.id, type: i.type, metadata_ok: 1, title: i.title, slug: i.slug }))
     }, {
       headers: { 'X-Internal-API-Key': internalApiKey },
       timeout: 30000,

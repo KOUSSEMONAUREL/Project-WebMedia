@@ -63,7 +63,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
             };
         });
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
         const lienValues = inserted.map(m => ({
             mediaId: m.id, sourceSite: 'openlibrary',
@@ -76,7 +76,7 @@ export async function importOpenLibrary(databaseUrl: string, search: string = 'p
         }
 
         for (const m of inserted) {
-            await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+            await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!, m.title, m.slug);
         }
 
         log.success(`OpenLibrary: ${inserted.length} added (page ${page})`);

@@ -60,7 +60,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
             };
         });
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
         const lienValues = inserted.map(m => ({
             mediaId: m.id, sourceSite: 'gutenberg',
@@ -74,7 +74,7 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
 
         for (const m of inserted) {
             try {
-                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!, m.title, m.slug);
             } catch { /* ignore brain errors */ }
         }
 

@@ -158,6 +158,12 @@ cd test && docker-compose up
 
 ---
 
+## TODO
+
+- **Catalogue auto-update** : apres admin CRUD (ecrit dans Turso), declencher export-catalogue.ts vers B2. Build frontend download depuis B2 au lieu de git. Voir ARCHITECTURE.md section 7 pour le pipeline scraping.
+
+---
+
 <div align="center">
 
 **WebMedia — Distributed Media Engine**

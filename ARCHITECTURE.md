@@ -489,7 +489,86 @@ Neon devient **uniquement** la base des importers et scrapers :
 
 ---
 
-## 7. D1 — Orchestration uniquement
+## 7. ## 7. Pipeline Scraping par type
+
+### Principe
+
+Chaque media importe (TMDB, AniList, Google Books, etc.) passe par l'orchestrateur (`backend/src/services/orchestrator.ts`) pour trouver des liens. Mais tous les types n'ont pas besoin de scraping :
+
+| Type | Importeur | Liens stockes a l'import ? | Scraper dedie |
+|---|---|---|---|
+| **film/serie** | TMDB | Non (aucun lien) | `cheerio-worker` (7 sites streaming) |
+| **anime** | AniList | Non (aucun lien) | `cheerio-worker` (7 sites streaming) |
+| **jeu/game** | IGDB/Steam | Non | `playwright-worker` + Python scraper (10 sites) |
+| **webtoon/manga/comic** | MangaDex | Non | `webtoon-worker` (150 sites, GH Actions 2x/jour) |
+| **novel** | RoyalRoad | Oui (URL du chapitre sur RoyalRoad) | Aucun (liens stockes a l'import) |
+| **book** | Google Books / Gutenberg / OpenLibrary / NosLivres | **Oui** (URL reference : preview Google Books, page Gutenberg, etc.) | **Aucun (skip volontaire)** |
+
+### Details par type
+
+#### film / serie / anime
+- Importeur TMDB/AniList ne stocke que les metadonnees (titre, poster, synopsis, etc.)
+- Orchestrateur : `type !== 'book'` → dispatch `cheerio-worker`
+- `cheerio-worker` scrape 7 sites de streaming, trouve des URLs embed, POST `/api/internal/ingest/liens`
+- Liens stockes dans `liens` avec `playerHost`, `quality: '720p'|'1080p'|etc.`, `headers` pour referer
+
+#### webtoon / manga / comic
+- Importeur MangaDex stocke metadonnees + chapitres connus
+- Orchestrateur : dispatch `webtoon-worker` (types webtoon/manga/comic)
+- `webtoon-worker` scrape ~150 sites, trouve les chapitres disponibles
+- **Chapitres stockes dans `liens`** (pas `episodes`), avec `quality='webtoon'`
+- Pipeline : GH Actions → ingest → Neon → Turso → catalogue.sqlite
+
+#### jeu / game
+- Importeur IGDB/Steam stocke metadonnees
+- Orchestrateur : dispatch `playwright-worker`
+- `playwright-worker` + Python scraper (10 sites)
+- Liens vers telechargement/streaming stockes dans `liens`
+
+#### novel
+- Importeur RoyalRoad stocke metadonnees + lien direct vers le chapitre sur RoyalRoad
+- Orchestrateur : dispatch `novel-worker`
+- `novel-worker` = lncrawl (trouve des sources additionnelles)
+- Liens = URL de reference (pas embed streaming)
+
+#### book
+- Importeurs Google Books, Gutenberg, OpenLibrary, NosLivres stockent **directement un lien** dans la table `liens` lors de l'import :
+  - Google Books : `previewLink` ou `infoLink` → `https://books.google.com/books?id=XXX`
+  - Gutenberg : `https://www.gutenberg.org/ebooks/{id}`
+  - OpenLibrary : `https://openlibrary.org/works/{id}`
+  - NosLivres : URL de lecture/telechargement extraite du HTML
+- **L'orchestrateur skip volontairement les books** (`if (type === 'book') continue;`) car :
+  1. Les liens sont deja presents dans `liens` a l'import
+  2. Ce sont des URL de reference canoniques, pas des liens de streaming a "decouvrir"
+  3. Un cheerio-worker (fallback) tournerait pour rien sur 400+ medias
+- **Ce n'est pas un bug, c'est un design intentionnel.** Les books sont les seuls medias a avoir leurs liens directement a l'import.
+
+### Schema liens
+
+```typescript
+const liens = pgTable('liens', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mediaId: uuid('media_id').notNull(),
+    episodeId: uuid('episode_id'),           // null pour books (lien direct media)
+    sourceSite: varchar('source_site', { length: 100 }).notNull(), // 'google-books', 'gutenberg', 'streaming-site', 'webtoon'
+    playerHost: varchar('player_host', { length: 100 }),           // null pour books/webtoon (pas de video)
+    url: text('url').notNull(),
+    quality: varchar('quality', { length: 20 }),                   // 'original' pour books, 'webtoon' pour webtoon, '720p'/'1080p' pour stream
+    language: varchar('language', { length: 20 }),
+    hasSubtitles: boolean('has_subtitles').default(false),
+    headers: json('headers'),
+    isActive: boolean('is_active').default(true),
+    failCount: integer('fail_count').default(0),
+    lastVerified: timestamp('last_verified'),
+    scrapedAt: timestamp('scraped_at').defaultNow(),
+});
+```
+
+Les books utilisent seulement `mediaId`, `sourceSite`, `url`, `quality`, `language` — les colonnes video (`playerHost`, `hasSubtitles`, `headers`) restent null. C'est correct car ces liens ne sont pas destines a etre "joues" dans un player, mais a rediriger vers la page source.
+
+---
+
+## 8. D1 — Orchestration uniquement
 
 ### Rôle
 

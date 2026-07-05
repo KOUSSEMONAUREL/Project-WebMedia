@@ -77,7 +77,7 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             };
         });
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
         const extToId = new Map(inserted.map(m => [m.externalId, m.id]));
 
@@ -93,7 +93,7 @@ export async function importRoyalRoad(databaseUrl: string, limit: number = 20) {
             await db.insert(liens).values(lienValues).onConflictDoNothing().catch(() => {});
         }
 
-        const brainItems = inserted.map(m => ({ id: m.id, type: 'novel' as const }));
+        const brainItems = inserted.map(m => ({ id: m.id, type: 'novel' as const, title: m.title, slug: m.slug }));
         await notifyBrainBatch(brainItems, INTERNAL_API_URL, INTERNAL_API_KEY);
 
         for (const m of inserted) {

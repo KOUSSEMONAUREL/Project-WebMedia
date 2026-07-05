@@ -87,9 +87,9 @@ export async function importTrendingGames(clientId: string, clientSecret: string
             };
         });
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, igdbId: medias.igdbId }) as any;
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, igdbId: medias.igdbId, title: medias.title, slug: medias.slug }) as any;
 
-        const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'game' as const }));
+        const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'game' as const, title: m.title, slug: m.slug }));
         await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
         for (const m of inserted) {

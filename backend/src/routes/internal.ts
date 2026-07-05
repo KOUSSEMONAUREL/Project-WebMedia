@@ -58,7 +58,7 @@ const ingestLiensSchema = z.object({
     episodeId: z.string().uuid().optional(),
     links: z.array(z.object({
         source_site: z.string(),
-        player_host: z.string(),
+        player_host: z.string().optional(),
         // Accepte http/https ET magnet: (jeux) ET toute URI non-vide
         url: z.union([z.string().url(), z.string().startsWith('magnet:'), z.string().min(1)]),
         qualite: z.string().optional(),
@@ -209,20 +209,24 @@ const ingestMediaSchema = z.object({
     type: z.string(),
     metadata_ok: z.number().default(0),
     active_links: z.number().default(0),
-    has_content: z.number().default(0)
+    has_content: z.number().default(0),
+    title: z.string().optional(),
+    slug: z.string().optional()
 });
 
 internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any), async (c) => {
-    const { id, type, metadata_ok, active_links, has_content } = c.req.valid('json');
+    const { id, type, metadata_ok, active_links, has_content, title, slug } = c.req.valid('json');
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
         await c.env.DB.prepare(`
-        INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
-        VALUES (?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(media_id) DO UPDATE SET
+            title = COALESCE(excluded.title, title),
+            slug = COALESCE(excluded.slug, slug),
             active_links = excluded.active_links,
             has_content = excluded.has_content
-        `).bind(id, type, metadata_ok, active_links, has_content, Date.now() + 10000).run();
+        `).bind(id, type, title || null, slug || null, metadata_ok, active_links, has_content, Date.now() + 10000).run();
         return c.json({ success: true });
     } catch (error: any) {
         console.error('Ingest Media Error:', error.message);
@@ -237,7 +241,9 @@ const ingestMediaBatchSchema = z.object({
         type: z.string(),
         metadata_ok: z.number().default(0),
         active_links: z.number().default(0),
-        has_content: z.number().default(0)
+        has_content: z.number().default(0),
+        title: z.string().optional(),
+        slug: z.string().optional()
     })).max(500)
 });
 
@@ -247,12 +253,14 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
         const statements = items.map(item =>
             c.env.DB!.prepare(`
-                INSERT INTO media_state (media_id, type, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(media_id) DO UPDATE SET
+                    title = COALESCE(excluded.title, title),
+                    slug = COALESCE(excluded.slug, slug),
                     active_links = excluded.active_links,
                     has_content = excluded.has_content
-            `).bind(item.id, item.type, item.metadata_ok, item.active_links, item.has_content, Date.now() + 10000)
+            `).bind(item.id, item.type, item.title || null, item.slug || null, item.metadata_ok, item.active_links, item.has_content, Date.now() + 10000)
         );
         await c.env.DB.batch(statements);
         return c.json({ success: true, count: items.length });

@@ -88,12 +88,12 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
             };
         });
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
         for (const m of inserted) {
             log.success(`[ANIME] ${m.externalId}`);
             try {
-                await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+                await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!, m.title, m.slug);
             } catch { /* ignore brain errors */ }
         }
 

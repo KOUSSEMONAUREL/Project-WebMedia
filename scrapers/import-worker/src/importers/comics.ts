@@ -53,9 +53,9 @@ export async function importComics(apiKey: string, databaseUrl: string, internal
             metadataSource: 'comicvine', metadataFreshAt: new Date()
         }));
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
-        const brainItems = inserted.map(m => ({ id: m.id, type: 'comic' as const }));
+        const brainItems = inserted.map(m => ({ id: m.id, type: 'comic' as const, title: m.title, slug: m.slug }));
         await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
         for (const m of inserted) {

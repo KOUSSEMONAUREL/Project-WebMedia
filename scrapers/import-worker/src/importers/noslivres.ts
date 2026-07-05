@@ -112,7 +112,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
             metadataSource: 'noslivres', metadataFreshAt: new Date()
         }));
 
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
 
         const extToId = new Map(inserted.map(m => [m.externalId, m.id]));
 
@@ -130,7 +130,7 @@ export async function importPopularBooksFR(databaseUrl: string, limit: number = 
 
         for (const m of inserted) {
             try {
-                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!);
+                await notifyBrain(m.id, 'book', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!, m.title, m.slug);
             } catch { /* ignore brain errors */ }
         }
 

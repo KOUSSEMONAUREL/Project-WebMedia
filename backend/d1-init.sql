@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS pays (
 CREATE TABLE IF NOT EXISTS media_state (
   media_id        TEXT PRIMARY KEY,  -- même ID UUID que Neon
   type            TEXT,              -- film/serie/anime/manga/jeu
+  title           TEXT,              -- titre (fallback si Neon indisponible)
+  slug            TEXT,              -- slug (fallback si Neon indisponible)
   has_content     INTEGER DEFAULT 0, -- 1 si au moins 1 lien actif vérifié
   metadata_ok     INTEGER DEFAULT 0, -- 1 si métadonnées complètes
   active_links    INTEGER DEFAULT 0, -- compte mis à jour après chaque cycle

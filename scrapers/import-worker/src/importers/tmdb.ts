@@ -163,7 +163,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
                 };
             });
 
-            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId });
+            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId, title: medias.title, slug: medias.slug });
 
             for (const m of inserted) {
                 if (!m.tmdbId) continue;
@@ -190,7 +190,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
 
             const brainItems = inserted
                 .filter(m => m.externalId)
-                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' : 'serie' as const }));
+                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' : 'serie' as const, title: m.title, slug: m.slug }));
             await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
             for (const m of inserted) {
