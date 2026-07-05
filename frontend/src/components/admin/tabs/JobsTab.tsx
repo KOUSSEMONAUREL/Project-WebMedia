@@ -11,6 +11,7 @@ import { RotateCcw, Search, RefreshCw } from 'lucide-react';
 import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const jobsCache: { data: Job[] | null } = { data: null };
 
 async function getToken() {
   const session = await authClient.getSession();
@@ -43,13 +44,19 @@ export default function JobsTab() {
   const pageSize = 100;
 
   async function load() {
+    if (jobsCache.data) {
+      setJobs(jobsCache.data);
+      setLoading(false);
+    }
     try {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/jobs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(await res.text());
-      setJobs(await res.json());
+      const data = await res.json();
+      jobsCache.data = data;
+      setJobs(data);
     } catch (e) {
       console.error('load jobs', e);
     } finally {
@@ -202,7 +209,7 @@ export default function JobsTab() {
           </TableBody>
         </Table>
       </div>
-      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
     </div>
   );
 }
