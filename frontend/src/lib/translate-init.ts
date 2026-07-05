@@ -22,11 +22,43 @@ const STORAGE_KEY = 'webmedia_lang'
 const CACHE_KEY = 'webmedia_trans_page'
 const CDN = 'https://res.zvo.cn/translate/translate.js'
 
+const BROWSER_LANG_MAP: Record<string, LangId> = {
+  'en': 'english',
+  'fr': 'french',
+  'es': 'spanish',
+  'de': 'german',
+  'it': 'italian',
+  'pt': 'portuguese',
+  'ja': 'japanese',
+  'ko': 'korean',
+  'zh': 'chinese_simplified',
+  'ru': 'russian',
+  'ar': 'arabic',
+  'nl': 'dutch',
+  'pl': 'polish',
+  'tr': 'turkish',
+  'sv': 'swedish',
+}
+
 let loaded = false
 let loading: Promise<void> | null = null
 let configured = false
 let lastHash = ''
 let lastLang = ''
+
+function hasStoredLang(): boolean {
+  return localStorage.getItem(STORAGE_KEY) !== null
+}
+
+function detectBrowserLang(): LangId | null {
+  try {
+    const raw = navigator.language || (navigator as any).languages?.[0] || ''
+    const code = raw.split('-')[0].toLowerCase()
+    return BROWSER_LANG_MAP[code] || null
+  } catch {
+    return null
+  }
+}
 
 export function getStoredLang(): LangId {
   if (typeof localStorage === 'undefined') return 'french'
@@ -117,7 +149,7 @@ function execute(lang: string, delay: number): void {
 
 export async function setLanguage(lang: LangId): Promise<void> {
   if (lang === 'french') {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.setItem(STORAGE_KEY, 'french')
     location.reload()
     return
   }
@@ -127,6 +159,14 @@ export async function setLanguage(lang: LangId): Promise<void> {
 }
 
 export function bootstrapTranslate(): void {
+  if (!hasStoredLang()) {
+    const detected = detectBrowserLang()
+    if (detected) {
+      localStorage.setItem(STORAGE_KEY, detected)
+    } else {
+      localStorage.setItem(STORAGE_KEY, 'french')
+    }
+  }
   const stored = getStoredLang()
   if (stored !== 'french') {
     loadScript().then(() => execute(stored, 400))

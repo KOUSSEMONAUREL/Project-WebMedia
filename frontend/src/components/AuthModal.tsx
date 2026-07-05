@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome, CheckCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome, CheckCircle, RefreshCw } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 
