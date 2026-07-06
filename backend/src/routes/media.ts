@@ -89,7 +89,7 @@ const listMediaSchema = z.object({
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     const { type, limit, offset } = c.req.valid('query' as any);
-    const cacheKey = `list:${type}:${limit}:${offset}`;
+    const cacheKey = `v2:list:${type}:${limit}:${offset}`;
 
     try {
         const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
@@ -124,7 +124,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
 // ========== GET /api/media/:type/:slug ==========
 mediaRoutes.get('/:type/:slug', async (c) => {
     const { type, slug } = c.req.param();
-    const cacheKey = `media:${type}:${slug}`;
+    const cacheKey = `v2:media:${type}:${slug}`;
 
     try {
         const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
