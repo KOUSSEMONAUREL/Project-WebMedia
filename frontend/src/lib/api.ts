@@ -19,11 +19,21 @@ async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promis
   return await response.json();
 }
 
+const API_TYPE_MAP: Record<string, string> = {
+  movie: 'film',
+  game: 'jeu',
+  comic: 'webtoon',
+};
+
+function mapTypes(items: Media[]): Media[] {
+  return items.map(m => ({ ...m, type: API_TYPE_MAP[m.type] || m.type }));
+}
+
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media/trending');
-    if (Array.isArray(res.data)) return res;
-    if (res.data && Array.isArray((res.data as any).data)) return { success: true, data: (res.data as any).data };
+    if (Array.isArray(res.data)) return { success: true, data: mapTypes(res.data) };
+    if (res.data && Array.isArray((res.data as any).data)) return { success: true, data: mapTypes((res.data as any).data) };
     return { success: true, data: [] };
   }
   catch { return { success: true, data: mockTrending }; }
@@ -41,7 +51,7 @@ export async function getMediaByType(type: MediaType): Promise<ApiResponse<Media
 export async function getAllMedia(): Promise<Media[]> {
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media');
-    return res.data;
+    return mapTypes(res.data);
   } catch {
     return allMockData;
   }
@@ -54,7 +64,9 @@ export async function searchMedia(query: string, filters?: {
     const params = new URLSearchParams({ q: query });
     if (filters?.type && filters.type !== 'all') params.set('type', filters.type);
     if (filters?.year) params.set('year', filters.year.toString());
-    return await apiClient(`/search?${params.toString()}`);
+    const res = await apiClient<ApiResponse<Media[]>>(`/search?${params.toString()}`);
+    if (res.data) res.data = mapTypes(res.data);
+    return res;
   } catch {
     const lowerQuery = query.toLowerCase();
     let results = allMockData.filter(m => m.title?.toLowerCase().includes(lowerQuery));
@@ -64,7 +76,11 @@ export async function searchMedia(query: string, filters?: {
 }
 
 export async function getMediaDetails(type: string, slug: string): Promise<ApiResponse<Media>> {
-  try { return await apiClient(`/media/${type}/${slug}`); }
+  try {
+    const res = await apiClient<ApiResponse<Media>>(`/media/${type}/${slug}`);
+    if (res.data) res.data = { ...res.data, type: API_TYPE_MAP[res.data.type] || res.data.type };
+    return res;
+  }
   catch {
     const media = allMockData.find(m => m.type === type && m.slug === slug);
     if (media) return { success: true, data: media };
