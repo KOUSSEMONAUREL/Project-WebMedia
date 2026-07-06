@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { getApiHeaders } from '../../../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,6 +18,7 @@ import { Edit, Trash2, Search } from 'lucide-react';
 import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 async function getToken() {
   const session = await authClient.getSession();
@@ -47,7 +49,7 @@ export default function EpisodesTab() {
       let rows: EpisodeRow[] | null = null;
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/episodes`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (res.ok) rows = await res.json();
       setEpisodes(rows || []);
@@ -97,7 +99,7 @@ export default function EpisodesTab() {
 
       const res = await fetch(`${API_BASE}/admin/episodes/${editTarget.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -117,7 +119,7 @@ export default function EpisodesTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/episodes/${deleteTarget.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success('Episode supprime');

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import { authClient } from '../../lib/auth-client';
+import { getApiHeaders } from '../../lib/api';
 import { AuthenticatedLayout } from './layout/authenticated-layout';
 import { Header } from './layout/header';
 import { Main } from './layout/main';
@@ -16,6 +17,7 @@ import LiensTab from './tabs/LiensTab';
 import JobsTab from './tabs/JobsTab';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
 
@@ -42,9 +44,9 @@ export default function AdminApp() {
         }
         const token = session.data.session.token;
         const [statsRes, recentRes, typeRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/stats`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API_BASE}/admin/recent`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API_BASE}/admin/by-type`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_BASE}/admin/stats`, { credentials: 'include', headers: getApiHeaders({ Authorization: `Bearer ${token}` }) }),
+          fetch(`${API_BASE}/admin/recent`, { credentials: 'include', headers: getApiHeaders({ Authorization: `Bearer ${token}` }) }),
+          fetch(`${API_BASE}/admin/by-type`, { credentials: 'include', headers: getApiHeaders({ Authorization: `Bearer ${token}` }) }),
         ]);
         if (!cancelled) {
           if (statsRes.ok) setStatus('admin');

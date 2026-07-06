@@ -75,6 +75,20 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     return getAuth(dbUrl)!.handler(c.req.raw);
 });
 
+// ========== API KEY MIDDLEWARE ==========
+app.use('/api/*', async (c, next) => {
+    if (c.req.path.startsWith('/api/auth/')) {
+        await next();
+        return;
+    }
+    const expectedKey = c.env?.INTERNAL_API_KEY || process.env.INTERNAL_API_KEY || '';
+    const providedKey = c.req.header('X-Internal-API-Key');
+    if (!expectedKey || providedKey !== expectedKey) {
+        return c.json({ error: 'Unauthorized' }, 401);
+    }
+    await next();
+});
+
 // ========== API MIDDLEWARES (skip auth paths) ==========
 app.use('/api/*', async (c, next) => {
     if (c.req.path.startsWith('/api/auth/')) {

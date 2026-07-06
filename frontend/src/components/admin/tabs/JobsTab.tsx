@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { getApiHeaders } from '../../../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { RotateCcw, Search, RefreshCw } from 'lucide-react';
 import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 const jobsCache: { data: Job[] | null } = { data: null };
 
 async function getToken() {
@@ -51,7 +53,7 @@ export default function JobsTab() {
     try {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/jobs`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -101,7 +103,7 @@ export default function JobsTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/jobs/${job.id}/retry`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success('Job relance');

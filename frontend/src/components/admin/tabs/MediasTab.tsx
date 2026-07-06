@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getAllMedia, type Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
+import { getApiHeaders } from '../../../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -20,6 +21,7 @@ import { Edit, Trash2, Plus, Search, ExternalLink } from 'lucide-react';
 import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const MEDIA_TYPES = ['all', 'movie', 'serie', 'anime', 'game', 'comic', 'webtoon', 'book', 'novel'];
 
@@ -115,7 +117,7 @@ export default function MediasTab() {
 
       const res = await fetch(`${API_BASE}/admin/medias/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -140,7 +142,7 @@ export default function MediasTab() {
 
       const res = await fetch(`${API_BASE}/admin/medias`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -160,7 +162,7 @@ export default function MediasTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/medias/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success('Media supprime');

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { getApiHeaders } from '../../../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import { Edit, Trash2, Search, ExternalLink } from 'lucide-react';
 import Pagination from './Pagination';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 async function getToken() {
   const session = await authClient.getSession();
@@ -51,7 +53,7 @@ export default function LiensTab() {
       let rows: LienRow[] | null = null;
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/liens`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (res.ok) rows = await res.json();
       setLiens(rows || []);
@@ -102,7 +104,7 @@ export default function LiensTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/liens/${editTarget.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -122,7 +124,7 @@ export default function LiensTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/liens/${deleteTarget.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success('Lien supprime');
