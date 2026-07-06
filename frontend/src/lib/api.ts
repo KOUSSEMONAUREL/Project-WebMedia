@@ -20,7 +20,11 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
 }
 
 export async function getMediaByType(type: MediaType): Promise<ApiResponse<Media[]>> {
-  try { return await apiClient(`/media?type=${type}`); }
+  try {
+    const res = await apiClient<ApiResponse<Media[]>>(`/media?type=${type}`);
+    if (res.data) res.data = res.data.map(m => ({ ...m, type }));
+    return res;
+  }
   catch { return { success: true, data: getMockByType(type) }; }
 }
 
