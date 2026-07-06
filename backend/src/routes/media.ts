@@ -17,6 +17,13 @@ type Bindings = {
 
 const mediaRoutes = new Hono<{ Bindings: Bindings }>();
 
+// Mapping des types francais (API/frontend) vers anglais (DB)
+const TYPE_MAP: Record<string, string> = {
+  film: 'movie',
+  jeu: 'game',
+};
+const mapType = (t: string) => TYPE_MAP[t] || t;
+
 // Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
@@ -91,7 +98,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const db = getTursoDb(c);
         const results = await db.select()
             .from(medias)
-            .where(eq(medias.type, type))
+            .where(eq(medias.type, mapType(type)))
             .orderBy(desc(medias.createdAt))
             .limit(limit)
             .offset(offset);
@@ -126,7 +133,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
         const db = getTursoDb(c);
         const result = await db.select()
             .from(medias)
-            .where(and(eq(medias.type, type), eq(medias.slug, slug)))
+            .where(and(eq(medias.type, mapType(type)), eq(medias.slug, slug)))
             .limit(1);
 
         if (result.length === 0) {

@@ -12,6 +12,12 @@ type Bindings = {
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
 
+const TYPE_MAP: Record<string, string> = {
+  film: 'movie',
+  jeu: 'game',
+};
+const mapType = (t: string) => TYPE_MAP[t] || t;
+
 // Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
@@ -48,7 +54,7 @@ searchRoutes.get(
             ];
 
             if (type && type !== 'all') {
-                searchFilters.push(eq(medias.type, type as any));
+                searchFilters.push(eq(medias.type, mapType(type as string)));
             }
 
             if (year) {

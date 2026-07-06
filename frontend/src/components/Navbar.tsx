@@ -69,7 +69,6 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
   }, []);
 
   const { data: session, isPending } = authClient.useSession();
-  console.log('[Navbar] useSession:', { hasSession: !!session, isPending, authUrl: import.meta.env?.PUBLIC_AUTH_URL });
   const sessionUser = session?.user;
   const user: UserData | null = sessionUser
     ? { name: sessionUser.name, email: sessionUser.email, avatar: sessionUser.image || undefined }
