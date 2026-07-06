@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 import uvicorn
 import os
@@ -9,6 +10,14 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 app = FastAPI(title="WebMedia Recommender API")
+
+API_KEY = os.environ.get("RECOMMENDER_API_KEY", "")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(api_key: str = Depends(api_key_header)):
+    if API_KEY and api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return api_key
 
 NEON_API_URL = os.environ.get("NEON_API_URL", "http://localhost:8787/api")
 
@@ -70,7 +79,7 @@ def read_root():
     }
 
 @app.post("/recommend", response_model=List[MediaBase])
-async def get_recommendations(request: RecommendationRequest):
+async def get_recommendations(request: RecommendationRequest, _: str = Depends(verify_api_key)):
     try:
         results = compute_recommendations(request.media_id, request.limit)
         return results

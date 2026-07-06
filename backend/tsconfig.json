@@ -5,7 +5,7 @@
         "lib": [
             "ES2021"
         ],
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "types": [
             "@cloudflare/workers-types",
             "node"

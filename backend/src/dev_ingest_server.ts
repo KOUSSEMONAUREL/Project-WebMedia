@@ -1,4 +1,7 @@
 import http from 'node:http'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import postgres from 'postgres'
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@127.0.0.1:5432/test'
@@ -45,7 +48,8 @@ if (import.meta.main) {
         let body = ''
         for await (const chunk of req) body += chunk.toString()
         // dump received body for debugging
-        try { await import('fs').then(fs => fs.writeFileSync('/tmp/last_ingest_body.txt', body)) } catch (e) {}
+        const tmpDir = mkdtempSync(join(tmpdir(), 'webmedia-ingest-'))
+        try { writeFileSync(join(tmpDir, 'last_ingest_body.txt'), body) } catch (e) {}
         const data = JSON.parse(body || '{}')
         const result = await handleIngest(data)
         res.writeHead(200, { 'Content-Type': 'application/json' })

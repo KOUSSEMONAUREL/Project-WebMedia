@@ -9,6 +9,7 @@
     "baseUrl": ".",
     "types": ["node"],
     "paths": {
+      "@engine/*": ["./engine/*"],
       "*": ["node_modules/*"]
     }
   }

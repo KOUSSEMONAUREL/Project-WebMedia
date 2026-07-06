@@ -18,6 +18,13 @@ type Variables = {
     session: { userId: string };
 };
 
+function getTursoClient(c: any): { client: import('@libsql/client').Client; url: string } | null {
+  const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
+  const tursoToken = c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '';
+  if (!tursoUrl) return null;
+  return { client: createClient({ url: tursoUrl, authToken: tursoToken }), url: tursoUrl };
+}
+
 const adminRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 adminRoutes.use('*', adminMiddleware);
@@ -28,8 +35,6 @@ adminRoutes.get('/check', (c) => {
 
 adminRoutes.get('/stats', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        const tursoToken = c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '';
         const supabaseUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
 
         let mediaCount = 0;
@@ -37,9 +42,9 @@ adminRoutes.get('/stats', async (c) => {
         let lienCount = 0;
         let pendingJobs = 0;
 
-        if (tursoUrl) {
-            const client = createClient({ url: tursoUrl, authToken: tursoToken });
-            const rs = await client.execute(`
+        const db = getTursoClient(c);
+        if (db) {
+            const rs = await db.client.execute(`
                 SELECT (SELECT COUNT(*) FROM medias) as medias,
                        (SELECT COUNT(*) FROM episodes) as episodes,
                        (SELECT COUNT(*) FROM liens) as liens
@@ -48,7 +53,7 @@ adminRoutes.get('/stats', async (c) => {
             mediaCount = Number(row?.medias || 0);
             episodeCount = Number(row?.episodes || 0);
             lienCount = Number(row?.liens || 0);
-            client.close();
+            db.client.close();
         }
 
         if (supabaseUrl) {
@@ -69,16 +74,15 @@ adminRoutes.get('/stats', async (c) => {
 
 adminRoutes.get('/recent', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json([]);
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        const rs = await client.execute(`
+        const db = getTursoClient(c);
+        if (!db) return c.json([]);
+        const rs = await db.client.execute(`
             SELECT id, title, type, poster_url AS image, created_at * 1000 AS created_at
             FROM medias
             ORDER BY created_at DESC
             LIMIT 10
         `);
-        client.close();
+        db.client.close();
         return c.json(rs.rows);
     } catch (err) {
         console.error('[admin/recent]', err);
@@ -88,16 +92,15 @@ adminRoutes.get('/recent', async (c) => {
 
 adminRoutes.get('/by-type', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json([]);
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        const rs = await client.execute(`
+        const db = getTursoClient(c);
+        if (!db) return c.json([]);
+        const rs = await db.client.execute(`
             SELECT type, COUNT(*) as count
             FROM medias
             GROUP BY type
             ORDER BY count DESC
         `);
-        client.close();
+        db.client.close();
         return c.json(rs.rows);
     } catch (err) {
         console.error('[admin/by-type]', err);
@@ -109,11 +112,10 @@ adminRoutes.get('/by-type', async (c) => {
 
 adminRoutes.put('/medias/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -130,7 +132,7 @@ adminRoutes.put('/medias/:id', async (c) => {
         }
 
         if (setClauses.length === 0) {
-            client.close();
+            db.client.close();
             return c.json({ error: 'No fields to update' }, 400);
         }
 
@@ -138,11 +140,11 @@ adminRoutes.put('/medias/:id', async (c) => {
         values.push(Math.floor(Date.now() / 1000));
         values.push(id);
 
-        await client.execute({
+        await db.client.execute({
             sql: `UPDATE medias SET ${setClauses.join(', ')} WHERE id = ?`,
             args: values,
         });
-        client.close();
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/medias/put]', err);
@@ -152,17 +154,15 @@ adminRoutes.put('/medias/:id', async (c) => {
 
 adminRoutes.post('/medias', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const body = await c.req.json();
         if (!body.id || !body.title || !body.type) {
             return c.json({ error: 'id, title, type required' }, 400);
         }
 
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-
         const now = Math.floor(Date.now() / 1000);
-        await client.execute({
+        await db.client.execute({
             sql: `INSERT INTO medias (id, type, title, slug, synopsis, year, poster_url, backdrop_url,
                   rating, status, genres, created_at, updated_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -172,7 +172,7 @@ adminRoutes.post('/medias', async (c) => {
                 body.rating || null, body.status || 'unknown', body.genres || null, now, now,
             ],
         });
-        client.close();
+        db.client.close();
         return c.json({ success: true, id: body.id });
     } catch (err) {
         console.error('[admin/medias/post]', err);
@@ -182,12 +182,11 @@ adminRoutes.post('/medias', async (c) => {
 
 adminRoutes.delete('/medias/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        await client.execute({ sql: 'DELETE FROM medias WHERE id = ?', args: [id] });
-        client.close();
+        await db.client.execute({ sql: 'DELETE FROM medias WHERE id = ?', args: [id] });
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/medias/delete]', err);
@@ -199,11 +198,10 @@ adminRoutes.delete('/medias/:id', async (c) => {
 
 adminRoutes.put('/episodes/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -217,16 +215,16 @@ adminRoutes.put('/episodes/:id', async (c) => {
         }
 
         if (setClauses.length === 0) {
-            client.close();
+            db.client.close();
             return c.json({ error: 'No fields to update' }, 400);
         }
 
         values.push(id);
-        await client.execute({
+        await db.client.execute({
             sql: `UPDATE episodes SET ${setClauses.join(', ')} WHERE id = ?`,
             args: values,
         });
-        client.close();
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/episodes/put]', err);
@@ -236,12 +234,11 @@ adminRoutes.put('/episodes/:id', async (c) => {
 
 adminRoutes.delete('/episodes/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        await client.execute({ sql: 'DELETE FROM episodes WHERE id = ?', args: [id] });
-        client.close();
+        await db.client.execute({ sql: 'DELETE FROM episodes WHERE id = ?', args: [id] });
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/episodes/delete]', err);
@@ -253,11 +250,10 @@ adminRoutes.delete('/episodes/:id', async (c) => {
 
 adminRoutes.put('/liens/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -272,16 +268,16 @@ adminRoutes.put('/liens/:id', async (c) => {
         }
 
         if (setClauses.length === 0) {
-            client.close();
+            db.client.close();
             return c.json({ error: 'No fields to update' }, 400);
         }
 
         values.push(id);
-        await client.execute({
+        await db.client.execute({
             sql: `UPDATE liens SET ${setClauses.join(', ')} WHERE id = ?`,
             args: values,
         });
-        client.close();
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/liens/put]', err);
@@ -291,12 +287,11 @@ adminRoutes.put('/liens/:id', async (c) => {
 
 adminRoutes.delete('/liens/:id', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json({ error: 'No DB' }, 500);
+        const db = getTursoClient(c);
+        if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        await client.execute({ sql: 'DELETE FROM liens WHERE id = ?', args: [id] });
-        client.close();
+        await db.client.execute({ sql: 'DELETE FROM liens WHERE id = ?', args: [id] });
+        db.client.close();
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/liens/delete]', err);
@@ -308,15 +303,14 @@ adminRoutes.delete('/liens/:id', async (c) => {
 
 adminRoutes.get('/episodes', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json([]);
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        const rs = await client.execute(`
+        const db = getTursoClient(c);
+        if (!db) return c.json([]);
+        const rs = await db.client.execute(`
             SELECT e.*, m.title as media_title, m.type as media_type, m.slug as media_slug
             FROM episodes e JOIN medias m ON e.media_id = m.id
             ORDER BY m.title, e.season_number, e.episode_number
         `);
-        client.close();
+        db.client.close();
         return c.json(rs.rows);
     } catch (err) {
         console.error('[admin/episodes/list]', err);
@@ -328,15 +322,14 @@ adminRoutes.get('/episodes', async (c) => {
 
 adminRoutes.get('/liens', async (c) => {
     try {
-        const tursoUrl = c.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-        if (!tursoUrl) return c.json([]);
-        const client = createClient({ url: tursoUrl, authToken: c.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '' });
-        const rs = await client.execute(`
+        const db = getTursoClient(c);
+        if (!db) return c.json([]);
+        const rs = await db.client.execute(`
             SELECT l.*, m.title as media_title, m.type as media_type
             FROM liens l JOIN medias m ON l.media_id = m.id
             ORDER BY m.title, l.source_site
         `);
-        client.close();
+        db.client.close();
         return c.json(rs.rows);
     } catch (err) {
         console.error('[admin/liens/list]', err);

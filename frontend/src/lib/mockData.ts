@@ -1,4 +1,4 @@
-import type { Media } from './api';
+import type { Media } from './types';
 
 export const mockTrending: Media[] = [
   { id: "1", title: "Inception", type: "film", year: 2010, rating: 8.8, posterUrl: "https://image.tmdb.org/t/p/w500/edv5CZvWj09upOsy2Y6IwDhK8bt.jpg", slug: "inception", synopsis: "Un voleur spécialisé dans l'extraction de secrets utilise une technologie de partage de rêves pour implanter une idée dans l'esprit d'un PDG.", genres: ["Action", "Science-Fiction", "Thriller"] },

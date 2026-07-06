@@ -64,6 +64,7 @@ export class MangaKatanaScraper extends BaseScraper {
       const match = text.match(/data-src['"],\s*(\w+)/);
       if (match) {
         const varName = match[1];
+        if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(varName)) return;
         const arrMatch = text.match(new RegExp(`var ${varName}=\\[([^\\]]*)]`));
         if (arrMatch) {
           const urls = arrMatch[1].match(/'([^']*)'/g);

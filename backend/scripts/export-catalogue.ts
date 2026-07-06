@@ -115,7 +115,7 @@ async function exportToSQLite() {
   const insertAll = db.transaction(() => {
     for (const m of medias) {
       let posterUrl = m.poster_url;
-      if (posterUrl && typeof posterUrl === 'string' && posterUrl.startsWith('http://books.google.com')) {
+      if (posterUrl && typeof posterUrl === 'string' && posterUrl.startsWith('http://')) {
         posterUrl = posterUrl.replace('http://', 'https://');
       }
       insertMedia.run({

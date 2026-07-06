@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Chrome, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, RefreshCw } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 
@@ -310,7 +310,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             onClick={handleGoogleLogin}
                             disabled={loading}
                         >
-                            <Chrome className="h-4 w-4" />
+                            <Globe className="h-4 w-4" />
                             Google
                         </Button>
                     </div>

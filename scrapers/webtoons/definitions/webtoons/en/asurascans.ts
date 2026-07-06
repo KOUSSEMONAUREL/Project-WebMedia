@@ -1,5 +1,5 @@
-import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult, MangaStatus } from '../../../engine/types';
+import { BaseScraper } from '@engine/base';
+import type { Manga, Chapter, Page, SearchResult, MangaStatus } from '@engine/types';
 
 interface SeriesDto {
   slug: string;
@@ -51,6 +51,7 @@ function unwrapAstro(v: any): any {
 }
 
 function extractProps(html: string, key: string): any {
+  if (!/^[a-zA-Z0-9_-]+$/.test(key)) return null;
   const re = new RegExp(`props="([^"]*${key}[^"]*)"`);
   const m = re.exec(html);
   if (!m) return null;

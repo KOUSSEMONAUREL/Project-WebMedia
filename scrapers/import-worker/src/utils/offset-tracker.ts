@@ -1,9 +1,13 @@
 import fs from 'fs';
+import { mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createNeonClient } from '../db/client.js';
 import { importOffsets } from '../db/neon/schema.js';
 import { eq } from 'drizzle-orm';
 
-const OFFSET_FILE = '/tmp/import_offsets.json';
+const TMP_DIR = mkdtempSync(join(tmpdir(), 'webmedia-offsets-'));
+const OFFSET_FILE = join(TMP_DIR, 'import_offsets.json');
 
 interface OffsetStore {
   [key: string]: number;
