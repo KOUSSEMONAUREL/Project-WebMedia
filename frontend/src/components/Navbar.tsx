@@ -39,7 +39,7 @@ interface UserData {
   avatar?: string;
 }
 
-export function Navbar() {
+export function Navbar({ initialPathname = typeof window !== 'undefined' ? window.location.pathname : '/' }: { initialPathname?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Media[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -49,7 +49,7 @@ export function Navbar() {
   const linksRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const lastScrollRef = useRef(0);
-  const [pathname, setPathname] = useState('/');
+  const [pathname, setPathname] = useState(initialPathname);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
