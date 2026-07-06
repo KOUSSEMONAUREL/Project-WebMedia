@@ -179,14 +179,7 @@ async function exportToSQLite() {
   const size = statSync(OUTPUT).size;
   console.log(`[export] SQLite file: ${OUTPUT} (${Math.round(size / 1024 / 1024 * 100) / 100} MB)`);
 
-  console.log('[export] compressing with gzip...');
-  const gzPath = OUTPUT + '.gz';
-  writeFileSync(gzPath, gzipSync(readFileSync(OUTPUT)));
-  const gzSize = statSync(gzPath).size;
-  const ratio = Math.round((1 - gzSize / size) * 100);
-  console.log(`[export] gzip: ${OUTPUT}.gz (${Math.round(gzSize / 1024 / 1024 * 100) / 100} MB, ${ratio}% reduction)`);
-
-  return gzPath;
+  return OUTPUT;
 }
 
 async function deleteOldVersions(authToken: string, apiUrl: string) {
@@ -360,8 +353,15 @@ async function main() {
     await fillMissingCovers(fillDb);
     fillDb.close();
 
+    console.log('[export] compressing with gzip...');
+    const gzPath = OUTPUT + '.gz';
+    writeFileSync(gzPath, gzipSync(readFileSync(OUTPUT)));
+    const gzSize = statSync(gzPath).size;
+    const ratio = Math.round((1 - gzSize / statSync(OUTPUT).size) * 100);
+    console.log(`[export] gzip: ${gzPath} (${Math.round(gzSize / 1024 / 1024 * 100) / 100} MB, ${ratio}% reduction)`);
+
     if (B2_KEY_ID && B2_APP_KEY && B2_BUCKET_ID) {
-      await uploadToB2(filePath);
+      await uploadToB2(gzPath);
     } else {
       console.log('[export] B2 not configured, skipping upload');
     }

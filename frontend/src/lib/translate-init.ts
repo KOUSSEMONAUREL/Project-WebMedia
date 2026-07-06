@@ -122,15 +122,6 @@ function loadScript(): Promise<void> {
   return loading
 }
 
-function configureOnce(): void {
-  if (configured || !window.translate) return
-  const t = window.translate
-  t.language.setLocal('french')
-  t.selectLanguageTag.show = false
-  t.service.use('client.edge')
-  configured = true
-}
-
 function execute(lang: string, delay: number): void {
   const before = pageHash()
   if (lang === lastLang && before === lastHash) return
@@ -158,22 +149,28 @@ export async function setLanguage(lang: LangId): Promise<void> {
   execute(lang, loaded ? 50 : 400)
 }
 
+function configureOnce(): void {
+  if (configured || !window.translate) return
+  const t = window.translate
+  t.language.setLocal('french')
+  t.selectLanguageTag.show = false
+  t.service.use('client.edge')
+  configured = true
+}
+
 let bootstrapped = false
 
 export function bootstrapTranslate(): void {
   if (bootstrapped) return
   bootstrapped = true
   if (!hasStoredLang()) {
-    const detected = detectBrowserLang()
-    if (detected) {
-      localStorage.setItem(STORAGE_KEY, detected)
-    } else {
-      localStorage.setItem(STORAGE_KEY, 'french')
-    }
+    localStorage.setItem(STORAGE_KEY, 'french')
   }
   const stored = getStoredLang()
   if (stored !== 'french') {
-    loadScript().then(() => execute(stored, 400))
+    loadScript().then(() => {
+      setTimeout(() => execute(stored, 600), 500)
+    })
   }
   window.addEventListener('pageshow', (e) => {
     lastHash = ''
