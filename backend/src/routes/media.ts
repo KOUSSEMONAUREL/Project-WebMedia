@@ -46,7 +46,7 @@ const getNeonWriteDb = (c: any) => {
 
 // ========== GET /api/media/trending ==========
 mediaRoutes.get('/trending', async (c) => {
-    const cacheKey = 'trending:all';
+    const cacheKey = 'v2:trending:all';
 
     try {
         // 1. Essayer le cache KV (Si dispo)

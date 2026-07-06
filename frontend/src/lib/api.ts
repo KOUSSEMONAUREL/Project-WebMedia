@@ -15,7 +15,12 @@ async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promis
 }
 
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
-  try { return await apiClient('/media/trending'); }
+  try {
+    const res = await apiClient<ApiResponse<Media[]>>('/media/trending');
+    if (Array.isArray(res.data)) return res;
+    if (res.data && Array.isArray((res.data as any).data)) return { success: true, data: (res.data as any).data };
+    return { success: true, data: [] };
+  }
   catch { return { success: true, data: mockTrending }; }
 }
 
