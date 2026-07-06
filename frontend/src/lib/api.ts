@@ -2,7 +2,7 @@ import type { Media, MediaType } from './types';
 import { mockTrending, mockFilms, mockSeries, mockAnimes, mockGames, mockWebtoons, allMockData, getMockByType } from './mockData';
 export { allMockData, getMockByType };
 
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 
 async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
