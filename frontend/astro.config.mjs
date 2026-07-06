@@ -19,7 +19,6 @@ function catalogueIntegration() {
                     const B2_APP_KEY = process.env.B2_APPLICATION_KEY;
                     const B2_BUCKET = process.env.B2_BUCKET || 'Webmedia-backblaze';
                     if (B2_KEY_ID && B2_APP_KEY) {
-                        console.log('[catalogue] downloading from B2...');
                         try {
                             const basicAuth = Buffer.from(`${B2_KEY_ID}:${B2_APP_KEY}`).toString('base64');
                             const authRes = await fetch(`${process.env.B2_API_ENDPOINT || 'https://api.backblazeb2.com'}/b2api/v3/b2_authorize_account`, {
@@ -35,7 +34,6 @@ function catalogueIntegration() {
                                 if (fileRes.ok) {
                                     const buffer = Buffer.from(await fileRes.arrayBuffer());
                                     writeFileSync(catalogPath, buffer);
-                                    console.log(`[catalogue] downloaded (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
                                 } else {
                                     console.warn(`[catalogue] B2 download failed: ${fileRes.status}`);
                                 }
@@ -47,7 +45,6 @@ function catalogueIntegration() {
                         }
                     }
                     if (!existsSync(catalogPath)) {
-                        console.log('[catalogue] creating empty placeholder');
                         writeFileSync(catalogPath, Buffer.alloc(0));
                     }
                 }
@@ -74,7 +71,6 @@ function catalogueIntegration() {
                             };
                         });
                         writeFileSync(indexOut, JSON.stringify(index));
-                        console.log('[search-index] generated ' + index.length + ' entries');
                     } catch (err) {
                         console.warn('[search-index] generation failed:', err);
                         writeFileSync(indexOut, JSON.stringify([]));
