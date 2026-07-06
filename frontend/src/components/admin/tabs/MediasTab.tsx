@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getAllMedia, queryLocalDb, type Media } from '@/lib/api';
+import { getAllMedia, type Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

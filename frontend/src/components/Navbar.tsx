@@ -5,10 +5,10 @@ import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { LanguageSwitcher } from './language-switcher';
 import type { Media } from '@/lib/api';
+import { searchMedia } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import ErrorBoundary from './ErrorBoundary';
-import Fuse from 'fuse.js';
 import { bootstrapTranslate } from '@/lib/translate-init';
 
 const PAGE_URL = typeof window !== 'undefined' ? window.location.href : '(ssr)';
@@ -181,7 +181,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     localStorage.removeItem('webmedia_user');
   };
 
-  const [fuse, setFuse] = useState<Fuse<Media> | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
 
   function pathToTypeFilter(p: string): string | null {
     return ({
@@ -198,34 +198,19 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
   const typeFilter = pathToTypeFilter(pathname);
 
   useEffect(function() {
-    let ok = true;
-    fetch('/data/search-index.json')
-      .then(function(r: Response) { return r.json(); })
-      .then(function(list: Media[]) {
-        if (ok) {
-          setFuse(new Fuse<Media>(list, {
-            keys: ['title'],
-            threshold: 0.4,
-            distance: 100,
-            minMatchCharLength: 2,
-          }));
-        }
-      })
-      .catch(function(e) { console.warn('[search] fuse init', e); });
-    return function() { ok = false; };
-  }, []);
-
-  useEffect(function() {
-    if (searchQuery.length < 2 || !fuse) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (searchQuery.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    let results = fuse.search(searchQuery, { limit: 20 }).map(function(r) { return r.item; });
-    if (typeFilter) results = results.filter(function(item: Media) { return item.type === typeFilter; });
-    setSuggestions(results.slice(0, 6));
-    setShowSuggestions(true);
-  }, [searchQuery, fuse, typeFilter]);
+    searchTimer.current = setTimeout(async () => {
+      const res = await searchMedia(searchQuery, typeFilter ? { type: typeFilter } : undefined);
+      setSuggestions(res.data?.slice(0, 6) || []);
+      setShowSuggestions(true);
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery, typeFilter]);
 
   const navContainerRef = useRef<HTMLDivElement>(null);
 

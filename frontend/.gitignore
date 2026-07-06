@@ -30,3 +30,8 @@ public/data/*.sqlite-wal2
 # Generated from node_modules during build
 public/data/sql-wasm.wasm
 
+# No longer used - catalogue is served via API
+public/data/catalogue.sqlite
+public/data/catalogue.sqlite.gz
+public/data/search-index.json
+
