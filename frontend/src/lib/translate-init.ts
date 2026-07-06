@@ -158,7 +158,11 @@ export async function setLanguage(lang: LangId): Promise<void> {
   execute(lang, loaded ? 50 : 400)
 }
 
+let bootstrapped = false
+
 export function bootstrapTranslate(): void {
+  if (bootstrapped) return
+  bootstrapped = true
   if (!hasStoredLang()) {
     const detected = detectBrowserLang()
     if (detected) {

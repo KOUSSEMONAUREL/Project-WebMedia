@@ -8,6 +8,7 @@ import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import Fuse from 'fuse.js';
+import { bootstrapTranslate } from '@/lib/translate-init';
 
 const navLinks = [
   { label: 'Films', href: '/films' },
@@ -235,6 +236,8 @@ export function Navbar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => { bootstrapTranslate(); }, []);
 
   return (
     <>
