@@ -2,10 +2,13 @@ import { createAuthClient } from 'better-auth/react';
 
 const AUTH_URL = (typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_AUTH_URL) || 'http://localhost:3000';
 
+const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
+
 export const authClient = createAuthClient({
     baseURL: AUTH_URL,
     fetchOptions: {
         credentials: 'include',
+        headers: API_KEY ? { 'X-Internal-API-Key': API_KEY } : undefined,
     },
 });
 
