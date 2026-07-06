@@ -42,16 +42,8 @@ internalRoutes.use('*', async (c, next) => {
     await next();
 });
 
-const ALLOWED_PLAYERS = [
-    // Streaming (films/séries/anime)
-    'vidsrc.me', 'vidsrc.to', 'vidsrc.icu', '2embed.cc', 'embed.su', 'multiembed.mov', 'ezvidapi.com',
-    'voe.sx', 'streamwish.to', 'doodstream.com', 'filemoon.sx', 'upstream.to',
-    // Novels
-    'royalroad.com', 'wuxiaworld.com', 'lightnovelpub.com', 'boxnovel.com', 'novel-bin.com',
-    // Jeux (playwright-worker)
-    'steamunlocked.org', 'fitgirl-repacks.site', 'gamedrive.org', 'elamigos.site',
-    'romspure.cc', 'cfinder.xyz', 'emulatorgamesx.net', 'romsfun.com', 'games4u.org', 'steamrip.com'
-];
+// Whitelist supprimée : le middleware X-Internal-API-Key suffit pour sécuriser l'endpoint.
+// Tous les scrapers autorisés (streaming, novels, jeux, webtoons, comics) passent.
 
 // ========== POST /api/internal/ingest/liens ==========
 const ingestLiensSchema = z.object({
@@ -83,26 +75,9 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
     const data = c.req.valid('json') as z.infer<typeof ingestLiensSchema>;
     const { mediaId, episodeId, links } = data;
 
-    // Filter links: URL hostname dans whitelist OU magnet: validé via source_site
-    const safeLinks = links.filter(l => {
-        // magnet: ou URI non-http → vérifier source_site
-        if (l.url.startsWith('magnet:') || !l.url.startsWith('http')) {
-            return ALLOWED_PLAYERS.some(p => p === l.source_site || l.source_site?.includes(p));
-        }
-        // http/https → vérifier hostname
-        try {
-            const hostname = new URL(l.url).hostname.replace('www.', '');
-            return ALLOWED_PLAYERS.some(p => hostname === p || hostname.endsWith('.' + p));
-        } catch {
-            // URL malformée → fallback source_site
-            return ALLOWED_PLAYERS.some(p => p === l.source_site || l.source_site?.includes(p));
-        }
-    });
-
-    if (safeLinks.length === 0) {
-        await logger.warn('IngestWorker', 'Tentative d\'ingestion sans liens valides', { mediaId, links }, mongoUri(c));
-        return c.json({ success: true, count: 0, message: "Aucun lien autorisé." });
-    }
+    // Plus de filtrage par whitelist : le X-Internal-API-Key garantit que seuls
+    // les scrapers autorisés peuvent poster. Tous les liens sont acceptés.
+    const safeLinks = links;
 
     let inserted: any[] = [];
     try {
