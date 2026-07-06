@@ -7,8 +7,11 @@ import { LanguageSwitcher } from './language-switcher';
 import type { Media } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
+import ErrorBoundary from './ErrorBoundary';
 import Fuse from 'fuse.js';
 import { bootstrapTranslate } from '@/lib/translate-init';
+
+const PAGE_URL = typeof window !== 'undefined' ? window.location.href : '(ssr)';
 
 const navLinks = [
   { label: 'Films', href: '/films' },
@@ -52,6 +55,10 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    console.log('[Navbar] mounted', PAGE_URL);
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
         setIsMobileMenuOpen(false);
@@ -62,6 +69,7 @@ export function Navbar() {
   }, []);
 
   const { data: session, isPending } = authClient.useSession();
+  console.log('[Navbar] useSession:', { hasSession: !!session, isPending, authUrl: import.meta.env?.PUBLIC_AUTH_URL });
   const sessionUser = session?.user;
   const user: UserData | null = sessionUser
     ? { name: sessionUser.name, email: sessionUser.email, avatar: sessionUser.image || undefined }
@@ -240,7 +248,7 @@ export function Navbar() {
   useEffect(() => { bootstrapTranslate(); }, []);
 
   return (
-    <>
+    <ErrorBoundary name="Navbar">
       <div ref={navContainerRef} className={`fixed top-0 left-0 right-0 z-40 px-4 pt-4 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}>
         <nav
           className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 ${
@@ -449,6 +457,6 @@ export function Navbar() {
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onLogin={handleLogin} />
-    </>
+    </ErrorBoundary>
   );
 }
