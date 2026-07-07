@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, sql } from 'drizzle-orm';
 
 type Bindings = {
     HYPERDRIVE: Hyperdrive;
@@ -62,26 +62,38 @@ mediaRoutes.get('/trending', async (c) => {
 // ========== GET /api/media (Listing par type) ==========
 const listMediaSchema = z.object({
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
+    sort: z.enum(['created_at', 'title', 'rating', 'year']).optional().default('created_at'),
+    order: z.enum(['asc', 'desc']).optional().default('desc'),
     limit: z.coerce.number().int().min(1).max(200).optional().default(20),
     offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
+const SORT_COLUMNS: Record<string, any> = {
+    created_at: medias.createdAt,
+    title: medias.title,
+    rating: medias.rating,
+    year: medias.year,
+};
+
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
-    const { type, limit, offset } = c.req.valid('query' as any);
+    const { type, sort, order, limit, offset } = c.req.valid('query' as any);
     try {
         const db = getTursoDb(c);
         const mediaType = mapType(type);
+        const orderFn = order === 'asc' ? asc : desc;
+        const orderByColumn = orderFn(SORT_COLUMNS[sort]);
+
         const [{ total }] = await db.select({ total: sql<number>`count(*)` })
             .from(medias)
             .where(eq(medias.type, mediaType));
         const results = await db.select()
             .from(medias)
             .where(eq(medias.type, mediaType))
-            .orderBy(desc(medias.createdAt))
+            .orderBy(orderByColumn)
             .limit(limit)
             .offset(offset);
-        c.header('Cache-Control', 'public, max-age=60');
-        return c.json({ success: true, data: results, total, limit, offset, source: 'turso' });
+        c.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return c.json({ success: true, data: results, total, limit, offset, sort, order, source: 'turso' });
     } catch (error: any) {
         console.error(`Erreur listing ${type}:`, error.message);
         return c.json({ success: false, error: 'Erreur lors du chargement des médias' }, 500);

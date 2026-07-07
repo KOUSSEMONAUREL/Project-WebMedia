@@ -39,11 +39,16 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
   catch { return { success: true, data: mockTrending }; }
 }
 
-export async function getMediaByType(type: MediaType, opts?: { limit?: number; offset?: number }): Promise<{ success: boolean; data: Media[]; total?: number }> {
+export async function getMediaByType(
+  type: MediaType,
+  opts?: { limit?: number; offset?: number; sort?: string; order?: string },
+): Promise<{ success: boolean; data: Media[]; total?: number }> {
   try {
     const params = new URLSearchParams({ type });
     if (opts?.limit) params.set('limit', String(opts.limit));
     if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.sort) params.set('sort', opts.sort);
+    if (opts?.order) params.set('order', opts.order);
     const res = await fetch(`${API_BASE_URL}/media?${params}`, { headers: getApiHeaders() });
     if (!res.ok) throw new Error('API Error');
     const json = await res.json();
