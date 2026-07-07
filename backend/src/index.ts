@@ -78,6 +78,11 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
         const cloned = c.req.raw.clone();
         const body: any = await cloned.json();
         const pw: string = body?.password || '';
+        const name: string = body?.name || '';
+
+        if (name.length > 50) {
+            return c.json({ error: 'Nom trop long (max 50 caracteres)' }, 400);
+        }
 
         if (pw.length < 8) {
             return c.json({ error: 'Minimum 8 caracteres' }, 400);

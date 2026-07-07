@@ -89,7 +89,7 @@ reviewRoutes.get('/:mediaId', async (c) => {
 const createReviewSchema = z.object({
     mediaId: z.string().min(1),
     rating: z.number().int().min(1).max(10),
-    comment: z.string().optional(),
+    comment: z.string().max(2000).optional(),
     spoiler: z.boolean().optional().default(false),
 });
 

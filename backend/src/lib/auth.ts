@@ -34,15 +34,13 @@ export function getAuth(dbUrl?: string) {
                 enabled: false,
             },
             ipAddress: {
-                ipAddressHeaders: ['x-forwarded-for'],
+                ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
                 trustedProxies: ['0.0.0.0/0'],
             },
         },
         trustedOrigins: [
             'https://project-web-media.vercel.app',
-            'https://webmedia-proxy.koussemonaurel.workers.dev',
             'https://webmedia-backend.koussemonaurel.workers.dev',
-            'https://project-webmedia.onrender.com',
         ],
         emailAndPassword: {
             enabled: true,
