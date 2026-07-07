@@ -411,7 +411,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     placeholder="Nom d'utilisateur"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    maxLength={50}
+                                    maxLength={12}
                                     className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                                 />
                             </div>

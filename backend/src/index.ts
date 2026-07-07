@@ -80,8 +80,8 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
         const pw: string = body?.password || '';
         const name: string = body?.name || '';
 
-        if (name.length > 50) {
-            return c.json({ error: 'Nom trop long (max 50 caracteres)' }, 400);
+        if (name.length > 12) {
+            return c.json({ error: 'Nom trop long (max 12 caracteres)' }, 400);
         }
 
         if (pw.length < 8) {
