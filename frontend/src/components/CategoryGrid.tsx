@@ -151,6 +151,28 @@ function GridContent({ type, title }: Props) {
                 ))}
               </div>
 
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mb-8">
+                  <button
+                    onClick={() => goTo(page - 1)}
+                    disabled={page <= 0}
+                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Precedent
+                  </button>
+                  <span className="text-sm text-muted-foreground">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => goTo(page + 1)}
+                    disabled={page >= totalPages - 1}
+                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Suivant <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
                 {items.map((media) => (
                   <MediaCard key={media.id} media={media} />
@@ -165,65 +187,43 @@ function GridContent({ type, title }: Props) {
       )}
 
       {totalPages > 1 && (
-        <>
-          <div className="flex items-center justify-center gap-2 mt-12 mb-0 flex-wrap">
-            <button
-              onClick={() => goTo(0)}
-              disabled={page <= 0}
-              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronsLeft className="h-3.5 w-3.5" /> Debut
-            </button>
-            <div className="flex items-center gap-1">
-              {pageNumbers(page, totalPages).map((n, i) =>
-                typeof n === 'string' ? (
-                  <span key={`e${i}`} className="px-1 text-sm text-muted-foreground select-none">
-                    {n}
-                  </span>
-                ) : (
-                  <button
-                    key={n}
-                    onClick={() => goTo(n - 1)}
-                    className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${
-                      n === page + 1
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ),
-              )}
-            </div>
-            <button
-              onClick={() => goTo(totalPages - 1)}
-              disabled={page >= totalPages - 1}
-              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              Fin <ChevronsRight className="h-3.5 w-3.5" />
-            </button>
+        <div className="flex items-center justify-center gap-2 mt-12 flex-wrap">
+          <button
+            onClick={() => goTo(0)}
+            disabled={page <= 0}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronsLeft className="h-3.5 w-3.5" /> Debut
+          </button>
+          <div className="flex items-center gap-1">
+            {pageNumbers(page, totalPages).map((n, i) =>
+              typeof n === 'string' ? (
+                <span key={`e${i}`} className="px-1 text-sm text-muted-foreground select-none">
+                  {n}
+                </span>
+              ) : (
+                <button
+                  key={n}
+                  onClick={() => goTo(n - 1)}
+                  className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${
+                    n === page + 1
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'
+                  }`}
+                >
+                  {n}
+                </button>
+              ),
+            )}
           </div>
-
-          <div className="flex items-center justify-center gap-4 mt-6">
-            <button
-              onClick={() => goTo(page - 1)}
-              disabled={page <= 0}
-              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronLeft className="h-4 w-4" /> Precedent
-            </button>
-            <span className="text-sm text-muted-foreground">
-              {page + 1} / {totalPages}
-            </span>
-            <button
-              onClick={() => goTo(page + 1)}
-              disabled={page >= totalPages - 1}
-              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              Suivant <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </>
+          <button
+            onClick={() => goTo(totalPages - 1)}
+            disabled={page >= totalPages - 1}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            Fin <ChevronsRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );
