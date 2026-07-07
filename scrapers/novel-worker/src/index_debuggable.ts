@@ -43,7 +43,7 @@ export async function processJob(job: any) {
                     LNCRAWL_DATA_PATH: tempDir,
                     TITLE: job.title,
                 },
-                timeout: 30000,
+                timeout: 90000,
             });
             
             const lines = stdout.split('\n');

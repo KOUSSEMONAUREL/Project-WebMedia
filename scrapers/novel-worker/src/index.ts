@@ -21,6 +21,36 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
 const sb = drizzle(supabaseClient);
 
+async function runSearch(title: string, tempDir: string, sqlitePath: string): Promise<string[]> {
+    const maxRetries = 2;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const { stdout } = await execPromise(`"${lncrawlBin}" search "$TITLE"`, {
+                env: {
+                    PATH: process.env.PATH || '',
+                    DATABASE_URL: `sqlite:///${sqlitePath}`,
+                    LNCRAWL_DATA_PATH: tempDir,
+                    TITLE: title,
+                },
+                timeout: 90000,
+            });
+            const sources: string[] = [];
+            const lines = stdout.split('\n');
+            for (const line of lines) {
+                if (line.includes('http')) {
+                    const match = line.match(/https?:\/\/[^\s]+/);
+                    if (match) sources.push(match[0]);
+                }
+            }
+            return sources;
+        } catch (err) {
+            if (attempt === maxRetries) throw err;
+            await fs.rm(sqlitePath, { force: true }).catch(() => {});
+        }
+    }
+    return [];
+}
+
 async function processJob(job: any) {
     const tempDir = path.join('/tmp', `novel-worker-${job.id}`);
     const sqlitePath = path.join(tempDir, 'isolated.db');
@@ -28,26 +58,13 @@ async function processJob(job: any) {
     try {
         await fs.mkdir(tempDir, { recursive: true });
 
-        let sources = [];
+        let sources: { url: string; site: string }[] = [];
         if (job.slug && job.slug.startsWith('http')) {
             sources.push({ url: job.slug, site: 'Source' });
         } else {
-            const { stdout } = await execPromise(`"${lncrawlBin}" search "$TITLE"`, {
-                env: {
-                    PATH: process.env.PATH || '',
-                    DATABASE_URL: `sqlite:///${sqlitePath}`,
-                    LNCRAWL_DATA_PATH: tempDir,
-                    TITLE: job.title,
-                },
-                timeout: 30000,
-            });
-
-            const lines = stdout.split('\n');
-            for (const line of lines) {
-                if (line.includes('http')) {
-                    const match = line.match(/https?:\/\/[^\s]+/);
-                    if (match) sources.push({ url: match[0], site: 'Auto-Found' });
-                }
+            const urls = await runSearch(job.title, tempDir, sqlitePath);
+            for (const url of urls) {
+                sources.push({ url, site: 'Auto-Found' });
             }
         }
 
