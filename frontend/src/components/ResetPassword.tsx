@@ -65,8 +65,28 @@ export function ResetPassword() {
     const turned = await verifyTurnstile();
     if (!turned) { setError('Verification anti-bot echouee, reessaye'); return; }
 
-    if (password.length < 6) {
-      setError('Minimum 6 caracteres');
+    if (password.length < 8) {
+      setError('Minimum 8 caracteres');
+      return;
+    }
+    if (password.length > 16) {
+      setError('Maximum 16 caracteres');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('Au moins une lettre majuscule requise');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('Au moins une lettre minuscule requise');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('Au moins un chiffre requis');
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError('Au moins un caractere special requis (!@#$%^&*)');
       return;
     }
     if (password !== confirm) {

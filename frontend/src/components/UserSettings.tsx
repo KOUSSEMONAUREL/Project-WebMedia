@@ -198,7 +198,12 @@ export function UserSettings() {
             const currentPw = (form.elements.namedItem('currentPw') as HTMLInputElement).value;
             const newPw = (form.elements.namedItem('newPw') as HTMLInputElement).value;
             const confirmPw = (form.elements.namedItem('confirmPw') as HTMLInputElement).value;
-            if (newPw.length < 6) return setPwError('Minimum 6 caracteres');
+            if (newPw.length < 8) return setPwError('Minimum 8 caracteres');
+            if (newPw.length > 16) return setPwError('Maximum 16 caracteres');
+            if (!/[A-Z]/.test(newPw)) return setPwError('Au moins une lettre majuscule requise');
+            if (!/[a-z]/.test(newPw)) return setPwError('Au moins une lettre minuscule requise');
+            if (!/[0-9]/.test(newPw)) return setPwError('Au moins un chiffre requis');
+            if (!/[^A-Za-z0-9]/.test(newPw)) return setPwError('Au moins un caractere special requis (!@#$%^&*)');
             if (newPw !== confirmPw) return setPwError('Les mots de passe ne correspondent pas');
             setPwSending(true);
             setPwError('');

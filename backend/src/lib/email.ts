@@ -3,6 +3,10 @@ const FROM_EMAIL = process.env.BETTER_AUTH_EMAIL_FROM || 'reyseilfullbryger@gmai
 const APP_NAME = 'WebMedia';
 const BRAND_GRADIENT = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function apiKey(): string {
   const key = process.env.BREVO_API_KEY?.trim();
   if (!key) throw new Error('BREVO_API_KEY is not set');
@@ -45,7 +49,7 @@ function ctaButton(url: string, text: string): string {
 
 export function buildVerificationEmail(name: string, url: string): { subject: string; html: string } {
   const content = `
-<p style="margin:0 0 6px;font-size:14px;color:#a1a1aa">Bonjour${name ? ' ' + name : ''},</p>
+<p style="margin:0 0 6px;font-size:14px;color:#a1a1aa">Bonjour${name ? ' ' + escapeHtml(name) : ''},</p>
 <p style="margin:0 0 20px;font-size:14px;color:#a1a1aa;line-height:1.6">
 Merci de vous &ecirc;tre inscrit sur <strong style="color:#e4e4e7">${APP_NAME}</strong>.
 Pour finaliser votre inscription, veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous.
@@ -62,7 +66,7 @@ Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur&nbsp;:<br>
 
 export function buildResetEmail(name: string, url: string): { subject: string; html: string } {
   const content = `
-<p style="margin:0 0 6px;font-size:14px;color:#a1a1aa">Bonjour${name ? ' ' + name : ''},</p>
+<p style="margin:0 0 6px;font-size:14px;color:#a1a1aa">Bonjour${name ? ' ' + escapeHtml(name) : ''},</p>
 <p style="margin:0 0 20px;font-size:14px;color:#a1a1aa;line-height:1.6">
 Vous avez demand&eacute; la r&eacute;initialisation de votre mot de passe ${APP_NAME}.
 Cliquez sur le bouton ci-dessous pour en cr&eacute;er un nouveau.

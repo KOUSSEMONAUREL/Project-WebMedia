@@ -340,6 +340,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                     window.location.href = `/search?q=${encodeURIComponent(searchQuery)}${p}`;
                   }
                 }}
+                maxLength={200}
                 placeholder="Rechercher..."
                 className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
               />

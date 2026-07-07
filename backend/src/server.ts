@@ -49,6 +49,37 @@ app.use('*', cors({
 // ========== BETTER AUTH HANDLER ==========
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const dbUrl = process.env.SUPABASE_DATABASE_URL || '';
+
+    if (c.req.method === 'POST' && c.req.path === '/api/auth/sign-up/email') {
+        const cloned = c.req.raw.clone();
+        const body: any = await cloned.json();
+        const pw: string = body?.password || '';
+        const name: string = body?.name || '';
+
+        if (name.length > 12) {
+            return c.json({ error: 'Nom trop long (max 12 caracteres)' }, 400);
+        }
+
+        if (pw.length < 8) {
+            return c.json({ error: 'Minimum 8 caracteres' }, 400);
+        }
+        if (pw.length > 16) {
+            return c.json({ error: 'Maximum 16 caracteres' }, 400);
+        }
+        if (!/[A-Z]/.test(pw)) {
+            return c.json({ error: 'Au moins une lettre majuscule requise' }, 400);
+        }
+        if (!/[a-z]/.test(pw)) {
+            return c.json({ error: 'Au moins une lettre minuscule requise' }, 400);
+        }
+        if (!/[0-9]/.test(pw)) {
+            return c.json({ error: 'Au moins un chiffre requis' }, 400);
+        }
+        if (!/[^A-Za-z0-9]/.test(pw)) {
+            return c.json({ error: 'Au moins un caractere special requis (!@#$%^&*)' }, 400);
+        }
+    }
+
     return getAuth(dbUrl).handler(c.req.raw);
 });
 

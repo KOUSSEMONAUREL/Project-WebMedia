@@ -112,10 +112,12 @@ adminRoutes.get('/by-type', async (c) => {
 
 adminRoutes.put('/medias/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
+        console.log('[admin-audit]', JSON.stringify({ action: 'update-media', mediaId: id, fields: Object.keys(body), userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -154,9 +156,11 @@ adminRoutes.put('/medias/:id', async (c) => {
 
 adminRoutes.post('/medias', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const body = await c.req.json();
+        console.log('[admin-audit]', JSON.stringify({ action: 'create-media', mediaId: body.id, title: body.title, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
         if (!body.id || !body.title || !body.type) {
             return c.json({ error: 'id, title, type required' }, 400);
         }
@@ -182,9 +186,11 @@ adminRoutes.post('/medias', async (c) => {
 
 adminRoutes.delete('/medias/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
+        console.log('[admin-audit]', JSON.stringify({ action: 'delete-media', mediaId: id, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
         await db.client.execute({ sql: 'DELETE FROM medias WHERE id = ?', args: [id] });
         db.client.close();
         return c.json({ success: true });
@@ -198,10 +204,12 @@ adminRoutes.delete('/medias/:id', async (c) => {
 
 adminRoutes.put('/episodes/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
+        console.log('[admin-audit]', JSON.stringify({ action: 'update-episode', episodeId: id, fields: Object.keys(body), userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -234,9 +242,11 @@ adminRoutes.put('/episodes/:id', async (c) => {
 
 adminRoutes.delete('/episodes/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
+        console.log('[admin-audit]', JSON.stringify({ action: 'delete-episode', episodeId: id, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
         await db.client.execute({ sql: 'DELETE FROM episodes WHERE id = ?', args: [id] });
         db.client.close();
         return c.json({ success: true });
@@ -250,10 +260,12 @@ adminRoutes.delete('/episodes/:id', async (c) => {
 
 adminRoutes.put('/liens/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         const body = await c.req.json();
+        console.log('[admin-audit]', JSON.stringify({ action: 'update-lien', lienId: id, fields: Object.keys(body), userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
 
         const setClauses: string[] = [];
         const values: any[] = [];
@@ -287,9 +299,11 @@ adminRoutes.put('/liens/:id', async (c) => {
 
 adminRoutes.delete('/liens/:id', async (c) => {
     try {
+        const adminUser = c.get('user');
         const db = getTursoClient(c);
         if (!db) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
+        console.log('[admin-audit]', JSON.stringify({ action: 'delete-lien', lienId: id, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
         await db.client.execute({ sql: 'DELETE FROM liens WHERE id = ?', args: [id] });
         db.client.close();
         return c.json({ success: true });
@@ -358,9 +372,11 @@ adminRoutes.get('/jobs', async (c) => {
 
 adminRoutes.post('/jobs/:id/retry', async (c) => {
     try {
+        const adminUser = c.get('user');
         const supabaseUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
         if (!supabaseUrl) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
+        console.log('[admin-audit]', JSON.stringify({ action: 'retry-job', jobId: id, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
         const supabase = getSupabaseClient(supabaseUrl);
         await supabase
             .update({ status: 'pending', attempts: 0, last_error: null, locked_at: null })
