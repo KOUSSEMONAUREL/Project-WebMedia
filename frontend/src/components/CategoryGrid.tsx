@@ -107,7 +107,7 @@ function GridContent({ type, title }: Props) {
   };
 
   return (
-    <div className="container mx-auto px-6 py-10" ref={gridRef}>
+    <div className="container mx-auto px-6 py-10" ref={gridRef} suppressHydrationWarning>
       <header className="mb-8">
         <h1
           className="text-2xl md:text-3xl font-display font-bold mb-2"

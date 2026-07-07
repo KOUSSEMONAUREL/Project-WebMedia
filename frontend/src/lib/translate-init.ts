@@ -112,6 +112,8 @@ function loadScript(): Promise<void> {
       resolve()
       return
     }
+    ;(window as any).translateAutoExecute = false
+    ;(window as any).translateSelectLanguage = 'french'
     const s = document.createElement('script')
     s.src = CDN
     s.async = true

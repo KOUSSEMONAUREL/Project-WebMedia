@@ -233,7 +233,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
 
   return (
     <ErrorBoundary name="Navbar">
-      <div ref={navContainerRef} className={`fixed top-0 left-0 right-0 z-40 px-4 pt-4 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}>
+      <div ref={navContainerRef} className={`fixed top-0 left-0 right-0 z-40 px-4 pt-4 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`} suppressHydrationWarning>
         <nav
           className={`max-w-7xl mx-auto h-[58px] rounded-2xl transition-all duration-300 ${
             scrolled
