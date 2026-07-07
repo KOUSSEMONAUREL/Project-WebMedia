@@ -39,13 +39,20 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
   catch { return { success: true, data: mockTrending }; }
 }
 
-export async function getMediaByType(type: MediaType): Promise<ApiResponse<Media[]>> {
+export async function getMediaByType(type: MediaType, opts?: { limit?: number; offset?: number }): Promise<{ success: boolean; data: Media[]; total?: number }> {
   try {
-    const res = await apiClient<ApiResponse<Media[]>>(`/media?type=${type}`);
-    if (res.data) res.data = res.data.map(m => ({ ...m, type }));
-    return res;
+    const params = new URLSearchParams({ type });
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    const res = await fetch(`${API_BASE_URL}/media?${params}`, { headers: getApiHeaders() });
+    if (!res.ok) throw new Error('API Error');
+    const json = await res.json();
+    if (json.data) json.data = json.data.map((m: Media) => ({ ...m, type }));
+    return json;
+  } catch {
+    const data = getMockByType(type);
+    return { success: true, data, total: data.length };
   }
-  catch { return { success: true, data: getMockByType(type) }; }
 }
 
 export async function getAllMedia(): Promise<Media[]> {

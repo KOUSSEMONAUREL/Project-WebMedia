@@ -11,7 +11,7 @@ export async function getStaticPaths() {
   const paths: { params: { type: string; slug: string } }[] = [];
   for (const t of types) {
     try {
-      const res = await getMediaByType(t);
+      const res = await getMediaByType(t, { limit: 200 });
       if (res.data) {
         for (const m of res.data) paths.push({ params: { type: t, slug: m.slug || m.id } });
       }

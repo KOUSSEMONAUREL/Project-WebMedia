@@ -1,9 +1,7 @@
 ---
-import GridPage from '../components/GridPage.astro';
-import { getMediaByType } from '../lib/api';
-
-const res = await getMediaByType('webtoon');
-const webtoons = res.data || [];
+import Layout from '../layouts/Layout.astro';
+import { CategoryGrid } from '../components/CategoryGrid';
 ---
-
-<GridPage title="Webtoons" items={webtoons} pageTitle="Webtoons" />
+<Layout title="Webtoons">
+  <CategoryGrid type="webtoon" title="Webtoons" client:load />
+</Layout>

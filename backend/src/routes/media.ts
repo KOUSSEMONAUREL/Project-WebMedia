@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, sql } from 'drizzle-orm';
 
 type Bindings = {
     KV: KVNamespace;
@@ -84,29 +84,35 @@ mediaRoutes.get('/trending', async (c) => {
 // ========== GET /api/media (Listing par type) ==========
 const listMediaSchema = z.object({
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
-    limit: z.coerce.number().int().min(1).max(200).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional().default(20),
     offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     const { type, limit, offset } = c.req.valid('query' as any);
-    const cacheKey = `v2:list:${type}:${limit ?? 'all'}:${offset}`;
+    const cacheKey = `v2:list:${type}:${limit}:${offset}`;
 
     try {
-        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
-        if (cached) return c.json({ success: true, data: cached, source: 'cache' });
+        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') as any : null;
+        if (cached) return c.json({ success: true, data: cached.data, total: cached.total, source: 'cache' });
 
         const db = getTursoDb(c);
-        let query = db.select()
+        const mediaType = mapType(type);
+
+        const [{ total }] = await db.select({ total: sql<number>`count(*)` })
             .from(medias)
-            .where(eq(medias.type, mapType(type)))
-            .orderBy(desc(medias.createdAt)) as any;
-        if (limit) query = query.limit(limit);
-        const results = await query.offset(offset);
+            .where(eq(medias.type, mediaType));
+
+        const results = await db.select()
+            .from(medias)
+            .where(eq(medias.type, mediaType))
+            .orderBy(desc(medias.createdAt))
+            .limit(limit)
+            .offset(offset);
 
         if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
-                c.env.KV.put(cacheKey, JSON.stringify(results), { expirationTtl: 1800 })
+                c.env.KV.put(cacheKey, JSON.stringify({ data: results, total }), { expirationTtl: 1800 })
             );
         }
 
@@ -114,7 +120,9 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         return c.json({
             success: true,
             data: results,
-            count: results.length,
+            total,
+            limit,
+            offset,
             source: 'turso'
         });
     } catch (error: any) {

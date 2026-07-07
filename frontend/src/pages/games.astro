@@ -1,9 +1,7 @@
 ---
-import GridPage from '../components/GridPage.astro';
-import { getMediaByType } from '../lib/api';
-
-const res = await getMediaByType('jeu');
-const games = res.data || [];
+import Layout from '../layouts/Layout.astro';
+import { CategoryGrid } from '../components/CategoryGrid';
 ---
-
-<GridPage title="Jeux Video" items={games} pageTitle="Jeux Video" />
+<Layout title="Jeux Video">
+  <CategoryGrid type="jeu" title="Jeux Video" client:load />
+</Layout>
