@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getNeonDb } from '../db/singleton';
-import { medias } from '../db/neon/schema';
+import { getTursoClient } from '../db/singleton';
+import { medias } from '../db/turso/schema';
 import { ilike, and, eq, or, sql, getTableColumns } from 'drizzle-orm';
 
 type Bindings = {
-    NEON_DATABASE_URL: string;
-    HYPERDRIVE: Hyperdrive;
+    TURSO_DATABASE_URL: string;
+    TURSO_AUTH_TOKEN: string;
 };
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
@@ -18,13 +18,18 @@ const TYPE_MAP: Record<string, string> = {
 };
 const mapType = (t: string) => TYPE_MAP[t] || t;
 
-// Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
     if (!val && c.env?.ENVIRONMENT === 'production') {
         throw new Error(`Missing required environment variable: ${key}`);
     }
     return val;
+};
+
+const getTursoDb = (c: any) => {
+    const url = getVar(c, 'TURSO_DATABASE_URL');
+    const token = getVar(c, 'TURSO_AUTH_TOKEN');
+    return getTursoClient(url, token);
 };
 
 const searchSchema = z.object({
@@ -43,8 +48,8 @@ searchRoutes.get(
         const { q, type, year, limit, offset } = c.req.valid('query' as any);
 
         try {
-            const dbUrl = getVar(c, 'NEON_DATABASE_URL');
-            const db = getNeonDb(dbUrl, c.env?.HYPERDRIVE);
+            c.header('Cache-Control', 'public, max-age=60');
+            const db = getTursoDb(c);
 
             let searchFilters = [
                 or(
@@ -62,8 +67,13 @@ searchRoutes.get(
             }
 
             const results = await db.select({
-                    ...getTableColumns(medias),
-                    total: sql<number>`COUNT(*) OVER()`
+                    id: medias.id,
+                    title: medias.title,
+                    slug: medias.slug,
+                    type: medias.type,
+                    posterUrl: medias.posterUrl,
+                    year: medias.year,
+                    rating: medias.rating,
                 })
                 .from(medias)
                 .where(and(...searchFilters))
@@ -73,7 +83,6 @@ searchRoutes.get(
             return c.json({
                 success: true,
                 query: q,
-                count: results[0]?.total ?? 0,
                 data: results,
                 limit,
                 offset

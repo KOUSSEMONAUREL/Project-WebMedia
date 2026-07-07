@@ -40,6 +40,8 @@ const getVar = (c: any, key: string) => {
 // ========== GET /api/reviews/:mediaId (PUBLIC) ==========
 reviewRoutes.get('/:mediaId', async (c) => {
     const mediaId = c.req.param('mediaId');
+    const limit = Math.min(Math.abs(Number(c.req.query('limit')) || 50), 100);
+    const offset = Math.max(Number(c.req.query('offset')) || 0, 0);
     try {
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
@@ -60,7 +62,9 @@ reviewRoutes.get('/:mediaId', async (c) => {
             .from(reviews)
             .leftJoin(user, eq(reviews.userId, user.id))
             .where(eq(reviews.mediaId, mediaId))
-            .orderBy(desc(reviews.createdAt));
+            .orderBy(desc(reviews.createdAt))
+            .limit(limit)
+            .offset(offset);
 
         const data = mediaReviews.map((r: Record<string, any>) => ({
             id: r.id,
@@ -78,7 +82,7 @@ reviewRoutes.get('/:mediaId', async (c) => {
             },
         }));
 
-        return c.json({ success: true, data });
+        return c.json({ success: true, data, limit, offset });
     } catch (error: any) {
         console.error('Erreur reviews:', error.message);
         return c.json({ success: false, error: 'Erreur serveur' }, 500);

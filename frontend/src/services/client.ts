@@ -1,5 +1,23 @@
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:3000/api';
 
+const cache = new Map<string, { data: any; expiry: number }>();
+const CACHE_TTL = 60000;
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expiry) return entry.data as T;
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any, ttl: number = CACHE_TTL) {
+  if (cache.size >= 100) {
+    const first = cache.keys().next().value;
+    if (first) cache.delete(first);
+  }
+  cache.set(key, { data, expiry: Date.now() + ttl });
+}
+
 export class ApiRequestError extends Error {
   constructor(
     public status: number,
@@ -28,6 +46,9 @@ export async function apiGet<T = any>(
     if (qs) url += `?${qs}`;
   }
 
+  const cached = getCached<T>(url);
+  if (cached) return cached;
+
   const res = await fetch(url, {
     method: 'GET',
     credentials: 'include',
@@ -40,7 +61,9 @@ export async function apiGet<T = any>(
     throw new ApiRequestError(res.status, msg, endpoint);
   }
 
-  return res.json();
+  const data = await res.json();
+  setCache(url, data);
+  return data;
 }
 
 export async function apiPost<T = any>(

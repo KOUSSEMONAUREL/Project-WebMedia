@@ -68,6 +68,7 @@ mediaRoutes.get('/trending', async (c) => {
             );
         }
 
+        c.header('Cache-Control', 'public, max-age=60');
         return c.json({
             success: true,
             data: trending,
@@ -109,6 +110,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
             );
         }
 
+        c.header('Cache-Control', 'public, max-age=60');
         return c.json({
             success: true,
             data: results,
@@ -167,6 +169,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
             );
         }
 
+        c.header('Cache-Control', 'public, max-age=60');
         return c.json({ success: true, data: finalData, source: 'turso' });
     } catch (error: any) {
         console.error('Erreur récupération média:', error.message);

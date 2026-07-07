@@ -120,7 +120,14 @@ app.use('/api/*', async (c, next) => {
 
 // ========== API MIDDLEWARES ==========
 app.use('/api/*', async (c, next) => {
-    if (c.req.path.startsWith('/api/auth/')) {
+    const path = c.req.path;
+    if (path.startsWith('/api/auth/') ||
+        path.startsWith('/api/media/') ||
+        path.startsWith('/api/search') ||
+        path.startsWith('/api/reviews/') ||
+        path.startsWith('/api/static')) {
+        c.set('user', null);
+        c.set('session', null);
         await next();
         return;
     }
