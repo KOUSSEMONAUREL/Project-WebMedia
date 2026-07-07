@@ -7,7 +7,7 @@ const PER_PAGE = 20;
 
 function SkeletonGrid() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
       {Array.from({ length: PER_PAGE }).map((_, i) => (
         <div key={i} className="flex flex-col gap-3">
           <div className="aspect-[2/3] skeleton rounded-xl" />
@@ -77,7 +77,7 @@ export function CategoryGrid({ type, title }: Props) {
       {isLoading ? <SkeletonGrid /> : (
         <>
           {items.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
               {items.map((media) => (
                 <MediaCard key={media.id} media={media} />
               ))}
