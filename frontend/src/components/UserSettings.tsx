@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authClient, sendVerificationEmail, changePassword } from '@/lib/auth-client';
 import { LogOut, Trash2, Mail, Lock, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { EmptyState } from './EmptyState';
@@ -19,6 +19,20 @@ export function UserSettings() {
   );
   const [cacheCleared, setCacheCleared] = useState(false);
   const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!sessionUser) return;
+    (async () => {
+      try {
+        const { data: accounts } = await authClient.listAccounts();
+        const hasCredential = accounts?.some((a: { providerId: string }) => a.providerId === 'credential') ?? false;
+        setHasPassword(hasCredential);
+      } catch {
+        setHasPassword(false);
+      }
+    })();
+  }, [sessionUser]);
 
   const verifyTurnstile = async (): Promise<boolean> => {
     try {
@@ -169,6 +183,13 @@ export function UserSettings() {
             </div>
             <p className="text-sm font-semibold text-foreground">Mot de passe</p>
           </div>
+          {hasPassword === false ? (
+            <p className="text-xs text-muted-foreground/70">
+              Compte Google -- connexion sans mot de passe.
+            </p>
+          ) : hasPassword === null ? (
+            <p className="text-xs text-muted-foreground/50">Chargement...</p>
+          ) : (
           <form onSubmit={async (e) => {
             e.preventDefault();
             const turned = await verifyTurnstile();
@@ -227,6 +248,7 @@ export function UserSettings() {
               {pwSending ? 'Enregistrement...' : pwDone ? 'Modifie' : 'Modifier le mot de passe'}
             </button>
           </form>
+          )}
         </div>
 
         {/* Hors-ligne */}
