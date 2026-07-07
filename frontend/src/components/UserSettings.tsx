@@ -25,10 +25,15 @@ export function UserSettings() {
     if (!sessionUser) return;
     (async () => {
       try {
-        const { data: accounts } = await authClient.listAccounts();
-        const hasCredential = accounts?.some((a: { providerId: string }) => a.providerId === 'credential') ?? false;
+        const res = await authClient.listAccounts();
+        console.log('[UserSettings] listAccounts raw:', JSON.stringify(res, null, 2));
+        const accounts = (res as any)?.data ?? res;
+        const arr = Array.isArray(accounts) ? accounts : [];
+        const hasCredential = arr.some((a: any) => a.providerId === 'credential');
+        console.log('[UserSettings] hasCredential:', hasCredential, 'accounts:', arr.length);
         setHasPassword(hasCredential);
-      } catch {
+      } catch (e) {
+        console.error('[UserSettings] listAccounts error:', e);
         setHasPassword(false);
       }
     })();
