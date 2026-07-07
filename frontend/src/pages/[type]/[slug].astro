@@ -4,6 +4,7 @@ import { getMediaDetails, getMediaByType, type Media } from '../../lib/api';
 import MediaHero from '../../components/MediaHero.astro';
 import ContentList from '../../components/ContentList.astro';
 import LinkFooter from '../../components/LinkFooter.astro';
+import ReviewSection from '../../components/ReviewSection';
 
 export async function getStaticPaths() {
   const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
@@ -55,6 +56,7 @@ const data = media ? {
       <div class="container mx-auto px-4 sm:px-6 pb-20 mt-8 space-y-12">
         {hasEpisodes && <ContentList media={media} />}
         {hasLinks && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} />}
+        <ReviewSection mediaId={media.id} client:load />
       </div>
     </div>
   ) : null}

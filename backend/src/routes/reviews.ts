@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
-import { reviews } from '../db/supabase/schema';
+import { reviews, user } from '../db/supabase/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { turnstileMiddleware } from '../middleware/turnstile';
 
@@ -44,15 +44,41 @@ reviewRoutes.get('/:mediaId', async (c) => {
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
-        const mediaReviews = await db.select()
+        const mediaReviews = await db.select({
+            id: reviews.id,
+            userId: reviews.userId,
+            mediaId: reviews.mediaId,
+            rating: reviews.rating,
+            comment: reviews.comment,
+            spoiler: reviews.spoiler,
+            likes: reviews.likes,
+            createdAt: reviews.createdAt,
+            updatedAt: reviews.updatedAt,
+            userName: user.name,
+            userImage: user.image,
+        })
             .from(reviews)
+            .leftJoin(user, eq(reviews.userId, user.id))
             .where(eq(reviews.mediaId, mediaId))
             .orderBy(desc(reviews.createdAt));
 
-        return c.json({
-            success: true,
-            data: mediaReviews
-        });
+        const data = mediaReviews.map((r: Record<string, any>) => ({
+            id: r.id,
+            userId: r.userId,
+            mediaId: r.mediaId,
+            rating: r.rating,
+            comment: r.comment,
+            spoiler: r.spoiler,
+            likes: r.likes,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            user: {
+                name: r.userName,
+                image: r.userImage,
+            },
+        }));
+
+        return c.json({ success: true, data });
     } catch (error: any) {
         console.error('Erreur reviews:', error.message);
         return c.json({ success: false, error: 'Erreur serveur' }, 500);

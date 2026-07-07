@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import { useTurnstile, verifyTurnstileToken } from './Turnstile';
@@ -27,6 +27,27 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
     const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+
+    const passwordRules = useMemo(() => ({
+        minMax: formData.password.length >= 8 && formData.password.length <= 16,
+        upper: /[A-Z]/.test(formData.password),
+        lower: /[a-z]/.test(formData.password),
+        digit: /[0-9]/.test(formData.password),
+        special: /[^A-Za-z0-9]/.test(formData.password),
+        match: formData.confirmPassword === '' || formData.password === formData.confirmPassword,
+    }), [formData.password, formData.confirmPassword]);
+
+    const isSignupFormValid = mode !== 'signup' || (
+        formData.name.trim().length > 0 &&
+        formData.email.includes('@') &&
+        passwordRules.minMax &&
+        passwordRules.upper &&
+        passwordRules.lower &&
+        passwordRules.digit &&
+        passwordRules.special &&
+        passwordRules.match &&
+        formData.confirmPassword.length > 0
+    );
 
     const verifyTurnstile = async (): Promise<boolean> => {
         try {
@@ -81,6 +102,13 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             return;
         }
 
+        if (mode === 'login') {
+            if (formData.password.length > 16) {
+                setError('Mot de passe trop long (max 16 caracteres)');
+                return;
+            }
+        }
+
         if (mode === 'signup') {
             if (!formData.name.trim()) {
                 setError('Veuillez entrer votre nom');
@@ -90,8 +118,28 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 setError('Les mots de passe ne correspondent pas');
                 return;
             }
-            if (formData.password.length < 6) {
-                setError('Le mot de passe doit contenir au moins 6 caractères');
+            if (formData.password.length < 8) {
+                setError('Minimum 8 caracteres');
+                return;
+            }
+            if (formData.password.length > 16) {
+                setError('Maximum 16 caracteres');
+                return;
+            }
+            if (!/[A-Z]/.test(formData.password)) {
+                setError('Au moins une lettre majuscule requise');
+                return;
+            }
+            if (!/[a-z]/.test(formData.password)) {
+                setError('Au moins une lettre minuscule requise');
+                return;
+            }
+            if (!/[0-9]/.test(formData.password)) {
+                setError('Au moins un chiffre requis');
+                return;
+            }
+            if (!/[^A-Za-z0-9]/.test(formData.password)) {
+                setError('Au moins un caractere special requis (!@#$%^&*)');
                 return;
             }
         }
@@ -410,11 +458,42 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </div>
                         )}
 
+                        {mode === 'signup' && formData.password.length > 0 && (
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                <div className={`flex items-center gap-2 ${passwordRules.minMax ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {passwordRules.minMax ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span>8 a 16 caracteres</span>
+                                </div>
+                                <div className={`flex items-center gap-2 ${passwordRules.upper ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {passwordRules.upper ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span>1 lettre majuscule</span>
+                                </div>
+                                <div className={`flex items-center gap-2 ${passwordRules.lower ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {passwordRules.lower ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span>1 lettre minuscule</span>
+                                </div>
+                                <div className={`flex items-center gap-2 ${passwordRules.digit ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {passwordRules.digit ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span>1 chiffre</span>
+                                </div>
+                                <div className={`flex items-center gap-2 ${passwordRules.special ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {passwordRules.special ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span>1 caractere special (!@#$%^&*)</span>
+                                </div>
+                                {formData.confirmPassword.length > 0 && (
+                                    <div className={`flex items-center gap-2 ${passwordRules.match ? 'text-green-500' : 'text-red-500'}`}>
+                                        {passwordRules.match ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                                        <span>Les mots de passe correspondent</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {error && (
                             <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
                         )}
 
-                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading}>
+                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading || (mode === 'signup' && !isSignupFormValid)}>
                             {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
                         </Button>
 

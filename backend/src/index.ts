@@ -72,6 +72,33 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
         BETTER_AUTH_SECRET: c.env?.BETTER_AUTH_SECRET,
         BETTER_AUTH_URL: c.env?.BETTER_AUTH_URL,
     });
+
+    // Password validation for sign-up only
+    if (c.req.method === 'POST' && c.req.path === '/api/auth/sign-up/email') {
+        const cloned = c.req.raw.clone();
+        const body: any = await cloned.json();
+        const pw: string = body?.password || '';
+
+        if (pw.length < 8) {
+            return c.json({ error: 'Minimum 8 caracteres' }, 400);
+        }
+        if (pw.length > 16) {
+            return c.json({ error: 'Maximum 16 caracteres' }, 400);
+        }
+        if (!/[A-Z]/.test(pw)) {
+            return c.json({ error: 'Au moins une lettre majuscule requise' }, 400);
+        }
+        if (!/[a-z]/.test(pw)) {
+            return c.json({ error: 'Au moins une lettre minuscule requise' }, 400);
+        }
+        if (!/[0-9]/.test(pw)) {
+            return c.json({ error: 'Au moins un chiffre requis' }, 400);
+        }
+        if (!/[^A-Za-z0-9]/.test(pw)) {
+            return c.json({ error: 'Au moins un caractere special requis (!@#$%^&*)' }, 400);
+        }
+    }
+
     const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
     return getAuth(dbUrl)!.handler(c.req.raw);
 });

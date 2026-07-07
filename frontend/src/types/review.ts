@@ -10,6 +10,10 @@ export interface Review {
   likes: number;
   createdAt: string;
   updatedAt: string;
+  user?: {
+    name: string;
+    image?: string | null;
+  };
 }
 
 export interface CreateReviewPayload {
