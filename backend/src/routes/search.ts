@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getTursoClient } from '../db/singleton';
 import { medias } from '../db/turso/schema';
-import { ilike, and, eq, or } from 'drizzle-orm';
+import { and, eq, like, or } from 'drizzle-orm';
 
 type Bindings = {
     TURSO_DATABASE_URL: string;
@@ -53,8 +53,8 @@ searchRoutes.get(
 
             let searchFilters = [
                 or(
-                    ilike(medias.title, `%${q}%`),
-                    ilike(medias.originalTitle, `%${q}%`)
+                    like(medias.title, `%${q}%`),
+                    like(medias.originalTitle, `%${q}%`)
                 )
             ];
 
