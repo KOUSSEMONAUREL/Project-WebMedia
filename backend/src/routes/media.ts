@@ -7,7 +7,6 @@ import { medias as neonMedias } from '../db/neon/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 
 type Bindings = {
-    KV: KVNamespace;
     HYPERDRIVE: Hyperdrive;
     NEON_DATABASE_URL: string;
     TURSO_DATABASE_URL: string;
@@ -46,35 +45,14 @@ const getNeonWriteDb = (c: any) => {
 
 // ========== GET /api/media/trending ==========
 mediaRoutes.get('/trending', async (c) => {
-    const cacheKey = 'v2:trending:all';
-
     try {
-        // 1. Essayer le cache KV (Si dispo)
-        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
-        if (cached) return c.json({ success: true, data: cached, source: 'cache' });
-
-        // Lecture sur TURSO
         const db = getTursoDb(c);
-
         const trending = await db.select()
             .from(medias)
             .orderBy(desc(medias.rating), desc(medias.createdAt))
             .limit(20);
-
-        // 2. Sauvegarder dans KV (Si dispo)
-        if (c.env?.KV && c.executionCtx) {
-            c.executionCtx.waitUntil(
-                c.env.KV.put(cacheKey, JSON.stringify(trending), { expirationTtl: 3600 })
-            );
-        }
-
         c.header('Cache-Control', 'public, max-age=60');
-        return c.json({
-            success: true,
-            data: trending,
-            count: trending.length,
-            source: 'turso'
-        });
+        return c.json({ success: true, data: trending, count: trending.length, source: 'turso' });
     } catch (error: any) {
         console.error('Erreur trending:', error.message);
         return c.json({ success: false, error: 'Erreur lors de la récupération des tendances' }, 500);
@@ -90,41 +68,20 @@ const listMediaSchema = z.object({
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     const { type, limit, offset } = c.req.valid('query' as any);
-    const cacheKey = `v2:list:${type}:${limit}:${offset}`;
-
     try {
-        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') as any : null;
-        if (cached) return c.json({ success: true, data: cached.data, total: cached.total, source: 'cache' });
-
         const db = getTursoDb(c);
         const mediaType = mapType(type);
-
         const [{ total }] = await db.select({ total: sql<number>`count(*)` })
             .from(medias)
             .where(eq(medias.type, mediaType));
-
         const results = await db.select()
             .from(medias)
             .where(eq(medias.type, mediaType))
             .orderBy(desc(medias.createdAt))
             .limit(limit)
             .offset(offset);
-
-        if (c.env?.KV && c.executionCtx) {
-            c.executionCtx.waitUntil(
-                c.env.KV.put(cacheKey, JSON.stringify({ data: results, total }), { expirationTtl: 1800 })
-            );
-        }
-
         c.header('Cache-Control', 'public, max-age=60');
-        return c.json({
-            success: true,
-            data: results,
-            total,
-            limit,
-            offset,
-            source: 'turso'
-        });
+        return c.json({ success: true, data: results, total, limit, offset, source: 'turso' });
     } catch (error: any) {
         console.error(`Erreur listing ${type}:`, error.message);
         return c.json({ success: false, error: 'Erreur lors du chargement des médias' }, 500);
@@ -134,24 +91,16 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
 // ========== GET /api/media/:type/:slug ==========
 mediaRoutes.get('/:type/:slug', async (c) => {
     const { type, slug } = c.req.param();
-    const cacheKey = `v2:media:${type}:${slug}`;
-
     try {
-        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
-        if (cached) return c.json({ success: true, data: cached, source: 'cache' });
-
         const db = getTursoDb(c);
         const result = await db.select()
             .from(medias)
             .where(and(eq(medias.type, mapType(type)), eq(medias.slug, slug)))
             .limit(1);
-
         if (result.length === 0) {
             return c.json({ success: false, error: 'Média non trouvé' }, 404);
         }
-
         const media = result[0];
-
         const hasEpisodes = type === 'serie' || type === 'anime';
         const [mediaEpisodes, mediaLiens] = await Promise.all([
             hasEpisodes
@@ -164,21 +113,12 @@ mediaRoutes.get('/:type/:slug', async (c) => {
                 .from(liens)
                 .where(eq(liens.mediaId, media.id))
         ]);
-
-        const finalData = {
-            ...media,
-            episodes: mediaEpisodes,
-            links: mediaLiens
-        };
-
-        if (c.env?.KV && c.executionCtx) {
-            c.executionCtx.waitUntil(
-                c.env.KV.put(cacheKey, JSON.stringify(finalData), { expirationTtl: 21600 })
-            );
-        }
-
         c.header('Cache-Control', 'public, max-age=60');
-        return c.json({ success: true, data: finalData, source: 'turso' });
+        return c.json({
+            success: true,
+            data: { ...media, episodes: mediaEpisodes, links: mediaLiens },
+            source: 'turso'
+        });
     } catch (error: any) {
         console.error('Erreur récupération média:', error.message);
         return c.json({ success: false, error: 'Erreur serveur' }, 500);

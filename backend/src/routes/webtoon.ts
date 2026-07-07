@@ -2,11 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-type Bindings = {
-    KV: KVNamespace;
-};
-
-const webtoonRoutes = new Hono<{ Bindings: Bindings }>();
+const webtoonRoutes = new Hono();
 
 // Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
@@ -37,23 +33,12 @@ async function getRunner() {
 
 webtoonRoutes.get('/', async (c) => {
     try {
-        const cacheKey = 'webtoon:scrapers';
-        const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
-        if (cached) return c.json({ success: true, data: cached, source: 'cache' });
-
         const { listScrapers } = await getRunner();
         const scrapers = listScrapers();
         const grouped: Record<string, { name: string; lang: string }[]> = {};
         for (const s of scrapers) {
             (grouped[s.lang] ||= []).push({ name: s.name, lang: s.lang });
         }
-
-        if (c.env?.KV && c.executionCtx) {
-            c.executionCtx.waitUntil(
-                c.env.KV.put(cacheKey, JSON.stringify(grouped), { expirationTtl: 3600 })
-            );
-        }
-
         return c.json({ success: true, data: grouped, count: scrapers.length });
     } catch (error: any) {
         console.error('Erreur liste scrapers:', error.message);
