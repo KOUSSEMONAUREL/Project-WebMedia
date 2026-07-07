@@ -13,7 +13,11 @@ export async function getStaticPaths() {
     try {
       const res = await getMediaByType(t, { limit: 200 });
       if (res.data) {
-        for (const m of res.data) paths.push({ params: { type: t, slug: m.slug || m.id } });
+        for (const m of res.data) {
+          const slug = m.slug || m.id;
+          if (slug.length > 120) continue;
+          paths.push({ params: { type: t, slug } });
+        }
       }
     } catch { /* skip */ }
   }
