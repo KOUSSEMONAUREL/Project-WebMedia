@@ -3,6 +3,7 @@ import { authClient, sendVerificationEmail, changePassword } from '@/lib/auth-cl
 import { LogOut, Trash2, Mail, Lock, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import { clearFavorites, clearWatchlist } from '../lib/indexeddb';
+import { useTurnstile, verifyTurnstileToken } from './Turnstile';
 
 export function UserSettings() {
   const { data: session, isPending } = authClient.useSession();
@@ -17,6 +18,17 @@ export function UserSettings() {
     () => typeof window !== 'undefined' && localStorage.getItem('webmedia_storage_consent') === 'full'
   );
   const [cacheCleared, setCacheCleared] = useState(false);
+  const { containerRef: turnstileRef, getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+
+  const verifyTurnstile = async (): Promise<boolean> => {
+    try {
+      const token = await getTurnstileToken();
+      if (!token) return false;
+      const ok = await verifyTurnstileToken(token);
+      if (ok) resetTurnstile();
+      return ok;
+    } catch { return false; }
+  };
 
   const currentUser = sessionUser ? {
     id: sessionUser.id,
@@ -47,6 +59,8 @@ export function UserSettings() {
   const isVerified = sessionUser?.emailVerified ?? true;
 
   const handleSendVerification = async () => {
+    const turned = await verifyTurnstile();
+    if (!turned) return;
     setVerifSending(true);
     try {
       await sendVerificationEmail({
@@ -97,6 +111,7 @@ export function UserSettings() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-16 animate-fade-in-up">
+      <div ref={turnstileRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
       {/* Compte */}
       <div className="flex items-center gap-4 mb-8 p-5 rounded-2xl bg-secondary/15 border border-border/40">
         <div className="h-14 w-14 rounded-full overflow-hidden bg-card border-2 border-primary/30 shrink-0">
@@ -157,6 +172,8 @@ export function UserSettings() {
           </div>
           <form onSubmit={async (e) => {
             e.preventDefault();
+            const turned = await verifyTurnstile();
+            if (!turned) { setPwError('Verification anti-bot echouee, reessaye'); return; }
             const form = e.target as HTMLFormElement;
             const currentPw = (form.elements.namedItem('currentPw') as HTMLInputElement).value;
             const newPw = (form.elements.namedItem('newPw') as HTMLInputElement).value;

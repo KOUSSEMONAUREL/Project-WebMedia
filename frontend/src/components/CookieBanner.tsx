@@ -37,7 +37,7 @@ export function CookieBanner() {
         <div className="rounded-xl border border-white/8 bg-[#111318] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
           <div className="flex items-center justify-between gap-4 px-4 py-2.5">
             <p className="text-[12px] text-white/50 leading-relaxed">
-              Favoris, watchlist et session sont stockés localement.
+              Donnees locales (favoris, watchlist, session) et protection anti-bot Cloudflare Turnstile.
               <button
                 onClick={function() {
                   var e = document.getElementById('cookie-details');
@@ -68,6 +68,10 @@ export function CookieBanner() {
               <span>Session (necessaire)</span>
               <span>Favoris & watchlist (IndexedDB)</span>
               <span>Cache hors-ligne (optionnel)</span>
+              <span className="w-full mt-1 text-white/25 leading-relaxed">
+                Protection anti-bot par Cloudflare Turnstile (adresse IP, user-agent, signature TLS) &ndash; aucune donnee perso collectee. 
+                <a href="https://www.cloudflare.com/en-gb/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-white/40">Politique Cloudflare</a>
+              </span>
             </div>
           </div>
         </div>

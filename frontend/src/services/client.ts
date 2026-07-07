@@ -46,13 +46,14 @@ export async function apiGet<T = any>(
 export async function apiPost<T = any>(
   endpoint: string,
   body: any = {},
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   });
 

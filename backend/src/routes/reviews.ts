@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
 import { reviews } from '../db/supabase/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { turnstileMiddleware } from '../middleware/turnstile';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
@@ -68,6 +69,7 @@ const createReviewSchema = z.object({
 
 reviewRoutes.post(
     '/',
+    turnstileMiddleware,
     async (c, next) => {
         const sessionUser = c.get('user');
         if (!sessionUser) {

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, RefreshCw } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
+import { useTurnstile, verifyTurnstileToken } from './Turnstile';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -25,6 +26,19 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
+    const { containerRef: turnstileRef, getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+
+    const verifyTurnstile = async (): Promise<boolean> => {
+        try {
+            const token = await getTurnstileToken();
+            if (!token) return false;
+            const ok = await verifyTurnstileToken(token);
+            if (ok) resetTurnstile();
+            return ok;
+        } catch {
+            return false;
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -35,6 +49,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     };
 
     const handleResendVerification = async () => {
+        const turned = await verifyTurnstile();
+        if (!turned) {
+            setError("Verification anti-bot echouee, reessaye");
+            return;
+        }
         setResending(true);
         setError('');
         try {
@@ -55,6 +74,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const turned = await verifyTurnstile();
+        if (!turned) {
+            setError("Verification anti-bot echouee, reessaye");
+            return;
+        }
 
         if (mode === 'signup') {
             if (!formData.name.trim()) {
@@ -248,6 +273,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     setError('Email invalide');
                                     return;
                                 }
+                                const turned = await verifyTurnstile();
+                                if (!turned) {
+                                    setError("Verification anti-bot echouee, reessaye");
+                                    return;
+                                }
                                 setLoading(true);
                                 try {
                                     const { error: resetError } = await authClient.requestPasswordReset({
@@ -291,6 +321,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         </div>
                     ) : (
                         <>
+                    <div ref={turnstileRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
+
                     {mode === 'login' && (
                         <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
                         <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>

@@ -34,6 +34,7 @@ type Bindings = {
     INTERNAL_API_KEY: string;
     MONGODB_URI: string;
     ENVIRONMENT: string;
+    TURNSTILE_SECRET_KEY: string;
 };
 
 type Variables = {
@@ -102,6 +103,10 @@ app.use('/api/*', async (c, next) => {
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
     return rateLimit(isSensitive ? 60 : 200, 60)(c, next);
 });
+
+// ========== TURNSTILE ANTI-BOT ==========
+import { verifyTurnstileHandler } from './middleware/turnstile';
+app.post('/api/verify-turnstile', verifyTurnstileHandler);
 
 // ========== ROUTES ==========
 app.route('/api/user', userRoutes);

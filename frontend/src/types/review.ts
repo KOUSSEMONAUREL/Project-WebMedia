@@ -17,6 +17,7 @@ export interface CreateReviewPayload {
   rating: number;
   comment?: string;
   spoiler?: boolean;
+  turnstileToken?: string;
 }
 
 export type ReviewListResponse = ApiResponse<Review[]>;
