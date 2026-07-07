@@ -1,28 +1,11 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getMediaDetails, getMediaByType, type Media } from '../../lib/api';
+import { getMediaDetails, type Media } from '../../lib/api';
 import MediaHero from '../../components/MediaHero.astro';
 import ContentList from '../../components/ContentList.astro';
 import LinkFooter from '../../components/LinkFooter.astro';
 import ReviewSection from '../../components/ReviewSection';
-
-export async function getStaticPaths() {
-  const types = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'];
-  const paths: { params: { type: string; slug: string } }[] = [];
-  for (const t of types) {
-    try {
-      const res = await getMediaByType(t, { limit: 200 });
-      if (res.data) {
-        for (const m of res.data) {
-          const slug = m.slug || m.id;
-          if (slug.length > 120) continue;
-          paths.push({ params: { type: t, slug } });
-        }
-      }
-    } catch { /* skip */ }
-  }
-  return paths;
-}
+import { SimilarSection } from '../../components/SimilarSection';
 
 const { type, slug } = Astro.params;
 let media: Media | null = null;
@@ -61,6 +44,7 @@ const data = media ? {
         {hasEpisodes && <ContentList media={media} />}
         {hasLinks && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} />}
         <ReviewSection mediaId={media.id} client:load />
+        <SimilarSection similar={media?.similar} client:load />
       </div>
     </div>
   ) : null}

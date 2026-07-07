@@ -41,7 +41,7 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
 
 export async function getMediaByType(
   type: MediaType,
-  opts?: { limit?: number; offset?: number; sort?: string; order?: string },
+  opts?: { limit?: number; offset?: number; sort?: string; order?: string; genre?: string; yearMin?: number; yearMax?: number; ratingMin?: number },
 ): Promise<{ success: boolean; data: Media[]; total?: number }> {
   try {
     const params = new URLSearchParams({ type });
@@ -49,6 +49,10 @@ export async function getMediaByType(
     if (opts?.offset) params.set('offset', String(opts.offset));
     if (opts?.sort) params.set('sort', opts.sort);
     if (opts?.order) params.set('order', opts.order);
+    if (opts?.genre) params.set('genre', opts.genre);
+    if (opts?.yearMin) params.set('yearMin', String(opts.yearMin));
+    if (opts?.yearMax) params.set('yearMax', String(opts.yearMax));
+    if (opts?.ratingMin) params.set('ratingMin', String(opts.ratingMin));
     const res = await fetch(`${API_BASE_URL}/media?${params}`, { headers: getApiHeaders() });
     if (!res.ok) throw new Error('API Error');
     const json = await res.json();

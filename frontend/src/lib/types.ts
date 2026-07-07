@@ -7,7 +7,7 @@ export interface Media {
   tmdbId?: number; imdbId?: string; anilistId?: number;
   metadataSource?: string; activeLinksCount?: number;
   createdAt?: string; updatedAt?: string;
-  backdropUrl?: string; episodes?: any[]; links?: any[];
+  backdropUrl?: string; episodes?: any[]; links?: any[]; similar?: Media[];
   trailerUrl?: string; duration?: number; tagline?: string;
   studios?: string[]; episodeCount?: number;
   author?: string; originalTitle?: string;

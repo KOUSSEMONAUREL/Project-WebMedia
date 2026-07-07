@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, asc, and, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, or, like, gte, lte, sql, ne } from 'drizzle-orm';
 
 type Bindings = {
     HYPERDRIVE: Hyperdrive;
@@ -16,14 +16,12 @@ type Bindings = {
 
 const mediaRoutes = new Hono<{ Bindings: Bindings }>();
 
-// Mapping des types francais (API/frontend) vers anglais (DB)
 const TYPE_MAP: Record<string, string> = {
   film: 'movie',
   jeu: 'game',
 };
 const mapType = (t: string) => TYPE_MAP[t] || t;
 
-// Helper universel pour les variables d'env
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
     if (!val && c.env?.ENVIRONMENT === 'production') {
@@ -32,7 +30,6 @@ const getVar = (c: any, key: string) => {
     return val;
 };
 
-// Helpers typés (singleton — réutilise les connexions)
 const getTursoDb = (c: any) => {
     const url = getVar(c, 'TURSO_DATABASE_URL');
     const token = getVar(c, 'TURSO_AUTH_TOKEN');
@@ -59,13 +56,17 @@ mediaRoutes.get('/trending', async (c) => {
     }
 });
 
-// ========== GET /api/media (Listing par type) ==========
+// ========== GET /api/media (Listing par type + filtres) ==========
 const listMediaSchema = z.object({
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
     sort: z.enum(['created_at', 'title', 'rating', 'year']).optional().default('created_at'),
     order: z.enum(['asc', 'desc']).optional().default('desc'),
     limit: z.coerce.number().int().min(1).max(200).optional().default(20),
     offset: z.coerce.number().int().min(0).optional().default(0),
+    genre: z.string().optional(),
+    yearMin: z.coerce.number().int().min(1900).max(2100).optional(),
+    yearMax: z.coerce.number().int().min(1900).max(2100).optional(),
+    ratingMin: z.coerce.number().min(0).max(10).optional(),
 });
 
 const SORT_COLUMNS: Record<string, any> = {
@@ -76,19 +77,26 @@ const SORT_COLUMNS: Record<string, any> = {
 };
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
-    const { type, sort, order, limit, offset } = c.req.valid('query' as any);
+    const { type, sort, order, limit, offset, genre, yearMin, yearMax, ratingMin } = c.req.valid('query' as any);
     try {
         const db = getTursoDb(c);
         const mediaType = mapType(type);
         const orderFn = order === 'asc' ? asc : desc;
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
+        const conditions: any[] = [eq(medias.type, mediaType)];
+        if (genre) conditions.push(like(medias.genres, `%${genre}%`));
+        if (yearMin) conditions.push(gte(medias.year, yearMin));
+        if (yearMax) conditions.push(lte(medias.year, yearMax));
+        if (ratingMin) conditions.push(gte(sql`cast(${medias.rating} as real)`, ratingMin));
+        const where = and(...conditions);
+
         const [{ total }] = await db.select({ total: sql<number>`count(*)` })
             .from(medias)
-            .where(eq(medias.type, mediaType));
+            .where(where);
         const results = await db.select()
             .from(medias)
-            .where(eq(medias.type, mediaType))
+            .where(where)
             .orderBy(orderByColumn)
             .limit(limit)
             .offset(offset);
@@ -97,6 +105,56 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     } catch (error: any) {
         console.error(`Erreur listing ${type}:`, error.message);
         return c.json({ success: false, error: 'Erreur lors du chargement des médias' }, 500);
+    }
+});
+
+// ========== GET /api/media/:type/:slug/similar ==========
+mediaRoutes.get('/:type/:slug/similar', async (c) => {
+    const { type, slug } = c.req.param();
+    try {
+        const db = getTursoDb(c);
+        const mediaType = mapType(type);
+        const [current] = await db.select()
+            .from(medias)
+            .where(and(eq(medias.type, mediaType), eq(medias.slug, slug)))
+            .limit(1);
+        if (!current) return c.json({ success: false, error: 'Média non trouvé' }, 404);
+
+        const genres = current.genres || '';
+        const genreList = genres.split(',').map((g: string) => g.trim()).filter(Boolean);
+
+        let results: typeof medias.$inferSelect[] = [];
+        if (genreList.length > 0) {
+            const genreConditions = genreList.map((g: string) => like(medias.genres, `%${g}%`));
+            results = await db.select()
+                .from(medias)
+                .where(and(
+                    eq(medias.type, mediaType),
+                    ne(medias.id, current.id),
+                    or(...genreConditions),
+                ))
+                .orderBy(desc(medias.rating), desc(medias.createdAt))
+                .limit(6);
+        }
+
+        if (results.length < 6) {
+            const existingIds = [current.id, ...results.map(r => r.id)];
+            const fallback = await db.select()
+                .from(medias)
+                .where(and(
+                    eq(medias.type, mediaType),
+                    ...existingIds.map((id: string) => ne(medias.id, id)),
+                ))
+                .orderBy(desc(medias.rating), desc(medias.createdAt))
+                .limit(6 - results.length);
+            results = [...results, ...fallback];
+        }
+
+        c.header('Cache-Control', 'public, max-age=300');
+        return c.json({ success: true, data: results, source: 'turso' });
+    } catch (error: any) {
+        console.error('Erreur similaires:', error.message);
+        return c.json({ success: false, error: 'Erreur lors de la récupération des médias similaires' }, 500);
     }
 });
 
@@ -114,7 +172,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
         }
         const media = result[0];
         const hasEpisodes = type === 'serie' || type === 'anime';
-        const [mediaEpisodes, mediaLiens] = await Promise.all([
+        const [mediaEpisodes, mediaLiens, similar] = await Promise.all([
             hasEpisodes
                 ? db.select()
                     .from(episodes)
@@ -123,12 +181,20 @@ mediaRoutes.get('/:type/:slug', async (c) => {
                 : Promise.resolve([] as (typeof episodes.$inferSelect)[]),
             db.select()
                 .from(liens)
-                .where(eq(liens.mediaId, media.id))
+                .where(eq(liens.mediaId, media.id)),
+            db.select()
+                .from(medias)
+                .where(and(
+                    eq(medias.type, media.type),
+                    ne(medias.id, media.id),
+                ))
+                .orderBy(desc(medias.rating), desc(medias.createdAt))
+                .limit(6),
         ]);
         c.header('Cache-Control', 'public, max-age=60');
         return c.json({
             success: true,
-            data: { ...media, episodes: mediaEpisodes, links: mediaLiens },
+            data: { ...media, episodes: mediaEpisodes, links: mediaLiens, similar },
             source: 'turso'
         });
     } catch (error: any) {
@@ -149,7 +215,6 @@ const createMediaSchema = z.object({
 });
 
 mediaRoutes.post('/', async (c, next) => {
-    // Sécurité: Seuls les scrapers internes peuvent créer des médias
     const apiKey = c.req.header('X-Internal-API-Key');
     const secretKey = getVar(c, 'INTERNAL_API_KEY');
     if (!apiKey || apiKey !== secretKey) {
@@ -160,16 +225,13 @@ mediaRoutes.post('/', async (c, next) => {
     const data = c.req.valid('json' as any);
     try {
         const db = getNeonWriteDb(c);
-        // Génération de slug robuste
         const baseSlug = data.title
             .toLowerCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .trim()
             .replace(/\s+/g, '-')
             .replace(/[^\w-]+/g, '')
             .replace(/--+/g, '-');
-        
-        // Ajout de l'année au slug pour éviter les collisions (remakes etc)
         const slug = `${baseSlug}-${data.year || new Date().getFullYear()}`.slice(0, 100);
 
         const result = await db.insert(neonMedias).values({

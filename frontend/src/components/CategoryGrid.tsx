@@ -2,10 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { MediaCard } from './MediaCard';
 import { getMediaByType, type Media, type MediaType } from '../lib/api';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from 'lucide-react';
 
 const PER_PAGE = 20;
 type SortKey = 'created_at' | 'title' | 'rating' | 'year';
+
+const GENRES = [
+  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
+  'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
+  'Romance', 'Science Fiction', 'Thriller', 'War', 'Western',
+];
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -47,14 +53,18 @@ function GridContent({ type, title }: Props) {
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [genre, setGenre] = useState('');
+  const [yearMin, setYearMin] = useState('');
+  const [yearMax, setYearMax] = useState('');
+  const [ratingMin, setRatingMin] = useState('');
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const queryKey = ['media', type, sortKey, sortDir, page];
+  const filters = { genre: genre || undefined, yearMin: yearMin ? Number(yearMin) : undefined, yearMax: yearMax ? Number(yearMax) : undefined, ratingMin: ratingMin ? Number(ratingMin) : undefined };
+  const queryKey = ['media', type, sortKey, sortDir, page, genre, yearMin, yearMax, ratingMin];
 
   const { data, isPending, isError } = useQuery({
     queryKey,
-    queryFn: () =>
-      getMediaByType(type, { limit: PER_PAGE, offset: page * PER_PAGE, sort: sortKey, order: sortDir }),
+    queryFn: () => getMediaByType(type, { limit: PER_PAGE, offset: page * PER_PAGE, sort: sortKey, order: sortDir, ...filters }),
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     gcTime: 300_000,
@@ -64,17 +74,15 @@ function GridContent({ type, title }: Props) {
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
-  // Prefetch next page
   useEffect(() => {
     if (page < totalPages - 1) {
       queryClient.prefetchQuery({
-        queryKey: ['media', type, sortKey, sortDir, page + 1],
-        queryFn: () =>
-          getMediaByType(type, { limit: PER_PAGE, offset: (page + 1) * PER_PAGE, sort: sortKey, order: sortDir }),
+        queryKey: ['media', type, sortKey, sortDir, page + 1, genre, yearMin, yearMax, ratingMin],
+        queryFn: () => getMediaByType(type, { limit: PER_PAGE, offset: (page + 1) * PER_PAGE, sort: sortKey, order: sortDir, ...filters }),
         staleTime: 60_000,
       });
     }
-  }, [page, type, sortKey, sortDir, totalPages]);
+  }, [page, type, sortKey, sortDir, genre, yearMin, yearMax, ratingMin, totalPages]);
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -92,32 +100,23 @@ function GridContent({ type, title }: Props) {
     gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const applyFilter = () => setPage(0);
+
   const sortLabel = (key: SortKey) => {
-    const labels: Record<SortKey, string> = {
-      created_at: 'Par defaut',
-      title: 'Titre',
-      rating: 'Note',
-      year: 'Annee',
-    };
+    const labels: Record<SortKey, string> = { created_at: 'Par defaut', title: 'Titre', rating: 'Note', year: 'Annee' };
     let label = labels[key];
-    if (key === sortKey) {
-      label += sortDir === 'asc' ? ' \u2191' : ' \u2193';
-    }
+    if (key === sortKey) label += sortDir === 'asc' ? ' \u2191' : ' \u2193';
     return label;
   };
+
+  const hasActiveFilters = genre || yearMin || yearMax || ratingMin;
+  const clearFilters = () => { setGenre(''); setYearMin(''); setYearMax(''); setRatingMin(''); setPage(0); };
 
   return (
     <div className="container mx-auto px-6 py-10" ref={gridRef} suppressHydrationWarning>
       <header className="mb-8">
-        <h1
-          className="text-2xl md:text-3xl font-display font-bold mb-2"
-          style={{
-            background: 'linear-gradient(135deg,#93c5fd,#60a5fa)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
+        <h1 className="text-2xl md:text-3xl font-display font-bold mb-2"
+          style={{ background: 'linear-gradient(135deg,#93c5fd,#60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
           {title}
         </h1>
       </header>
@@ -128,99 +127,83 @@ function GridContent({ type, title }: Props) {
         </div>
       )}
 
-      {isPending ? (
-        <SkeletonGrid />
-      ) : (
+      {isPending ? <SkeletonGrid /> : (
         <>
           {items.length > 0 && (
             <>
-              <div className="flex items-center gap-2 mb-6 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Trier</span>
                 {(['created_at', 'title', 'rating', 'year'] as SortKey[]).map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => handleSort(key)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-transparent ${
-                      sortKey === key
-                        ? 'bg-primary/12 text-primary border-primary/25 shadow-[0_0_16px_rgba(59,130,246,0.08)]'
-                        : 'bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.05] hover:border-white/[0.08]'
-                    }`}
-                  >
+                  <button key={key} onClick={() => handleSort(key)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-transparent ${sortKey === key ? 'bg-primary/12 text-primary border-primary/25' : 'bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.05]'}`}>
                     {sortLabel(key)}
                   </button>
                 ))}
               </div>
 
+              <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-xl bg-secondary/20 border border-white/[0.04]">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filtrer</span>
+                <select value={genre} onChange={(e) => { setGenre(e.target.value); setPage(0); }}
+                  className="bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40">
+                  <option value="">Genre</option>
+                  {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <input type="number" placeholder="Annee min" value={yearMin} onChange={(e) => setYearMin(e.target.value)} onBlur={applyFilter}
+                  className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
+                <input type="number" placeholder="Annee max" value={yearMax} onChange={(e) => setYearMax(e.target.value)} onBlur={applyFilter}
+                  className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
+                <input type="number" placeholder="Note min" value={ratingMin} onChange={(e) => setRatingMin(e.target.value)} onBlur={applyFilter} min={0} max={10} step={0.5}
+                  className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <X className="h-3 w-3" /> Effacer
+                  </button>
+                )}
+              </div>
+
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-4 mb-8">
-                  <button
-                    onClick={() => goTo(page - 1)}
-                    disabled={page <= 0}
-                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
+                  <button onClick={() => goTo(page - 1)} disabled={page <= 0}
+                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                     <ChevronLeft className="h-4 w-4" /> Precedent
                   </button>
-                  <span className="text-sm text-muted-foreground">
-                    {page + 1} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => goTo(page + 1)}
-                    disabled={page >= totalPages - 1}
-                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
+                  <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
+                  <button onClick={() => goTo(page + 1)} disabled={page >= totalPages - 1}
+                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                     Suivant <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               )}
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
-                {items.map((media) => (
-                  <MediaCard key={media.id} media={media} />
-                ))}
+                {items.map((media) => <MediaCard key={media.id} media={media} />)}
               </div>
             </>
           )}
-          {items.length === 0 && (
-            <div className="text-center py-24 text-muted-foreground">Aucun contenu trouve.</div>
-          )}
+          {items.length === 0 && <div className="text-center py-24 text-muted-foreground">Aucun contenu trouve.</div>}
         </>
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-12 flex-wrap">
-          <button
-            onClick={() => goTo(0)}
-            disabled={page <= 0}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
+          <button onClick={() => goTo(0)} disabled={page <= 0}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all">
             <ChevronsLeft className="h-3.5 w-3.5" /> Debut
           </button>
           <div className="flex items-center gap-1">
             {pageNumbers(page, totalPages).map((n, i) =>
               typeof n === 'string' ? (
-                <span key={`e${i}`} className="px-1 text-sm text-muted-foreground select-none">
-                  {n}
-                </span>
+                <span key={`e${i}`} className="px-1 text-sm text-muted-foreground select-none">{n}</span>
               ) : (
-                <button
-                  key={n}
-                  onClick={() => goTo(n - 1)}
-                  className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${
-                    n === page + 1
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'
-                  }`}
-                >
+                <button key={n} onClick={() => goTo(n - 1)}
+                  className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${n === page + 1 ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary'}`}>
                   {n}
                 </button>
               ),
             )}
           </div>
-          <button
-            onClick={() => goTo(totalPages - 1)}
-            disabled={page >= totalPages - 1}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
+          <button onClick={() => goTo(totalPages - 1)} disabled={page >= totalPages - 1}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all">
             Fin <ChevronsRight className="h-3.5 w-3.5" />
           </button>
         </div>
