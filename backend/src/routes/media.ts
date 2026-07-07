@@ -84,25 +84,25 @@ mediaRoutes.get('/trending', async (c) => {
 // ========== GET /api/media (Listing par type) ==========
 const listMediaSchema = z.object({
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-    offset: z.coerce.number().int().min(0).max(1000).optional().default(0),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+    offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
 mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     const { type, limit, offset } = c.req.valid('query' as any);
-    const cacheKey = `v2:list:${type}:${limit}:${offset}`;
+    const cacheKey = `v2:list:${type}:${limit ?? 'all'}:${offset}`;
 
     try {
         const cached = c.env?.KV ? await c.env.KV.get(cacheKey, 'json') : null;
         if (cached) return c.json({ success: true, data: cached, source: 'cache' });
 
         const db = getTursoDb(c);
-        const results = await db.select()
+        let query = db.select()
             .from(medias)
             .where(eq(medias.type, mapType(type)))
-            .orderBy(desc(medias.createdAt))
-            .limit(limit)
-            .offset(offset);
+            .orderBy(desc(medias.createdAt)) as any;
+        if (limit) query = query.limit(limit);
+        const results = await query.offset(offset);
 
         if (c.env?.KV && c.executionCtx) {
             c.executionCtx.waitUntil(
