@@ -74,7 +74,7 @@ async function flushPendingOps(): Promise<void> {
   } catch {}
   if (!token) return;
 
-  const apiBaseUrl = (import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787/api';
+  const apiBaseUrl = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 
   savePendingFavs(new Map());
   savePendingHistory([]);
