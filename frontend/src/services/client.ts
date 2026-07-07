@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 
 const cache = new Map<string, { data: any; expiry: number }>();
 const CACHE_TTL = 60000;
