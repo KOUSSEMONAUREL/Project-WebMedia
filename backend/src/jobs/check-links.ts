@@ -124,6 +124,7 @@ async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: st
             const { id, ...rest } = m;
             await tursoDb.insert(tursoMedias).values({
                 ...m,
+                slug: m.slug?.slice(0, 100),
                 rating: m.rating?.toString(),
                 metadataFreshAt: m.metadataFreshAt ? new Date(m.metadataFreshAt) : null,
                 linksLastScrapedAt: m.linksLastScrapedAt ? new Date(m.linksLastScrapedAt) : null,
