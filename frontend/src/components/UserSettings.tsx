@@ -18,7 +18,7 @@ export function UserSettings() {
     () => typeof window !== 'undefined' && localStorage.getItem('webmedia_storage_consent') === 'full'
   );
   const [cacheCleared, setCacheCleared] = useState(false);
-  const { containerRef: turnstileRef, getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+  const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
 
   const verifyTurnstile = async (): Promise<boolean> => {
     try {
@@ -111,7 +111,6 @@ export function UserSettings() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-16 animate-fade-in-up">
-      <div ref={turnstileRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
       {/* Compte */}
       <div className="flex items-center gap-4 mb-8 p-5 rounded-2xl bg-secondary/15 border border-border/40">
         <div className="h-14 w-14 rounded-full overflow-hidden bg-card border-2 border-primary/30 shrink-0">

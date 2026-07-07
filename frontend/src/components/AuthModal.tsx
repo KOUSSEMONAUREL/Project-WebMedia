@@ -26,7 +26,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
-    const { containerRef: turnstileRef, getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+    const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
 
     const verifyTurnstile = async (): Promise<boolean> => {
         try {
@@ -321,8 +321,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         </div>
                     ) : (
                         <>
-                    <div ref={turnstileRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
-
                     {mode === 'login' && (
                         <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
                         <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>

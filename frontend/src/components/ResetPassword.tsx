@@ -14,7 +14,7 @@ export function ResetPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const { containerRef: turnstileRef, getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+  const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
 
   const verifyTurnstile = async (): Promise<boolean> => {
     try {
@@ -94,7 +94,6 @@ export function ResetPassword() {
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-2 text-center">Nouveau mot de passe</h1>
         <p className="text-sm text-muted-foreground mb-6 text-center">Choisis un nouveau mot de passe pour ton compte.</p>
-        <div ref={turnstileRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
