@@ -218,7 +218,7 @@ mediaRoutes.post('/', async (c, next) => {
             .replace(/--+/g, '-');
         
         // Ajout de l'année au slug pour éviter les collisions (remakes etc)
-        const slug = `${baseSlug}-${data.year || new Date().getFullYear()}`;
+        const slug = `${baseSlug}-${data.year || new Date().getFullYear()}`.slice(0, 100);
 
         const result = await db.insert(neonMedias).values({
             ...data,

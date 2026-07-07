@@ -171,7 +171,7 @@ adminRoutes.post('/medias', async (c) => {
                   rating, status, genres, created_at, updated_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             args: [
-                body.id, body.type, body.title, body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                body.id, body.type, body.title, (body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 100),
                 body.synopsis || null, body.year || null, body.poster_url || null, body.backdrop_url || null,
                 body.rating || null, body.status || 'unknown', body.genres || null, now, now,
             ],
