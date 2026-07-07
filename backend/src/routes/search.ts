@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getTursoClient } from '../db/singleton';
 import { medias } from '../db/turso/schema';
-import { ilike, and, eq, or, sql, getTableColumns } from 'drizzle-orm';
+import { ilike, and, eq, or } from 'drizzle-orm';
 
 type Bindings = {
     TURSO_DATABASE_URL: string;
