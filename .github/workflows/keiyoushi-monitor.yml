@@ -92,16 +92,134 @@ jobs:
 
           persist_supabase "$HEAD_SHA"
 
-      - name: Create issue if critical changes found
+      - name: Check Cloudflare for new extensions
+        if: steps.monitor.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          if [ ! -f /tmp/keiyoushi_new_extensions.json ]; then
+            echo "No new extensions to check"
+            exit 0
+          fi
+
+          # Read new extensions, try to fetch missing baseUrls from upstream raw
+          HEAD_SHA="${{ steps.monitor.outputs.head_sha }}"
+          python3 -u -c "
+import json, subprocess, os, re
+
+with open('/tmp/keiyoushi_new_extensions.json') as f:
+    exts = json.load(f)
+with open('/tmp/keiyoushi_issue_body.md') as f:
+    body = f.read()
+
+head_sha = os.environ.get('HEAD_SHA', '')
+UPSTREAM_RAW = f'https://raw.githubusercontent.com/keiyoushi/extensions-source/{head_sha}'
+
+results = {}
+for ext in exts:
+    url = ext.get('baseUrl')
+
+    # If baseUrl not found in patch, try to fetch build.gradle.kts from raw
+    if not url:
+        lang = ext.get('lang', 'all')
+        ext_name = ext['key'].split('/')[1]
+        build_url = f'{UPSTREAM_RAW}/src/{lang}/{ext_name}/build.gradle.kts'
+        try:
+            r = subprocess.run(
+                ['curl', '-sL', '--max-time', '8', build_url],
+                capture_output=True, text=True, timeout=12
+            )
+            if r.returncode == 0:
+                content = r.stdout
+                # Old format: baseUrl = "..."
+                for line in content.split('\n'):
+                    m = re.search(r'baseUrl\s*=\s*\"([^\"]+)\"', line)
+                    if m:
+                        url = m.group(1)
+                        ext['baseUrl'] = url
+                        break
+                # New DSL format: baseUrl { mirrors("...", ...) } or custom("...")
+                if not url:
+                    in_block = False
+                    for line in content.split('\n'):
+                        if re.search(r'baseUrl\s*\{', line):
+                            in_block = True
+                            continue
+                        if in_block:
+                            if line.strip() == '}':
+                                break
+                            m = re.search(r'\"(https?://[^\"]+)\"', line)
+                            if m:
+                                url = m.group(1)
+                                ext['baseUrl'] = url
+                                break
+        except Exception:
+            pass
+
+    if not url:
+        results[ext['key']] = 'URL inconnue'
+        continue
+
+    if '127.0.0.1' in url or 'localhost' in url:
+        results[ext['key']] = 'NON (local)'
+        continue
+
+    if not url.startswith('http'):
+        url = 'https://' + url
+
+    try:
+        r = subprocess.run(
+            ['curl', '-sI', '--max-time', '10', url],
+            capture_output=True, text=True, timeout=15
+        )
+        headers = r.stdout.lower()
+        if 'cloudflare' in headers or 'cf-ray' in headers:
+            results[ext['key']] = 'OUI (Cloudflare)'
+        else:
+            server = ''
+            for line in r.stdout.split('\n'):
+                if line.lower().startswith('server:'):
+                    server = line.split(':', 1)[1].strip()
+                    break
+            results[ext['key']] = f'NON ({server or \"accessible\"})'
+    except subprocess.TimeoutExpired:
+        results[ext['key']] = 'TIMEOUT'
+    except Exception as exc:
+        results[ext['key']] = f'ERREUR: {str(exc)[:60]}'
+
+    print(f'{ext[\"key\"]}: {results[ext[\"key\"]]}')
+
+# Update issue body: replace _(verification...)_ with actual results + update URL column if missing
+lines = body.split('\n')
+for i, line in enumerate(lines):
+    for key, status in results.items():
+        if key in line and '_(verification...)_' in line:
+            # Also fill URL column if it was previously empty
+            new_url = None
+            for ext in exts:
+                if ext['key'] == key:
+                    new_url = ext.get('baseUrl')
+                    break
+            if new_url and '| - | _(verification...)_' in line:
+                lines[i] = line.replace('| - | _(verification...)_', f'| {new_url} | {status}')
+            else:
+                lines[i] = line.replace('_(verification...)_', status)
+            break
+body = '\n'.join(lines)
+
+with open('/tmp/keiyoushi_issue_body.md', 'w') as f:
+    f.write(body)
+"
+
+      - name: Create or update issue
         if: steps.monitor.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           LAST_CHECKED="${{ steps.monitor.outputs.last_checked }}"
           HEAD_SHA="${{ steps.monitor.outputs.head_sha }}"
-          DEFAULT_BRANCH="${{ steps.monitor.outputs.default_branch }}"
           RUN_ID="${{ github.run_id }}"
-          if [ "${CRITICAL_CHANGED:-0}" -gt 0 ]; then
+
+          if [ "${CRITICAL_CHANGED:-0}" -gt 0 ] || [ "${NEW_CHANGED:-0}" -gt 0 ]; then
             EXISTING=$(gh issue list \
               --label "keiyoushi-upstream" \
               --state open \
@@ -111,13 +229,13 @@ jobs:
 
             if [ -n "$EXISTING" ]; then
               gh issue comment "$EXISTING" \
-                --body "Nouveaux changements: [${LAST_CHECKED}...${HEAD_SHA}](https://github.com/keiyoushi/extensions-source/compare/${LAST_CHECKED}...${HEAD_SHA})"
+                --body-file /tmp/keiyoushi_issue_body.md
             else
-              printf 'Des changements critiques ont ete detectes.\n\n**Compare**: https://github.com/keiyoushi/extensions-source/compare/%s...%s\n**Branche**: %s\n\nConsulte le workflow run #%s.\n\n**Extensions**: %s critique(s), %s supprimee(s), %s nouvelle(s).\n' \
-                "${LAST_CHECKED}" "${HEAD_SHA}" "${DEFAULT_BRANCH}" "${RUN_ID}" "${CRITICAL_CHANGED:-0}" "${REMOVED_CHANGED:-0}" "${NEW_CHANGED:-0}" > /tmp/issue_body.md
               gh issue create \
-                --title "[Keiyoushi] Changements critiques detectes ($(date +'%d/%m/%Y'))" \
+                --title "[Keiyoushi] Changements upstream ($(date +'%d/%m/%Y'))" \
                 --label "keiyoushi-upstream" \
-                --body-file /tmp/issue_body.md
+                --body-file /tmp/keiyoushi_issue_body.md
             fi
+          else
+            echo "Aucun changement critique ou nouveau. Pas d'issue creee."
           fi
