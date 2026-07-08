@@ -454,10 +454,11 @@ internalRoutes.post('/orchestrate', async (c) => {
 const cleanupSchema = z.object({
     type: z.string().optional(),
     before: z.number().optional(),
+    mediaId: z.string().optional(),
 });
 
 internalRoutes.post('/cleanup/d1-state', zValidator('json', cleanupSchema as any), async (c) => {
-    const { type, before } = c.req.valid('json') as z.infer<typeof cleanupSchema>;
+    const { type, before, mediaId } = c.req.valid('json') as z.infer<typeof cleanupSchema>;
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
 
@@ -472,9 +473,14 @@ internalRoutes.post('/cleanup/d1-state', zValidator('json', cleanupSchema as any
             sql += ' AND next_scrape < ?';
             params.push(before);
         }
+        if (mediaId) {
+            sql += ' AND media_id = ?';
+            params.push(mediaId);
+        }
 
         const result = await c.env.DB.prepare(sql).bind(...params).run();
-        console.log(`Cleanup D1: ${result.meta.changes} ligne(s) supprimee(s)${type ? ` (type=${type})` : ''}`);
+        const detail = mediaId ? `mediaId=${mediaId}` : (type ? `type=${type}` : 'all');
+        console.log(`Cleanup D1: ${result.meta.changes} ligne(s) supprimee(s) (${detail})`);
 
         return c.json({ success: true, deleted: result.meta.changes, type: type || 'all' });
     } catch (error: any) {
