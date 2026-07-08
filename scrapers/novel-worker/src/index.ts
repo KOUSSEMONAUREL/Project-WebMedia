@@ -21,29 +21,36 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
 const sb = drizzle(supabaseClient);
 
+function extractUrls(text: string): string[] {
+    const urls: string[] = [];
+    for (const line of text.split('\n')) {
+        if (line.includes('http') && !line.includes('peps.python')) {
+            const match = line.match(/https?:\/\/[^\s]+/);
+            if (match) urls.push(match[0]);
+        }
+    }
+    return urls;
+}
+
 async function runSearch(title: string, tempDir: string, sqlitePath: string): Promise<string[]> {
-    const maxRetries = 1;
+    const maxRetries = 2;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const { stdout } = await execPromise(`"${lncrawlBin}" search --source "NovelFire" --timeout 15 "$TITLE"`, {
+            const { stdout } = await execPromise(`"${lncrawlBin}" search --timeout 15 "$TITLE"`, {
                 env: {
                     PATH: process.env.PATH || '',
                     DATABASE_URL: `sqlite:///${sqlitePath}`,
                     LNCRAWL_DATA_PATH: tempDir,
                     TITLE: title,
                 },
-                timeout: 30000,
+                timeout: 45000,
             });
-            const sources: string[] = [];
-            const lines = stdout.split('\n');
-            for (const line of lines) {
-                if (line.includes('http')) {
-                    const match = line.match(/https?:\/\/[^\s]+/);
-                    if (match) sources.push(match[0]);
-                }
-            }
-            return sources;
-        } catch (err) {
+            const urls = extractUrls(stdout);
+            if (urls.length > 0) return urls;
+            return [];
+        } catch (err: any) {
+            const partial = extractUrls(err.stdout || '');
+            if (partial.length > 0) return partial;
             if (attempt === maxRetries) throw err;
             await fs.rm(sqlitePath, { force: true }).catch(() => {});
         }
