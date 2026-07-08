@@ -36,14 +36,14 @@ async function runSearch(title: string, tempDir: string, sqlitePath: string): Pr
     const maxRetries = 2;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const { stdout } = await execPromise(`"${lncrawlBin}" search --timeout 15 "$TITLE"`, {
+            const { stdout } = await execPromise(`"${lncrawlBin}" search --timeout 30 "$TITLE"`, {
                 env: {
                     PATH: process.env.PATH || '',
                     DATABASE_URL: `sqlite:///${sqlitePath}`,
                     LNCRAWL_DATA_PATH: tempDir,
                     TITLE: title,
                 },
-                timeout: 45000,
+                timeout: 60000,
             });
             const urls = extractUrls(stdout);
             if (urls.length > 0) return urls;
