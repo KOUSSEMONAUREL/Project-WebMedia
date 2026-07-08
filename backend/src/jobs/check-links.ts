@@ -117,56 +117,54 @@ async function checkLinks() {
 async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
     const { db: neonDb } = getNeonClient(neonUrl);
     const tursoDb = getTursoClient(tursoUrl, tursoToken);
+    const CONCURRENT = 10;
 
+    async function upsertBatch(table: any, rows: any[], label: string, transform: (r: any) => any) {
+        if (rows.length === 0) return;
+        let done = 0;
+        for (let i = 0; i < rows.length; i += CONCURRENT) {
+            const chunk = rows.slice(i, i + CONCURRENT);
+            await Promise.all(chunk.map(async (row) => {
+                const vals = transform(row);
+                const { id, ...rest } = vals;
+                await tursoDb.insert(table).values(vals)
+                    .onConflictDoUpdate({ target: table.id, set: { ...rest } });
+            }));
+            done += chunk.length;
+            if (done % 100 === 0 || done === rows.length) {
+                console.log(`  ${label}: ${done}/${rows.length}`);
+            }
+        }
+    }
+
+    console.log('Sync medias...');
     const allMedias = await neonDb.select().from(medias);
-    if (allMedias.length > 0) {
-        for (const m of allMedias) {
-            const { id, ...rest } = m;
-            await tursoDb.insert(tursoMedias).values({
-                ...m,
-                slug: m.slug?.slice(0, 100),
-                rating: m.rating?.toString(),
-                metadataFreshAt: m.metadataFreshAt ? new Date(m.metadataFreshAt) : null,
-                linksLastScrapedAt: m.linksLastScrapedAt ? new Date(m.linksLastScrapedAt) : null,
-                createdAt: new Date(m.createdAt!),
-                updatedAt: new Date(m.updatedAt!)
-            }).onConflictDoUpdate({
-                target: tursoMedias.id,
-                set: { ...rest, rating: m.rating?.toString(), updatedAt: new Date() }
-            });
-        }
-    }
+    await upsertBatch(tursoMedias, allMedias, 'medias', (m: any) => ({
+        ...m,
+        slug: m.slug?.slice(0, 100),
+        rating: m.rating?.toString(),
+        metadataFreshAt: m.metadataFreshAt ? new Date(m.metadataFreshAt) : null,
+        linksLastScrapedAt: m.linksLastScrapedAt ? new Date(m.linksLastScrapedAt) : null,
+        createdAt: new Date(m.createdAt!),
+        updatedAt: new Date(m.updatedAt!)
+    }));
 
+    console.log('Sync episodes...');
     const allEpisodes = await neonDb.select().from(episodes);
-    if (allEpisodes.length > 0) {
-        for (const e of allEpisodes) {
-            const { id, ...rest } = e;
-            await tursoDb.insert(tursoEpisodes).values({
-                ...e,
-                airDate: e.airDate ? new Date(e.airDate) : null
-            }).onConflictDoUpdate({
-                target: tursoEpisodes.id,
-                set: { ...rest }
-            });
-        }
-    }
+    await upsertBatch(tursoEpisodes, allEpisodes, 'episodes', (e: any) => ({
+        ...e,
+        airDate: e.airDate ? new Date(e.airDate) : null
+    }));
 
+    console.log('Sync liens...');
     const allLiens = await neonDb.select().from(liens);
-    if (allLiens.length > 0) {
-        for (const l of allLiens) {
-            const { id, ...rest } = l;
-            await tursoDb.insert(tursoLiens).values({
-                ...l,
-                lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
-                scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null
-            }).onConflictDoUpdate({
-                target: tursoLiens.id,
-                set: { ...rest }
-            });
-        }
-    }
+    await upsertBatch(tursoLiens, allLiens, 'liens', (l: any) => ({
+        ...l,
+        lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
+        scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null
+    }));
 
-    console.log(`✅ Sync Turso: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links.`);
+    console.log(`✅ Sync Turso termine: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links.`);
 }
 
 checkLinks().catch(console.error);
