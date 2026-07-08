@@ -450,4 +450,37 @@ internalRoutes.post('/orchestrate', async (c) => {
     }
 });
 
+// ========== POST /api/internal/cleanup/d1-state ==========
+const cleanupSchema = z.object({
+    type: z.string().optional(),
+    before: z.number().optional(),
+});
+
+internalRoutes.post('/cleanup/d1-state', zValidator('json', cleanupSchema as any), async (c) => {
+    const { type, before } = c.req.valid('json') as z.infer<typeof cleanupSchema>;
+    try {
+        if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+
+        let sql = 'DELETE FROM media_state WHERE 1=1';
+        const params: any[] = [];
+
+        if (type) {
+            sql += ' AND type = ?';
+            params.push(type);
+        }
+        if (before) {
+            sql += ' AND next_scrape < ?';
+            params.push(before);
+        }
+
+        const result = await c.env.DB.prepare(sql).bind(...params).run();
+        console.log(`Cleanup D1: ${result.meta.changes} ligne(s) supprimee(s)${type ? ` (type=${type})` : ''}`);
+
+        return c.json({ success: true, deleted: result.meta.changes, type: type || 'all' });
+    } catch (error: any) {
+        console.error('Cleanup D1 Error:', error.message);
+        return c.json({ success: false, error: error.message }, 500);
+    }
+});
+
 export default internalRoutes;
