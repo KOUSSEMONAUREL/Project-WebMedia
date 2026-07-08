@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import axios from 'axios';
-import { getNeonClient, getTursoClient } from '../db/singleton';
+import { createClient } from '@libsql/client';
+import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
+import { getNeonClient } from '../db/singleton';
 import { liens, medias, episodes } from '../db/neon/schema';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from '../db/turso/schema';
 import { eq, sql, and, inArray } from 'drizzle-orm';
@@ -116,53 +118,67 @@ async function checkLinks() {
 
 async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
     const { db: neonDb } = getNeonClient(neonUrl);
-    const tursoDb = getTursoClient(tursoUrl, tursoToken);
-    const CONCURRENT = 10;
+    const tursoClient = createClient({ url: tursoUrl, authToken: tursoToken });
+    const writer = drizzleLibsql(tursoClient, { schema: { medias: tursoMedias, episodes: tursoEpisodes, liens: tursoLiens } });
 
-    async function upsertBatch(table: any, rows: any[], label: string, transform: (r: any) => any) {
+    type ColMap = Record<string, string>;
+    const CHUNK = 200;
+
+    async function batchUpsert(table: string, rows: any[], label: string) {
         if (rows.length === 0) return;
-        let done = 0;
-        for (let i = 0; i < rows.length; i += CONCURRENT) {
-            const chunk = rows.slice(i, i + CONCURRENT);
-            await Promise.all(chunk.map(async (row) => {
-                const vals = transform(row);
-                const { id, ...rest } = vals;
-                await tursoDb.insert(table).values(vals)
-                    .onConflictDoUpdate({ target: table.id, set: { ...rest } });
-            }));
-            done += chunk.length;
-            if (done % 100 === 0 || done === rows.length) {
-                console.log(`  ${label}: ${done}/${rows.length}`);
+        const cols = Object.keys(rows[0]).filter(k => k !== 'id');
+        const placeholders = cols.map(() => '?').join(',');
+        const updates = cols.map(c => `"${c}" = excluded."${c}"`).join(',');
+        const allCols = ['id', ...cols];
+
+        for (let i = 0; i < rows.length; i += CHUNK) {
+            const chunk = rows.slice(i, i + CHUNK);
+            const values: any[] = [];
+            const sqlParams: any[] = [];
+            for (const row of chunk) {
+                values.push(`(${allCols.map(() => '?').join(',')})`);
+                for (const c of allCols) sqlParams.push((row as any)[c] ?? null);
             }
+            await tursoClient.execute({
+                sql: `INSERT INTO "${table}" (${allCols.map(c => `"${c}"`).join(',')}) VALUES ${values.join(',')} ON CONFLICT(id) DO UPDATE SET ${updates}`,
+                args: sqlParams
+            });
         }
+        console.log(`  ${label}: ${rows.length} rows synced in ${Math.ceil(rows.length / CHUNK)} batches`);
     }
 
     console.log('Sync medias...');
     const allMedias = await neonDb.select().from(medias);
-    await upsertBatch(tursoMedias, allMedias, 'medias', (m: any) => ({
-        ...m,
-        slug: m.slug?.slice(0, 100),
-        rating: m.rating?.toString(),
-        metadataFreshAt: m.metadataFreshAt ? new Date(m.metadataFreshAt) : null,
-        linksLastScrapedAt: m.linksLastScrapedAt ? new Date(m.linksLastScrapedAt) : null,
-        createdAt: new Date(m.createdAt!),
-        updatedAt: new Date(m.updatedAt!)
-    }));
+    await batchUpsert('medias', allMedias.map(m => ({
+        id: m.id, external_id: m.externalId, type: m.type, title: m.title,
+        original_title: m.originalTitle, slug: m.slug?.slice(0, 100), synopsis: m.synopsis,
+        year: m.year, author: m.author, poster_url: m.posterUrl, backdrop_url: m.backdropUrl,
+        rating: m.rating?.toString(), vote_count: m.voteCount, status: m.status,
+        tmdb_id: m.tmdbId, imdb_id: m.imdbId, anilist_id: m.anilistId, mal_id: m.malId,
+        kitsu_id: m.kitsuId, igdb_id: m.igdbId, anidb_id: m.anidbId, metadata_source: m.metadataSource,
+        metadata_fresh_at: m.metadataFreshAt?.toISOString(), links_last_scraped_at: m.linksLastScrapedAt?.toISOString(),
+        active_links_count: m.activeLinksCount, genres: m.genres, trailer_url: m.trailerUrl,
+        tagline: m.tagline, studios: m.studios, episode_count: m.episodeCount,
+        created_at: m.createdAt?.toISOString(), updated_at: new Date().toISOString()
+    })), 'medias');
 
     console.log('Sync episodes...');
     const allEpisodes = await neonDb.select().from(episodes);
-    await upsertBatch(tursoEpisodes, allEpisodes, 'episodes', (e: any) => ({
-        ...e,
-        airDate: e.airDate ? new Date(e.airDate) : null
-    }));
+    await batchUpsert('episodes', allEpisodes.map(e => ({
+        id: e.id, media_id: e.mediaId, season_number: e.seasonNumber,
+        episode_number: e.episodeNumber, title: e.title, synopsis: e.synopsis,
+        air_date: e.airDate?.toISOString(), thumbnail_url: e.thumbnailUrl, duration: e.duration
+    })), 'episodes');
 
     console.log('Sync liens...');
     const allLiens = await neonDb.select().from(liens);
-    await upsertBatch(tursoLiens, allLiens, 'liens', (l: any) => ({
-        ...l,
-        lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
-        scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null
-    }));
+    await batchUpsert('liens', allLiens.map(l => ({
+        id: l.id, media_id: l.mediaId, episode_id: l.episodeId, source_site: l.sourceSite,
+        player_host: l.playerHost, url: l.url, quality: l.quality, language: l.language,
+        has_subtitles: l.hasSubtitles ? 1 : 0, headers: l.headers ? JSON.stringify(l.headers) : null,
+        is_active: l.isActive ? 1 : 0, fail_count: l.failCount,
+        last_verified: l.lastVerified?.toISOString(), scraped_at: l.scrapedAt?.toISOString()
+    })), 'liens');
 
     console.log(`✅ Sync Turso termine: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links.`);
 }
