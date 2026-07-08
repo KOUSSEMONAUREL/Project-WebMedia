@@ -25,7 +25,7 @@ async function runSearch(title: string, tempDir: string, sqlitePath: string): Pr
     const maxRetries = 2;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const { stdout } = await execPromise(`"${lncrawlBin}" search "$TITLE"`, {
+            const { stdout } = await execPromise(`"${lncrawlBin}" search --timeout 15 "$TITLE"`, {
                 env: {
                     PATH: process.env.PATH || '',
                     DATABASE_URL: `sqlite:///${sqlitePath}`,
@@ -100,6 +100,7 @@ async function processJob(job: any) {
         } catch (dbErr) {
             console.error('Fatal DB Update Error:', dbErr);
         }
+        throw error;
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });
     }
