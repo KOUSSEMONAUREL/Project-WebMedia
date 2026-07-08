@@ -192,6 +192,7 @@ const ingestMediaSchema = z.object({
 
 internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any), async (c) => {
     const { id, type, metadata_ok, active_links, has_content, title, slug } = c.req.valid('json');
+    if (type === 'book') return c.json({ success: true, skipped: true });
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
         if (slug) {
@@ -230,9 +231,13 @@ const ingestMediaBatchSchema = z.object({
 
 internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSchema as any), async (c) => {
     const { items } = c.req.valid('json') as z.infer<typeof ingestMediaBatchSchema>;
+    const nonBooks = items.filter(i => i.type !== 'book');
+    if (items.length !== nonBooks.length) {
+        console.log(`Batch ingest: ${items.length - nonBooks.length} book(s) skipped`);
+    }
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
-        const cleanStatements = items
+        const cleanStatements = nonBooks
             .filter(item => item.slug)
             .map(item =>
                 c.env.DB!.prepare(
@@ -242,7 +247,7 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
         if (cleanStatements.length > 0) {
             await c.env.DB.batch(cleanStatements);
         }
-        const statements = items.map(item =>
+        const statements = nonBooks.map(item =>
             c.env.DB!.prepare(`
                 INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
