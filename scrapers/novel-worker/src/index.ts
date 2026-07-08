@@ -22,17 +22,17 @@ const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepa
 const sb = drizzle(supabaseClient);
 
 async function runSearch(title: string, tempDir: string, sqlitePath: string): Promise<string[]> {
-    const maxRetries = 2;
+    const maxRetries = 1;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const { stdout } = await execPromise(`"${lncrawlBin}" search --timeout 15 "$TITLE"`, {
+            const { stdout } = await execPromise(`"${lncrawlBin}" search --source "NovelFire" --timeout 15 "$TITLE"`, {
                 env: {
                     PATH: process.env.PATH || '',
                     DATABASE_URL: `sqlite:///${sqlitePath}`,
                     LNCRAWL_DATA_PATH: tempDir,
                     TITLE: title,
                 },
-                timeout: 90000,
+                timeout: 30000,
             });
             const sources: string[] = [];
             const lines = stdout.split('\n');
