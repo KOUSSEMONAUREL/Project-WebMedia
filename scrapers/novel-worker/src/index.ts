@@ -79,7 +79,7 @@ async function processJob(job: any) {
 
         try {
             await axios.post(`${INTERNAL_API_URL}/ingest/liens`, {
-                mediaId: job.mediaId,
+                mediaId: job.media_id,
                 links: sources.map(s => ({
                     source_site: s.site,
                     player_host: new URL(s.url).hostname,
