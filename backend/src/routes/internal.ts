@@ -52,12 +52,13 @@ const ingestLiensSchema = z.object({
     links: z.array(z.object({
         source_site: z.string(),
         player_host: z.string().optional(),
-        // Accepte http/https ET magnet: (jeux) ET toute URI non-vide
         url: z.union([z.string().url(), z.string().startsWith('magnet:'), z.string().min(1)]),
         qualite: z.string().optional(),
         langue: z.string().optional(),
         sous_titres: z.boolean().optional().default(false),
-        headers: z.record(z.string(), z.string()).optional()
+        headers: z.record(z.string(), z.string()).optional(),
+        episode_id: z.string().uuid().optional(),
+        episodeId: z.string().uuid().optional(),
     }))
 });
 
@@ -106,7 +107,7 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                         hasSubtitles: link.sous_titres ?? false,
                         headers: link.headers || null,
                         mediaId,
-                        episodeId: episodeId || null,
+                        episodeId: link.episode_id ?? link.episodeId ?? null,
                         scrapedAt: new Date()
                     }))
                 ).returning();
