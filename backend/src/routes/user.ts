@@ -79,7 +79,7 @@ function authCheck(c: any, next: any) {
     return next();
 }
 
-userRoutes.use('/favorites', async (c, next) => {
+async function turnstileAndAuth(c: any, next: any) {
     if (c.req.method === 'POST' || c.req.method === 'DELETE') {
         const secret = c.env?.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY || '';
         const token = c.req.header('X-Turnstile-Token');
@@ -95,9 +95,12 @@ userRoutes.use('/favorites', async (c, next) => {
         return authCheck(c, next);
     }
     await next();
-});
+}
 
+userRoutes.use('/favorites', turnstileAndAuth);
+userRoutes.use('/favorites/*', turnstileAndAuth);
 userRoutes.use('/history', authCheck);
+userRoutes.use('/history/*', authCheck);
 
 // ========== GET /api/user/favorites ==========
 userRoutes.get('/favorites', async (c) => {
