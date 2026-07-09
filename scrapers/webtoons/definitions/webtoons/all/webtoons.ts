@@ -131,10 +131,13 @@ export class WebtoonsScraper extends BaseScraper {
       ? (path[0] === 'challenge' ? 'canvas' : 'webtoon')
       : (path[1] === 'canvas' ? 'canvas' : 'webtoon');
 
-    const mobileRes = await this.get(
-      `${this.mobileUrl}/api/v1/${type}/${titleId}/episodes?pageSize=99999`,
-      { headers: { Referer: `${this.mobileUrl}/` } },
-    );
+    let apiUrl = `${this.mobileUrl}/api/v1/${type}/${titleId}/episodes?pageSize=99999`;
+    if (type === 'canvas') {
+      apiUrl += `&readingLanguageCode=${this.langCode}`;
+    }
+    const mobileRes = await this.get(apiUrl, {
+      headers: { Referer: `${this.mobileUrl}/` },
+    });
     const body = mobileRes.data as { result?: { episodeList?: Episode[] } };
     const episodes = body?.result?.episodeList || [];
 
