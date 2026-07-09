@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getTursoClient } from '../db/singleton';
 import { medias } from '../db/turso/schema';
-import { and, eq, like, or } from 'drizzle-orm';
+import { and, eq, gt, like, or } from 'drizzle-orm';
 
 type Bindings = {
     TURSO_DATABASE_URL: string;
@@ -51,7 +51,8 @@ searchRoutes.get(
             c.header('Cache-Control', 'public, max-age=60');
             const db = getTursoDb(c);
 
-            let searchFilters = [
+            let searchFilters: any[] = [
+                gt(medias.activeLinksCount, 0),
                 or(
                     like(medias.title, `%${q}%`),
                     like(medias.originalTitle, `%${q}%`)

@@ -66,7 +66,7 @@ export async function getMediaByType(
 
 export async function getAllMedia(): Promise<Media[]> {
   try {
-    const res = await apiClient<ApiResponse<Media[]>>('/media');
+    const res = await apiClient<ApiResponse<Media[]>>('/media/all');
     return mapTypes(res.data);
   } catch {
     return allMockData;

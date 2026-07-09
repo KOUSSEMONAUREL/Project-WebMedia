@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, asc, and, or, like, gte, lte, sql, ne } from 'drizzle-orm';
+import { eq, desc, asc, and, or, like, gte, lte, gt, sql, ne } from 'drizzle-orm';
 
 type Bindings = {
     HYPERDRIVE: Hyperdrive;
@@ -44,15 +44,45 @@ const getNeonWriteDb = (c: any) => {
 mediaRoutes.get('/trending', async (c) => {
     try {
         const db = getTursoDb(c);
-        const trending = await db.select()
-            .from(medias)
-            .orderBy(desc(medias.rating), desc(medias.createdAt))
-            .limit(20);
+        const typeGroups: { type: string; limit: number }[] = [
+            { type: 'movie', limit: 4 },
+            { type: 'serie', limit: 4 },
+            { type: 'anime', limit: 3 },
+            { type: 'game', limit: 3 },
+            { type: 'webtoon', limit: 3 },
+            { type: 'book', limit: 2 },
+            { type: 'novel', limit: 1 },
+        ];
+        const results = await Promise.all(
+            typeGroups.map(({ type, limit }) =>
+                db.select()
+                    .from(medias)
+                    .where(and(eq(medias.type, type), gt(medias.activeLinksCount, 0)))
+                    .orderBy(desc(medias.rating), desc(medias.createdAt))
+                    .limit(limit)
+            )
+        );
+        const trending = results.flat();
         c.header('Cache-Control', 'public, max-age=60');
         return c.json({ success: true, data: trending, count: trending.length, source: 'turso' });
     } catch (error: any) {
         console.error('Erreur trending:', error.message);
-        return c.json({ success: false, error: 'Erreur lors de la récupération des tendances' }, 500);
+        return c.json({ success: false, error: 'Erreur lors de la recuperation des tendances' }, 500);
+    }
+});
+
+// ========== GET /api/media/all (Admin: tous les medias sans filtre liens) ==========
+mediaRoutes.get('/all', async (c) => {
+    try {
+        const db = getTursoDb(c);
+        const results = await db.select()
+            .from(medias)
+            .orderBy(desc(medias.rating), desc(medias.createdAt))
+            .limit(200);
+        return c.json({ success: true, data: results, source: 'turso' });
+    } catch (error: any) {
+        console.error('Erreur all media:', error.message);
+        return c.json({ success: false, error: 'Erreur lors de la récupération des médias' }, 500);
     }
 });
 
@@ -84,7 +114,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const orderFn = order === 'asc' ? asc : desc;
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
-        const conditions: any[] = [eq(medias.type, mediaType)];
+        const conditions: any[] = [eq(medias.type, mediaType), gt(medias.activeLinksCount, 0)];
         if (genre) conditions.push(like(medias.genres, `%${genre}%`));
         if (yearMin) conditions.push(gte(medias.year, yearMin));
         if (yearMax) conditions.push(lte(medias.year, yearMax));
@@ -130,6 +160,7 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, mediaType),
+                    gt(medias.activeLinksCount, 0),
                     ne(medias.id, current.id),
                     or(...genreConditions),
                 ))
@@ -143,6 +174,7 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, mediaType),
+                    gt(medias.activeLinksCount, 0),
                     ...existingIds.map((id: string) => ne(medias.id, id)),
                 ))
                 .orderBy(desc(medias.rating), desc(medias.createdAt))
@@ -186,6 +218,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, media.type),
+                    gt(medias.activeLinksCount, 0),
                     ne(medias.id, media.id),
                 ))
                 .orderBy(desc(medias.rating), desc(medias.createdAt))
