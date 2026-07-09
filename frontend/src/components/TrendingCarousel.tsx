@@ -30,6 +30,7 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
   const ordered = interleave(items);
   const doubled = [...ordered, ...ordered];
   const containerRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartX = useRef(0);
   const dragScrollX = useRef(0);
@@ -37,9 +38,9 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
   const onMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     setIsDragging(true);
+    setPaused(true);
     dragStartX.current = e.clientX;
     dragScrollX.current = containerRef.current.scrollLeft;
-    containerRef.current.style.animationPlayState = 'paused';
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
@@ -50,21 +51,15 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
 
   const onMouseUp = () => {
     setIsDragging(false);
-    if (containerRef.current) {
-      containerRef.current.style.animationPlayState = 'running';
-    }
+    setPaused(false);
   };
 
   const onMouseEnter = () => {
-    if (containerRef.current && !isDragging) {
-      containerRef.current.style.animationPlayState = 'paused';
-    }
+    setPaused(true);
   };
 
   const onMouseLeave = () => {
-    if (containerRef.current) {
-      containerRef.current.style.animationPlayState = 'running';
-    }
+    setPaused(false);
   };
 
   return (
@@ -85,7 +80,8 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
         className="trending-track flex gap-4 select-none"
         style={{
           padding: '0.75rem 0.25rem 1rem',
-        }}
+          animationPlayState: paused ? 'paused' : 'running',
+        } as React.CSSProperties}
       >
         {doubled.map((m, i) => (
           <MediaCard key={`${m.id}-${i}`} media={m} size="large" isLcp={i === 0} />
