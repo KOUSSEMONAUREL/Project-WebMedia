@@ -84,7 +84,7 @@ reviewRoutes.get('/:mediaId', async (c) => {
 
         return c.json({ success: true, data, limit, offset });
     } catch (error: any) {
-        console.error('Erreur reviews:', error.message);
+        console.error('Erreur reviews:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -136,7 +136,7 @@ reviewRoutes.post(
                 data: result[0]
             }, 201);
         } catch (error: any) {
-            console.error('Erreur création review:', error.message);
+            console.error('Erreur création review:', { message: error?.message, cause: error?.cause, stack: error?.stack });
             return c.json({ success: false, error: 'Erreur lors de la création de la review' }, 500);
         }
     }

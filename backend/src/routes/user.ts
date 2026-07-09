@@ -65,7 +65,7 @@ userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string() }))
             data: result[0]
         });
     } catch (error: any) {
-        console.error('Erreur profil:', error.message);
+        console.error('Erreur profil:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -120,7 +120,7 @@ userRoutes.get('/favorites', async (c) => {
             data: userFavorites
         });
     } catch (error: any) {
-        console.error('Erreur favoris:', error.message);
+        console.error('Erreur favoris:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -155,7 +155,7 @@ userRoutes.post('/favorites', zValidator('json', addFavoriteSchema as any), asyn
 
         return c.json({ success: true, message: 'Favori ajouté sur Supabase' });
     } catch (error: any) {
-        console.error('Erreur ajout favori Supabase:', error.message);
+        console.error('Erreur ajout favori Supabase:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -175,7 +175,7 @@ userRoutes.delete('/favorites/:mediaId', async (c) => {
 
         return c.json({ success: true, message: 'Favori retiré de Supabase' });
     } catch (error: any) {
-        console.error('Erreur suppression favori Supabase:', error.message);
+        console.error('Erreur suppression favori Supabase:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -277,7 +277,7 @@ userRoutes.post('/sync', zValidator('json', syncSchema as any), async (c) => {
 
         return c.json({ success: true, data: results });
     } catch (error: any) {
-        console.error('Erreur sync batch:', error.message);
+        console.error('Erreur sync batch:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -299,7 +299,7 @@ userRoutes.get('/history', async (c) => {
 
         return c.json({ success: true, data: entries });
     } catch (error: any) {
-        console.error('Erreur historique:', error.message);
+        console.error('Erreur historique:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
