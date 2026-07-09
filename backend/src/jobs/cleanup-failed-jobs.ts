@@ -15,9 +15,9 @@ async function cleanup() {
     const apiUrl = process.env.INTERNAL_API_URL || '';
     const apiKey = process.env.INTERNAL_API_KEY || '';
 
-    const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const cutoff = new Date(Date.now() - 24 * 3600 * 1000);
 
-    // 1. Trouver les medias avec jobs failed > 7 jours
+    // 1. Trouver les medias avec jobs failed > 1 jour
     const sb = postgres(supabaseUrl, { prepare: false });
     const failedMedia = await sb`
         SELECT DISTINCT media_id, media_type, title
