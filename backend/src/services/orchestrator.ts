@@ -1,7 +1,6 @@
-import { getSupabaseClient, getNeonDb } from "../db/singleton";
-import { scrapingJobs } from "../db/supabase/schema";
+import { getSupabaseHttpClient, getNeonDb } from "../db/singleton";
 import { medias } from "../db/neon/schema";
-import { eq, and, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { logger } from "./logger";
 
 export class OrchestratorService {
@@ -13,7 +12,7 @@ export class OrchestratorService {
 
     constructor(env: any) {
         this.db = env.DB;
-        this.supabase = getSupabaseClient(env.SUPABASE_DATABASE_URL);
+        this.supabase = getSupabaseHttpClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
         this.neon = getNeonDb(env.NEON_DATABASE_URL, env.HYPERDRIVE);
         this.kv = env.KV;
         this.mongoUri = env.MONGODB_URI || process.env.MONGODB_URI;
@@ -57,14 +56,18 @@ export class OrchestratorService {
         const mediaIds = [...new Set(readyMedia.map(m => m.media_id))];
 
         // 2. UNE seule query Supabase : vérifie les jobs existants pour tous les media_ids
-        const existingJobs = await this.supabase.select({ mediaId: scrapingJobs.mediaId })
-            .from(scrapingJobs)
-            .where(and(
-                inArray(scrapingJobs.mediaId, mediaIds),
-                inArray(scrapingJobs.status, ['pending', 'processing'])
-            ));
+        const { data: existingJobs, error: jobsError } = await this.supabase
+            .from('scraping_jobs')
+            .select('media_id')
+            .in('media_id', mediaIds)
+            .in('status', ['pending', 'processing']);
 
-        const existingMediaIds = new Set(existingJobs.map((j: any) => j.mediaId));
+        if (jobsError) {
+            console.error("Erreur vérification jobs Supabase:", jobsError);
+            return { processed: 0 };
+        }
+
+        const existingMediaIds = new Set((existingJobs || []).map((j: any) => j.media_id));
 
         // 3. Récupère title/slug : priorité D1 (stocké à l'ingest), fallback Neon avec retry
         const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>();
@@ -152,9 +155,9 @@ export class OrchestratorService {
                 'cheerio';
 
             insertValues.push({
-                mediaId: media_id,
-                mediaType: type,
-                workerType: workerType,
+                media_id: media_id,
+                media_type: type,
+                worker_type: workerType,
                 title: mediaInfo.title,
                 slug: mediaInfo.slug,
                 status: 'pending',
@@ -174,7 +177,13 @@ export class OrchestratorService {
         }
 
         // 5. UN SEUL batch insert Supabase en premier (si ça fail, D1 n'est pas modifié → retry possible)
-        await this.supabase.insert(scrapingJobs).values(insertValues);
+        const { error: insertError } = await this.supabase
+            .from('scraping_jobs')
+            .insert(insertValues);
+        if (insertError) {
+            console.error("Erreur insertion jobs Supabase:", insertError);
+            return { processed: 0 };
+        }
         console.log(`📡 ${insertValues.length} scraping jobs queued`);
 
         // 6. UN SEUL batch D1 pour UPDATE les next_scrape

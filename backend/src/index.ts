@@ -21,6 +21,8 @@ type Bindings = {
     KV: KVNamespace;
     HYPERDRIVE: Hyperdrive;
     SUPABASE_DATABASE_URL: string;
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
     NEON_DATABASE_URL: string;
     TURSO_DATABASE_URL: string;
     TURSO_AUTH_TOKEN: string;

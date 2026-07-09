@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getSupabaseClient } from '../db/singleton';
-import { user, favorites, watchHistory } from '../db/supabase/schema';
-import { eq, and, inArray, desc } from 'drizzle-orm';
+import { getSupabaseHttpClient } from '../db/singleton';
 import { verifyCloudflareTurnstile } from '../lib/turnstile';
 
 type Bindings = {
-    SUPABASE_DATABASE_URL: string;
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
     TURNSTILE_SECRET_KEY?: string;
 };
 
@@ -42,27 +41,31 @@ const getVar = (c: any, key: string) => {
 userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string() })), async (c) => {
     const { id: userId } = c.req.valid('param' as any);
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        const result = await db.select({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            createdAt: user.createdAt,
-        })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1);
+        const { data: result, error } = await supabase
+            .from('user')
+            .select('id, name, email, image, created_at')
+            .eq('id', userId)
+            .maybeSingle();
 
-        if (result.length === 0) {
+        if (error) throw error;
+
+        if (!result) {
             return c.json({ success: false, error: 'Utilisateur non trouvé' }, 404);
         }
 
         return c.json({
             success: true,
-            data: result[0]
+            data: {
+                id: result.id,
+                name: result.name,
+                email: result.email,
+                image: result.image,
+                createdAt: result.created_at,
+            }
         });
     } catch (error: any) {
         console.error('Erreur profil:', { message: error?.message, cause: error?.cause, stack: error?.stack });
@@ -108,16 +111,20 @@ userRoutes.get('/favorites', async (c) => {
     const userId = sessionUser.id;
 
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        const userFavorites = await db.select()
-            .from(favorites)
-            .where(eq(favorites.userId, userId));
+        const { data: userFavorites, error } = await supabase
+            .from('favorites')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (error) throw error;
 
         return c.json({
             success: true,
-            data: userFavorites
+            data: userFavorites || []
         });
     } catch (error: any) {
         console.error('Erreur favoris:', { message: error?.message, cause: error?.cause, stack: error?.stack });
@@ -136,26 +143,30 @@ userRoutes.post('/favorites', zValidator('json', addFavoriteSchema as any), asyn
     const { mediaId } = c.req.valid('json');
 
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        const existing = await db.select()
-            .from(favorites)
-            .where(and(eq(favorites.userId, userId), eq(favorites.mediaId, mediaId)))
-            .limit(1);
+        const { data: existing } = await supabase
+            .from('favorites')
+            .select('media_id')
+            .eq('user_id', userId)
+            .eq('media_id', mediaId)
+            .maybeSingle();
 
-        if (existing.length > 0) {
+        if (existing) {
             return c.json({ success: true, message: 'Déjà en favoris' });
         }
 
-        await db.insert(favorites).values({
-            userId,
-            mediaId
-        });
+        const { error } = await supabase
+            .from('favorites')
+            .insert({ user_id: userId, media_id: mediaId });
 
-        return c.json({ success: true, message: 'Favori ajouté sur Supabase' });
+        if (error) throw error;
+
+        return c.json({ success: true, message: 'Favori ajouté' });
     } catch (error: any) {
-        console.error('Erreur ajout favori Supabase:', { message: error?.message, cause: error?.cause, stack: error?.stack });
+        console.error('Erreur ajout favori:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -167,15 +178,21 @@ userRoutes.delete('/favorites/:mediaId', async (c) => {
     const mediaId = c.req.param('mediaId');
 
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        await db.delete(favorites)
-            .where(and(eq(favorites.userId, userId), eq(favorites.mediaId, mediaId)));
+        const { error } = await supabase
+            .from('favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('media_id', mediaId);
 
-        return c.json({ success: true, message: 'Favori retiré de Supabase' });
+        if (error) throw error;
+
+        return c.json({ success: true, message: 'Favori retiré' });
     } catch (error: any) {
-        console.error('Erreur suppression favori Supabase:', { message: error?.message, cause: error?.cause, stack: error?.stack });
+        console.error('Erreur suppression favori:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);
     }
 });
@@ -221,8 +238,9 @@ userRoutes.post('/sync', zValidator('json', syncSchema as any), async (c) => {
     const results: { favorites: number; history: number } = { favorites: 0, history: 0 };
 
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
         // Favorites
         const addOps = body.favorites.filter((f: any) => f.action === 'add');
@@ -230,48 +248,59 @@ userRoutes.post('/sync', zValidator('json', syncSchema as any), async (c) => {
 
         if (addOps.length > 0) {
             const addMediaIds = addOps.map((f: any) => f.mediaId);
-            const existing = await db.select({ mediaId: favorites.mediaId })
-                .from(favorites)
-                .where(and(eq(favorites.userId, userId), inArray(favorites.mediaId, addMediaIds)));
+            const { data: existing } = await supabase
+                .from('favorites')
+                .select('media_id')
+                .eq('user_id', userId)
+                .in('media_id', addMediaIds);
 
-            const existingSet = new Set(existing.map((r: any) => r.mediaId));
+            const existingSet = new Set((existing || []).map((r: any) => r.media_id));
             const toInsert = addOps
                 .filter((f: any) => !existingSet.has(f.mediaId))
-                .map((f: any) => ({ userId, mediaId: f.mediaId }));
+                .map((f: any) => ({ user_id: userId, media_id: f.mediaId }));
 
             if (toInsert.length > 0) {
-                await db.insert(favorites).values(toInsert);
-                results.favorites = toInsert.length;
+                const { error } = await supabase.from('favorites').insert(toInsert);
+                if (!error) results.favorites = toInsert.length;
             }
         }
 
         if (removeOps.length > 0) {
             const removeMediaIds = removeOps.map((f: any) => f.mediaId);
-            const result = await db.delete(favorites)
-                .where(and(eq(favorites.userId, userId), inArray(favorites.mediaId, removeMediaIds)));
-            results.favorites = (result as any).rowCount || removeOps.length;
+            const { error } = await supabase
+                .from('favorites')
+                .delete()
+                .eq('user_id', userId)
+                .in('media_id', removeMediaIds);
+            if (!error) results.favorites = removeOps.length;
         }
 
         // History
         if (body.history.length > 0) {
             const historyValues = body.history.map((h: any) => ({
-                userId,
-                mediaId: h.mediaId,
+                user_id: userId,
+                media_id: h.mediaId,
                 type: h.type,
                 title: h.title,
                 slug: h.slug,
-                posterUrl: h.posterUrl || null,
-                visitedAt: new Date(h.visitedAt),
+                poster_url: h.posterUrl || null,
+                visited_at: new Date(h.visitedAt).toISOString(),
             }));
 
-            // Upsert par mediaId: supprime l'ancienne entree puis insert la nouvelle
-            for (const val of historyValues) {
-                await db.delete(watchHistory)
-                    .where(and(eq(watchHistory.userId, userId), eq(watchHistory.mediaId, val.mediaId)));
-            }
-            if (historyValues.length > 0) {
-                await db.insert(watchHistory).values(historyValues);
-            }
+            // Delete old entries for these mediaIds
+            const historyMediaIds = historyValues.map((h: any) => h.media_id);
+            const { error: delError } = await supabase
+                .from('watch_history')
+                .delete()
+                .eq('user_id', userId)
+                .in('media_id', historyMediaIds);
+            if (delError) throw delError;
+
+            const { error: insError } = await supabase
+                .from('watch_history')
+                .insert(historyValues);
+            if (insError) throw insError;
+
             results.history = historyValues.length;
         }
 
@@ -288,16 +317,20 @@ userRoutes.get('/history', async (c) => {
     const userId = sessionUser.id;
 
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        const entries = await db.select()
-            .from(watchHistory)
-            .where(eq(watchHistory.userId, userId))
-            .orderBy(desc(watchHistory.visitedAt))
+        const { data: entries, error } = await supabase
+            .from('watch_history')
+            .select('*')
+            .eq('user_id', userId)
+            .order('visited_at', { ascending: false })
             .limit(100);
 
-        return c.json({ success: true, data: entries });
+        if (error) throw error;
+
+        return c.json({ success: true, data: entries || [] });
     } catch (error: any) {
         console.error('Erreur historique:', { message: error?.message, cause: error?.cause, stack: error?.stack });
         return c.json({ success: false, error: 'Erreur serveur' }, 500);

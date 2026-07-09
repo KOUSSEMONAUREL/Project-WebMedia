@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getSupabaseClient } from '../db/singleton';
-import { reviews, user } from '../db/supabase/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { getSupabaseHttpClient } from '../db/singleton';
 import { turnstileMiddleware } from '../middleware/turnstile';
 
 type Bindings = {
-    SUPABASE_DATABASE_URL: string;
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
 };
 
 type Variables = {
@@ -43,42 +42,32 @@ reviewRoutes.get('/:mediaId', async (c) => {
     const limit = Math.min(Math.abs(Number(c.req.query('limit')) || 50), 100);
     const offset = Math.max(Number(c.req.query('offset')) || 0, 0);
     try {
-        const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-        const db = getSupabaseClient(dbUrl);
+        const supabaseUrl = getVar(c, 'SUPABASE_URL');
+        const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-        const mediaReviews = await db.select({
-            id: reviews.id,
-            userId: reviews.userId,
-            mediaId: reviews.mediaId,
-            rating: reviews.rating,
-            comment: reviews.comment,
-            spoiler: reviews.spoiler,
-            likes: reviews.likes,
-            createdAt: reviews.createdAt,
-            updatedAt: reviews.updatedAt,
-            userName: user.name,
-            userImage: user.image,
-        })
-            .from(reviews)
-            .leftJoin(user, eq(reviews.userId, user.id))
-            .where(eq(reviews.mediaId, mediaId))
-            .orderBy(desc(reviews.createdAt))
-            .limit(limit)
-            .offset(offset);
+        const { data: mediaReviews, error } = await supabase
+            .from('reviews')
+            .select('id, user_id, media_id, rating, comment, spoiler, likes, created_at, updated_at, user:user_id(name, image)')
+            .eq('media_id', mediaId)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        const data = mediaReviews.map((r: Record<string, any>) => ({
+        if (error) throw error;
+
+        const data = (mediaReviews || []).map((r: any) => ({
             id: r.id,
-            userId: r.userId,
-            mediaId: r.mediaId,
+            userId: r.user_id,
+            mediaId: r.media_id,
             rating: r.rating,
             comment: r.comment,
             spoiler: r.spoiler,
             likes: r.likes,
-            createdAt: r.createdAt,
-            updatedAt: r.updatedAt,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
             user: {
-                name: r.userName,
-                image: r.userImage,
+                name: r.user?.name || null,
+                image: r.user?.image || null,
             },
         }));
 
@@ -114,26 +103,38 @@ reviewRoutes.post(
         const userId = sessionUser.id;
 
         try {
-            const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
-            const db = getSupabaseClient(dbUrl);
+            const supabaseUrl = getVar(c, 'SUPABASE_URL');
+            const supabaseKey = getVar(c, 'SUPABASE_ANON_KEY');
+            const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
 
-            const existing = await db.select()
-                .from(reviews)
-                .where(and(eq(reviews.mediaId, data.mediaId), eq(reviews.userId, userId)))
-                .limit(1);
+            const { data: existing } = await supabase
+                .from('reviews')
+                .select('id')
+                .eq('media_id', data.mediaId)
+                .eq('user_id', userId)
+                .maybeSingle();
 
-            if (existing.length > 0) {
+            if (existing) {
                 return c.json({ success: false, error: 'Vous avez déjà posté une review pour ce média' }, 400);
             }
 
-            const result = await db.insert(reviews).values({
-                ...data,
-                userId
-            }).returning();
+            const { data: result, error } = await supabase
+                .from('reviews')
+                .insert({
+                    user_id: userId,
+                    media_id: data.mediaId,
+                    rating: data.rating,
+                    comment: data.comment || null,
+                    spoiler: data.spoiler || false,
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
 
             return c.json({
                 success: true,
-                data: result[0]
+                data: result
             }, 201);
         } catch (error: any) {
             console.error('Erreur création review:', { message: error?.message, cause: error?.cause, stack: error?.stack });

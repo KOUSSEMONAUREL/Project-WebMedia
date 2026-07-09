@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
 import { adminMiddleware } from '../middleware/admin';
-import { getSupabaseClient } from '../db/singleton';
+import { getSupabaseHttpClient } from '../db/singleton';
 import { createClient } from '@libsql/client';
-import { scrapingJobs } from '../db/supabase/schema';
-import { sql, eq, desc } from 'drizzle-orm';
 
 type Bindings = {
-    SUPABASE_DATABASE_URL: string;
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
     NEON_DATABASE_URL: string;
     TURSO_DATABASE_URL: string;
     TURSO_AUTH_TOKEN: string;
@@ -35,7 +34,8 @@ adminRoutes.get('/check', (c) => {
 
 adminRoutes.get('/stats', async (c) => {
     try {
-        const supabaseUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
+        const supabaseUrl = c.env?.SUPABASE_URL || process.env.SUPABASE_URL || '';
+        const supabaseKey = c.env?.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
         let mediaCount = 0;
         let episodeCount = 0;
@@ -56,13 +56,13 @@ adminRoutes.get('/stats', async (c) => {
             db.client.close();
         }
 
-        if (supabaseUrl) {
-            const supabase = getSupabaseClient(supabaseUrl);
-            const jobs = await supabase
-                .select({ count: sql<number>`count(*)` })
-                .from(scrapingJobs)
-                .where(eq(scrapingJobs.status, 'pending'));
-            pendingJobs = Number(jobs[0]?.count || 0);
+        if (supabaseUrl && supabaseKey) {
+            const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
+            const { count, error } = await supabase
+                .from('scraping_jobs')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending');
+            if (!error) pendingJobs = count || 0;
         }
 
         return c.json({ medias: mediaCount, episodes: episodeCount, liens: lienCount, pendingJobs });
@@ -355,15 +355,17 @@ adminRoutes.get('/liens', async (c) => {
 
 adminRoutes.get('/jobs', async (c) => {
     try {
-        const supabaseUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
-        if (!supabaseUrl) return c.json([]);
-        const supabase = getSupabaseClient(supabaseUrl);
-        const jobs = await supabase
-            .select()
-            .from(scrapingJobs)
-            .orderBy(desc(scrapingJobs.createdAt))
+        const supabaseUrl = c.env?.SUPABASE_URL || process.env.SUPABASE_URL || '';
+        const supabaseKey = c.env?.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (!supabaseUrl || !supabaseKey) return c.json([]);
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
+        const { data: jobs, error } = await supabase
+            .from('scraping_jobs')
+            .select('*')
+            .order('created_at', { ascending: false })
             .limit(200);
-        return c.json(jobs);
+        if (error) throw error;
+        return c.json(jobs || []);
     } catch (err) {
         console.error('[admin/jobs]', err);
         return c.json([]);
@@ -373,15 +375,17 @@ adminRoutes.get('/jobs', async (c) => {
 adminRoutes.post('/jobs/:id/retry', async (c) => {
     try {
         const adminUser = c.get('user');
-        const supabaseUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
-        if (!supabaseUrl) return c.json({ error: 'No DB' }, 500);
+        const supabaseUrl = c.env?.SUPABASE_URL || process.env.SUPABASE_URL || '';
+        const supabaseKey = c.env?.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (!supabaseUrl || !supabaseKey) return c.json({ error: 'No DB' }, 500);
         const id = c.req.param('id');
         console.log('[admin-audit]', JSON.stringify({ action: 'retry-job', jobId: id, userId: adminUser?.id, userEmail: adminUser?.email, timestamp: new Date().toISOString() }));
-        const supabase = getSupabaseClient(supabaseUrl);
-        await supabase
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
+        const { error } = await supabase
+            .from('scraping_jobs')
             .update({ status: 'pending', attempts: 0, last_error: null, locked_at: null })
-            .from(scrapingJobs)
-            .where(eq(scrapingJobs.id, id));
+            .eq('id', id);
+        if (error) throw error;
         return c.json({ success: true });
     } catch (err) {
         console.error('[admin/jobs/retry]', err);

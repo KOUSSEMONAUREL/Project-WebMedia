@@ -1,10 +1,8 @@
 import { createMiddleware } from 'hono/factory';
-import { getSupabaseClient } from '../db/singleton';
-import { adminUsers } from '../db/supabase/schema';
-import { eq } from 'drizzle-orm';
+import { getSupabaseHttpClient } from '../db/singleton';
 
 export const adminMiddleware = createMiddleware<{
-    Bindings: { SUPABASE_DATABASE_URL: string };
+    Bindings: { SUPABASE_URL: string; SUPABASE_ANON_KEY: string };
     Variables: {
         user: { id: string; name: string; email: string } | null;
         session: { userId: string } | null;
@@ -18,16 +16,17 @@ export const adminMiddleware = createMiddleware<{
     }
 
     try {
-        const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
-        if (!dbUrl) {
+        const supabaseUrl = c.env?.SUPABASE_URL || process.env.SUPABASE_URL || '';
+        const supabaseKey = c.env?.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (!supabaseUrl || !supabaseKey) {
             return c.json({ error: 'Internal error' }, 500);
         }
-        const db = getSupabaseClient(dbUrl);
-        const [admin] = await db
-            .select({ id: adminUsers.id })
-            .from(adminUsers)
-            .where(eq(adminUsers.userId, user.id))
-            .limit(1);
+        const supabase = getSupabaseHttpClient(supabaseUrl, supabaseKey);
+        const { data: admin } = await supabase
+            .from('admin_users')
+            .select('id')
+            .eq('user_id', user.id)
+            .maybeSingle();
 
         if (!admin) {
             return c.json({ error: 'Forbidden' }, 403);

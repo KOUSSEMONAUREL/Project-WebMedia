@@ -2,6 +2,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
 import postgres from 'postgres';
 import { createClient } from '@libsql/client';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import * as neonSchema from './neon/schema';
 import * as tursoSchema from './turso/schema';
 import * as supabaseSchema from './supabase/schema';
@@ -28,6 +29,13 @@ export function createTursoClient(url: string, authToken?: string) {
 // Types exportés
 export type NeonClient = ReturnType<typeof createNeonClient>;
 export type TursoClient = ReturnType<typeof createTursoClient>;
+
+/**
+ * Client Supabase HTTP (via @supabase/supabase-js - utilise fetch, pas de TCP)
+ */
+export function createSupabaseHttpClient(supabaseUrl: string, supabaseKey: string) {
+    return createSupabaseClient(supabaseUrl, supabaseKey);
+}
 
 // Rétrocompat (à supprimer progressivement)
 export function createDbClient(connectionString: string, type: 'neon' | 'supabase' | 'turso', env?: any): any {
