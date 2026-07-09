@@ -6,6 +6,8 @@ import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
 import { eq, desc, asc, and, or, like, gte, lte, gt, sql, ne } from 'drizzle-orm';
 
+const hasActiveLiens = sql`EXISTS (SELECT 1 FROM liens WHERE liens.media_id = medias.id AND liens.is_active = 1)`;
+
 type Bindings = {
     HYPERDRIVE: Hyperdrive;
     NEON_DATABASE_URL: string;
@@ -57,7 +59,7 @@ mediaRoutes.get('/trending', async (c) => {
             typeGroups.map(({ type, limit }) =>
                 db.select()
                     .from(medias)
-                    .where(and(eq(medias.type, type), gt(medias.activeLinksCount, 0)))
+                    .where(and(eq(medias.type, type), hasActiveLiens))
                     .orderBy(desc(medias.rating), desc(medias.createdAt))
                     .limit(limit)
             )
@@ -114,7 +116,7 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const orderFn = order === 'asc' ? asc : desc;
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
-        const conditions: any[] = [eq(medias.type, mediaType), gt(medias.activeLinksCount, 0)];
+        const conditions: any[] = [eq(medias.type, mediaType), hasActiveLiens];
         if (genre) conditions.push(like(medias.genres, `%${genre}%`));
         if (yearMin) conditions.push(gte(medias.year, yearMin));
         if (yearMax) conditions.push(lte(medias.year, yearMax));
@@ -160,7 +162,7 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, mediaType),
-                    gt(medias.activeLinksCount, 0),
+                    hasActiveLiens,
                     ne(medias.id, current.id),
                     or(...genreConditions),
                 ))
@@ -174,7 +176,7 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, mediaType),
-                    gt(medias.activeLinksCount, 0),
+                    hasActiveLiens,
                     ...existingIds.map((id: string) => ne(medias.id, id)),
                 ))
                 .orderBy(desc(medias.rating), desc(medias.createdAt))
@@ -218,7 +220,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
                 .from(medias)
                 .where(and(
                     eq(medias.type, media.type),
-                    gt(medias.activeLinksCount, 0),
+                    hasActiveLiens,
                     ne(medias.id, media.id),
                 ))
                 .orderBy(desc(medias.rating), desc(medias.createdAt))
