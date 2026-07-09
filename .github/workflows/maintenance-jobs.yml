@@ -20,6 +20,8 @@ jobs:
       - name: Cleanup old failed jobs
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
         run: cd backend && npx tsx src/jobs/cleanup-failed-jobs.ts
 
       - name: Cleanup unsupported types from D1 orchestrator
@@ -27,7 +29,7 @@ jobs:
           INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
         run: |
-          curl -s -X POST "$INTERNAL_API_URL/api/internal/cleanup/d1-state" \
+          curl -s -X POST "$INTERNAL_API_URL/cleanup/d1-state" \
             -H "X-Internal-API-Key: $INTERNAL_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{"type":"book"}'
