@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Search, Bell, Star, Command } from 'lucide-react';
+import { proxyImage } from '@/lib/image';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { LanguageSwitcher } from './language-switcher';
@@ -24,13 +25,13 @@ const navLinks = [
 ];
 
 const typeColors: Record<string, string> = {
-  film:    'bg-sky-600',
-  serie:   'bg-violet-600',
-  anime:   'bg-rose-600',
-  jeu:     'bg-emerald-600',
-  webtoon: 'bg-amber-600',
-  book:    'bg-orange-600',
-  novel:   'bg-teal-600',
+  film:    'bg-sky-700',
+  serie:   'bg-violet-700',
+  anime:   'bg-rose-700',
+  jeu:     'bg-emerald-700',
+  webtoon: 'bg-amber-700',
+  book:    'bg-orange-700',
+  novel:   'bg-teal-700',
 };
 
 interface UserData {
@@ -358,7 +359,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                       onClick={() => { setShowSuggestions(false); setSearchQuery(''); }}
                     >
                       <img
-                        src={item.posterUrl}
+                        src={proxyImage(item.posterUrl)}
                         alt={item.title}
                         className="w-8 h-12 object-cover rounded-md shrink-0"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -400,6 +401,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Notifications"
               className="relative text-muted-foreground hover:text-foreground h-9 w-9"
             >
               <Bell className="h-[17px] w-[17px]" />

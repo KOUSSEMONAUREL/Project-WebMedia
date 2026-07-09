@@ -32,7 +32,7 @@ export function MediaGrid({ title, items, viewAllHref, minCards, size = 'normal'
       </div>
 
       <div className="poster-row">
-        {items.map((media) => <MediaCard key={media.id} media={media} size={size} />)}
+        {items.map((media, i) => <MediaCard key={media.id} media={media} size={size} isLcp={i === 0 && title === 'Recommandations'} />)}
         {Array.from({ length: placeholders }).map((_, i) => (
           <div key={`ph-${i}`} className={`flex-shrink-0 poster-row-card ${
             isLarge ? 'w-[180px] sm:w-[212px]' : 'w-[164px] sm:w-[192px]'

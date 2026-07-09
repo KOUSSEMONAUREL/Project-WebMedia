@@ -1,4 +1,5 @@
 ---
+import { proxyImage } from '../lib/image';
 interface Props { media: any }
 
 const { media } = Astro.props;
@@ -67,7 +68,7 @@ const seasonNums = [...seasons.keys()].sort();
                   <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center relative overflow-hidden"
                        style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
                     {(ep.thumbnail_url || ep.thumbnailUrl) ? (
-                      <img src={ep.thumbnail_url || ep.thumbnailUrl} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
+                      <img src={proxyImage(ep.thumbnail_url || ep.thumbnailUrl)} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
                     ) : (
                       <span class="text-xl font-bold font-mono" style="color: rgba(255,255,255,0.08);">{String(num).padStart(2, '0')}</span>
                     )}

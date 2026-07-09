@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { allMockData } from '../../lib/api';
+import { optimizePosterUrl } from '../../lib/image';
 
 export const prerender = true;
 
@@ -55,7 +56,7 @@ const matching = allMockData.filter(m =>
           <a href={`/${m.type}/${m.slug}`}
              class="group relative rounded-xl overflow-hidden bg-card border border-border hover:border-primary/30 transition-all hover:scale-[1.02]">
             {m.posterUrl ? (
-              <img src={m.posterUrl} alt={m.title} class="w-full aspect-[2/3] object-cover" loading="lazy" />
+              <img src={optimizePosterUrl(m.posterUrl)} alt={m.title} class="w-full aspect-[2/3] object-cover" loading="lazy" />
             ) : (
               <div class="w-full aspect-[2/3] flex items-center justify-center bg-gradient-to-br from-card to-secondary/80">
                 <span class="text-white/20 text-4xl font-bold">{m.title.charAt(0)}</span>

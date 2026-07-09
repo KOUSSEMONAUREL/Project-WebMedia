@@ -15,13 +15,13 @@ const typeLabel: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  film:    'bg-sky-600',
-  serie:   'bg-violet-600',
-  anime:   'bg-rose-600',
-  jeu:     'bg-emerald-600',
-  webtoon: 'bg-amber-600',
-  book:    'bg-orange-600',
-  novel:   'bg-teal-600',
+  film:    'bg-sky-700',
+  serie:   'bg-violet-700',
+  anime:   'bg-rose-700',
+  jeu:     'bg-emerald-700',
+  webtoon: 'bg-amber-700',
+  book:    'bg-orange-700',
+  novel:   'bg-teal-700',
 };
 
 const typeGradients: Record<string, string> = {
@@ -96,9 +96,10 @@ const typeIcons: Record<string, ReactNode> = {
 interface MediaCardProps {
   media: Media;
   size?: 'normal' | 'large';
+  isLcp?: boolean;
 }
 
-export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp }: MediaCardProps) {
   const detailHref = `/${media.type}/${media.slug || media.id}`;
   const isLarge = size === 'large';
 
@@ -228,7 +229,8 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
             sizes="(max-width: 640px) 164px, (max-width: 1024px) 192px, 212px"
             alt={media.title}
             className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
-            loading="lazy"
+            loading={isLcp ? undefined : 'lazy'}
+            fetchPriority={isLcp ? 'high' : undefined}
             onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
           />
         ) : null}
@@ -294,7 +296,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal' }: Med
         </div>
 
         {/* Type badge */}
-        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-[9px] font-bold text-white/80 uppercase tracking-wider`}>
+        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm text-[9px] font-bold text-white uppercase tracking-wider`}>
           {typeLabel[media.type] || media.type}
         </div>
       </div>

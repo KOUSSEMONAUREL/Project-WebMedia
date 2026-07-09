@@ -184,16 +184,15 @@ function cardHtml(m: Media): string {
     if (m.posterUrl) {
       var u = m.posterUrl;
       if (/image\.tmdb\.org/.test(u)) u = u.replace(/\/t\/p\/\w+\//, '/t/p/original/');
-      else if (/books\.google\.com/.test(u)) u = u.replace(/zoom=\d+/, 'zoom=6');
-      var ss = '';
-      if (/image\.tmdb\.org/.test(m.posterUrl)) {
-        var sizes = [342,500,780,1200];
-        var names = ['w342','w500','w780','original'];
-        ss = ' srcset="';
-        for (var si=0; si<4; si++) ss += m.posterUrl.replace(/\/t\/p\/\w+\//, '/t/p/'+names[si]+'/') + ' ' + sizes[si] + 'w' + (si<3?',':'');
-        ss += '"';
-      }
-      img = '<img src="' + u + '"' + ss + ' sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 320px" alt="" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display=\'none\'"/>';
+      if (/books\.google\.com/.test(u)) u = u.replace(/zoom=\d+/, 'zoom=6');
+      var enc = encodeURIComponent(u);
+      var ws = 'https://wsrv.nl/';
+      var src = ws + '?url=' + enc + '&output=webp';
+      var sizes = [342,500,780,1200];
+      var ss = ' srcset="';
+      for (var si=0; si<4; si++) ss += ws + '?url=' + enc + '&output=webp&w=' + sizes[si] + ' ' + sizes[si] + 'w' + (si<3?',':'');
+      ss += '"';
+      img = '<img src="' + src + '"' + ss + ' sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 320px" alt="" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display=\'none\'"/>';
     }
     var h = m.slug || m.id;
     return '<a href="/' + m.type + '/' + h + '" class="group block transition-all duration-300 hover:-translate-y-1.5">'
