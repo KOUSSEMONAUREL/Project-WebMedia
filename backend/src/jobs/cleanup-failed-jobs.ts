@@ -15,7 +15,7 @@ async function cleanup() {
     const apiUrl = process.env.INTERNAL_API_URL || '';
     const apiKey = process.env.INTERNAL_API_KEY || '';
 
-    const cutoff = new Date(Date.now() - 24 * 3600 * 1000);
+    const cutoff = new Date(Date.now() - 3 * 24 * 3600 * 1000);
 
     // 1. Trouver les medias avec jobs failed > 1 jour
     const sb = postgres(supabaseUrl, { prepare: false });
@@ -26,20 +26,33 @@ async function cleanup() {
     `;
     console.log(`Found ${failedMedia.length} failed medias to clean`);
 
+    // Toujours clean les success meme si aucun failed
+    const alwaysCleanup = async () => {
+        const successCutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+        const deletedSuccess = await sb`
+            DELETE FROM scraping_jobs WHERE status = 'success' AND updated_at < ${successCutoff}
+        `;
+        console.log(`Supabase: ${deletedSuccess.count} old success scraping_jobs deleted`);
+    };
+
     if (failedMedia.length === 0) {
+        await alwaysCleanup();
         await sb.end();
         process.exit(0);
     }
 
     const mediaIds = failedMedia.map((r: any) => r.media_id);
 
-    // 2. Supprimer de Supabase (scraping_jobs)
+    // 2. Supprimer de Supabase (scraping_jobs - failed)
     const deletedJobs = await sb`
         DELETE FROM scraping_jobs WHERE media_id IN ${sb(mediaIds)}
     `;
-    console.log(`Supabase: ${deletedJobs.count} scraping_jobs deleted`);
+    console.log(`Supabase: ${deletedJobs.count} failed scraping_jobs deleted`);
 
-    // 3. Supprimer de D1 (media_state) via API
+    // 3. Clean aussi les success vieux (Supabase seulement, audit trail)
+    await alwaysCleanup();
+
+    // 4. Supprimer de D1 (media_state) via API
     if (apiUrl && apiKey) {
         for (const id of mediaIds) {
             try {
@@ -55,7 +68,7 @@ async function cleanup() {
         console.log('D1: skipped (no API config)');
     }
 
-    // 4. Supprimer de Neon (medias + episodes + liens via cascade)
+    // 5. Supprimer de Neon (medias + episodes + liens via cascade)
     if (neonUrl) {
         const { db: neonDb, client: pgClient } = getNeonClient(neonUrl);
         const deletedNeon = await neonDb.delete(neonMedias)
@@ -64,7 +77,7 @@ async function cleanup() {
         await pgClient.end();
     }
 
-    // 5. Supprimer de Turso
+    // 6. Supprimer de Turso
     if (tursoUrl) {
         const tc = createClient({ url: tursoUrl, authToken: tursoToken });
         for (const id of mediaIds) {
