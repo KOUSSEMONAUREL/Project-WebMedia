@@ -62,6 +62,16 @@ function savePendingHistory(entries: PendingHistoryEntry[]): void {
   }
 }
 
+async function getTurnstileTokenForSync(): Promise<string | null> {
+  if (typeof window === 'undefined' || !window.turnstile) return null;
+  const { getTurnstileTokenDirect } = await import('../components/Turnstile');
+  try {
+    return await getTurnstileTokenDirect();
+  } catch {
+    return null;
+  }
+}
+
 async function flushPendingOps(): Promise<void> {
   const favOps = loadPendingFavs();
   const historyEntries = loadPendingHistory();
@@ -73,6 +83,8 @@ async function flushPendingOps(): Promise<void> {
     token = await getAuthToken();
   } catch {}
   if (!token) return;
+
+  const turnstileToken = await getTurnstileTokenForSync();
 
   const apiBaseUrl = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 
@@ -91,10 +103,18 @@ async function flushPendingOps(): Promise<void> {
     body.history = historyEntries;
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+  if (turnstileToken) {
+    headers['X-Turnstile-Token'] = turnstileToken;
+  }
+
   try {
     const res = await fetch(`${apiBaseUrl}/user/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers,
       body: JSON.stringify(body),
       credentials: 'include',
     });

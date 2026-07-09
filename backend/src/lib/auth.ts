@@ -1,8 +1,20 @@
 import { betterAuth } from 'better-auth';
 import { bearer } from 'better-auth/plugins';
+import { createAuthMiddleware } from 'better-auth/api';
+import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { getSupabaseClient } from '../db/singleton';
 import * as schema from '../db/supabase/schema';
+import { verifyCloudflareTurnstile } from './turnstile';
+
+const TURNSTILE_PROTECTED_PATHS = [
+    '/sign-in/email',
+    '/sign-up/email',
+    '/forgot-password',
+    '/reset-password',
+    '/change-password',
+    '/send-verification-email',
+];
 
 let _auth: any = null;
 
@@ -78,6 +90,29 @@ export function getAuth(dbUrl?: string) {
             },
         },
         plugins: [bearer()],
+        hooks: {
+            before: createAuthMiddleware(async (ctx) => {
+                if (!TURNSTILE_PROTECTED_PATHS.includes(ctx.path)) return;
+
+                const token = ctx.body?.turnstileToken as string | undefined;
+                const secret = process.env.TURNSTILE_SECRET_KEY || '';
+
+                if (!token || !secret) {
+                    throw new APIError('FORBIDDEN', {
+                        message: token
+                            ? 'Anti-bot verification failed'
+                            : 'Anti-bot verification required',
+                    });
+                }
+
+                const valid = await verifyCloudflareTurnstile(token, secret);
+                if (!valid) {
+                    throw new APIError('FORBIDDEN', {
+                        message: 'Anti-bot verification failed',
+                    });
+                }
+            }),
+        },
     });
     return _auth;
 }
@@ -89,6 +124,7 @@ export function ensureAuthEnv(env: Record<string, string | undefined>) {
         'GOOGLE_CLIENT_SECRET',
         'BETTER_AUTH_SECRET',
         'BETTER_AUTH_URL',
+        'TURNSTILE_SECRET_KEY',
     ];
     for (const key of keys) {
         if (env[key] && !process.env[key]) {

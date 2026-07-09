@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Variables d'environnement
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 
 # Trigger quotidien à 06:00 UTC
 [triggers]

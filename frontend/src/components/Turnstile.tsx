@@ -141,6 +141,16 @@ export function useTurnstile() {
 const VERIFY_URL = import.meta.env.PUBLIC_API_URL?.replace(/\/api\/?$/, '') + '/api/verify-turnstile';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
+export async function getTurnstileTokenDirect(): Promise<string> {
+    if (globalToken) return globalToken;
+    return new Promise((resolve) => {
+        globalResolve = resolve;
+        if (globalWidgetId && window.turnstile) {
+            window.turnstile.reset(globalWidgetId);
+        }
+    });
+}
+
 export async function verifyTurnstileToken(token: string): Promise<boolean> {
     try {
         const res = await fetch(VERIFY_URL, {

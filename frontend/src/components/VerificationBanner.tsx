@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import { X, Mail, RefreshCw } from 'lucide-react';
+import { useTurnstile } from './Turnstile';
 
 const DISMISS_KEY = 'webmedia_verification_dismissed';
 
@@ -19,17 +20,21 @@ export function VerificationBanner() {
   const [sent, setSent] = useState(false);
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
+  const { getToken: getTurnstileToken } = useTurnstile();
 
   const emailVerified = user?.emailVerified ?? true;
 
   if (isPending || emailVerified || dismissed || !user) return null;
 
   const handleResend = async () => {
+    const turnstileToken = await getTurnstileToken();
+    if (!turnstileToken) return;
     setSending(true);
     try {
       await sendVerificationEmail({
         email: user.email,
         callbackURL: window.location.origin + '/verify-success',
+        turnstileToken,
       });
       setSent(true);
       setTimeout(() => setSent(false), 4000);

@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { getSupabaseClient } from '../db/singleton';
 import { user, favorites, watchHistory } from '../db/supabase/schema';
 import { eq, and, inArray, desc } from 'drizzle-orm';
+import { verifyCloudflareTurnstile } from '../lib/turnstile';
 
 type Bindings = {
     SUPABASE_DATABASE_URL: string;
+    TURNSTILE_SECRET_KEY?: string;
 };
 
 type Variables = {
@@ -69,21 +71,33 @@ userRoutes.get('/profile/:id', zValidator('param', z.object({ id: z.string() }))
 });
 
 // ========== PROTECTED ROUTES ==========
-userRoutes.use('/favorites', async (c, next) => {
+function authCheck(c: any, next: any) {
     const sessionUser = c.get('user');
     if (!sessionUser) {
         return c.json({ success: false, error: 'Non authentifié' }, 401);
+    }
+    return next();
+}
+
+userRoutes.use('/favorites', async (c, next) => {
+    if (c.req.method === 'POST' || c.req.method === 'DELETE') {
+        const secret = c.env?.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY || '';
+        const token = c.req.header('X-Turnstile-Token');
+        if (!token || !secret) {
+            return c.json({ success: false, error: 'Anti-bot verification required' }, 403);
+        }
+        const valid = await verifyCloudflareTurnstile(token, secret);
+        if (!valid) {
+            return c.json({ success: false, error: 'Anti-bot verification failed' }, 403);
+        }
+    }
+    if (c.req.method === 'GET' || c.req.method === 'POST' || c.req.method === 'DELETE') {
+        return authCheck(c, next);
     }
     await next();
 });
 
-userRoutes.use('/history', async (c, next) => {
-    const sessionUser = c.get('user');
-    if (!sessionUser) {
-        return c.json({ success: false, error: 'Non authentifié' }, 401);
-    }
-    await next();
-});
+userRoutes.use('/history', authCheck);
 
 // ========== GET /api/user/favorites ==========
 userRoutes.get('/favorites', async (c) => {
@@ -122,7 +136,6 @@ userRoutes.post('/favorites', zValidator('json', addFavoriteSchema as any), asyn
         const dbUrl = getVar(c, 'SUPABASE_DATABASE_URL');
         const db = getSupabaseClient(dbUrl);
 
-        // Vérifier si le favori existe déjà
         const existing = await db.select()
             .from(favorites)
             .where(and(eq(favorites.userId, userId), eq(favorites.mediaId, mediaId)))
@@ -181,6 +194,15 @@ const syncSchema = z.object({
 });
 
 userRoutes.use('/sync', async (c, next) => {
+    const secret = c.env?.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY || '';
+    const token = c.req.header('X-Turnstile-Token');
+    if (!token || !secret) {
+        return c.json({ success: false, error: 'Anti-bot verification required' }, 403);
+    }
+    const valid = await verifyCloudflareTurnstile(token, secret);
+    if (!valid) {
+        return c.json({ success: false, error: 'Anti-bot verification failed' }, 403);
+    }
     const sessionUser = c.get('user');
     if (!sessionUser) {
         return c.json({ success: false, error: 'Non authentifié' }, 401);

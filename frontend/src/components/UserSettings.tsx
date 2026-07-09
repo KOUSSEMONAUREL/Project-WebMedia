@@ -73,13 +73,14 @@ export function UserSettings() {
   const isVerified = sessionUser?.emailVerified ?? true;
 
   const handleSendVerification = async () => {
-    const turned = await verifyTurnstile();
-    if (!turned) return;
+    const turnstileToken = await getTurnstileToken();
+    if (!turnstileToken) return;
     setVerifSending(true);
     try {
       await sendVerificationEmail({
         email: currentUser.email,
         callbackURL: window.location.origin + '/verify-success',
+        turnstileToken,
       });
       setVerifSent(true);
       setTimeout(() => setVerifSent(false), 4000);
@@ -192,8 +193,8 @@ export function UserSettings() {
           ) : (
           <form onSubmit={async (e) => {
             e.preventDefault();
-            const turned = await verifyTurnstile();
-            if (!turned) { setPwError('Verification anti-bot echouee, reessaye'); return; }
+            const turnstileToken = await getTurnstileToken();
+            if (!turnstileToken) { setPwError('Verification anti-bot echouee, reessaye'); return; }
             const form = e.target as HTMLFormElement;
             const currentPw = (form.elements.namedItem('currentPw') as HTMLInputElement).value;
             const newPw = (form.elements.namedItem('newPw') as HTMLInputElement).value;
@@ -208,7 +209,7 @@ export function UserSettings() {
             setPwSending(true);
             setPwError('');
             try {
-              const { error: changeErr } = await changePassword({ currentPassword: currentPw, newPassword: newPw });
+              const { error: changeErr } = await changePassword({ currentPassword: currentPw, newPassword: newPw, turnstileToken });
               if (changeErr) {
                 setPwError(changeErr.message || 'Erreur');
               } else {

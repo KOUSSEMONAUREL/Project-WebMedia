@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
-import { useTurnstile, verifyTurnstileToken } from './Turnstile';
+import { useTurnstile } from './Turnstile';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -26,7 +26,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
-    const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+    const { getToken: getTurnstileToken } = useTurnstile();
 
     const passwordRules = useMemo(() => ({
         minMax: formData.password.length >= 8 && formData.password.length <= 16,
@@ -49,18 +49,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         formData.confirmPassword.length > 0
     );
 
-    const verifyTurnstile = async (): Promise<boolean> => {
-        try {
-            const token = await getTurnstileToken();
-            if (!token) return false;
-            const ok = await verifyTurnstileToken(token);
-            if (ok) resetTurnstile();
-            return ok;
-        } catch {
-            return false;
-        }
-    };
-
     if (!isOpen) return null;
 
     const resetForm = () => {
@@ -70,8 +58,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     };
 
     const handleResendVerification = async () => {
-        const turned = await verifyTurnstile();
-        if (!turned) {
+        const turnstileToken = await getTurnstileToken();
+        if (!turnstileToken) {
             setError("Verification anti-bot echouee, reessaye");
             return;
         }
@@ -81,6 +69,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             const { error: resendError } = await sendVerificationEmail({
                 email: formData.email,
                 callbackURL: window.location.origin + '/verify-success',
+                turnstileToken,
             });
             if (resendError) {
                 setError(resendError.message || 'Erreur lors de l\'envoi');
@@ -96,8 +85,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         e.preventDefault();
         setError('');
 
-        const turned = await verifyTurnstile();
-        if (!turned) {
+        const turnstileToken = await getTurnstileToken();
+        if (!turnstileToken) {
             setError("Verification anti-bot echouee, reessaye");
             return;
         }
@@ -156,6 +145,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 const { data, error: signInError } = await authClient.signIn.email({
                     email: formData.email,
                     password: formData.password,
+                    turnstileToken,
                 });
 
                 if (signInError) {
@@ -185,6 +175,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     email: formData.email,
                     password: formData.password,
                     name: formData.name,
+                    turnstileToken,
                     callbackURL: window.location.origin + '/verify-success',
                 });
 
@@ -321,8 +312,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     setError('Email invalide');
                                     return;
                                 }
-                                const turned = await verifyTurnstile();
-                                if (!turned) {
+                                const turnstileToken = await getTurnstileToken();
+                                if (!turnstileToken) {
                                     setError("Verification anti-bot echouee, reessaye");
                                     return;
                                 }
@@ -331,6 +322,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     const { error: resetError } = await authClient.requestPasswordReset({
                                         email: formData.email,
                                         redirectTo: window.location.origin + '/reset-password',
+                                        turnstileToken,
                                     });
                                     if (resetError) {
                                         setError(resetError.message || 'Erreur');

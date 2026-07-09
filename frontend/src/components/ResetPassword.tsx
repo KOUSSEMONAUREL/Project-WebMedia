@@ -94,9 +94,11 @@ export function ResetPassword() {
       return;
     }
 
+    const turnstileToken = await getTurnstileToken();
+    if (!turnstileToken) { setError('Verification anti-bot echouee, reessaye'); return; }
     setLoading(true);
     try {
-      const { error: resetError } = await authClient.resetPassword({ newPassword: password, token });
+      const { error: resetError } = await authClient.resetPassword({ newPassword: password, token, turnstileToken });
       if (resetError) {
         setError(resetError.message || 'Erreur');
       } else {
