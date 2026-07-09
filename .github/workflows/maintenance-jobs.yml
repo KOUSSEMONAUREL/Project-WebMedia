@@ -28,7 +28,7 @@ jobs:
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
         run: |
           curl -s -X POST "$INTERNAL_API_URL/api/internal/cleanup/d1-state" \
-            -H "x-api-key: $INTERNAL_API_KEY" \
+            -H "X-Internal-API-Key: $INTERNAL_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{"type":"book"}'
         
