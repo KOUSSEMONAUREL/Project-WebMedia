@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
     integrations: [react()],
-    output: 'server',
+    output: 'hybrid',
     adapter: vercel(),
     vite: {
         plugins: [
