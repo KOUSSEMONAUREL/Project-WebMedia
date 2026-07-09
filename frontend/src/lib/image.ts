@@ -1,3 +1,4 @@
+const ANILIST_RE = /anilist\.co/;
 const TMDB_RE = /image\.tmdb\.org\/t\/p\/\w+\//;
 const GOOGLE_BOOKS_RE = /books\.google\.com/;
 const WSRV_BASE = 'https://wsrv.nl/';
@@ -13,10 +14,12 @@ function sourceUrl(url: string): string {
 }
 
 function w(url: string): string {
+  if (ANILIST_RE.test(url)) return url;
   return `${WSRV_BASE}?url=${encodeURIComponent(url)}&output=webp`;
 }
 
 function wsrc(url: string, width: number): string {
+  if (ANILIST_RE.test(url)) return '';
   return `${WSRV_BASE}?url=${encodeURIComponent(url)}&output=webp&w=${width} ${width}w`;
 }
 
@@ -28,7 +31,8 @@ export function optimizePosterUrl(url?: string): string | undefined {
 export function posterSrcSet(url?: string): string | undefined {
   if (!url) return undefined;
   const sizes = [342, 500, 780, 1200];
-  return sizes.map((w_) => wsrc(sourceUrl(url), w_)).join(', ');
+  const set = sizes.map((w_) => wsrc(sourceUrl(url), w_)).filter(Boolean).join(', ');
+  return set || undefined;
 }
 
 export function proxyImage(url?: string): string | undefined {
