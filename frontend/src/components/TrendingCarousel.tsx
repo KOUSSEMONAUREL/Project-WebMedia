@@ -103,8 +103,8 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
             cursor: grabbing;
           }
           @keyframes trending-scroll {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
+            0% { transform: translateX(-50%); }
+            100% { transform: translateX(0); }
           }
         `}
       </style>
