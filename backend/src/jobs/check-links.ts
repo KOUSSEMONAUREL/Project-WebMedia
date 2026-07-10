@@ -5,7 +5,7 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
 import { getNeonClient } from '../db/singleton';
 import { liens, medias, episodes } from '../db/neon/schema';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from '../db/turso/schema';
-import { eq, sql, and, inArray } from 'drizzle-orm';
+import { eq, sql, and, or, gt, inArray } from 'drizzle-orm';
 
 async function mapConcurrent<T, R>(
     items: T[],
@@ -147,8 +147,14 @@ async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: st
         console.log(`  ${label}: ${rows.length} rows synced in ${Math.ceil(rows.length / CHUNK)} batches`);
     }
 
-    console.log('Sync medias...');
-    const allMedias = await neonDb.select().from(medias);
+    console.log('Sync medias (streaming always, non-streaming only if has links)...');
+    const allMedias = await neonDb.select().from(medias)
+        .where(
+            or(
+                inArray(medias.type, ['movie', 'serie', 'anime']),
+                gt(medias.activeLinksCount, 0)
+            )
+        );
     await batchUpsert('medias', allMedias.map(m => ({
         id: m.id, external_id: m.externalId, type: m.type, title: m.title,
         original_title: m.originalTitle, slug: m.slug?.slice(0, 100), synopsis: m.synopsis,
@@ -162,16 +168,22 @@ async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: st
         created_at: m.createdAt?.toISOString(), updated_at: new Date().toISOString()
     })), 'medias');
 
-    console.log('Sync episodes...');
-    const allEpisodes = await neonDb.select().from(episodes);
+    const syncedMediaIds = allMedias.map(m => m.id);
+
+    console.log('Sync episodes (for synced media)...');
+    const allEpisodes = syncedMediaIds.length > 0
+        ? await neonDb.select().from(episodes).where(inArray(episodes.mediaId, syncedMediaIds))
+        : [];
     await batchUpsert('episodes', allEpisodes.map(e => ({
         id: e.id, media_id: e.mediaId, season_number: e.seasonNumber,
         episode_number: e.episodeNumber, title: e.title, synopsis: e.synopsis,
         air_date: e.airDate?.toISOString(), thumbnail_url: e.thumbnailUrl, duration: e.duration
     })), 'episodes');
 
-    console.log('Sync liens...');
-    const allLiens = await neonDb.select().from(liens);
+    console.log('Sync liens (for synced media)...');
+    const allLiens = syncedMediaIds.length > 0
+        ? await neonDb.select().from(liens).where(inArray(liens.mediaId, syncedMediaIds))
+        : [];
     await batchUpsert('liens', allLiens.map(l => ({
         id: l.id, media_id: l.mediaId, episode_id: l.episodeId, source_site: l.sourceSite,
         player_host: l.playerHost, url: l.url, quality: l.quality, language: l.language,

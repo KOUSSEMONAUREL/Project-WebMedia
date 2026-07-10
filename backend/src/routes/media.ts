@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, asc, and, or, like, gte, lte, gt, sql, ne } from 'drizzle-orm';
+import { eq, desc, asc, and, or, like, gte, lte, sql, ne } from 'drizzle-orm';
 
 type Bindings = {
     HYPERDRIVE: Hyperdrive;
@@ -54,16 +54,13 @@ mediaRoutes.get('/trending', async (c) => {
             { type: 'novel', limit: 1 },
         ];
         const results = await Promise.all(
-            typeGroups.map(({ type, limit }) => {
-                const conditions: any[] = [eq(medias.type, type)];
-                const needsLinks = ['game', 'webtoon', 'book', 'novel'].includes(type);
-                if (needsLinks) conditions.push(gt(medias.activeLinksCount, 0));
-                return db.select()
+            typeGroups.map(({ type, limit }) =>
+                db.select()
                     .from(medias)
-                    .where(and(...conditions))
+                    .where(eq(medias.type, type))
                     .orderBy(desc(medias.rating), desc(medias.createdAt))
-                    .limit(limit);
-            })
+                    .limit(limit)
+            )
         );
         const trending = results.flat();
         c.header('Cache-Control', 'public, max-age=60');
@@ -118,8 +115,6 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
         const conditions: any[] = [eq(medias.type, mediaType)];
-        const needsLinks = ['game', 'webtoon', 'book', 'novel'].includes(mediaType);
-        if (needsLinks) conditions.push(gt(medias.activeLinksCount, 0));
         if (genre) conditions.push(like(medias.genres, `%${genre}%`));
         if (yearMin) conditions.push(gte(medias.year, yearMin));
         if (yearMax) conditions.push(lte(medias.year, yearMax));
