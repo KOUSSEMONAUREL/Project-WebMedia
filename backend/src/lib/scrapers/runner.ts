@@ -1,7 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { BaseScraper } from '../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../engine/types';
 
 const SCRAPERS_DIR = path.join(__dirname, '..', '..', '..', '..', 'scrapers', 'webtoons', 'definitions', 'webtoons');
 
@@ -45,7 +43,7 @@ export function listScrapers(): ScraperInfo[] {
   return infos;
 }
 
-export async function getScraper(nameOrUrl: string): Promise<BaseScraper | null> {
+export async function getScraper(nameOrUrl: string): Promise<any | null> {
   const scrapers = listScrapers();
   const match = nameOrUrl.toLowerCase();
 
@@ -59,7 +57,7 @@ export async function getScraper(nameOrUrl: string): Promise<BaseScraper | null>
   return null;
 }
 
-export async function getScraperForUrl(url: string): Promise<BaseScraper | null> {
+export async function getScraperForUrl(url: string): Promise<any | null> {
   const scrapers = listScrapers();
   const urlLower = url.toLowerCase();
 

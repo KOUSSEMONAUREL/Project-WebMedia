@@ -25,7 +25,7 @@ type Variables = {
     session: import('./middleware/session').Variables['session'];
 };
 
-const app = new Hono<{ Variables: Variables }>();
+const app = new Hono<{ Bindings: any; Variables: Variables }>();
 
 // ========== MIDDLEWARES GLOBAUX ==========
 app.use('*', logger());

@@ -175,7 +175,7 @@ async function main() {
 
     if (!fribbEntry) { noFribb++; skipped++; continue; }
 
-    const tmdbId = row.tmdbId ?? fribbEntry.tmdbId;
+    const tmdbId = fribbEntry.tmdbId ?? row.tmdbId;
     if (!tmdbId) { noTmdb++; skipped++; continue; }
 
     try {
