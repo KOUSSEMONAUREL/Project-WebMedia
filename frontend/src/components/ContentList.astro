@@ -107,7 +107,11 @@ const seasonNums = [...seasons.keys()].sort();
 
     <div class="space-y-3">
       <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">Lecteurs disponibles</h4>
-      <div id="ep-detail-links" class="flex flex-wrap gap-2"></div>
+      <div id="ep-player-wrapper" class="w-full aspect-video rounded-xl overflow-hidden" style="background: rgba(0,0,0,0.5); display: none;">
+        <iframe id="ep-iframe" class="w-full h-full" allow="autoplay; encrypted-media" allowfullscreen referrerpolicy="origin"></iframe>
+      </div>
+      <div id="ep-source-btns" class="flex flex-wrap gap-2" style="display: none;"></div>
+      <div id="ep-no-links" class="text-xs text-white/35" style="display: none;">Aucun lien de visionnage disponible pour cet episode</div>
     </div>
   </div>
 </div>
@@ -125,7 +129,10 @@ const seasonNums = [...seasons.keys()].sort();
     const durEl = document.getElementById('ep-detail-duration');
     const synEl = document.getElementById('ep-detail-synopsis');
     const synContainer = document.getElementById('ep-detail-synopsis-container');
-    const linksEl = document.getElementById('ep-detail-links');
+    const playerWrapper = document.getElementById('ep-player-wrapper');
+    const epIframe = document.getElementById('ep-iframe') as HTMLIFrameElement | null;
+    const sourceBtns = document.getElementById('ep-source-btns');
+    const noLinks = document.getElementById('ep-no-links');
 
     if (tabs.length === 0) return;
 
@@ -206,34 +213,43 @@ const seasonNums = [...seasons.keys()].sort();
         }
       }
 
-      if (linksEl) {
-        linksEl.innerHTML = '';
-        const tmdbId = document.querySelector('[data-tmdb-id]')?.getAttribute('data-tmdb-id');
-        if (tmdbId && epData.num) {
-          const SOURCES = [
-            { name: 'vsembed.ru', url: (tmdb: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-            { name: 'vsembed.su', url: (tmdb: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-            { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&sea=${s}&epi=${e}` },
-            { name: 'vidsrc.to', url: (tmdb: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` },
-            { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${tmdb}/${s}/${e}` },
-          ];
-          SOURCES.forEach(src => {
-            const a = document.createElement('a');
-            a.href = src.url(Number(tmdbId), epData.season || 1, epData.num);
-            a.target = '_blank';
-            a.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
-            a.style.background = 'rgba(59,130,246,0.08)';
-            a.style.border = '1px solid rgba(59,130,246,0.15)';
-            a.style.color = '#60A5FA';
-            a.textContent = src.name;
-            linksEl.appendChild(a);
+      const tmdbId = document.querySelector('[data-tmdb-id]')?.getAttribute('data-tmdb-id');
+      if (tmdbId && epData.num && epIframe && sourceBtns && playerWrapper && noLinks) {
+        const season = epData.season || 1;
+        const SOURCES = [
+          { name: 'vsembed.ru', url: (tmdb: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
+          { name: 'vsembed.su', url: (tmdb: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
+          { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&sea=${s}&epi=${e}` },
+          { name: 'vidsrc.to', url: (tmdb: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` },
+          { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${tmdb}/${s}/${e}` },
+        ];
+        const num = Number(tmdbId);
+        epIframe.src = SOURCES[0].url(num, season, epData.num);
+        playerWrapper.style.display = 'block';
+        sourceBtns.innerHTML = '';
+        sourceBtns.style.display = 'flex';
+        noLinks.style.display = 'none';
+        SOURCES.forEach((src, i) => {
+          const btn = document.createElement('button');
+          btn.textContent = src.name;
+          btn.dataset.url = src.url(num, season, epData.num);
+          btn.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
+          btn.style.cssText = i === 0
+            ? 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25); color: #60A5FA;'
+            : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
+          btn.addEventListener('click', () => {
+            if (epIframe) epIframe.src = btn.dataset.url;
+            sourceBtns.querySelectorAll('button').forEach(b => {
+              b.style.cssText = 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);';
+            });
+            btn.style.cssText = 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25); color: #60A5FA;';
           });
-        } else {
-          const span = document.createElement('span');
-          span.className = 'text-xs text-white/35';
-          span.textContent = 'Aucun lien de visionnage disponible pour cet épisode';
-          linksEl.appendChild(span);
-        }
+          sourceBtns.appendChild(btn);
+        });
+      } else if (noLinks) {
+        if (playerWrapper) playerWrapper.style.display = 'none';
+        if (sourceBtns) sourceBtns.style.display = 'none';
+        noLinks.style.display = 'block';
       }
 
       if (panel) {
@@ -257,6 +273,10 @@ const seasonNums = [...seasons.keys()].sort();
         el.style.background = 'rgba(255,255,255,0.02)';
       });
 
+      if (epIframe) epIframe.src = '';
+      if (playerWrapper) playerWrapper.style.display = 'none';
+      if (sourceBtns) sourceBtns.style.display = 'none';
+      if (noLinks) noLinks.style.display = 'none';
       if (panel) panel.classList.add('hidden');
       history.replaceState(null, '', window.location.pathname);
     }

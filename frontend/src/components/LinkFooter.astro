@@ -45,13 +45,16 @@ const STREAMING_SOURCES = [
   {isStreaming && tmdbId && type === 'film' && (
     <div>
       <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(255,255,255,0.4);">Streaming</h3>
-      <div class="flex flex-wrap gap-2">
-        {STREAMING_SOURCES.map(src => (
-          <a href={src.movieUrl(tmdbId)} target="_blank"
-             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-             style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
+      <div class="w-full aspect-video rounded-xl overflow-hidden mb-3" style="background: rgba(0,0,0,0.5);">
+        <iframe id="film-iframe" src={STREAMING_SOURCES[0].movieUrl(tmdbId)} class="w-full h-full" allow="autoplay; encrypted-media" allowfullscreen referrerpolicy="origin"></iframe>
+      </div>
+      <div class="flex flex-wrap gap-2" id="film-source-btns">
+        {STREAMING_SOURCES.map((src, i) => (
+          <button data-src={src.movieUrl(tmdbId)}
+             class="source-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer"
+             style={`background: ${i === 0 ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)'}; border: 1px solid ${i === 0 ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)'}; color: ${i === 0 ? '#60A5FA' : 'rgba(255,255,255,0.7)'};`}>
             {src.name}
-          </a>
+          </button>
         ))}
       </div>
     </div>
@@ -88,3 +91,24 @@ const STREAMING_SOURCES = [
   )}
 </div>
 )}
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    const btns = document.querySelectorAll('#film-source-btns .source-btn');
+    const iframe = document.getElementById('film-iframe');
+    if (!btns.length || !iframe) return;
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        iframe.src = btn.dataset.src;
+        btns.forEach(b => {
+          b.style.background = 'rgba(255,255,255,0.04)';
+          b.style.borderColor = 'rgba(255,255,255,0.06)';
+          b.style.color = 'rgba(255,255,255,0.7)';
+        });
+        btn.style.background = 'rgba(59,130,246,0.12)';
+        btn.style.borderColor = 'rgba(59,130,246,0.25)';
+        btn.style.color = '#60A5FA';
+      });
+    });
+  });
+</script>
