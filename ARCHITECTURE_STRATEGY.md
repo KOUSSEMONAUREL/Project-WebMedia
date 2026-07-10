@@ -15,7 +15,7 @@ Architecture multi-cloud, coût 0€/mois, utilisant les limites gratuites des h
 | **Rate Limiting**     | Upstash Redis               | 100 req/min (auth/search), 200 req/min (general)     |
 | **Orchestrateur**     | Cloudflare Worker (cron)    | `resolveStaleMedia()` — 09h UTC                   |
 | **Import Worker**     | GitHub Actions              | Import metadata via 12 APIs externes                 |
-| **Scrapers**          | GitHub Actions              | Extraction liens (Cheerio, Playwright, Custom)       |
+| **Scrapers**          | GitHub Actions              | Extraction liens (Playwright, Webtoon, Novel)       |
 | **Webtoon Engine**    | GitHub Actions              | 188+ définitions, 3 langues (en/fr/all)             |
 | **Recommender**       | Render (Python)             | FastAPI, TF-IDF cosine similarity                    |
 
@@ -35,7 +35,7 @@ graph TD
     subgraph "Scraping Pipeline (GitHub Actions — multiples horaires)"
         ORC[Orchestrator CF Worker] -->|cron 07:00/19:00| D1[(Cloudflare D1)]
         ORC -->|queue jobs| SUPABASE[(Supabase)]
-        SCR[Cheerio / Playwright / Novel / Webtoon] -->|pull jobs| SUPABASE
+        SCR[Playwright / Novel / Webtoon] -->|pull jobs| SUPABASE
         SCR -->|POST /api/internal/ingest| BA[Backend API]
         BA -->|write| NEON
     end
@@ -61,11 +61,11 @@ graph TD
 | Plateforme        | Horaire UTC               | Action                 | Détail                                                                                                  |
 | ----------------- | ------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | GitHub Actions    | **03:00** quotidien | `import-metadata`    | 12 sources : TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, Comic Vine, NosLivres, RoyalRoad |
-| GitHub Actions    | **08:00 / 20:00**   | `cheerio-scraper`    | Scrape liens vidéo                                                                                      |
 | GitHub Actions    | **08:20 / 20:20**   | `playwright-scraper` | Scrape jeux (7 sites)                                                                                    |
 | GitHub Actions    | **08:40 / 20:40**   | `novel-scraper`      | Scrape romans/novels                                                                                     |
 | GitHub Actions    | **09:00 / 21:00**   | `webtoon-scraper`    | Scrape 188+ définitions webtoon                                                                         |
 | GitHub Actions    | **06:00** quotidien | `keiyoushi-monitor`  | Surveille màj upstream des définitions                                                                 |
+| GitHub Actions    | **03:00** quotidien | `sync-anime-episodes` | Crée les metadata episodes (Fribb + TMDB)                                                               |
 | GitHub Actions    | **Dimanche 04:00**  | `maintenance-jobs`   | Dead link checker → sync Neon→Turso                                                                    |
 | Cloudflare Worker | **06:00** quotidien | `orchestrator`       | Résout les médias périmés (media_state D1)                                                           |
 
@@ -98,6 +98,8 @@ Cloudflare D1 ── media_state, id_mapping, scrape_queue, genres, plateformes,
 ```
 
 Sync Neon→Turso exécuté après chaque import worker et après le dead link checker.
+
+> **Note streaming** : les liens embed (film/serie/anime) ne sont plus stockés en DB. Ils sont générés dynamiquement côté frontend depuis le TMDB ID → 5 sources embed (vsembed.ru, vsembed.su, vidsrcme.ru, vidsrc.to, 2embed.cc). Le cheerio-worker a été supprimé. Les autres types (jeu/book/novel/webtoon/comic) conservent leurs liens stockés dans `liens`.
 
 ## API Gateway (webmedia-proxy)
 

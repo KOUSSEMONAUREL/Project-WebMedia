@@ -86,7 +86,7 @@ export const scrapingJobs = pgTable('scraping_jobs', {
     id: uuid('id').primaryKey().defaultRandom(),
     mediaId: varchar('media_id', { length: 100 }).notNull(),
     mediaType: varchar('media_type', { length: 20 }).notNull(),
-    workerType: varchar('worker_type', { length: 20 }).notNull().default('cheerio'),
+    workerType: varchar('worker_type', { length: 20 }).notNull(),
     title: varchar('title', { length: 500 }),
     slug: varchar('slug', { length: 500 }),
     status: varchar('status', { length: 20 }).notNull().default('pending'),

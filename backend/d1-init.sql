@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS sources (
   id              TEXT PRIMARY KEY,
   nom             TEXT,
   url_base        TEXT,
-  type_scraper    TEXT,    -- 'api'/'cheerio'/'playwright'
+   type_scraper    TEXT,    -- 'api'/'playwright'
   media_types     TEXT,    -- JSON array
   actif           INTEGER DEFAULT 1,
   cooldown_min    INTEGER DEFAULT 0,
@@ -105,7 +105,5 @@ INSERT OR IGNORE INTO plateformes (nom, slug, type) VALUES
 ('Amazon Prime Video', 'prime-video', 'stream');
 
 INSERT OR IGNORE INTO sources (id, nom, type_scraper, media_types) VALUES
-('vidsrc', 'VidSrc', 'api', '["film", "serie"]'),
-('animesama', 'AnimeSama', 'cheerio', '["anime"]'),
 ('mangadex', 'MangaDex', 'api', '["manga"]'),
-('flixhq', 'FlixHQ', 'cheerio', '["film", "serie"]');
+('anilist', 'AniList', 'api', '["anime"]');
