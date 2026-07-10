@@ -142,7 +142,10 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
 
             const mediaValues = toInsert.map((item: any) => {
                 const title = item.title || item.name;
-                const mediaType = category.startsWith('movie') ? 'movie' : 'serie';
+                const isJapanese = item.original_language === 'ja';
+                const isChinese = item.original_language === 'zh';
+                const isAnimeLang = isJapanese || isChinese;
+                const mediaType = category.startsWith('movie') ? 'movie' : (isAnimeLang ? 'anime' : 'serie');
                 const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
                 const backdropUrl = item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined;
                 const genreNames = (item.genre_ids || [])
@@ -159,7 +162,6 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
                     voteCount: item.vote_count || 0,
                     genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
                     metadataSource: 'tmdb', metadataFreshAt: new Date(),
-                    episode_count: mediaType === 'serie' ? (item.original_language === 'ja' || !!item.origin_country?.includes('JP') ? undefined : undefined) : undefined,
                 };
             });
 
@@ -190,7 +192,7 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
 
             const brainItems = inserted
                 .filter(m => m.externalId)
-                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' : 'serie' as const, title: m.title, slug: m.slug }));
+                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' as const : 'serie' as const, title: m.title, slug: m.slug }));
             await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
             for (const m of inserted) {

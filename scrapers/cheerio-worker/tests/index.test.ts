@@ -12,7 +12,6 @@ test('cheerio-worker has streaming sources', () => {
   assert.ok(src.includes('vidsrc.me'));
   assert.ok(src.includes('vidsrc.to'));
   assert.ok(src.includes('2embed.cc'));
-  assert.ok(src.includes('embed.su'));
   assert.ok(src.includes('multiembed'));
   assert.ok(src.includes('vidsrc.icu'));
   assert.ok(src.includes('ezvidapi'));

@@ -47,10 +47,16 @@ const STREAMING_SOURCES: { name: string; buildUrl: BuildUrlFn; host: string }[] 
       : `https://www.2embed.cc/embed/tv/${id}/${s ?? 1}/${e ?? 1}`,
   },
   {
-    name: 'embed.su', host: 'embed.su',
+    name: 'vsembed.ru', host: 'vsembed.ru',
     buildUrl: (id, t, s, e) => t === 'film'
-      ? `https://embed.su/embed/movie/${id}`
-      : `https://embed.su/embed/tv/${id}/${s ?? 1}/${e ?? 1}`,
+      ? `https://vsembed.ru/embed/movie?tmdb=${id}`
+      : `https://vsembed.ru/embed/tv?tmdb=${id}&season=${s ?? 1}&episode=${e ?? 1}`,
+  },
+  {
+    name: 'vsembed.su', host: 'vsembed.su',
+    buildUrl: (id, t, s, e) => t === 'film'
+      ? `https://vsembed.su/embed/movie?tmdb=${id}`
+      : `https://vsembed.su/embed/tv?tmdb=${id}&season=${s ?? 1}&episode=${e ?? 1}`,
   },
   {
     name: 'multiembed', host: 'multiembed.mov',
