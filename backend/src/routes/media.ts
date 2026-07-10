@@ -54,13 +54,16 @@ mediaRoutes.get('/trending', async (c) => {
             { type: 'novel', limit: 1 },
         ];
         const results = await Promise.all(
-            typeGroups.map(({ type, limit }) =>
-                db.select()
+            typeGroups.map(({ type, limit }) => {
+                const conditions: any[] = [eq(medias.type, type)];
+                const needsLinks = ['game', 'webtoon', 'book', 'novel'].includes(type);
+                if (needsLinks) conditions.push(gt(medias.activeLinksCount, 0));
+                return db.select()
                     .from(medias)
-                    .where(eq(medias.type, type))
+                    .where(and(...conditions))
                     .orderBy(desc(medias.rating), desc(medias.createdAt))
-                    .limit(limit)
-            )
+                    .limit(limit);
+            })
         );
         const trending = results.flat();
         c.header('Cache-Control', 'public, max-age=60');
@@ -115,6 +118,8 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
         const conditions: any[] = [eq(medias.type, mediaType)];
+        const needsLinks = ['game', 'webtoon', 'book', 'novel'].includes(mediaType);
+        if (needsLinks) conditions.push(gt(medias.activeLinksCount, 0));
         if (genre) conditions.push(like(medias.genres, `%${genre}%`));
         if (yearMin) conditions.push(gte(medias.year, yearMin));
         if (yearMax) conditions.push(lte(medias.year, yearMax));
@@ -144,11 +149,26 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
     try {
         const db = getTursoDb(c);
         const mediaType = mapType(type);
-        const [current] = await db.select()
+        let [current] = await db.select()
             .from(medias)
             .where(and(eq(medias.type, mediaType), eq(medias.slug, slug)))
             .limit(1);
-        if (!current) return c.json({ success: false, error: 'Média non trouvé' }, 404);
+        if (!current) {
+            const normalized = normalizeSlug(slug);
+            if (normalized !== slug) {
+                [current] = await db.select()
+                    .from(medias)
+                    .where(and(eq(medias.type, mediaType), eq(medias.slug, normalized)))
+                    .limit(1);
+            }
+            if (!current && !slug.endsWith('-')) {
+                [current] = await db.select()
+                    .from(medias)
+                    .where(and(eq(medias.type, mediaType), eq(medias.slug, slug + '-')))
+                    .limit(1);
+            }
+            if (!current) return c.json({ success: false, error: 'Média non trouvé' }, 404);
+        }
 
         const genres = current.genres || '';
         const genreList = genres.split(',').map((g: string) => g.trim()).filter(Boolean);
@@ -188,17 +208,37 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
     }
 });
 
+function normalizeSlug(s: string): string {
+    return s.slice(0, 100).replace(/-+$/, '');
+}
+
 // ========== GET /api/media/:type/:slug ==========
 mediaRoutes.get('/:type/:slug', async (c) => {
     const { type, slug } = c.req.param();
     try {
         const db = getTursoDb(c);
-        const result = await db.select()
+        const mediaType = mapType(type);
+        let result = await db.select()
             .from(medias)
-            .where(and(eq(medias.type, mapType(type)), eq(medias.slug, slug)))
+            .where(and(eq(medias.type, mediaType), eq(medias.slug, slug)))
             .limit(1);
         if (result.length === 0) {
-            return c.json({ success: false, error: 'Média non trouvé' }, 404);
+            const normalized = normalizeSlug(slug);
+            if (normalized !== slug) {
+                result = await db.select()
+                    .from(medias)
+                    .where(and(eq(medias.type, mediaType), eq(medias.slug, normalized)))
+                    .limit(1);
+            }
+            if (result.length === 0 && !slug.endsWith('-')) {
+                result = await db.select()
+                    .from(medias)
+                    .where(and(eq(medias.type, mediaType), eq(medias.slug, slug + '-')))
+                    .limit(1);
+            }
+            if (result.length === 0) {
+                return c.json({ success: false, error: 'Média non trouvé' }, 404);
+            }
         }
         const media = result[0];
         const hasEpisodes = type === 'serie' || type === 'anime';

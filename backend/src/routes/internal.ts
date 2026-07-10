@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { createClient } from '@libsql/client';
 import { getNeonDb } from '../db/singleton';
 import { medias, episodes, liens } from '../db/neon/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -15,6 +16,8 @@ type Bindings = {
     MONGODB_URI: string;
     TMDB_API_KEY: string;
     DB: D1Database;
+    TURSO_DATABASE_URL?: string;
+    TURSO_AUTH_TOKEN?: string;
 };
 
 const internalRoutes = new Hono<{ Bindings: Bindings }>();
@@ -132,6 +135,38 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                     next_scrape = ?
                 WHERE media_id = ?
             `).bind(inserted.length, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
+        }
+
+        // Sync to Turso (non-blocking)
+        const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
+        const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
+        if (tursoUrl && tursoToken && inserted.length > 0) {
+            try {
+                const turso = createClient({ url: tursoUrl, authToken: tursoToken });
+                const connStr = getVar(c, 'NEON_DATABASE_URL');
+                const hyperdrive = c.env?.HYPERDRIVE;
+                const neonDb = getNeonDb(connStr, hyperdrive) as any;
+                const [mediaRow] = await neonDb.select().from(medias).where(eq(medias.id, mediaId));
+                const mediaExists = await turso.execute('SELECT id FROM medias WHERE id = ?', [mediaId]);
+                if (mediaRow && mediaExists.rows.length === 0) {
+                    await turso.execute({
+                        sql: 'INSERT OR REPLACE INTO medias (id, external_id, type, title, original_title, slug, synopsis, year, poster_url, backdrop_url, rating, vote_count, status, tmdb_id, imdb_id, anilist_id, mal_id, kitsu_id, igdb_id, anidb_id, metadata_source, metadata_fresh_at, links_last_scraped_at, active_links_count, created_at, updated_at, author, episode_count, genres, trailer_url, duration, tagline, studios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        args: [mediaRow.id, mediaRow.externalId, mediaRow.type, mediaRow.title, mediaRow.originalTitle, mediaRow.slug?.slice(0, 100), mediaRow.synopsis, mediaRow.year, mediaRow.posterUrl, mediaRow.backdropUrl, mediaRow.rating?.toString(), mediaRow.voteCount, mediaRow.status, mediaRow.tmdbId, mediaRow.imdbId, mediaRow.anilistId, mediaRow.malId, mediaRow.kitsuId, mediaRow.igdbId, mediaRow.anidbId, mediaRow.metadataSource, mediaRow.metadataFreshAt?.toISOString() || null, mediaRow.linksLastScrapedAt?.toISOString() || null, mediaRow.activeLinksCount, mediaRow.createdAt?.toISOString() || null, new Date().toISOString(), mediaRow.author, mediaRow.episodeCount, mediaRow.genres, mediaRow.trailerUrl, null, mediaRow.tagline, mediaRow.studios]
+                    });
+                }
+                const BATCH = 50;
+                for (let i = 0; i < inserted.length; i += BATCH) {
+                    const chunk = inserted.slice(i, i + BATCH);
+                    const stmts = chunk.map((l: any) => ({
+                        sql: 'INSERT OR REPLACE INTO liens (id, media_id, episode_id, source_site, player_host, url, quality, language, has_subtitles, is_active, fail_count, last_verified, scraped_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        args: [l.id, l.mediaId, l.episodeId, l.sourceSite, l.playerHost, l.url, l.quality, l.language, l.hasSubtitles ? 1 : 0, true, 0, new Date().toISOString(), new Date().toISOString()]
+                    }));
+                    await turso.batch(stmts, 'deferred');
+                }
+                await turso.close();
+            } catch (tursoError: any) {
+                console.warn(`[IngestWorker] Turso sync failed (non-blocking): ${tursoError.message}`);
+            }
         }
 
         await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length }, mongoUri(c));
