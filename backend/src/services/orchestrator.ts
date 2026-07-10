@@ -148,11 +148,15 @@ export class OrchestratorService {
 
             if (type === 'book') continue;
 
+            const isStreaming = type === 'film' || type === 'serie' || type === 'anime';
+            if (isStreaming) continue;
+
             const workerType =
                 (type === 'game' || type === 'jeu') ? 'playwright' :
                 type === 'novel' ? 'novel' :
                 (type === 'webtoon' || type === 'comic' || type === 'manga') ? 'webtoon' :
-                'cheerio';
+                null;
+            if (!workerType) continue;
 
             insertValues.push({
                 media_id: media_id,

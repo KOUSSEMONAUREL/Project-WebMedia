@@ -23,6 +23,7 @@ try {
 const isEpisode = type === 'serie' || type === 'anime';
 const hasEpisodes = isEpisode && (media?.episodes?.length ?? 0) > 0;
 const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
+const isStreaming = type === 'film' || type === 'serie' || type === 'anime';
 
 const data = media ? {
   id: media.id, type: media.type, title: media.title, slug: media.slug,
@@ -43,7 +44,7 @@ const data = media ? {
 
       <div class="container mx-auto px-4 sm:px-6 pb-20 mt-8 space-y-12">
         {hasEpisodes && <ContentList media={media} />}
-        {hasLinks && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} />}
+        {(isStreaming || hasLinks) && <LinkFooter links={media.links} legalLinks={media.legalLinks} type={media.type} tmdbId={media.tmdbId} />}
         <ReviewSection mediaId={media.id} client:load />
         <SimilarSection similar={media?.similar} client:load />
       </div>

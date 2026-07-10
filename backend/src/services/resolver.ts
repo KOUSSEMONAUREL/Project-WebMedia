@@ -43,20 +43,16 @@ export async function resolveAction(state: MediaState) {
 
     // 3. Routing par type
     if (state.type === 'film' || state.type === 'serie' || state.type === 'anime') {
-        return { action: 'SCRAPE_STREAMING', queue: 'queue:scrape:cheerio' };
+        return { action: 'SKIP' };
     }
 
     if (state.type === 'manga' || state.type === 'webtoon' || state.type === 'comic') {
-        return { action: 'SCRAPE_WEBTOON', queue: 'queue:scrape:cheerio' };
+        return { action: 'SCRAPE_WEBTOON', queue: 'queue:scrape:webtoon' };
     }
 
     if (state.type === 'game' || state.type === 'jeu') {
         return { action: 'SCRAPE_GAME', queue: 'queue:scrape:playwright' };
     }
 
-    // Default to general scrapers
-    return {
-        action: 'SCRAPE_GENERAL',
-        queue: 'queue:scrape:cheerio'
-    };
+    return { action: 'SKIP' };
 }

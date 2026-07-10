@@ -6,7 +6,7 @@ const { media } = Astro.props;
 const episodes: any[] = media.episodes || [];
 const hasEpisodes = episodes.length > 0;
 
-const allLinks: any[] = (media.links || []).filter((l: any) => (l.is_active ?? l.isActive ?? 1) !== 0);
+const streamingType = media.type === 'film' ? 'movie' : 'tv';
 
 const seasons = new Map<number, any[]>();
 for (const ep of episodes) {
@@ -18,7 +18,7 @@ const seasonNums = [...seasons.keys()].sort();
 ---
 
 {hasEpisodes && (
-<div class="space-y-6 max-w-5xl mx-auto">
+<div class="space-y-6 max-w-5xl mx-auto" data-tmdb-id={media.tmdbId || ''}>
   {/* Season Tabs Selector */}
   <div class="flex flex-wrap gap-2 pb-1.5 overflow-x-auto scrollbar-hide border-b border-white/5">
     {seasonNums.map((sn) => (
@@ -44,10 +44,6 @@ const seasonNums = [...seasons.keys()].sort();
               const title = ep.title || `Épisode ${num}`;
               const dur = ep.duration;
               const synopsis = ep.synopsis;
-              const epLinks = allLinks.filter((l: any) => {
-                const lid = l.episode_id ?? l.episodeId;
-                return lid && String(lid) === String(ep.id);
-              });
 
               return (
                 <div
@@ -58,11 +54,11 @@ const seasonNums = [...seasons.keys()].sort();
                   data-episode-data={JSON.stringify({
                     id: ep.id,
                     num: num,
+                    season: ep.season_number ?? ep.seasonNumber ?? 1,
                     title: title,
                     duration: dur,
                     synopsis: synopsis || '',
                     airDate: ep.air_date ?? ep.airDate ?? null,
-                    links: epLinks
                   })}
                 >
                   <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center relative overflow-hidden"
@@ -82,11 +78,6 @@ const seasonNums = [...seasons.keys()].sort();
                     {synopsis && (
                       <p class="text-xs mt-1.5 line-clamp-1 leading-relaxed" style="color: rgba(255,255,255,0.35);">{synopsis}</p>
                     )}
-                    <div class="mt-2.5 flex items-center gap-1.5">
-                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg" style="background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.35);">
-                        {epLinks.length > 0 ? `${epLinks.length} source${epLinks.length > 1 ? 's' : ''}` : 'Aucune source'}
-                      </span>
-                    </div>
                   </div>
                 </div>
               );
@@ -115,7 +106,7 @@ const seasonNums = [...seasons.keys()].sort();
     </div>
 
     <div class="space-y-3">
-      <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">Liens de visionnage</h4>
+      <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">Lecteurs disponibles</h4>
       <div id="ep-detail-links" class="flex flex-wrap gap-2"></div>
     </div>
   </div>
@@ -217,29 +208,24 @@ const seasonNums = [...seasons.keys()].sort();
 
       if (linksEl) {
         linksEl.innerHTML = '';
-        const links = epData.links || [];
-        if (links.length > 0) {
-          links.forEach((l: any) => {
-            const site = l.source_site || l.sourceSite || 'Lien';
+        const tmdbId = document.querySelector('[data-tmdb-id]')?.getAttribute('data-tmdb-id');
+        if (tmdbId && epData.num) {
+          const SOURCES = [
+            { name: 'vsembed.ru', url: (tmdb: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
+            { name: 'vsembed.su', url: (tmdb: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
+            { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&sea=${s}&epi=${e}` },
+            { name: 'vidsrc.to', url: (tmdb: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` },
+            { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${tmdb}/${s}/${e}` },
+          ];
+          SOURCES.forEach(src => {
             const a = document.createElement('a');
-            a.href = l.url;
+            a.href = src.url(Number(tmdbId), epData.season || 1, epData.num);
             a.target = '_blank';
             a.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
             a.style.background = 'rgba(59,130,246,0.08)';
             a.style.border = '1px solid rgba(59,130,246,0.15)';
             a.style.color = '#60A5FA';
-            
-            let content = site;
-            if (l.quality) {
-              content += ` <span style="background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; padding: 1px 4.5px; border-radius: 4px; margin-left: 4px;">${l.quality}</span>`;
-            }
-            if (l.player_host || l.playerHost) {
-              content += ` <span style="color: rgba(255,255,255,0.25); font-size:9px; margin-left:3px;">(${l.player_host || l.playerHost})</span>`;
-            }
-            if (l.has_subtitles ?? l.hasSubtitles) {
-              content += ` <span style="color: rgba(251,191,36,0.5); font-size:9px; margin-left:3px;">SOUS-TITRES</span>`;
-            }
-            a.innerHTML = content;
+            a.textContent = src.name;
             linksEl.appendChild(a);
           });
         } else {

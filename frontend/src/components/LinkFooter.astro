@@ -1,16 +1,27 @@
 ---
-interface Props { links?: any[]; legalLinks?: any[]; type: string }
+interface Props { links?: any[]; legalLinks?: any[]; type: string; tmdbId?: number }
 
-const { links = [], legalLinks = [], type } = Astro.props;
+const { links = [], legalLinks = [], type, tmdbId } = Astro.props;
 const active = links.filter((l: any) => {
   const isActive = (l.is_active ?? l.isActive ?? 1) !== 0;
   return isActive && !l.episode_id && !l.episodeId;
 });
-const show = active.length > 0 || legalLinks.length > 0;
+const isStreaming = type === 'film' || type === 'serie' || type === 'anime';
+const showDynamic = type === 'film' && !!tmdbId;
+const showDbLinks = !isStreaming;
+const show = active.length > 0 || legalLinks.length > 0 || showDynamic;
 
 const label = type === 'jeu' ? 'Téléchargement' : (type === 'book' || type === 'novel') ? 'Lecture' : 'Streaming';
 const groups = new Map<string, any[]>();
 for (const l of active) { const s = l.source_site || l.sourceSite || 'Source'; if (!groups.has(s)) groups.set(s, []); groups.get(s)!.push(l); }
+
+const STREAMING_SOURCES = [
+  { name: 'vsembed.ru', host: 'vsembed.ru', movieUrl: (id: number) => `https://vsembed.ru/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+  { name: 'vsembed.su', host: 'vsembed.su', movieUrl: (id: number) => `https://vsembed.su/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+  { name: 'vidsrcme.ru', host: 'vidsrcme.ru', movieUrl: (id: number) => `https://vidsrcme.ru/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${id}&sea=${s}&epi=${e}` },
+  { name: 'vidsrc.to', host: 'vidsrc.to', movieUrl: (id: number) => `https://vidsrc.to/embed/movie/${id}`, tvUrl: (id: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
+  { name: '2embed.cc', host: 'www.2embed.cc', movieUrl: (id: number) => `https://www.2embed.cc/embed/movie/${id}`, tvUrl: (id: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${id}/${s}/${e}` },
+];
 ---
 
 {show && (
@@ -31,7 +42,22 @@ for (const l of active) { const s = l.source_site || l.sourceSite || 'Source'; i
     </div>
   )}
 
-  {active.length > 0 && (
+  {isStreaming && tmdbId && type === 'film' && (
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(255,255,255,0.4);">Streaming</h3>
+      <div class="flex flex-wrap gap-2">
+        {STREAMING_SOURCES.map(src => (
+          <a href={src.movieUrl(tmdbId)} target="_blank"
+             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+             style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
+            {src.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {showDbLinks && active.length > 0 && (
     <div>
       <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(255,255,255,0.4);">{label}</h3>
       <div class="flex flex-wrap gap-2">

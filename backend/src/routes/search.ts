@@ -51,9 +51,7 @@ searchRoutes.get(
             c.header('Cache-Control', 'public, max-age=60');
             const db = getTursoDb(c);
 
-            const hasActiveLiens = sql`EXISTS (SELECT 1 FROM liens WHERE liens.media_id = medias.id AND liens.is_active = 1)`;
             let searchFilters: any[] = [
-                hasActiveLiens,
                 or(
                     like(medias.title, `%${q}%`),
                     like(medias.originalTitle, `%${q}%`)
