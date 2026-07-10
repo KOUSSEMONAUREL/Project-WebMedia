@@ -18,9 +18,9 @@ for (const l of active) { const s = l.source_site || l.sourceSite || 'Source'; i
 const STREAMING_SOURCES = [
   { name: 'vsembed.ru', host: 'vsembed.ru', movieUrl: (id: number) => `https://vsembed.ru/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
   { name: 'vsembed.su', host: 'vsembed.su', movieUrl: (id: number) => `https://vsembed.su/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
-  { name: 'vidsrcme.ru', host: 'vidsrcme.ru', movieUrl: (id: number) => `https://vidsrcme.ru/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${id}&sea=${s}&epi=${e}` },
+  { name: 'vidsrcme.ru', host: 'vidsrcme.ru', movieUrl: (id: number) => `https://vidsrcme.ru/embed/movie?tmdb=${id}`, tvUrl: (id: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
   { name: 'vidsrc.to', host: 'vidsrc.to', movieUrl: (id: number) => `https://vidsrc.to/embed/movie/${id}`, tvUrl: (id: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
-  { name: '2embed.cc', host: 'www.2embed.cc', movieUrl: (id: number) => `https://www.2embed.cc/embed/movie/${id}`, tvUrl: (id: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${id}/${s}/${e}` },
+  { name: '2embed.cc', host: 'www.2embed.cc', movieUrl: (id: number) => `https://www.2embed.cc/embed/movie/${id}`, tvUrl: (id: number, s: number, e: number) => `https://www.2embed.cc/embed/${id}${s}${e}` },
 ];
 ---
 

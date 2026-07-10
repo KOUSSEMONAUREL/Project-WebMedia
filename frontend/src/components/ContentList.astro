@@ -219,9 +219,9 @@ const seasonNums = [...seasons.keys()].sort();
         const SOURCES = [
           { name: 'vsembed.ru', url: (tmdb: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
           { name: 'vsembed.su', url: (tmdb: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-          { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&sea=${s}&epi=${e}` },
+          { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
           { name: 'vidsrc.to', url: (tmdb: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` },
-          { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/tv/${tmdb}/${s}/${e}` },
+          { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/${tmdb}${s}${e}` },
         ];
         const num = Number(tmdbId);
         epIframe.src = SOURCES[0].url(num, season, epData.num);
