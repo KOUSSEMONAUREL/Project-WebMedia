@@ -1,4 +1,5 @@
 const ANILIST_RE = /anilist\.co/;
+const MANGADEX_RE = /uploads\.mangadex\.org/;
 const TMDB_RE = /image\.tmdb\.org\/t\/p\/\w+\//;
 const GOOGLE_BOOKS_RE = /books\.google\.com/;
 const WSRV_BASE = 'https://wsrv.nl/';
@@ -13,13 +14,17 @@ function sourceUrl(url: string): string {
   return url;
 }
 
+function bypassProxy(url: string): boolean {
+  return ANILIST_RE.test(url) || MANGADEX_RE.test(url);
+}
+
 function w(url: string): string {
-  if (ANILIST_RE.test(url)) return url;
+  if (bypassProxy(url)) return url;
   return `${WSRV_BASE}?url=${encodeURIComponent(url)}&output=webp`;
 }
 
 function wsrc(url: string, width: number): string {
-  if (ANILIST_RE.test(url)) return '';
+  if (bypassProxy(url)) return '';
   return `${WSRV_BASE}?url=${encodeURIComponent(url)}&output=webp&w=${width} ${width}w`;
 }
 
