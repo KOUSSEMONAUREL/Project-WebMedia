@@ -8,6 +8,9 @@ interface SeriesDto {
   author: string | null;
   artist: string | null;
   description: string | null;
+  rating: number | null;
+  popularity_rank: number | null;
+  alt_titles: string[] | null;
   status: string | null;
   genres: { name: string }[] | null;
   public_url: string;
@@ -24,6 +27,18 @@ interface ChapterDto {
 
 interface PageDto {
   url: string;
+}
+
+function buildDescription(dto: SeriesDto): string | undefined {
+  const parts: string[] = [];
+  const desc = dto.description?.replace(/<[^>]*>/g, '').trim();
+  if (desc) parts.push(desc);
+  if (dto.rating != null) parts.push(`Rating: ${dto.rating.toFixed(2)}`);
+  if (dto.popularity_rank != null) parts.push(`Rank: #${dto.popularity_rank}`);
+  if (dto.alt_titles?.length) {
+    parts.push('Alternative Titles:\n' + dto.alt_titles.map(t => `- ${t}`).join('\n'));
+  }
+  return parts.length ? parts.join('\n\n') : undefined;
 }
 
 const API = 'https://api.asurascans.com/api';
@@ -105,7 +120,7 @@ export class AsuraScansScraper extends BaseScraper {
       title: series.title,
       url: mangaUrl,
       thumbnailUrl: series.cover,
-      description: series.description?.replace(/<[^>]*>/g, '').trim() || undefined,
+      description: buildDescription(series),
       author: series.author || series.artist || undefined,
       artist: series.artist || undefined,
       genre: series.genres?.map((g: any) => g.name).join(', ') || undefined,
