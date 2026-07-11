@@ -138,9 +138,6 @@ export function useTurnstile() {
     return { getToken, reset, ready };
 }
 
-const VERIFY_URL = import.meta.env.PUBLIC_API_URL?.replace(/\/api\/?$/, '') + '/api/verify-turnstile';
-const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
-
 export async function getTurnstileTokenDirect(): Promise<string> {
     if (globalToken) return globalToken;
     return new Promise((resolve) => {
@@ -149,21 +146,4 @@ export async function getTurnstileTokenDirect(): Promise<string> {
             window.turnstile.reset(globalWidgetId);
         }
     });
-}
-
-export async function verifyTurnstileToken(token: string): Promise<boolean> {
-    try {
-        const res = await fetch(VERIFY_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(API_KEY ? { 'X-Internal-API-Key': API_KEY } : {}),
-            },
-            body: JSON.stringify({ token }),
-        });
-        const data = await res.json();
-        return data.success === true;
-    } catch {
-        return false;
-    }
 }

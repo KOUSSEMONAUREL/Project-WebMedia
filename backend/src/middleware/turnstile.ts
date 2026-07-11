@@ -22,14 +22,3 @@ export async function turnstileMiddleware(c: Context, next: Next) {
     await next();
 }
 
-export async function verifyTurnstileHandler(c: Context) {
-    const { token } = await c.req.json<{ token?: string }>();
-    const secret = c.env?.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY || '';
-
-    if (!token) {
-        return c.json({ success: false, error: 'Missing token' }, 400);
-    }
-
-    const valid = await verifyCloudflareTurnstile(token, secret);
-    return c.json({ success: valid });
-}

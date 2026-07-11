@@ -145,9 +145,6 @@ app.use('/api/*', async (c, next) => {
     return rateLimit(isSensitive ? 60 : 200, 60)(c, next);
 });
 
-// ========== TURNSTILE ANTI-BOT ==========
-import { verifyTurnstileHandler } from './middleware/turnstile';
-app.post('/api/verify-turnstile', verifyTurnstileHandler);
 
 // ========== ROUTES ==========
 app.route('/api/user', userRoutes);

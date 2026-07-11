@@ -63,9 +63,8 @@ function savePendingHistory(entries: PendingHistoryEntry[]): void {
 }
 
 async function getTurnstileTokenForSync(): Promise<string | null> {
-  if (typeof window === 'undefined' || !window.turnstile) return null;
-  const { getTurnstileTokenDirect } = await import('../components/Turnstile');
   try {
+    const { getTurnstileTokenDirect } = await import('../components/Turnstile');
     return await getTurnstileTokenDirect();
   } catch {
     return null;

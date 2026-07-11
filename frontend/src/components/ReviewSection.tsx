@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTurnstile, verifyTurnstileToken } from './Turnstile';
+import { useTurnstile } from './Turnstile';
 import { useSession } from '../lib/auth-client';
 import { getReviews, createReview } from '../services/reviews';
 import type { Review } from '../types';
@@ -139,13 +139,6 @@ export default function ReviewSection({ mediaId }: Props) {
 
     try {
       const turnstileToken = await getToken();
-      const verified = await verifyTurnstileToken(turnstileToken);
-      if (!verified) {
-        setSubmitError("Échec de la vérification anti-bot");
-        setSubmitting(false);
-        return;
-      }
-
       await createReview({
         mediaId,
         rating,
