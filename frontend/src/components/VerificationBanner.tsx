@@ -34,7 +34,9 @@ export function VerificationBanner() {
       await sendVerificationEmail({
         email: user.email,
         callbackURL: window.location.origin + '/verify-success',
-        turnstileToken,
+        fetchOptions: {
+          headers: { 'x-captcha-response': turnstileToken },
+        },
       });
       setSent(true);
       setTimeout(() => setSent(false), 4000);

@@ -3,7 +3,7 @@ import { authClient, sendVerificationEmail, changePassword } from '@/lib/auth-cl
 import { LogOut, Trash2, Mail, Lock, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import { clearFavorites, clearWatchlist } from '../lib/indexeddb';
-import { useTurnstile, verifyTurnstileToken } from './Turnstile';
+import { useTurnstile } from './Turnstile';
 
 export function UserSettings() {
   const { data: session, isPending } = authClient.useSession();
@@ -18,7 +18,7 @@ export function UserSettings() {
     () => typeof window !== 'undefined' && localStorage.getItem('webmedia_storage_consent') === 'full'
   );
   const [cacheCleared, setCacheCleared] = useState(false);
-  const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
+  const { getToken: getTurnstileToken } = useTurnstile();
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -33,16 +33,6 @@ export function UserSettings() {
       }
     })();
   }, [sessionUser]);
-
-  const verifyTurnstile = async (): Promise<boolean> => {
-    try {
-      const token = await getTurnstileToken();
-      if (!token) return false;
-      const ok = await verifyTurnstileToken(token);
-      if (ok) resetTurnstile();
-      return ok;
-    } catch { return false; }
-  };
 
   const currentUser = sessionUser ? {
     id: sessionUser.id,
@@ -80,7 +70,9 @@ export function UserSettings() {
       await sendVerificationEmail({
         email: currentUser.email,
         callbackURL: window.location.origin + '/verify-success',
-        turnstileToken,
+        fetchOptions: {
+          headers: { 'x-captcha-response': turnstileToken },
+        },
       });
       setVerifSent(true);
       setTimeout(() => setVerifSent(false), 4000);
@@ -209,7 +201,13 @@ export function UserSettings() {
             setPwSending(true);
             setPwError('');
             try {
-              const { error: changeErr } = await changePassword({ currentPassword: currentPw, newPassword: newPw, turnstileToken });
+              const { error: changeErr } = await changePassword({
+                currentPassword: currentPw,
+                newPassword: newPw,
+                fetchOptions: {
+                  headers: { 'x-captcha-response': turnstileToken },
+                },
+              });
               if (changeErr) {
                 setPwError(changeErr.message || 'Erreur');
               } else {

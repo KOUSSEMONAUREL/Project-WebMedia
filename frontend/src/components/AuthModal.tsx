@@ -69,7 +69,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             const { error: resendError } = await sendVerificationEmail({
                 email: formData.email,
                 callbackURL: window.location.origin + '/verify-success',
-                turnstileToken,
+                fetchOptions: {
+                    headers: { 'x-captcha-response': turnstileToken },
+                },
             });
             if (resendError) {
                 setError(resendError.message || 'Erreur lors de l\'envoi');
@@ -145,7 +147,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 const { data, error: signInError } = await authClient.signIn.email({
                     email: formData.email,
                     password: formData.password,
-                    turnstileToken,
+                    fetchOptions: {
+                        headers: { 'x-captcha-response': turnstileToken },
+                    },
                 });
 
                 if (signInError) {
@@ -175,8 +179,10 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     email: formData.email,
                     password: formData.password,
                     name: formData.name,
-                    turnstileToken,
                     callbackURL: window.location.origin + '/verify-success',
+                    fetchOptions: {
+                        headers: { 'x-captcha-response': turnstileToken },
+                    },
                 });
 
                 if (signUpError) {
@@ -322,7 +328,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     const { error: resetError } = await authClient.requestPasswordReset({
                                         email: formData.email,
                                         redirectTo: window.location.origin + '/reset-password',
-                                        turnstileToken,
+                                        fetchOptions: {
+                                            headers: { 'x-captcha-response': turnstileToken },
+                                        },
                                     });
                                     if (resetError) {
                                         setError(resetError.message || 'Erreur');

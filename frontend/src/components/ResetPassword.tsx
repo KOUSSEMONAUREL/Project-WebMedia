@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
 import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { useTurnstile, verifyTurnstileToken } from './Turnstile';
+import { useTurnstile } from './Turnstile';
 
 export function ResetPassword() {
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -14,17 +14,7 @@ export function ResetPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const { getToken: getTurnstileToken, reset: resetTurnstile } = useTurnstile();
-
-  const verifyTurnstile = async (): Promise<boolean> => {
-    try {
-      const token = await getTurnstileToken();
-      if (!token) return false;
-      const ok = await verifyTurnstileToken(token);
-      if (ok) resetTurnstile();
-      return ok;
-    } catch { return false; }
-  };
+  const { getToken: getTurnstileToken } = useTurnstile();
 
   if (!token) {
     return (
@@ -62,9 +52,6 @@ export function ResetPassword() {
     e.preventDefault();
     setError('');
 
-    const turned = await verifyTurnstile();
-    if (!turned) { setError('Verification anti-bot echouee, reessaye'); return; }
-
     if (password.length < 8) {
       setError('Minimum 8 caracteres');
       return;
@@ -98,7 +85,13 @@ export function ResetPassword() {
     if (!turnstileToken) { setError('Verification anti-bot echouee, reessaye'); return; }
     setLoading(true);
     try {
-      const { error: resetError } = await authClient.resetPassword({ newPassword: password, token, turnstileToken });
+      const { error: resetError } = await authClient.resetPassword({
+        newPassword: password,
+        token,
+        fetchOptions: {
+          headers: { 'x-captcha-response': turnstileToken },
+        },
+      });
       if (resetError) {
         setError(resetError.message || 'Erreur');
       } else {
