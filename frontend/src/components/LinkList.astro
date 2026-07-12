@@ -35,7 +35,7 @@ const siteIcons: Record<string, string> = {
       <h3 class="text-sm font-bold text-white/70 uppercase tracking-wider mb-3">Legaux</h3>
       <div class="flex flex-wrap gap-2">
         {legalLinks.map((ll: any) => (
-          <a href={ll.url} target="_blank"
+          <a href={ll.url} target="_blank" rel="noreferrer noopener"
              class="glass-card glass-hover rounded-lg px-4 py-2.5 text-sm text-emerald-400 font-medium inline-flex items-center gap-2">
             <span class="w-5 h-5 rounded bg-emerald-500/10 text-[10px] font-bold flex items-center justify-center text-emerald-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -55,7 +55,7 @@ const siteIcons: Record<string, string> = {
           const best = siteLinks[0];
           const icon = siteIcons[site.toLowerCase()];
           return (
-            <a href={best.url} target="_blank"
+            <a href={best.url} target="_blank" rel="noreferrer noopener"
                class="glass-card glass-hover rounded-xl px-4 py-3.5 flex items-center gap-3 text-sm no-underline transition-all">
               <span class="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-[10px] font-bold text-white/30 shrink-0 uppercase">
                 {icon || site.slice(0, 2).toUpperCase()}

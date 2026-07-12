@@ -125,7 +125,7 @@ const isEpisode = media.type === 'serie' || media.type === 'anime';
         </div>
 
         {media.trailerUrl && (
-          <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank"
+          <a href={`https://www.youtube.com/watch?v=${media.trailerUrl}`} target="_blank" rel="noreferrer noopener"
              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
              style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.18); color: #F87171;">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>

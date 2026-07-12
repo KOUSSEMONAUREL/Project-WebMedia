@@ -32,7 +32,7 @@ const STREAMING_SOURCES = [
       <h3 class="text-xs font-semibold uppercase tracking-widest mb-3" style="color: rgba(16,185,129,0.5);">Légal</h3>
       <div class="flex flex-wrap gap-2">
         {legalLinks.map((ll: any) => (
-          <a href={ll.url} target="_blank"
+          <a href={ll.url} target="_blank" rel="noreferrer noopener"
              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
              style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.1); color: #34D399;">
             {ll.platform || ll.site || ll.label || ll.url}
@@ -67,7 +67,7 @@ const STREAMING_SOURCES = [
         {[...groups.entries()].map(([site, siteLinks]) => {
           const best = siteLinks[0];
           return (
-            <a href={best.url} target="_blank"
+            <a href={best.url} target="_blank" rel="noreferrer noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
                style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);">
               {site}
