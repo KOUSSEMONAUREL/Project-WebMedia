@@ -3,7 +3,7 @@ import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const adapter = process.env.CF_PAGES
+const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
   ? (await import('@astrojs/cloudflare')).default()
   : (await import('@astrojs/vercel')).default();
 
