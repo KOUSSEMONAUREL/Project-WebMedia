@@ -36,11 +36,6 @@ public/data/catalogue.sqlite.gz
 public/data/search-index.json
 
 
-# package manager lockfiles (using bun.lock)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
 # wrangler files
 .wrangler
 .dev.vars*
