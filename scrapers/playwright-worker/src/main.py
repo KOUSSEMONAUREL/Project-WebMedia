@@ -121,8 +121,8 @@ def extract_game_links(page, url, game_name=None):
         return found
 
     if "games4u.org" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "games4u.org" in l and "?" not in l and "page" not in l and "#" not in l and l.count('/') >= 3 and "/category/" not in l and "/author/" not in l and "/tag/" not in l and "/wp-" not in l]
+        game_links = page.css('div.blog-content a::attr(href)').getall()
+        game_links = [l for l in game_links if "?" not in l and "#" not in l and l.count('/') >= 3 and "/category/" not in l and "/author/" not in l and "/tag/" not in l and "/wp-" not in l]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "games4u.org", "page_selection", True)
