@@ -2,7 +2,7 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"compatibility_date": "2026-07-12",
 	"compatibility_flags": ["global_fetch_strictly_public"],
-	"name": "frontend",
+	"name": "webmedia-front",
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",
