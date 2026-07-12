@@ -1,0 +1,9 @@
+#!/bin/sh
+# Verifie que le lockfile bun est sync avant push
+cd frontend
+bun install --frozen-lockfile 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "ERROR: bun.lock is out of sync with package.json."
+  echo "Run 'bun install --no-frozen-lockfile' in frontend/ and commit the updated lockfile."
+  exit 1
+fi
