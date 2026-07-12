@@ -1,0 +1,23 @@
+name = "webmedia-front"
+compatibility_date = "2026-07-12"
+compatibility_flags = ["global_fetch_strictly_public"]
+main = "@astrojs/cloudflare/entrypoints/server"
+
+[vars]
+ENVIRONMENT = "production"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "SESSION"
+id = "69c6c739f18d47d6ab836c70dbc2076a"
+
+#Observability logs
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
