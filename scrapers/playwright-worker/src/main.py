@@ -25,7 +25,6 @@ def run_health_server():
 
 def extract_game_links(page, url, game_name=None):
     found = []
-    all_links = page.css('a::attr(href)').getall()
 
     page_title_match = re.search(r'<title>(.*?)</title>', page.text, re.IGNORECASE | re.DOTALL)
     page_title = page_title_match.group(1).strip() if page_title_match else ""
@@ -45,32 +44,33 @@ def extract_game_links(page, url, game_name=None):
         })
 
     if "fitgirl-repacks.site" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "fitgirl-repacks.site" in l and l.endswith('/') and "/page/" not in l and "#" not in l]
+        game_links = page.css('article h1.entry-title a::attr(href)').getall()
+        game_links = [l for l in game_links if l and l.endswith('/') and "updates-digest" not in l and "category" not in l and "#respond" not in l]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "fitgirl-repacks.site", "page_selection", True)
         return found
 
     if "steamunlocked.org" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "free-download" in (l or '').lower()]
-        game_links = list(set(game_links))
+        game_links = page.css('div.cover-item-title a::attr(href)').getall()
+        game_links = list(set(l for l in game_links if "free-download" in (l or '').lower()))
         for l in game_links:
             add_link(l, "steamunlocked.org", "page_selection", True)
         return found
 
     if "gamedrive.org" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "gamedrive.org" in l and "?" not in l and "page" not in l]
-        game_links = list(set(game_links))
+        game_links = page.css('h2.entry-title a::attr(href)').getall()
+        game_links = list(set(l for l in game_links if "gamedrive.org" in l))
+        if not game_links:
+            game_links = page.css('article h2.entry-title a::attr(href)').getall()
+            game_links = list(set(l for l in game_links))
         for l in game_links:
             add_link(l, "gamedrive.org", "page_selection", True)
         return found
 
     if "cfinder.xyz" in url or "directory.cfinder.xyz" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "/jeux/" in (l or '').lower() or "/games/" in (l or '').lower()]
+        game_links = page.css('div.card h2 a::attr(href), div.card__content a::attr(href)').getall()
+        game_links = [l for l in game_links if "/jeux/" in (l or '').lower() or "/games/" in (l or '').lower()]
         game_links = list(set(game_links))
         for l in game_links:
             full_url = l if l.startswith('http') else f"https://cfinder.xyz{l}"
@@ -80,23 +80,33 @@ def extract_game_links(page, url, game_name=None):
     if "elamigos.site" in url:
         all_links = page.css('a::attr(href)').getall()
         game_links = [l for l in all_links if "data/" in (l or '').lower()]
-        game_links = list(set(game_links))
+        if game_name:
+            slug = re.sub(r'[^a-z0-9\s]', '', game_name.lower()).strip()
+            slug_underscored = slug.replace(' ', '_')
+            filtered = []
+            for l in game_links:
+                clean = re.sub(r'[^a-z0-9_]', '', l.lower().replace(' ', '_'))
+                if slug_underscored in clean:
+                    filtered.append(l)
+            game_links = filtered[:10]
+        else:
+            game_links = list(set(game_links))[:5]
         for l in game_links:
-            full_url = f"https://elamigos.site/{l}"
+            full_url = l if l.startswith('http') else f"https://elamigos.site/{l}"
             add_link(full_url, "elamigos.site", "page_selection", True)
         return found
 
     if "romspure.cc" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if ("/roms/" in (l or '').lower() or "/hacks/" in (l or '').lower())]
+        game_links = page.css('article a::attr(href)').getall()
+        game_links = [l for l in game_links if ("/roms/" in (l or '').lower() or "/hacks/" in (l or '').lower())]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "romspure.cc", "page_selection", True)
         return found
 
     if "emulatorgamesx.net" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "/roms/" in (l or '').lower()]
+        game_links = page.css('article a::attr(href)').getall()
+        game_links = [l for l in game_links if "/roms/" in (l or '').lower()]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "emulatorgamesx.net", "page_selection", True)
@@ -112,18 +122,19 @@ def extract_game_links(page, url, game_name=None):
 
     if "games4u.org" in url:
         all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "games4u.org" in l and "?" not in l and "page" not in l and len(l.split('/')) == 4]
+        game_links = [l for l in all_links if "games4u.org" in l and "?" not in l and "page" not in l and "#" not in l and l.count('/') >= 3 and "/category/" not in l and "/author/" not in l and "/tag/" not in l and "/wp-" not in l]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "games4u.org", "page_selection", True)
         return found
 
     if "steamrip.com" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "steamrip.com" in l and l.count('/') >= 3 and "?" not in l and "#" not in l and "/page/" not in l]
+        game_links = page.css('div#masonry-grid h2.thumb-title a::attr(href), div#masonry-grid a::attr(href)').getall()
+        game_links = [l for l in game_links if l and not l.startswith('#') and not l.startswith('http') and not l.startswith('javascript')]
         game_links = list(set(game_links))
         for l in game_links:
-            add_link(l, "steamrip.com", "page_selection", True)
+            full_url = f"https://steamrip.com/{l}" if not l.startswith('http') else l
+            add_link(full_url, "steamrip.com", "page_selection", True)
         return found
 
     return found
