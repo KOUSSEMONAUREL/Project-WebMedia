@@ -40,6 +40,7 @@ export function getAuth(dbUrl?: string) {
         },
         trustedOrigins: [
             'https://project-web-media.vercel.app',
+            'https://webmedia-front.koussemonaurel.workers.dev',
             'https://webmedia-backend.koussemonaurel.workers.dev',
         ],
         emailAndPassword: {
