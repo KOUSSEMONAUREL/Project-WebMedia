@@ -6,6 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # Variables d'environnement
 [vars]
 ENVIRONMENT = "production"
+SUPABASE_URL = "https://fmvtssramxcgqqpxpshp.supabase.co"
 
 # Trigger quotidien à 06:00 UTC
 [triggers]
