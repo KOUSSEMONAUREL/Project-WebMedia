@@ -5,12 +5,15 @@
   "scripts": {
     "dev": "astro dev",
     "build": "ASTRO_LOG_LEVEL=warn astro build",
-    "preview": "astro preview",
+    "preview": "npm run build && wrangler dev",
     "astro": "astro",
     "check-lockfile": "npm ls --package-lock-only",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "generate-types": "wrangler types",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.1.2",
     "@astrojs/react": "^6.0.1",
     "@astrojs/vercel": "^11.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.18",
@@ -57,6 +60,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "patch-package": "^8.0.1"
+    "patch-package": "^8.0.1",
+    "wrangler": "^4.110.0"
   }
 }
