@@ -36,6 +36,7 @@ const allowedOrigins = [
     'https://webmedia.com',
     'http://localhost:3000',
     'https://project-web-media.vercel.app',
+    'https://webmedia-front.koussemonaurel.workers.dev',
 ];
 
 app.use('*', cors({
