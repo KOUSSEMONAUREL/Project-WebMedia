@@ -20,6 +20,24 @@ function flagEmoji(code: string): string {
   );
 }
 
+const LANG_NAMES: Record<string, string> = {
+  eng: 'Anglais', fra: 'Francais', spa: 'Espagnol', deu: 'Allemand', por: 'Portugais',
+  ita: 'Italien', rus: 'Russe', ara: 'Arabe', tur: 'Turc', nld: 'Neerlandais',
+  pol: 'Polonais', jpn: 'Japonais', kor: 'Coreen', zho: 'Chinois', vie: 'Vietnamien',
+  tha: 'Thailandais', hin: 'Hindi', ben: 'Bengali', heb: 'Hebreu', fas: 'Persan',
+  swe: 'Suedois', nor: 'Norvegien', dan: 'Danois', fin: 'Finnois', ces: 'Tcheque',
+  slk: 'Slovaque', hun: 'Hongrois', ron: 'Roumain', bul: 'Bulgare', srp: 'Serbe',
+  hrv: 'Croate', sqi: 'Albanais', ell: 'Grec', ukr: 'Ukrainien', lav: 'Letton',
+  lit: 'Lituanien', est: 'Estonien', cat: 'Catalan', glg: 'Galicien', eus: 'Basque',
+  afr: 'Afrikaans', amh: 'Amharique', aze: 'Azeri', bel: 'Bielorusse', bos: 'Bosnien',
+  cym: 'Gallois', epo: 'Esperanto', fil: 'Philippin', gle: 'Irlandais', glv: 'Manx',
+  hye: 'Armenien', ind: 'Indonesien', isl: 'Islandais', kaz: 'Kazakh', kur: 'Kurde',
+  lat: 'Latin', mkd: 'Macedonien', mlt: 'Maltais', mon: 'Mongol', mri: 'Maori',
+  msa: 'Malais', mya: 'Birman', nep: 'Nepalais', pan: 'Pendjabi', pus: 'Pachto',
+  slv: 'Slovene', som: 'Somali', swa: 'Swahili', tam: 'Tamoul', tel: 'Telougou',
+  tuk: 'Turkmene', uig: 'Ouigour', urd: 'Ourdou', uzb: 'Ouzbek', yid: 'Yiddish',
+};
+
 interface StreamInfo { url: string; quality: string | null; }
 interface LiveChannel {
   id: string; name: string; logo: string; country: string;
@@ -403,64 +421,70 @@ export function LiveTVClient() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="bg-card border border-border rounded-2xl p-4 mb-6 space-y-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
-            type="text" placeholder="Rechercher..."
+            type="text" placeholder="Rechercher une chaine..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            className="w-full pl-10 pr-4 py-3 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           />
         </div>
-        <select
-          value={country} onChange={e => setCountry(e.target.value)}
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-        >
-          <option value="">Pays</option>
-          {countries.map(c => (
-            <option key={c} value={c}>{flagEmoji(c)} {c}</option>
-          ))}
-        </select>
-        <select
-          value={category} onChange={e => setCategory(e.target.value)}
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-        >
-          <option value="">Categorie</option>
-          {categories.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <select
-          value={language} onChange={e => setLanguage(e.target.value)}
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-        >
-          <option value="">Langue</option>
-          {languages.map(l => (
-            <option key={l} value={l}>{l}</option>
-          ))}
-        </select>
-        <select
-          value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-        >
-          <option value="name">Nom A-Z</option>
-          <option value="name-desc">Nom Z-A</option>
-          <option value="streams">+ de flux</option>
-        </select>
-        <button
-          onClick={() => setAliveOnly(!aliveOnly)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-all ${
-            aliveOnly
-              ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-              : 'bg-card border-border hover:border-primary/50'
-          }`}
-        >
-          {aliveOnly ? <Wifi className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
-          {aliveOnly ? 'Actifs' : 'Verifier'}
-          {verifyingCount > 0 && (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          )}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={country} onChange={e => setCountry(e.target.value)}
+            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          >
+            <option value="">Tous les pays</option>
+            {countries.map(c => (
+              <option key={c} value={c}>{flagEmoji(c)} {c}</option>
+            ))}
+          </select>
+          <select
+            value={category} onChange={e => setCategory(e.target.value)}
+            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          >
+            <option value="">Toutes les categories</option>
+            {categories.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <div className="relative flex-1 min-w-[140px]">
+            <input
+              type="text" list="lang-list" placeholder="Langue..."
+              value={language} onChange={e => setLanguage(e.target.value)}
+              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            />
+            <datalist id="lang-list">
+              {languages.map(l => (
+                <option key={l} value={l}>{LANG_NAMES[l] || l}</option>
+              ))}
+            </datalist>
+          </div>
+          <select
+            value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+            className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          >
+            <option value="name">Nom A-Z</option>
+            <option value="name-desc">Nom Z-A</option>
+            <option value="streams">Plus de sources</option>
+          </select>
+          <button
+            onClick={() => setAliveOnly(!aliveOnly)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${
+              aliveOnly
+                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                : 'bg-muted/50 border-border hover:border-primary/50'
+            }`}
+            title="Afficher uniquement les chaines dont les flux sont actifs"
+          >
+            {aliveOnly ? <Wifi className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
+            <span className="hidden sm:inline">{aliveOnly ? 'Actifs' : 'Verifier'}</span>
+            {verifyingCount > 0 && (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            )}
+          </button>
+        </div>
       </div>
 
       {loading ? (
