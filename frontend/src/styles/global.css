@@ -82,7 +82,10 @@ body {
 @utility scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;
-  &::-webkit-scrollbar { display: none; }
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility glass {
@@ -108,7 +111,10 @@ body {
   margin: 0 -0.25rem;
   scroll-snap-type: x mandatory;
   -ms-overflow-style: none;
-  &::-webkit-scrollbar { display: none; }
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility poster-row-card {
@@ -136,6 +142,7 @@ body {
 
 @utility glass-hover {
   transition: all 0.2s ease;
+
   &:hover {
     background: color-mix(in srgb, var(--color-secondary) 85%, transparent);
     border-color: rgba(255, 255, 255, 0.12);
@@ -143,24 +150,47 @@ body {
 }
 
 /* Custom cursor for interactive elements */
-a, summary, button, [role="button"], label {
+a,
+summary,
+button,
+[role="button"],
+label {
   cursor: pointer;
 }
 
 /* Animations */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.15); }
-  50% { box-shadow: 0 0 35px rgba(59,130,246,0.28); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 35px rgba(59, 130, 246, 0.28);
+  }
 }
 
 .animate-fade-in-up {
