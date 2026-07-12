@@ -188,6 +188,9 @@ export function LiveTVClient() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [country, setCountry] = useState('');
+  const [category, setCategory] = useState('');
+  const [language, setLanguage] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'name-desc' | 'streams'>('name');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<LiveChannel | null>(null);
   const [aliveOnly, setAliveOnly] = useState(false);
@@ -248,6 +251,22 @@ export function LiveTVClient() {
     return Array.from(set).sort();
   }, [allChannels]);
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const ch of allChannels) {
+      for (const cat of ch.categories) set.add(cat);
+    }
+    return Array.from(set).sort();
+  }, [allChannels]);
+
+  const languages = useMemo(() => {
+    const set = new Set<string>();
+    for (const ch of allChannels) {
+      for (const lang of ch.languages) set.add(lang);
+    }
+    return Array.from(set).sort();
+  }, [allChannels]);
+
   const filtered = useMemo(() => {
     let result = allChannels;
     if (search) {
@@ -255,8 +274,13 @@ export function LiveTVClient() {
       result = result.filter(c => c.name.toLowerCase().includes(q));
     }
     if (country) result = result.filter(c => c.country === country);
+    if (category) result = result.filter(c => c.categories.includes(category));
+    if (language) result = result.filter(c => c.languages.includes(language));
+    if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'name-desc') result.sort((a, b) => b.name.localeCompare(a.name));
+    else if (sortBy === 'streams') result.sort((a, b) => b.streams.length - a.streams.length);
     return result;
-  }, [allChannels, search, country]);
+  }, [allChannels, search, country, category, language, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
@@ -343,7 +367,7 @@ export function LiveTVClient() {
     gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [totalPages]);
 
-  useEffect(() => { setPage(0); }, [search, country]);
+  useEffect(() => { setPage(0); }, [search, country, category, language, sortBy]);
 
   const pageNumbers = useMemo(() => {
     const cur = safePage + 1;
@@ -379,11 +403,11 @@ export function LiveTVClient() {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
-            type="text" placeholder="Rechercher une chaine..."
+            type="text" placeholder="Rechercher..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           />
@@ -392,10 +416,36 @@ export function LiveTVClient() {
           value={country} onChange={e => setCountry(e.target.value)}
           className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
         >
-          <option value="">Tous les pays</option>
+          <option value="">Pays</option>
           {countries.map(c => (
             <option key={c} value={c}>{flagEmoji(c)} {c}</option>
           ))}
+        </select>
+        <select
+          value={category} onChange={e => setCategory(e.target.value)}
+          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+        >
+          <option value="">Categorie</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          value={language} onChange={e => setLanguage(e.target.value)}
+          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+        >
+          <option value="">Langue</option>
+          {languages.map(l => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
+        <select
+          value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+        >
+          <option value="name">Nom A-Z</option>
+          <option value="name-desc">Nom Z-A</option>
+          <option value="streams">+ de flux</option>
         </select>
         <button
           onClick={() => setAliveOnly(!aliveOnly)}
