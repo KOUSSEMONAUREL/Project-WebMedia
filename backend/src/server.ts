@@ -19,6 +19,7 @@ import reviewRoutes from './routes/reviews';
 import staticRoutes from './routes/static';
 import internalRoutes from './routes/internal';
 import adminRoutes from './routes/admin';
+import livetvRoutes from './routes/livetv';
 
 type Variables = {
     user: import('./middleware/session').Variables['user'];
@@ -127,6 +128,7 @@ app.route('/api/reviews', reviewRoutes);
 app.route('/api/static', staticRoutes);
 app.route('/api/internal', internalRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/livetv', livetvRoutes);
 
 // Health check
 app.get('/', (c) => {

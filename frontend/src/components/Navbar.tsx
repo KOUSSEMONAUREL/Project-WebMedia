@@ -22,6 +22,7 @@ const navLinks = [
   { label: 'Webtoons', href: '/webtoons' },
   { label: 'Livres', href: '/books' },
   { label: 'Light Novels', href: '/novels' },
+  { label: 'TV Live', href: '/live-tv' },
 ];
 
 const typeColors: Record<string, string> = {
