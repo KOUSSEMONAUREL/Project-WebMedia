@@ -294,7 +294,9 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
                     has_content = excluded.has_content
             `).bind(item.id, item.type, item.title || null, item.slug || null, item.metadata_ok, item.active_links, item.has_content, Date.now() + 10000)
         );
-        await c.env.DB.batch(statements);
+        if (statements.length > 0) {
+            await c.env.DB.batch(statements);
+        }
         return c.json({ success: true, count: items.length });
     } catch (error: any) {
         console.error('Ingest Media Batch Error:', error.message);

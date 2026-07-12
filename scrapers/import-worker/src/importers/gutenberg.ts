@@ -47,9 +47,9 @@ export async function importGutenberg(databaseUrl: string, limit: number = 20) {
         }
 
         const mediaValues = toInsert.map((item: any) => {
-            const title = item.title;
+            const title = (item.title || '').substring(0, 490);
             const externalId = `gutenberg-${item.id}`;
-            const authors = item.authors?.map((a: any) => a.name).join(', ') || 'Unknown';
+            const authors = (item.authors?.map((a: any) => a.name).join(', ') || 'Unknown').substring(0, 290);
             const slug = `book-${externalId}-${title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`.substring(0, 490);
             return {
                 type: 'book', title, originalTitle: title, author: authors,
