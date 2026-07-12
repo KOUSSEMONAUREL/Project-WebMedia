@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, inArray, or, gt } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
 import { medias, episodes, liens } from './db/neon/schema.js';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from './db/turso/schema.js';
@@ -81,10 +81,17 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
     const turso = createTursoClient(tursoUrl, tursoToken);
     const log = createLog('Sync Turso', 'sync');
 
-    log.start('Syncing Neon -> Turso');
+        log.start('Syncing Neon -> Turso');
+
+    const STREAMING_TYPES = ['movie', 'serie', 'anime'];
 
     try {
-        const allMedias = await neon.select().from(medias);
+        const allMedias = await neon.select().from(medias).where(
+            or(
+                inArray(medias.type, STREAMING_TYPES),
+                gt(medias.activeLinksCount, 0)
+            )
+        );
         if (allMedias.length > 0) {
             for (let i = 0; i < allMedias.length; i += BATCH) {
                 const batch = allMedias.slice(i, i + BATCH).map(m => ({
@@ -159,6 +166,11 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                 await turso.insert(tursoLiens).values(batch).onConflictDoUpdate(lienUpsert());
             }
         }
+
+        await turso.delete(tursoMedias).where(
+            sql`type NOT IN ('movie', 'serie', 'anime') AND (active_links_count IS NULL OR active_links_count = 0)`
+        );
+        log.info(`Medias sans liens nettoyes de Turso`);
 
         log.success(`Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links`);
     } catch (error: any) {

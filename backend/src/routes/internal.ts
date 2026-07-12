@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@libsql/client';
 import { getNeonDb } from '../db/singleton';
 import { medias, episodes, liens } from '../db/neon/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
 import { logger } from '../services/logger';
 import { OrchestratorService } from '../services/orchestrator';
@@ -135,6 +135,15 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                     next_scrape = ?
                 WHERE media_id = ?
             `).bind(inserted.length, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
+        }
+
+        // Update activeLinksCount in Neon
+        try {
+            await db.update(medias)
+                .set({ activeLinksCount: sql`active_links_count + ${inserted.length}` })
+                .where(eq(medias.id, mediaId));
+        } catch (e: any) {
+            console.warn(`[IngestWorker] Failed to update activeLinksCount in Neon: ${e.message}`);
         }
 
         // Sync to Turso (non-blocking)
