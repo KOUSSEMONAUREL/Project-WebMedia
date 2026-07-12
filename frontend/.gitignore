@@ -35,3 +35,9 @@ public/data/catalogue.sqlite
 public/data/catalogue.sqlite.gz
 public/data/search-index.json
 
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

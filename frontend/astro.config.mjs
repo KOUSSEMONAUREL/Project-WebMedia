@@ -4,10 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import cloudflare from '@astrojs/cloudflare';
+
 export default defineConfig({
     integrations: [react()],
     output: 'static',
-    adapter: vercel(),
+    adapter: cloudflare(),
     vite: {
         plugins: [
             tailwindcss(),
