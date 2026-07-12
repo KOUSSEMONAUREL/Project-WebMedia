@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Search, Tv, Loader2, X, AlertCircle, Globe } from 'lucide-react';
+import { Search, Tv, Loader2, X, AlertCircle, Globe, Wifi, WifiOff, Radio } from 'lucide-react';
 import Hls from 'hls.js';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
-import { saveLivetvCache, loadLivetvCache } from '../lib/livetv-db';
+import { saveLivetvCache, loadLivetvCache, saveStreamCheck, loadStreamChecksBatch } from '../lib/livetv-db';
 
 const CHANNELS_URL = 'https://iptv-org.github.io/api/channels.json';
 const STREAMS_URL = 'https://iptv-org.github.io/api/streams.json';
 const PER_PAGE = 20;
+const MAX_CONCURRENT_CHECKS = 5;
+const CHECK_TIMEOUT = 8000;
+
+type StreamStatus = 'unknown' | 'checking' | 'alive' | 'dead';
 
 function flagEmoji(code: string): string {
   if (!code || code.length !== 2) return '';
@@ -16,10 +20,57 @@ function flagEmoji(code: string): string {
   );
 }
 
-interface StreamInfo { url: string; quality: string | null }
+interface StreamInfo { url: string; quality: string | null; }
 interface LiveChannel {
   id: string; name: string; logo: string; country: string;
   languages: string[]; categories: string[]; streams: StreamInfo[];
+}
+
+const checkQueue: { url: string; resolve: (alive: boolean) => void }[] = [];
+let runningChecks = 0;
+
+function pumpQueue() {
+  while (runningChecks < MAX_CONCURRENT_CHECKS && checkQueue.length > 0) {
+    const item = checkQueue.shift()!;
+    runningChecks++;
+    doCheck(item.url).then(alive => {
+      runningChecks--;
+      item.resolve(alive);
+      saveStreamCheck(item.url, alive);
+      pumpQueue();
+    });
+  }
+}
+
+async function doCheck(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Range: 'bytes=0-511' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return false;
+    const text = await res.text();
+    return text.startsWith('#EXTM3U');
+  } catch {
+    return false;
+  }
+}
+
+function enqueueCheck(url: string): Promise<boolean> {
+  return new Promise(resolve => {
+    checkQueue.push({ url, resolve });
+    pumpQueue();
+  });
+}
+
+function StatusDot({ status }: { status: StreamStatus }) {
+  if (status === 'unknown') return <span className="w-2 h-2 rounded-full bg-muted-foreground/30 inline-block" title="Non verifie" />;
+  if (status === 'checking') return <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />;
+  if (status === 'alive') return <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Actif" />;
+  return <span className="w-2 h-2 rounded-full bg-red-500 inline-block" title="Inactif" />;
 }
 
 function SkeletonGrid() {
@@ -50,8 +101,8 @@ function PlayerModal({ channel, onClose }: {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) { setStatus('error'); return; }
-
     setStatus('loading');
+
     const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
     hlsRef.current = hls;
     hls.loadSource(streamUrl);
@@ -139,7 +190,10 @@ export function LiveTVClient() {
   const [country, setCountry] = useState('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<LiveChannel | null>(null);
+  const [aliveOnly, setAliveOnly] = useState(false);
+  const [channelStatus, setChannelStatus] = useState<Record<string, StreamStatus>>({});
   const gridRef = useRef<HTMLDivElement>(null);
+  const checkingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,10 +237,7 @@ export function LiveTVClient() {
           saveLivetvCache('channels', merged);
         }
       } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message);
-          setLoading(false);
-        }
+        if (!cancelled) { setError(err.message); setLoading(false); }
       }
     })();
     return () => { cancelled = true; };
@@ -210,6 +261,81 @@ export function LiveTVClient() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
   const pageChannels = filtered.slice(safePage * PER_PAGE, (safePage + 1) * PER_PAGE);
+
+  const visibleChannels = useMemo(() => {
+    if (!aliveOnly) return pageChannels;
+    return pageChannels.filter(ch => {
+      const s = channelStatus[ch.id];
+      return s === 'alive' || s === 'checking';
+    });
+  }, [pageChannels, aliveOnly, channelStatus]);
+
+  const verifyingCount = useMemo(() =>
+    Object.values(channelStatus).filter(s => s === 'checking').length,
+  [channelStatus]);
+
+  useEffect(() => {
+    if (!allChannels.length || loading) return;
+    let cancelled = false;
+
+    (async () => {
+      const urlsToCheck: { chId: string; url: string }[] = [];
+      const statusUpdates: Record<string, StreamStatus> = {};
+
+      for (const ch of pageChannels) {
+        const cached = await loadStreamChecksBatch(ch.streams.map(s => s.url));
+        let hasAlive = false;
+        let hasDead = false;
+        for (const s of ch.streams) {
+          const r = cached.get(s.url);
+          if (r === true) hasAlive = true;
+          else if (r === false) hasDead = true;
+        }
+        if (hasAlive) {
+          statusUpdates[ch.id] = 'alive';
+        } else if (hasDead && ch.streams.every(s => cached.get(s.url) === false)) {
+          statusUpdates[ch.id] = 'dead';
+        } else {
+          statusUpdates[ch.id] = 'checking';
+          for (const s of ch.streams) {
+            if (!cached.has(s.url)) urlsToCheck.push({ chId: ch.id, url: s.url });
+          }
+        }
+      }
+
+      if (!cancelled) setChannelStatus(prev => ({ ...prev, ...statusUpdates }));
+      if (!urlsToCheck.length || cancelled) return;
+
+      const results = await Promise.allSettled(
+        urlsToCheck.map(({ chId, url }) =>
+          enqueueCheck(url).then(alive => ({ chId, url, alive }))
+        )
+      );
+
+      if (cancelled) return;
+      const newStatus = { ...statusUpdates };
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        const { chId, alive } = result.value;
+        const ch = pageChannels.find(c => c.id === chId);
+        if (!ch) continue;
+        const cur = newStatus[chId];
+        if (cur === 'alive') continue;
+        if (alive) {
+          newStatus[chId] = 'alive';
+        } else {
+          const allDead = ch.streams.every(s => {
+            const r = urlsToCheck.find(u => u.url === s.url && u.chId === chId);
+            return r ? false : true;
+          });
+          if (allDead) newStatus[chId] = 'dead';
+        }
+      }
+      if (!cancelled) setChannelStatus(prev => ({ ...prev, ...newStatus }));
+    })();
+
+    return () => { cancelled = true; };
+  }, [allChannels, loading, safePage]);
 
   const goToPage = useCallback((p: number) => {
     if (p < 0 || p >= totalPages) return;
@@ -271,11 +397,25 @@ export function LiveTVClient() {
             <option key={c} value={c}>{flagEmoji(c)} {c}</option>
           ))}
         </select>
+        <button
+          onClick={() => setAliveOnly(!aliveOnly)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-all ${
+            aliveOnly
+              ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+              : 'bg-card border-border hover:border-primary/50'
+          }`}
+        >
+          {aliveOnly ? <Wifi className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
+          {aliveOnly ? 'Actifs' : 'Verifier'}
+          {verifyingCount > 0 && (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          )}
+        </button>
       </div>
 
       {loading ? (
         <SkeletonGrid />
-      ) : pageChannels.length === 0 ? (
+      ) : visibleChannels.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 bg-card rounded-xl border border-border">
           <Tv className="w-12 h-12 text-muted-foreground mb-4" />
           <p className="text-lg font-medium mb-2">Aucune chaine trouvee</p>
@@ -284,11 +424,17 @@ export function LiveTVClient() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {pageChannels.map(ch => (
+            {visibleChannels.map(ch => (
               <button
                 key={ch.id}
                 onClick={() => setSelected(ch)}
-                className="group bg-card hover:bg-card/80 border border-border rounded-xl p-4 text-left transition-all hover:border-primary/50 hover:shadow-[var(--glow-blue-subtle)]"
+                className={`group bg-card hover:bg-card/80 border rounded-xl p-4 text-left transition-all hover:shadow-[var(--glow-blue-subtle)] ${
+                  channelStatus[ch.id] === 'alive'
+                    ? 'border-emerald-500/30 hover:border-emerald-500/50'
+                    : channelStatus[ch.id] === 'dead'
+                    ? 'border-red-500/20 opacity-60'
+                    : 'border-border hover:border-primary/50'
+                }`}
               >
                 <div className="w-full aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
                   {ch.logo ? (
@@ -303,9 +449,10 @@ export function LiveTVClient() {
                 <div className="flex items-center gap-2 mt-1">
                   {ch.country && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1" title={ch.country}>
-                      {flagEmoji(ch.country)} <Globe className="w-3 h-3 hidden" />
+                      {flagEmoji(ch.country)}
                     </span>
                   )}
+                  <StatusDot status={channelStatus[ch.id] || 'unknown'} />
                   <span className="text-xs text-muted-foreground">{ch.streams.length} flux</span>
                 </div>
               </button>
