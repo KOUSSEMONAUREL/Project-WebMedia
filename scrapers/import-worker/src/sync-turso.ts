@@ -1,4 +1,4 @@
-import { sql, inArray, or, gt } from 'drizzle-orm';
+import { sql, inArray, or, and, gt } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
 import { medias, episodes, liens } from './db/neon/schema.js';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from './db/turso/schema.js';
@@ -167,10 +167,16 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             }
         }
 
-        await turso.delete(tursoMedias).where(
-            sql`type NOT IN ('movie', 'serie', 'anime') AND (active_links_count IS NULL OR active_links_count = 0)`
-        );
-        log.info(`Medias sans liens nettoyes de Turso`);
+        const validIds = allMedias.filter(m => !STREAMING_TYPES.includes(m.type)).map(m => m.id);
+        if (validIds.length > 0) {
+            const deleted = await turso.delete(tursoMedias).where(
+                and(
+                    sql`type NOT IN ('movie', 'serie', 'anime')`,
+                    sql`id NOT IN (${sql.join(validIds.map(id => sql`${id}`), sql`, `)})`
+                )
+            );
+            log.info(`Medias sans liens nettoyes de Turso`);
+        }
 
         log.success(`Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links`);
     } catch (error: any) {
