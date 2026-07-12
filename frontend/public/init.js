@@ -4,7 +4,7 @@
     const consent = localStorage.getItem('webmedia_storage_consent');
     if (consent === 'full') {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/sw.js').catch(() => { });
       });
     }
   }
