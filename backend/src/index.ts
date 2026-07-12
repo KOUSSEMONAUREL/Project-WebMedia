@@ -65,6 +65,17 @@ app.use('*', cors({
 app.use('*', logger());
 app.use('*', prettyJSON());
 
+// ========== BODY SIZE LIMIT (reject large payloads) ==========
+app.use('/api/*', async (c, next) => {
+    if (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH') {
+        const len = parseInt(c.req.header('content-length') || '0');
+        if (len > 1024 * 100) {
+            return c.json({ error: 'Payload too large', message: 'Maximum 100KB' }, 413);
+        }
+    }
+    await next();
+});
+
 // ========== BETTER AUTH HANDLER (before other middlewares) ==========
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     ensureAuthEnv({
@@ -142,7 +153,7 @@ app.use('/api/*', async (c, next) => {
 
     const path = c.req.path;
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
-    return rateLimit(isSensitive ? 60 : 200, 60)(c, next);
+    return rateLimit(isSensitive ? 20 : 60, 60)(c, next);
 });
 
 

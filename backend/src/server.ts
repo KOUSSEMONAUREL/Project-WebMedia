@@ -47,6 +47,17 @@ app.use('*', cors({
     credentials: true,
 }));
 
+// ========== BODY SIZE LIMIT (reject large payloads) ==========
+app.use('/api/*', async (c, next) => {
+    if (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH') {
+        const len = parseInt(c.req.header('content-length') || '0');
+        if (len > 1024 * 100) {
+            return c.json({ error: 'Payload too large', message: 'Maximum 100KB' }, 413);
+        }
+    }
+    await next();
+});
+
 // ========== BETTER AUTH HANDLER ==========
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const dbUrl = process.env.SUPABASE_DATABASE_URL || '';
@@ -105,7 +116,7 @@ app.use('/api/*', async (c, next) => {
     if (process.env.ENVIRONMENT === 'development' || process.env.ENVIRONMENT === 'test') return next();
     const path = c.req.path;
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
-    return rateLimitServer(isSensitive ? 60 : 200, 60)(c, next);
+    return rateLimitServer(isSensitive ? 20 : 60, 60)(c, next);
 });
 
 // ========== ROUTES ==========
