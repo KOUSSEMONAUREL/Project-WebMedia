@@ -42,8 +42,27 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         </footer>
     </body>
     <CookieBanner client:visible />
+    <div id="nav-skeleton" aria-hidden="true" class="fixed inset-0 z-30 bg-background pt-[74px] hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-pulse">
+            <div class="h-8 bg-muted rounded w-48 mb-6" />
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} class="bg-card rounded-xl p-4 border border-border">
+                        <div class="w-full aspect-video bg-muted rounded-lg mb-3" />
+                        <div class="h-4 bg-muted rounded w-3/4 mb-2" />
+                        <div class="h-3 bg-muted rounded w-1/3" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
     <script>
         import { initSyncSession } from '../lib/sync-queue';
         initSyncSession();
+        const skeleton = document.getElementById('nav-skeleton');
+        if (skeleton) {
+            document.addEventListener('astro:before-swap', () => skeleton.classList.remove('hidden'));
+            document.addEventListener('astro:after-swap', () => skeleton.classList.add('hidden'));
+        }
     </script>
 </html>
