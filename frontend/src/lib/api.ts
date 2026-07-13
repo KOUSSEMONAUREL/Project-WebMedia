@@ -3,7 +3,7 @@ import { mockTrending, mockFilms, mockSeries, mockAnimes, mockGames, mockWebtoon
 import { cacheGet, cacheSet } from './api-cache';
 export { allMockData, getMockByType };
 
-const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || (import.meta.env.PROD ? 'https://webmedia-backend.koussemonaurel.workers.dev' : 'http://localhost:8787')).replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const TTL = { LIST: 12 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
