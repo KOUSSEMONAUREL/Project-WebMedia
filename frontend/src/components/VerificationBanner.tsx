@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authClient, sendVerificationEmail } from '@/lib/auth-client';
+import { sendVerificationEmail, useCachedSession } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import { X, Mail, RefreshCw } from 'lucide-react';
 import { useTurnstile } from './Turnstile';
@@ -18,7 +18,7 @@ export function VerificationBanner() {
   });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useCachedSession();
   const user = session?.user;
   const { getToken: getTurnstileToken } = useTurnstile();
 

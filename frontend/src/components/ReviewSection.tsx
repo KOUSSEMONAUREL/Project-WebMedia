@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTurnstile } from './Turnstile';
-import { useSession } from '../lib/auth-client';
+import { useCachedSession } from '../lib/auth-client';
 import { getReviews, createReview } from '../services/reviews';
 import type { Review } from '../types';
 import { getDisplayNameInitials } from '../lib/utils';
@@ -101,7 +101,7 @@ function ReviewCard({ review }: { review: Review }) {
 }
 
 export default function ReviewSection({ mediaId }: Props) {
-  const { data: session } = useSession();
+  const { data: session } = useCachedSession();
   const { getToken, reset: resetTurnstile, ready: turnstileReady } = useTurnstile();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);

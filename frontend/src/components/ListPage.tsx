@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MediaCard } from './MediaCard';
 import { allMockData } from '../lib/api';
 import type { Media } from '../lib/api';
-import { authClient } from '@/lib/auth-client';
+import { useCachedSession } from '@/lib/auth-client';
 import { EmptyState } from './EmptyState';
 
 interface ListPageProps {
@@ -18,7 +18,7 @@ export function ListPage({ storageKey, title, description, emptyIcon, emptyTitle
   const [items, setItems] = useState<Media[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { data: session } = authClient.useSession();
+  const { data: session } = useCachedSession();
   const user = session?.user ?? null;
 
   useEffect(() => {

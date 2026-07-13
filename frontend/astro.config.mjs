@@ -35,10 +35,10 @@ export default defineConfig({
                     runtimeCaching: [
                         {
                             urlPattern: /^https?:\/\/webmedia-backend\.koussemonaurel\.workers\.dev\/api\/.*/i,
-                            handler: 'CacheFirst',
+                            handler: 'StaleWhileRevalidate',
                             options: {
                                 cacheName: 'api-cache',
-                                expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+                                expiration: { maxEntries: 50, maxAgeSeconds: 43200 },
                             },
                         },
                     ],

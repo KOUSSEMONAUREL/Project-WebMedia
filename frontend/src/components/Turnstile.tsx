@@ -81,29 +81,40 @@ function initWidget() {
     });
 }
 
+async function ensureWidget(): Promise<void> {
+    if (widgetRendered && window.turnstile) return;
+    await loadScript();
+    if (!globalContainer) {
+        const div = document.createElement('div');
+        div.style.position = 'absolute';
+        div.style.left = '-9999px';
+        div.style.top = '-9999px';
+        div.className = 'turnstile-global-widget';
+        document.body.appendChild(div);
+        globalContainer = div;
+    }
+    initWidget();
+}
+
+async function getTokenLazy(): Promise<string> {
+    if (globalToken) return globalToken;
+    await ensureWidget();
+    return new Promise((resolve) => {
+        globalResolve = resolve;
+        if (globalWidgetId && window.turnstile) {
+            window.turnstile.reset(globalWidgetId);
+        }
+    });
+}
+
 export function useTurnstile() {
-    const [ready, setReady] = useState(false);
+    const [ready, setReady] = useState(!!SITE_KEY);
     const mounted = useRef(false);
 
     useEffect(() => {
         if (!SITE_KEY || mounted.current) return;
         mounted.current = true;
-
-        if (!globalContainer) {
-            const div = document.createElement('div');
-            div.style.position = 'absolute';
-            div.style.left = '-9999px';
-            div.style.top = '-9999px';
-            div.className = 'turnstile-global-widget';
-            document.body.appendChild(div);
-            globalContainer = div;
-        }
-
-        (async () => {
-            await loadScript();
-            initWidget();
-            setReady(true);
-        })();
+        setReady(true);
 
         return () => {
             if (globalContainer && globalContainer.parentNode) {
@@ -118,14 +129,8 @@ export function useTurnstile() {
         };
     }, []);
 
-    const getToken = useCallback(async (): Promise<string> => {
-        if (globalToken) return globalToken;
-        return new Promise((resolve) => {
-            globalResolve = resolve;
-            if (globalWidgetId && window.turnstile) {
-                window.turnstile.reset(globalWidgetId);
-            }
-        });
+    const getToken = useCallback((): Promise<string> => {
+        return getTokenLazy();
     }, []);
 
     const reset = useCallback(() => {
@@ -139,11 +144,5 @@ export function useTurnstile() {
 }
 
 export async function getTurnstileTokenDirect(): Promise<string> {
-    if (globalToken) return globalToken;
-    return new Promise((resolve) => {
-        globalResolve = resolve;
-        if (globalWidgetId && window.turnstile) {
-            window.turnstile.reset(globalWidgetId);
-        }
-    });
+    return getTokenLazy();
 }

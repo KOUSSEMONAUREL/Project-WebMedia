@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { authClient, sendVerificationEmail, changePassword } from '@/lib/auth-client';
+import { authClient, sendVerificationEmail, changePassword, useCachedSession, clearUserCache } from '@/lib/auth-client';
 import { LogOut, Trash2, Mail, Lock, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import { clearFavorites, clearWatchlist } from '../lib/indexeddb';
 import { useTurnstile } from './Turnstile';
 
 export function UserSettings() {
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
 
   const [verifSending, setVerifSending] = useState(false);
@@ -132,7 +132,7 @@ export function UserSettings() {
           <p className="text-sm text-muted-foreground truncate">{currentUser.email}</p>
         </div>
         <button
-          onClick={() => { authClient.signOut(); window.location.reload(); }}
+          onClick={() => { clearUserCache(); authClient.signOut(); window.location.reload(); }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all cursor-pointer"
         >
           <LogOut className="h-4 w-4" />

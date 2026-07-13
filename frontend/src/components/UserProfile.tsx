@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authClient, getAuthToken } from '@/lib/auth-client';
+import { authClient, getAuthToken, useCachedSession, clearUserCache } from '@/lib/auth-client';
 import { Heart, Clock, LogOut, Star, History, Settings, Shield } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
@@ -16,7 +16,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
 
   // Charger les données réelles avec synchronisation Supabase (si authentifié)
@@ -188,6 +188,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
             </a>
             <button
               onClick={async () => {
+                clearUserCache();
                 await authClient.signOut();
                 window.location.href = '/';
               }}

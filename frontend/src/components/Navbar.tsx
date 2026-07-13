@@ -6,8 +6,8 @@ import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { LanguageSwitcher } from './language-switcher';
 import type { Media } from '@/lib/api';
-import { searchMedia } from '@/lib/api';
-import { authClient } from '@/lib/auth-client';
+import type { Media } from '@/lib/types';
+import { authClient, useCachedSession, clearUserCache } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import ErrorBoundary from './ErrorBoundary';
 import { bootstrapTranslate } from '@/lib/translate-init';
@@ -70,7 +70,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
   const user: UserData | null = sessionUser
     ? { name: sessionUser.name, email: sessionUser.email, avatar: sessionUser.image || undefined }
@@ -109,7 +109,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     const l = `${t.left - c.left - 6}px`;
 
     if (animate) {
-      indicator.style.transition = `left 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94), width 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 250ms`;
+      indicator.style.transition = `left 550ms cubic-bezier(0.34, 1.56, 0.64, 1), width 550ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 250ms`;
     } else {
       indicator.style.transition = 'none';
     }
@@ -179,6 +179,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
   };
 
   const handleLogout = async () => {
+    clearUserCache();
     await authClient.signOut();
     localStorage.removeItem('webmedia_user');
   };
@@ -207,6 +208,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
       return;
     }
     searchTimer.current = setTimeout(async () => {
+      const { searchMedia } = await import('@/lib/api');
       const res = await searchMedia(searchQuery, typeFilter ? { type: typeFilter } : undefined);
       setSuggestions(res.data?.slice(0, 6) || []);
       setShowSuggestions(true);
