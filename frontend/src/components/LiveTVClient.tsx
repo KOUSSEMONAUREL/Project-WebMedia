@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Search, Tv, Loader2, X, AlertCircle, Globe, Wifi, WifiOff, Radio } from 'lucide-react';
+import { Search, Tv, Loader2, X, AlertCircle, Wifi, WifiOff, Radio } from 'lucide-react';
 import Hls from 'hls.js';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
@@ -20,28 +20,12 @@ function flagEmoji(code: string): string {
   );
 }
 
-const LANG_NAMES: Record<string, string> = {
-  eng: 'Anglais', fra: 'Francais', spa: 'Espagnol', deu: 'Allemand', por: 'Portugais',
-  ita: 'Italien', rus: 'Russe', ara: 'Arabe', tur: 'Turc', nld: 'Neerlandais',
-  pol: 'Polonais', jpn: 'Japonais', kor: 'Coreen', zho: 'Chinois', vie: 'Vietnamien',
-  tha: 'Thailandais', hin: 'Hindi', ben: 'Bengali', heb: 'Hebreu', fas: 'Persan',
-  swe: 'Suedois', nor: 'Norvegien', dan: 'Danois', fin: 'Finnois', ces: 'Tcheque',
-  slk: 'Slovaque', hun: 'Hongrois', ron: 'Roumain', bul: 'Bulgare', srp: 'Serbe',
-  hrv: 'Croate', sqi: 'Albanais', ell: 'Grec', ukr: 'Ukrainien', lav: 'Letton',
-  lit: 'Lituanien', est: 'Estonien', cat: 'Catalan', glg: 'Galicien', eus: 'Basque',
-  afr: 'Afrikaans', amh: 'Amharique', aze: 'Azeri', bel: 'Bielorusse', bos: 'Bosnien',
-  cym: 'Gallois', epo: 'Esperanto', fil: 'Philippin', gle: 'Irlandais', glv: 'Manx',
-  hye: 'Armenien', ind: 'Indonesien', isl: 'Islandais', kaz: 'Kazakh', kur: 'Kurde',
-  lat: 'Latin', mkd: 'Macedonien', mlt: 'Maltais', mon: 'Mongol', mri: 'Maori',
-  msa: 'Malais', mya: 'Birman', nep: 'Nepalais', pan: 'Pendjabi', pus: 'Pachto',
-  slv: 'Slovene', som: 'Somali', swa: 'Swahili', tam: 'Tamoul', tel: 'Telougou',
-  tuk: 'Turkmene', uig: 'Ouigour', urd: 'Ourdou', uzb: 'Ouzbek', yid: 'Yiddish',
-};
+
 
 interface StreamInfo { url: string; quality: string | null; }
 interface LiveChannel {
   id: string; name: string; logo: string; country: string;
-  languages: string[]; categories: string[]; streams: StreamInfo[];
+  categories: string[]; streams: StreamInfo[];
 }
 
 const checkQueue: { url: string; resolve: (alive: boolean) => void }[] = [];
@@ -207,7 +191,6 @@ export function LiveTVClient() {
   const [search, setSearch] = useState('');
   const [country, setCountry] = useState('');
   const [category, setCategory] = useState('');
-  const [language, setLanguage] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'name-desc' | 'streams'>('name');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<LiveChannel | null>(null);
@@ -246,8 +229,8 @@ export function LiveTVClient() {
           const chStreams = streamMap.get(ch.id);
           if (!chStreams || chStreams.length === 0) continue;
           merged.push({
-            id: ch.id, name: ch.name, logo: ch.logo || '', country: ch.country || '',
-            languages: ch.languages || [], categories: ch.categories || [],
+            id: ch.id,             name: ch.name, logo: ch.logo || '', country: ch.country || '',
+            categories: ch.categories || [],
             streams: chStreams,
           });
         }
@@ -277,14 +260,6 @@ export function LiveTVClient() {
     return Array.from(set).sort();
   }, [allChannels]);
 
-  const languages = useMemo(() => {
-    const set = new Set<string>();
-    for (const ch of allChannels) {
-      for (const lang of ch.languages) set.add(lang);
-    }
-    return Array.from(set).sort();
-  }, [allChannels]);
-
   const filtered = useMemo(() => {
     let result = allChannels;
     if (search) {
@@ -293,12 +268,11 @@ export function LiveTVClient() {
     }
     if (country) result = result.filter(c => c.country === country);
     if (category) result = result.filter(c => c.categories.includes(category));
-    if (language) result = result.filter(c => c.languages.includes(language));
     if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === 'name-desc') result.sort((a, b) => b.name.localeCompare(a.name));
     else if (sortBy === 'streams') result.sort((a, b) => b.streams.length - a.streams.length);
     return result;
-  }, [allChannels, search, country, category, language, sortBy]);
+  }, [allChannels, search, country, category, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
@@ -385,7 +359,7 @@ export function LiveTVClient() {
     gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [totalPages]);
 
-  useEffect(() => { setPage(0); }, [search, country, category, language, sortBy]);
+  useEffect(() => { setPage(0); }, [search, country, category, sortBy]);
 
   const pageNumbers = useMemo(() => {
     const cur = safePage + 1;
@@ -449,15 +423,7 @@ export function LiveTVClient() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          <select
-            value={language} onChange={e => setLanguage(e.target.value)}
-            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          >
-            <option value="">Toutes les langues</option>
-            {languages.map(l => (
-              <option key={l} value={l}>{LANG_NAMES[l] || l}</option>
-            ))}
-          </select>
+
           <select
             value={sortBy} onChange={e => setSortBy(e.target.value as any)}
             className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
