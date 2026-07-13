@@ -6,7 +6,7 @@ export { allMockData, getMockByType };
 const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
-const TTL = { LIST: 5 * 60 * 1000, DETAIL: 10 * 60 * 1000 };
+const TTL = { LIST: 12 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
 
 function cacheKey(endpoint: string, params?: string) {
   return params ? `${endpoint}?${params}` : endpoint;
