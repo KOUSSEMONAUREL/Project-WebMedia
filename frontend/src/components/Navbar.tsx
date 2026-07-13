@@ -88,8 +88,6 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     }
   }, [sessionUser]);
 
-  const PILL_PADDING = 6;
-
   const moveIndicator = useCallback((path: string, animate: boolean) => {
     const container = linksRef.current;
     const indicator = indicatorRef.current;
@@ -104,17 +102,19 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     const target = container.querySelector<HTMLElement>(`[data-href="${normalised}"]`);
     if (!target) return;
 
-    const targetRect = target.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    const c = container.getBoundingClientRect();
 
-    const left = `${targetRect.left - containerRect.left - PILL_PADDING}px`;
-    const width = `${targetRect.width + PILL_PADDING * 2}px`;
+    const w = `${t.width + 12}px`;
+    const l = `${t.left - c.left - 6}px`;
 
     if (animate) {
-      indicator.style.transition = `left 550ms cubic-bezier(0.34, 1.56, 0.64, 1), width 550ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 250ms`;
+      indicator.style.transition = `left 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94), width 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 250ms`;
+    } else {
+      indicator.style.transition = 'none';
     }
-    indicator.style.left = left;
-    indicator.style.width = width;
+    indicator.style.left = l;
+    indicator.style.width = w;
     indicator.style.opacity = '1';
   }, []);
 
@@ -125,7 +125,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
   }, [moveIndicator]);
 
   useEffect(() => {
-    document.fonts?.ready.then(() => moveIndicator(window.location.pathname, false));
+    document.fonts?.ready.then(() => moveIndicator(window.location.pathname, true));
   }, [moveIndicator]);
 
   useEffect(() => {
