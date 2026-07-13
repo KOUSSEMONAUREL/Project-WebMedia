@@ -47,14 +47,6 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         <Navbar client:idle initialPathname={Astro.url.pathname} />
         <VerificationBanner client:visible />
         <main class="flex-1 pt-[74px]">
-            {
-                import.meta.env.PROD && (
-                    <>
-                        <script async="async" data-cfasync="false" src="https://pl30353930.effectivecpmnetwork.com/a73d54469fe630135e236ffd7782b309/invoke.js"></script>
-                        <div id="container-a73d54469fe630135e236ffd7782b309"></div>
-                    </>
-                )
-            }
             <slot />
         </main>
         <footer class="border-t border-border/30 mt-16 py-8 px-4 text-center">

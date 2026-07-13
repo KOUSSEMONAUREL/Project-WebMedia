@@ -98,4 +98,13 @@ Astro.response.headers.set(
         <MediaGrid title="Livres" items={popularBooks.slice(0, 10)} viewAllHref="/books" client:visible />
         <MediaGrid title="Light Novels" items={topNovels.slice(0, 10)} viewAllHref="/novels" client:visible />
     </div>
+
+    {
+        import.meta.env.PROD && (
+            <>
+                <script async="async" data-cfasync="false" src="https://pl30353930.effectivecpmnetwork.com/a73d54469fe630135e236ffd7782b309/invoke.js"></script>
+                <div id="container-a73d54469fe630135e236ffd7782b309"></div>
+            </>
+        )
+    }
 </Layout>
