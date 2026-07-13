@@ -100,7 +100,8 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
       return;
     }
 
-    const target = container.querySelector<HTMLElement>(`[data-href="${path}"]`);
+    const normalised = path.replace(/\/$/, '') || '/';
+    const target = container.querySelector<HTMLElement>(`[data-href="${normalised}"]`);
     if (!target) return;
 
     const targetRect = target.getBoundingClientRect();
@@ -118,7 +119,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
   }, []);
 
   useLayoutEffect(() => {
-    const curPath = window.location.pathname;
+    const curPath = window.location.pathname.replace(/\/$/, '') || '/';
     setPathname(curPath);
     moveIndicator(curPath, false);
   }, [moveIndicator]);
@@ -129,7 +130,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
 
   useEffect(() => {
     const onSwap = () => {
-      const curPath = window.location.pathname;
+      const curPath = window.location.pathname.replace(/\/$/, '') || '/';
       setPathname(curPath);
       moveIndicator(curPath, true);
     };
