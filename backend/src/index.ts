@@ -166,8 +166,12 @@ app.route('/api/static', staticRoutes);
 app.route('/api/internal', internalRoutes);
 app.route('/api/admin', adminRoutes);
 
-// Health check
+// Health check (redirect if Accept is text/html, e.g. OAuth fallback)
 app.get('/', (c) => {
+    const accept = c.req.header('accept') || '';
+    if (accept.includes('text/html')) {
+        return c.redirect('https://webmedia-front.koussemonaurel.workers.dev', 302);
+    }
     return c.json({
         status: 'ok',
         service: 'WebMedia Backend API',

@@ -251,6 +251,7 @@ internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any
         ON CONFLICT(media_id) DO UPDATE SET
             title = COALESCE(excluded.title, title),
             slug = COALESCE(excluded.slug, slug),
+            metadata_ok = MAX(metadata_ok, excluded.metadata_ok),
             active_links = excluded.active_links,
             has_content = excluded.has_content
         `).bind(id, type, title || null, slug || null, metadata_ok, active_links, has_content, Date.now() + 10000).run();
@@ -299,6 +300,7 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
                 ON CONFLICT(media_id) DO UPDATE SET
                     title = COALESCE(excluded.title, title),
                     slug = COALESCE(excluded.slug, slug),
+                    metadata_ok = MAX(metadata_ok, excluded.metadata_ok),
                     active_links = excluded.active_links,
                     has_content = excluded.has_content
             `).bind(item.id, item.type, item.title || null, item.slug || null, item.metadata_ok, item.active_links, item.has_content, Date.now() + 10000)
