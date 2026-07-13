@@ -449,18 +449,15 @@ export function LiveTVClient() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          <div className="relative flex-1 min-w-[140px]">
-            <input
-              type="text" list="lang-list" placeholder="Langue..."
-              value={language} onChange={e => setLanguage(e.target.value)}
-              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-            />
-            <datalist id="lang-list">
-              {languages.map(l => (
-                <option key={l} value={l}>{LANG_NAMES[l] || l}</option>
-              ))}
-            </datalist>
-          </div>
+          <select
+            value={language} onChange={e => setLanguage(e.target.value)}
+            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          >
+            <option value="">Toutes les langues</option>
+            {languages.map(l => (
+              <option key={l} value={l}>{LANG_NAMES[l] || l}</option>
+            ))}
+          </select>
           <select
             value={sortBy} onChange={e => setSortBy(e.target.value as any)}
             className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
