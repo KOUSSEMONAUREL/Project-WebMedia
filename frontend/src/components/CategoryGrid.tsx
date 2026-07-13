@@ -22,9 +22,9 @@ function SkeletonGrid() {
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
       {Array.from({ length: PER_PAGE }).map((_, i) => (
         <div key={i} className="flex flex-col gap-3">
-          <div className="aspect-[2/3] skeleton rounded-xl" />
-          <div className="h-4 skeleton rounded w-3/4" />
-          <div className="h-3 skeleton rounded w-1/3" />
+          <div className="aspect-[2/3] card-skeleton rounded-xl" />
+          <div className="h-4 card-skeleton rounded w-3/4" />
+          <div className="h-3 card-skeleton rounded w-1/3" />
         </div>
       ))}
     </div>

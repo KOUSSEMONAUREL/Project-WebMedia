@@ -42,8 +42,28 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         </footer>
     </body>
     <CookieBanner client:visible />
+    <div id="nprogress"><div class="bar"></div></div>
     <script>
         import { initSyncSession } from '../lib/sync-queue';
         initSyncSession();
+        const bar = document.querySelector('#nprogress .bar');
+        if (bar) {
+            let timer;
+            document.addEventListener('astro:before-swap', () => {
+                clearTimeout(timer);
+                bar.style.transition = 'width 0.3s ease';
+                bar.style.width = '30%';
+                bar.style.opacity = '1';
+            });
+            document.addEventListener('astro:after-swap', () => {
+                bar.style.transition = 'width 0.15s ease';
+                bar.style.width = '100%';
+                timer = setTimeout(() => {
+                    bar.style.transition = 'opacity 0.3s ease';
+                    bar.style.opacity = '0';
+                    setTimeout(() => { bar.style.width = '0'; }, 300);
+                }, 200);
+            });
+        }
     </script>
 </html>
