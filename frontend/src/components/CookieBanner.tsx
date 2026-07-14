@@ -25,13 +25,14 @@ export function CookieBanner() {
     setTimeout(function() { setVisible(false); }, 250);
   };
 
-  if (!visible) return null;
-
   return (
     <div
       role="dialog"
       aria-label="Stockage local"
-      className={'fixed bottom-0 left-0 right-0 z-[999] transition-all duration-250 ' + (hiding ? 'opacity-0 translate-y-full' : 'opacity-100 translate-y-0')}
+      className={
+        'fixed bottom-0 left-0 right-0 z-[999] transition-all duration-250 ' +
+        (!visible ? 'invisible' : hiding ? 'opacity-0 translate-y-full' : 'opacity-100 translate-y-0')
+      }
     >
       <div className="mx-auto max-w-3xl px-4 py-3">
         <div className="rounded-xl border border-white/8 bg-[#111318] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
