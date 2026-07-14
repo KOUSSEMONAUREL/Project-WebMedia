@@ -21,6 +21,39 @@ const MAX_JOBS = 10;
 const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
 const sb = drizzle(supabaseClient);
 
+const URL_TRANSFORMS: { match: RegExp; replace: string }[] = [
+  { match: /^https:\/\/novelfrance\.fr\/api\/novels\/(.+)$/, replace: 'https://novelfrance.fr/novel/$1' },
+];
+
+function transformUrl(url: string): string {
+  for (const t of URL_TRANSFORMS) {
+    if (t.match.test(url)) return url.replace(t.match, t.replace);
+  }
+  return url;
+}
+
+async function resolveApiUrl(url: string): Promise<string> {
+  const transformed = transformUrl(url);
+  if (transformed !== url) return transformed;
+  if (!url.includes('/api/')) return url;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.headers.get('content-type')?.includes('application/json')) return url;
+    const data: any = await res.json();
+    const slug = data?.slug;
+    if (!slug) return url;
+    const origin = new URL(url).origin;
+    for (const prefix of ['/novel/', '/read/', '/book/', '/series/', '/story/', '/']) {
+      try {
+        const candidate = `${origin}${prefix}${slug}`;
+        const check = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+        if (check.ok || check.status === 429 || check.status === 403) return candidate;
+      } catch {}
+    }
+  } catch {}
+  return url;
+}
+
 function jaccard(a: string, b: string): number {
   const wordsA = new Set(a.toLowerCase().split(/[\s\[\]\(\)\-:,!?']+/).filter(w => w.length > 2));
   const wordsB = new Set(b.toLowerCase().split(/[\s\[\]\(\)\-:,!?']+/).filter(w => w.length > 2));
@@ -127,6 +160,11 @@ async function processJob(job: any): Promise<void> {
     }
 
     if (urls.length === 0) throw new Error('No sources found');
+
+    urls = await Promise.all(urls.map(async (u) => {
+      const resolvedUrl = await resolveApiUrl(u.url);
+      return { url: resolvedUrl, site: new URL(resolvedUrl).hostname.replace(/^www\./, '') };
+    }));
 
     await sendToIngest(job.media_id, urls);
 
