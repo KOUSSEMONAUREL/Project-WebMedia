@@ -51,6 +51,9 @@ export async function detectAdBlocker(): Promise<boolean> {
     checkAdContent(),
   ]);
 
+  const afterCheck = sessionStorage.getItem(STORAGE_KEY);
+  if (afterCheck !== null) return afterCheck === 'true';
+
   const detected = (b1 && b2) || adContent;
   try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch {}
   return detected;
