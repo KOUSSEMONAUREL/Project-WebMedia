@@ -1,69 +1,71 @@
 const STORAGE_KEY = 'wm_adblock_detected';
-const TIMEOUT_MS = 2500;
-
+const DISMISS_KEY = 'wm_popup_dismissed';
+const POPUP_INTERVAL = 120_000;
 const AD_DOMAINS = ['quge5.com', 'elderlygoal.com', 'effectivecpmnetwork.com'];
 
-function token(): string {
+function t(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function checkCosmetic(t: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const el = document.createElement('div');
-    el.className = `ad-banner-${t}`;
-    el.style.cssText = 'position:absolute;left:-9999px;height:1px;width:1px;pointer-events:none';
-    document.body.appendChild(el);
-    requestAnimationFrame(() => {
-      const cs = getComputedStyle(el);
-      const blocked = el.offsetHeight === 0 || cs.display === 'none' || cs.visibility === 'hidden';
-      el.remove();
-      resolve(blocked);
-    });
-  });
-}
-
-function checkBaitScript(): Promise<boolean> {
+function checkBaitScript(domain: string): Promise<boolean> {
   return new Promise((resolve) => {
     const s = document.createElement('script');
-    s.src = `https://${AD_DOMAINS[0]}/baid/${token()}.js`;
+    s.src = `https://${domain}/bait/${t()}.js`;
     s.onerror = () => resolve(true);
     s.onload = () => resolve(false);
     document.head.appendChild(s);
-    setTimeout(() => resolve(true), TIMEOUT_MS);
+    setTimeout(() => resolve(true), 3000);
   });
 }
 
-function checkOwnAds(): Promise<boolean> {
+function checkAdContent(): Promise<boolean> {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const found = AD_DOMAINS.some((d) =>
-        document.querySelector(`script[src*="${d}"], img[src*="${d}"]`),
+      const scriptsFound = AD_DOMAINS.some((d) =>
+        document.querySelector(`script[src*="${d}"]`),
       );
-      resolve(!found);
-    }, 600);
+      const iframes = document.querySelectorAll('iframe').length;
+      const blocked = scriptsFound && iframes <= 1;
+      resolve(blocked);
+    }, 4000);
   });
+}
+
+function isInCooldown(): boolean {
+  const raw = sessionStorage.getItem(DISMISS_KEY);
+  if (!raw) return false;
+  return Date.now() - Number(raw) < POPUP_INTERVAL;
+}
+
+export function setDismissed(): void {
+  try { sessionStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}
 }
 
 export async function detectAdBlocker(): Promise<boolean> {
-  const cached = sessionStorage.getItem(STORAGE_KEY);
-  if (cached !== null) return cached === 'true';
+  const prefilled = sessionStorage.getItem(STORAGE_KEY);
+  if (prefilled !== null) return prefilled === 'true';
 
-  const [cosmetic, baitScript, ownAds] = await Promise.all([
-    checkCosmetic(token()),
-    checkBaitScript(),
-    checkOwnAds(),
+  const [b1, b2, adContent] = await Promise.all([
+    checkBaitScript(AD_DOMAINS[0]),
+    checkBaitScript(AD_DOMAINS[1]),
+    checkAdContent(),
   ]);
 
-  let signals = 0;
-  if (cosmetic) signals++;
-  if (baitScript) signals++;
-  if (ownAds) signals++;
-
-  const detected = signals >= 2;
+  const detected = (b1 && b2) || adContent;
   try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch {}
   return detected;
 }
 
+export function shouldShowPopup(): boolean {
+  if (isInCooldown()) return false;
+  const blocked = sessionStorage.getItem(STORAGE_KEY);
+  if (blocked === null) return false;
+  return blocked === 'true';
+}
+
 export function clearDetectionCache(): void {
-  try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(DISMISS_KEY);
+  } catch {}
 }

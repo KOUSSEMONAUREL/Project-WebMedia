@@ -1,88 +1,141 @@
 import { useEffect, useState, useCallback } from 'react';
-import { detectAdBlocker, clearDetectionCache } from '../lib/adblock-detect';
+import {
+  detectAdBlocker,
+  shouldShowPopup,
+  setDismissed,
+  clearDetectionCache,
+} from '../lib/adblock-detect';
 
 export default function AdBlockGuard() {
-  const [detected, setDetected] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!import.meta.env.PROD) {
-      setChecking(false);
-      return;
-    }
+    if (!import.meta.env.PROD) return;
+
     let mounted = true;
-    detectAdBlocker().then((blocked) => {
+    let interval: ReturnType<typeof setInterval>;
+
+    const run = async () => {
       if (!mounted) return;
-      setDetected(blocked);
-      setChecking(false);
-    });
-    return () => { mounted = false; };
+      await detectAdBlocker();
+      tick();
+      interval = setInterval(tick, 120_000);
+    };
+
+    const tick = () => {
+      if (!mounted) return;
+      if (shouldShowPopup()) setVisible(true);
+    };
+
+    run();
+
+    return () => {
+      mounted = false;
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
-  const handleReload = useCallback(() => {
+  const handleDismiss = useCallback(() => {
+    setDismissed();
+    setVisible(false);
+  }, []);
+
+  const handleWhitelist = useCallback(() => {
     clearDetectionCache();
     window.location.reload();
   }, []);
 
-  if (!import.meta.env.PROD || checking || !detected) return null;
+  if (!visible) return null;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 99999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#09090c',
-      fontFamily: "'Satoshi', sans-serif",
-    }}>
-      <div style={{
-        maxWidth: 500, width: '90%', padding: 40,
-        textAlign: 'center' as const,
-      }}>
-        <div style={{
-          width: 64, height: 64, margin: '0 auto 24px',
-          borderRadius: 16,
-          background: 'linear-gradient(135deg, #3b82f6, #60a5fa)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, color: '#fff',
-        }}>
-          !
-        </div>
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 99999,
+        maxWidth: 380,
+        width: 'calc(100% - 32px)',
+        background: '#13141a',
+        border: '1px solid #262833',
+        borderRadius: 12,
+        padding: '20px 24px',
+        boxShadow: '0 8px 32px rgba(0,0,0,.45)',
+        fontFamily: "'Satoshi', sans-serif",
+        boxSizing: 'border-box',
+      }}
+    >
+      <button
+        onClick={handleDismiss}
+        aria-label="Fermer"
+        style={{
+          position: 'absolute', top: 10, right: 12,
+          background: 'none', border: 'none',
+          color: '#7a7590', cursor: 'pointer',
+          fontSize: 18, lineHeight: 1, padding: 4,
+        }}
+      >
+        x
+      </button>
 
-        <h1 style={{
-          fontSize: 22, fontWeight: 700, color: '#f0ede8',
-          marginBottom: 12, lineHeight: 1.3,
-        }}>
-          Bloqueur de publicite detecte
-        </h1>
-
-        <p style={{
-          fontSize: 14, color: '#7a7590', lineHeight: 1.6,
-          marginBottom: 32,
-        }}>
-          WebMedia est gratuit et financé par la publicite. Pour continuer a
-          profiter du site, merci de desactiver votre bloqueur de publicite
-          pour ce site, puis cliquez sur le bouton ci-dessous.
-        </p>
-
-        <button
-          onClick={handleReload}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div
           style={{
-            padding: '12px 32px', borderRadius: 10, border: 'none',
-            background: '#3b82f6', color: '#fff',
-            fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, #3b82f6, #60a5fa)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, color: '#fff', marginTop: 2,
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
-          onMouseLeave={(e) => e.currentTarget.style.background = '#3b82f6'}
         >
-          J'ai desactive mon Adblock
-        </button>
-
-        <p style={{
-          fontSize: 12, color: '#4a4560', marginTop: 24, lineHeight: 1.5,
-        }}>
-          Vous utilisez un bloqueur de publicite ? Ajoutez{' '}
-          <strong style={{ color: '#7a7590' }}>project-web-media.vercel.app</strong>
-          {' '}a votre liste blanche.
-        </p>
+          i
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0, fontSize: 13, fontWeight: 600,
+              color: '#f0ede8', lineHeight: 1.4,
+            }}
+          >
+            Vous utilisez un bloqueur de publicite ?
+          </p>
+          <p
+            style={{
+              margin: '6px 0 14px', fontSize: 12,
+              color: '#7a7590', lineHeight: 1.5,
+            }}
+          >
+            WebMedia est gratuit et finance par les pubs. Ajoutez ce site a
+            votre liste blanche pour nous soutenir.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleWhitelist}
+              style={{
+                padding: '8px 18px', borderRadius: 8, border: 'none',
+                background: '#3b82f6', color: '#fff',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = '#2563eb')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = '#3b82f6')
+              }
+            >
+              J'ai whitelist
+            </button>
+            <button
+              onClick={handleDismiss}
+              style={{
+                padding: '8px 18px', borderRadius: 8, border: '1px solid #262833',
+                background: 'transparent', color: '#7a7590',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Plus tard
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
