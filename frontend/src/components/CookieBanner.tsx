@@ -2,6 +2,18 @@ import { useState, useEffect } from 'react';
 
 const CONSENT_KEY = 'webmedia_storage_consent';
 
+function sendToSW(msg: Record<string, unknown>) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage(msg);
+  }
+}
+
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  }
+}
+
 export function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [hiding, setHiding] = useState(false);
@@ -14,13 +26,8 @@ export function CookieBanner() {
 
   const dismiss = (choice: 'full' | 'minimal') => {
     localStorage.setItem(CONSENT_KEY, choice);
-    if (choice === 'full' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(function(reg) {
-        console.log('[SW] registered:', reg.scope);
-      }).catch(function(err) {
-        console.warn('[SW] registration failed:', err);
-      });
-    }
+    registerSW();
+    sendToSW({ type: 'SET_OFFLINE', value: choice === 'full' });
     setHiding(true);
     setTimeout(function() { setVisible(false); }, 250);
   };
