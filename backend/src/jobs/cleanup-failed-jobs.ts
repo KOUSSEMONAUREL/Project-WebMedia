@@ -41,20 +41,22 @@ async function cleanup() {
         process.exit(0);
     }
 
-    const mediaIds = failedMedia.map((r: any) => r.media_id);
+    const allMediaIds = failedMedia.map((r: any) => r.media_id);
+    const novelIds = failedMedia.filter((r: any) => r.media_type === 'novel').map((r: any) => r.media_id);
+    const otherIds = failedMedia.filter((r: any) => r.media_type !== 'novel').map((r: any) => r.media_id);
 
     // 2. Supprimer de Supabase (scraping_jobs - failed)
     const deletedJobs = await sb`
-        DELETE FROM scraping_jobs WHERE media_id IN ${sb(mediaIds)}
+        DELETE FROM scraping_jobs WHERE media_id IN ${sb(allMediaIds)}
     `;
     console.log(`Supabase: ${deletedJobs.count} failed scraping_jobs deleted`);
 
     // 3. Clean aussi les success vieux (Supabase seulement, audit trail)
     await alwaysCleanup();
 
-    // 4. Supprimer de D1 (media_state) via API
+    // 4. Supprimer de D1 (media_state) via API (tous les types)
     if (apiUrl && apiKey) {
-        for (const id of mediaIds) {
+        for (const id of allMediaIds) {
             try {
                 await fetch(`${apiUrl}/api/internal/cleanup/d1-state`, {
                     method: 'POST',
@@ -63,30 +65,38 @@ async function cleanup() {
                 });
             } catch { /* ignore */ }
         }
-        console.log(`D1: ${mediaIds.length} media_state entries cleaned`);
+        console.log(`D1: ${allMediaIds.length} media_state entries cleaned`);
     } else {
         console.log('D1: skipped (no API config)');
     }
 
-    // 5. Supprimer de Neon (medias + episodes + liens via cascade)
-    if (neonUrl) {
+    // 5. Supprimer de Neon — sauf les novels (ont deja des liens RoyalRoad)
+    if (neonUrl && otherIds.length > 0) {
         const { db: neonDb, client: pgClient } = getNeonClient(neonUrl);
         const deletedNeon = await neonDb.delete(neonMedias)
-            .where(inArray(neonMedias.id, mediaIds));
-        console.log(`Neon: ${deletedNeon.count || mediaIds.length} medias + episodes/liens (cascade) deleted`);
+            .where(inArray(neonMedias.id, otherIds));
+        console.log(`Neon: ${deletedNeon.count || otherIds.length} medias + episodes/liens (cascade) deleted`);
         await pgClient.end();
     }
+    if (novelIds.length > 0) {
+        console.log(`Neon: SKIPPED ${novelIds.length} novels (existing links preserved)`);
+    }
 
-    // 6. Supprimer de Turso
-    if (tursoUrl) {
+    // 6. Supprimer de Turso — sauf les novels
+    if (tursoUrl && otherIds.length > 0) {
         const tc = createClient({ url: tursoUrl, authToken: tursoToken });
-        for (const id of mediaIds) {
+        for (const id of otherIds) {
             await tc.execute({ sql: 'DELETE FROM liens WHERE media_id = ?', args: [id] });
             await tc.execute({ sql: 'DELETE FROM episodes WHERE media_id = ?', args: [id] });
             await tc.execute({ sql: 'DELETE FROM medias WHERE id = ?', args: [id] });
         }
-        console.log(`Turso: ${mediaIds.length} medias + episodes + liens deleted`);
+        console.log(`Turso: ${otherIds.length} medias + episodes + liens deleted`);
+        if (novelIds.length > 0) {
+            console.log(`Turso: SKIPPED ${novelIds.length} novels (existing links preserved)`);
+        }
         tc.close();
+    } else if (novelIds.length > 0) {
+        console.log(`Turso: SKIPPED ${novelIds.length} novels (existing links preserved)`);
     }
 
     await sb.end();
