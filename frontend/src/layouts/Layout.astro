@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
 import { VerificationBanner } from '../components/VerificationBanner';
+import { ToastInit } from '../components/ToastInit';
 import AdBlockGuard from '../components/AdBlockGuard';
 import ClientRouter from 'astro/components/ClientRouter.astro';
 
@@ -11,7 +12,7 @@ interface Props {
     description?: string;
 }
 
-const { title, description = 'Découvrez les meilleurs films, séries, animés, jeux et webtoons' } = Astro.props;
+const { title, description = 'Découvrez les meilleurs films, séries, animés, webtoons et light novels' } = Astro.props;
 ---
 
 <!doctype html>
@@ -69,28 +70,9 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
     }
     </body>
     <CookieBanner client:visible />
-    <div id="nprogress"><div class="bar"></div></div>
+    <ToastInit client:only="react" />
     <script>
         import { initSyncSession } from '../lib/sync-queue';
         initSyncSession();
-        const bar = document.querySelector('#nprogress .bar');
-        if (bar) {
-            let timer;
-            document.addEventListener('astro:before-swap', () => {
-                clearTimeout(timer);
-                bar.style.transition = 'width 0.3s ease';
-                bar.style.width = '30%';
-                bar.style.opacity = '1';
-            });
-            document.addEventListener('astro:after-swap', () => {
-                bar.style.transition = 'width 0.15s ease';
-                bar.style.width = '100%';
-                timer = setTimeout(() => {
-                    bar.style.transition = 'opacity 0.3s ease';
-                    bar.style.opacity = '0';
-                    setTimeout(() => { bar.style.width = '0'; }, 300);
-                }, 200);
-            });
-        }
     </script>
 </html>

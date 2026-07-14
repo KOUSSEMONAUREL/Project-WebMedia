@@ -108,7 +108,26 @@ const data = media ? {
     }
 
     document.addEventListener('DOMContentLoaded', upd);
-    fav?.addEventListener('click', () => { const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) }; has('favorites', mid).then(i => i ? del('favorites', mid) : put('favorites', { id: mid, ...m, addedAt: Date.now() })).then(() => { if (typeof sessionStorage !== 'undefined') { has('favorites', mid).then(i => syncFav(mid, i ? 'remove' : 'add')); } upd(); }); });
-    wl?.addEventListener('click', () => { const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) }; has('watchlist', mid).then(i => i ? del('watchlist', mid) : put('watchlist', { id: mid, ...m, addedAt: Date.now() })).then(() => upd()); });
+    fav?.addEventListener('click', () => {
+      const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) };
+      has('favorites', mid).then(i => {
+        const add = !i;
+        return (add ? put('favorites', { id: mid, ...m, addedAt: Date.now() }) : del('favorites', mid)).then(() => {
+          if (typeof sessionStorage !== 'undefined') syncFav(mid, add ? 'add' : 'remove');
+          upd();
+          window.dispatchEvent(new CustomEvent('wm-toast', { detail: { message: add ? 'Ajoute aux favoris' : 'Retire des favoris', duration: 2000 } }));
+        });
+      });
+    });
+    wl?.addEventListener('click', () => {
+      const m = { type: mtype, title: mtitle, slug: mslug, posterUrl: mposter, rating: Number(mrating), year: Number(myear) };
+      has('watchlist', mid).then(i => {
+        const add = !i;
+        return (add ? put('watchlist', { id: mid, ...m, addedAt: Date.now() }) : del('watchlist', mid)).then(() => {
+          upd();
+          window.dispatchEvent(new CustomEvent('wm-toast', { detail: { message: add ? 'Ajoute a la watchlist' : 'Retire de la watchlist', duration: 2000 } }));
+        });
+      });
+    });
   </script>
 </Layout>

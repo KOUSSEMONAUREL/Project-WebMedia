@@ -1,5 +1,6 @@
 import { memo, type ReactNode, useState, useEffect } from 'react';
 import { Star, Play, Heart, BookmarkPlus } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
@@ -154,10 +155,10 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
         await removeFavorite(media.id);
       }
 
-      // 2. File d'attente différée → Supabase seulement après 15 min de session
       const { queueFavoriteSync } = await import('../lib/sync-queue');
       queueFavoriteSync(media.id, nextVal ? 'add' : 'remove');
 
+      toast.success(nextVal ? 'Ajoute aux favoris' : 'Retire des favoris', { duration: 2000 });
     } catch (err) {
       console.warn('[toggle-favorite] erreur locale:', err);
       try {
@@ -192,6 +193,8 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
       } else {
         await removeFromWatchlist(media.id);
       }
+
+      toast.success(nextVal ? 'Ajoute a la watchlist' : 'Retire de la watchlist', { duration: 2000 });
     } catch (err) {
       console.warn('[watchlist] local error:', err);
       try {
@@ -219,7 +222,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
     >
       {/* Poster */}
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl poster-wrap shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
         style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
         {media.posterUrl ? (
@@ -228,9 +231,10 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
             srcSet={posterSrcSet(media.posterUrl)}
             sizes="(max-width: 640px) 164px, (max-width: 1024px) 192px, 212px"
             alt={media.title}
-            className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
+            className="poster-img relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
             loading={isLcp ? undefined : 'lazy'}
             fetchPriority={isLcp ? 'high' : undefined}
+            onLoad={(e) => (e.target as HTMLImageElement).classList.add('loaded')}
             onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
           />
         ) : null}

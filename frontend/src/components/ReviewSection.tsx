@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useTurnstile } from './Turnstile';
 import { useCachedSession } from '../lib/auth-client';
 import { getReviews, createReview } from '../services/reviews';
@@ -152,6 +153,7 @@ export default function ReviewSection({ mediaId }: Props) {
       setSpoiler(false);
       resetTurnstile();
       await load();
+      toast.success('Review publiee', { duration: 2500 });
     } catch (err: any) {
       setSubmitError(err.message || "Erreur lors de la création de la review");
     } finally {

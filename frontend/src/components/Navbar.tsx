@@ -301,6 +301,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                   transform: pathname === '/' ? 'scale(1.07)' : 'none',
                   textShadow: pathname === '/' ? '0 0 14px rgba(59,130,246,0.35)' : 'none',
                 }}
+                data-astro-transition-name="logo"
               >
                 WebMedia
               </span>
