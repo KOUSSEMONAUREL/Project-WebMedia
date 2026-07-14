@@ -1,14 +1,16 @@
 const STORAGE_KEY = 'wm_adblock_detected';
-const TIMEOUT_MS = 2000;
+const TIMEOUT_MS = 2500;
 
-function randomToken(): string {
+const AD_DOMAINS = ['quge5.com', 'elderlygoal.com', 'effectivecpmnetwork.com'];
+
+function token(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function checkCosmetic(token: string): Promise<boolean> {
+function checkCosmetic(t: string): Promise<boolean> {
   return new Promise((resolve) => {
     const el = document.createElement('div');
-    el.className = `ad-banner-${token}`;
+    el.className = `ad-banner-${t}`;
     el.style.cssText = 'position:absolute;left:-9999px;height:1px;width:1px;pointer-events:none';
     document.body.appendChild(el);
     requestAnimationFrame(() => {
@@ -20,25 +22,25 @@ function checkCosmetic(token: string): Promise<boolean> {
   });
 }
 
-function checkNetwork(): Promise<boolean> {
+function checkBaitScript(): Promise<boolean> {
   return new Promise((resolve) => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => { ctrl.abort(); resolve(true); }, TIMEOUT_MS);
-    fetch('https://pagead2.googlesyndication.com/pagead/show_ads.js', {
-      method: 'HEAD', mode: 'no-cors', signal: ctrl.signal,
-    })
-      .then(() => { clearTimeout(timer); resolve(false); })
-      .catch(() => { clearTimeout(timer); resolve(true); });
+    const s = document.createElement('script');
+    s.src = `https://${AD_DOMAINS[0]}/baid/${token()}.js`;
+    s.onerror = () => resolve(true);
+    s.onload = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(true), TIMEOUT_MS);
   });
 }
 
-function checkResource(): Promise<boolean> {
+function checkOwnAds(): Promise<boolean> {
   return new Promise((resolve) => {
-    const img = new Image();
-    const timer = setTimeout(() => resolve(true), TIMEOUT_MS);
-    img.onload = () => { clearTimeout(timer); resolve(false); };
-    img.onerror = () => { clearTimeout(timer); resolve(true); };
-    img.src = `https://www.google-analytics.com/collect?v=1&t=event&_t=${randomToken()}`;
+    setTimeout(() => {
+      const found = AD_DOMAINS.some((d) =>
+        document.querySelector(`script[src*="${d}"], img[src*="${d}"]`),
+      );
+      resolve(!found);
+    }, 600);
   });
 }
 
@@ -46,17 +48,16 @@ export async function detectAdBlocker(): Promise<boolean> {
   const cached = sessionStorage.getItem(STORAGE_KEY);
   if (cached !== null) return cached === 'true';
 
-  const token = randomToken();
-  const [cosmetic, network, resource] = await Promise.all([
-    checkCosmetic(token),
-    checkNetwork(),
-    checkResource(),
+  const [cosmetic, baitScript, ownAds] = await Promise.all([
+    checkCosmetic(token()),
+    checkBaitScript(),
+    checkOwnAds(),
   ]);
 
   let signals = 0;
   if (cosmetic) signals++;
-  if (network) signals++;
-  if (resource) signals++;
+  if (baitScript) signals++;
+  if (ownAds) signals++;
 
   const detected = signals >= 2;
   try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch {}
