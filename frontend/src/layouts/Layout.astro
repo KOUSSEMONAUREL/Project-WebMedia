@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
 import { VerificationBanner } from '../components/VerificationBanner';
+import AdBlockGuard from '../components/AdBlockGuard';
 import ClientRouter from 'astro/components/ClientRouter.astro';
 
 interface Props {
@@ -44,6 +45,7 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         }
     </head>
     <body class="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
+        <AdBlockGuard client:only="react" />
         <Navbar client:idle initialPathname={Astro.url.pathname} />
         <VerificationBanner client:visible />
         <main class="flex-1 pt-[74px]">
