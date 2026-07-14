@@ -53,7 +53,11 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
             <slot />
         </main>
         <footer class="border-t border-border/30 mt-16 py-8 px-4 text-center">
-            <p class="text-muted-foreground text-xs">© 2025 WebMedia · Tous droits réservés</p>
+            <p class="text-muted-foreground text-xs">
+                <a href="/legal" class="hover:text-foreground transition-colors">Mentions legales</a>
+                <span class="mx-2 opacity-30">·</span>
+                © 2025 WebMedia
+            </p>
         </footer>
     {
         import.meta.env.PROD && (

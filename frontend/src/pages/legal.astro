@@ -5,127 +5,221 @@ import Layout from '../layouts/Layout.astro';
 
 <Layout title="Mentions legales">
   <div class="max-w-3xl mx-auto px-4 py-12">
-    <h1 class="text-2xl font-bold text-[#f0ede8] mb-8">Mentions legales</h1>
+    <h1 class="text-2xl font-bold text-[#f0ede8] mb-8">Informations legales</h1>
+    <p class="text-sm text-[#7a7590] mb-10 leading-relaxed">
+      Conformement aux articles 6-III et 19 de la loi LCEN et au Reglement Generale sur la Protection des Donnees (RGPD).
+    </p>
 
+    <!-- 1. MENTIONS LEGALES -->
     <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">1. Editeur</h2>
-      <p class="text-sm text-[#7a7590] leading-relaxed">
-        WebMedia est un site personnel edite par Koussemo Aurel.<br />
-        Code postal : 97300, Cayenne, France.<br />
-        Contact : <a href="/contact" class="text-blue-400 hover:underline">via le formulaire</a>.
-      </p>
-      <p class="text-sm text-[#7a7590] leading-relaxed mt-2">
-        Directeur de la publication : Koussemo Aurel.
-      </p>
-    </section>
+      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">1. Mentions legales</h2>
 
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">2. Hebergement</h2>
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Editeur</h3>
       <p class="text-sm text-[#7a7590] leading-relaxed">
-        Ce site est heberge par :<br />
+        <strong class="text-[#a09ab0]">Koussemo Aurel</strong> (particulier)<br />
+        Cayenne, 97300, France<br />
+        Email : <a href="mailto:reyseilfullbryger@gmail.com" class="text-blue-400 hover:underline">reyseilfullbryger@gmail.com</a><br />
+        Pseudo : Dexgun<br />
+        <span class="text-[#5a5570]">Ce site est un projet personnel open source. Aucune activite commerciale declaree.</span>
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Directeur de la publication</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">Koussemo Aurel.</p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Hebergeur</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
         <strong class="text-[#a09ab0]">Vercel Inc.</strong><br />
         440 N Barranca Ave #4133, Covina, CA 91723, USA.<br />
-        <a href="https://vercel.com" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">vercel.com</a>
+        <a href="https://vercel.com/contact" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">vercel.com/contact</a>
       </p>
       <p class="text-sm text-[#7a7590] leading-relaxed mt-2">
-        Certaines fonctionnalites backend sont hebergees sur :<br />
-        <strong class="text-[#a09ab0]">Cloudflare, Inc.</strong><br />
-        101 Townsend St, San Francisco, CA 94107, USA.<br />
-        <a href="https://cloudflare.com" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">cloudflare.com</a>
+        Fonctions backend : <strong class="text-[#a09ab0]">Cloudflare, Inc.</strong><br />
+        101 Townsend St, San Francisco, CA 94107, USA.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Code source</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Ce projet est entierement open source. Le code est disponible sur GitHub :
+        <a href="https://github.com/KOUSSEMONAUREL/Project-WebMedia" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">github.com/KOUSSEMONAUREL/Project-WebMedia</a>
       </p>
     </section>
 
+    <!-- 2. POLITIQUE DE CONFIDENTIALITE -->
     <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">3. Propriete intellectuelle</h2>
-      <p class="text-sm text-[#7a7590] leading-relaxed">
-        Les contenus (textes, design, code) sont la propriete de l'editeur. Toute reproduction sans autorisation est interdite.<br />
-        Les synopsis, noms d'oeuvres et affiches proviennent de sources publiques (TMDB, Anilist, etc.) et appartiennent a leurs ayants droit respectifs.
-      </p>
-    </section>
+      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">2. Politique de confidentialite</h2>
 
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">4. Responsabilite</h2>
-      <p class="text-sm text-[#7a7590] leading-relaxed">
-        WebMedia est un annuaire de liens externes. Nous ne stockons aucun fichier video, audio ou archive sur nos serveurs.<br />
-        Les liens pointent vers des hebergeurs tiers. En cas de contenu illicit, contactez-nous pour retrait du lien.
-      </p>
-    </section>
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Donnees collectees et finalite</h3>
+      <table class="w-full text-sm text-[#7a7590] mt-2 border-collapse">
+        <thead>
+          <tr class="border-b border-white/5 text-left">
+            <th class="py-2 pr-4 text-[#a09ab0] font-medium">Donnee</th>
+            <th class="py-2 pr-4 text-[#a09ab0] font-medium">Finalite</th>
+            <th class="py-2 text-[#a09ab0] font-medium">Duree conservation</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr>
+            <td class="py-2 pr-4">Email</td>
+            <td class="py-2 pr-4">Creation compte, envoi email verification</td>
+            <td class="py-2">Duree du compte + 12 mois</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Nom d'utilisateur (pseudo)</td>
+            <td class="py-2 pr-4">Affichage public profil</td>
+            <td class="py-2">Duree du compte</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Mot de passe</td>
+            <td class="py-2 pr-4">Authentification</td>
+            <td class="py-2">Jusqu'au changement ou suppression compte</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Favoris & watchlist</td>
+            <td class="py-2 pr-4">Sauvegarde locale + synchronisation compte</td>
+            <td class="py-2">Duree du compte</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Session (localStorage)</td>
+            <td class="py-2 pr-4">Maintien connexion entre pages</td>
+            <td class="py-2">Fermeture navigateur ou deconnexion</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Adresse IP, user-agent, signature TLS</td>
+            <td class="py-2 pr-4">Protection anti-bot (Cloudflare Turnstile)</td>
+            <td class="py-2">Non stockee par WebMedia (traite par Cloudflare)</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Donnees navigation pubs</td>
+            <td class="py-2 pr-4">Diffusion publicite (regies tiers)</td>
+            <td class="py-2">Voir politiques des regies</td>
+          </tr>
+        </tbody>
+      </table>
 
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">5. Donnees personnelles</h2>
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-6 mb-1">Base legale du traitement</h3>
       <p class="text-sm text-[#7a7590] leading-relaxed">
-        WebMedia collecte et traite les donnees suivantes :
+        Execution du contrat (creation et gestion du compte), consentement (cookies pubs, Turnstile), interet legitime (securite anti-bot).
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Destinataires des donnees</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Vos donnees sont stockees et traitees par :<br />
+        - <strong class="text-[#a09ab0]">Supabase</strong> (authentification, comptes) &ndash; <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Politique Supabase</a><br />
+        - <strong class="text-[#a09ab0]">Cloudflare</strong> (Turnstile anti-bot) &ndash; <a href="https://www.cloudflare.com/en-gb/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Politique Turnstile</a><br />
+        - <strong class="text-[#a09ab0]">Monetag</strong>, <strong class="text-[#a09ab0]">HilltopAds</strong>, <strong class="text-[#a09ab0]">Adsterra</strong> (regies publicitaires)
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Vos droits (RGPD)</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Conformement au RGPD (Reglement UE 2016/679), vous disposez des droits suivants :
       </p>
       <ul class="list-disc pl-5 mt-2 text-sm text-[#7a7590] leading-relaxed space-y-1">
-        <li><strong class="text-[#a09ab0]">Compte utilisateur</strong> : email, nom d'utilisateur, mot de passe chiffre (bcrypt). Stocke via le service tiers Supabase.</li>
-        <li><strong class="text-[#a09ab0]">Favoris & watchlist</strong> : stockes dans IndexedDB (cote navigateur) et synchronises sur votre compte.</li>
-        <li><strong class="text-[#a09ab0]">Session</strong> : stockee en localStorage pour maintenir votre connexion.</li>
+        <li>Droit d'acces (&sect;15) : savoir quelles donnees sont traitees</li>
+        <li>Droit de rectification (&sect;16) : corriger des donnees inexactes</li>
+        <li>Droit a l'effacement (&sect;17) : demander la suppression de vos donnees</li>
+        <li>Droit a la limitation (&sect;18) : figer le traitement de vos donnees</li>
+        <li>Droit a la portabilite (&sect;20) : recuperer vos donnees dans un format lisible</li>
+        <li>Droit d'opposition (&sect;21) : vous opposer au traitement</li>
       </ul>
+      <p class="text-sm text-[#7a7590] leading-relaxed mt-2">
+        Pour exercer ces droits, contactez-nous a :
+        <a href="mailto:reyseilfullbryger@gmail.com" class="text-blue-400 hover:underline">reyseilfullbryger@gmail.com</a>.
+        Aucun DPO n'est designe (projet personnel sans traitement a grande echelle).
+      </p>
     </section>
 
+    <!-- 3. POLITIQUE DE COOKIES -->
     <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">6. Regies publicitaires</h2>
+      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">3. Politique de cookies</h2>
+
       <p class="text-sm text-[#7a7590] leading-relaxed">
-        WebMedia utilise des regies publicitaires tiers pour financer son fonctionnement. Ces regies peuvent collecter des donnees de navigation via des cookies et des scripts.
+        Un cookie est un petit fichier texte depose sur votre navigateur lors de la visite d'un site. WebMedia utilise les categories suivantes :
       </p>
 
-      <div class="mt-4 space-y-3">
+      <div class="mt-4 space-y-4">
         <div class="bg-[#15172a] rounded-lg p-3 border border-white/5">
-          <h3 class="text-sm font-semibold text-[#f0ede8]">Monetag</h3>
-          <p class="text-xs text-[#7a7590] mt-1">MultiTag & Popunders. Politique : <a href="https://monetag.com/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">monetag.com/privacy-policy</a></p>
+          <h3 class="text-sm font-semibold text-[#f0ede8]">Cookies techniques (necessaires)</h3>
+          <p class="text-xs text-[#7a7590] mt-1">Session utilisateur (localStorage). Pas de consentement requis. Desactives automatiquement a la fermeture du navigateur.</p>
         </div>
         <div class="bg-[#15172a] rounded-lg p-3 border border-white/5">
-          <h3 class="text-sm font-semibold text-[#f0ede8]">HilltopAds</h3>
-          <p class="text-xs text-[#7a7590] mt-1">Popunder. Politique : <a href="https://hilltopads.com/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">hilltopads.com/privacy-policy</a></p>
+          <h3 class="text-sm font-semibold text-[#f0ede8]">Cookies de preference</h3>
+          <p class="text-xs text-[#7a7590] mt-1">Stockage du choix de consentement dans localStorage (cle <code class="text-blue-400">webmedia_storage_consent</code>). Conserve jusqu'a suppression manuelle.</p>
         </div>
         <div class="bg-[#15172a] rounded-lg p-3 border border-white/5">
-          <h3 class="text-sm font-semibold text-[#f0ede8]">Adsterra</h3>
-          <p class="text-xs text-[#7a7590] mt-1">Native Banner & Social Bar. Politique : <a href="https://adsterra.com/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">adsterra.com/privacy-policy</a></p>
+          <h3 class="text-sm font-semibold text-[#f0ede8]">Cookies publicitaires (tiers)</h3>
+          <p class="text-xs text-[#7a7590] mt-1">Deposes par les regies Monetag, HilltopAds et Adsterra. Peuvent etre refuses en activant un bloqueur de publicite ou en configurant votre navigateur.</p>
+        </div>
+        <div class="bg-[#15172a] rounded-lg p-3 border border-white/5">
+          <h3 class="text-sm font-semibold text-[#f0ede8]">Cloudflare Turnstile</h3>
+          <p class="text-xs text-[#7a7590] mt-1">Anti-bot. Aucun cookie depose. Collecte : IP, user-agent, signature TLS. Donnees non conservees par WebMedia.</p>
         </div>
       </div>
 
-      <p class="text-sm text-[#7a7590] leading-relaxed mt-3">
-        Vous pouvez desactiver ces regies via votre bloqueur de publicite ou en configurant vos preferences dans les parametres de votre navigateur.
+      <p class="text-sm text-[#7a7590] leading-relaxed mt-4">
+        <strong class="text-[#a09ab0]">Gestion des cookies :</strong> Vous pouvez desactiver ou supprimer les cookies via les parametres de votre navigateur :
       </p>
-    </section>
-
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">7. Protection anti-bot</h2>
-      <p class="text-sm text-[#7a7590] leading-relaxed">
-        WebMedia utilise Cloudflare Turnstile pour se proteger des robots. Turnstile collecte les donnees suivantes : adresse IP, user-agent, signature TLS. Aucun cookie de tracing n'est stocke. Consultez la <a href="https://www.cloudflare.com/en-gb/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">politique Cloudflare Turnstile</a>.
-      </p>
-    </section>
-
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">8. Cookies</h2>
-      <p class="text-sm text-[#7a7590] leading-relaxed">
-        Ce site utilise uniquement les cookies suivants :
-      </p>
-      <ul class="list-disc pl-5 mt-2 text-sm text-[#7a7590] leading-relaxed space-y-1">
-        <li><strong class="text-[#a09ab0]">Session</strong> : cookie technique necessaire au fonctionnement (connexion utilisateur).</li>
-        <li><strong class="text-[#a09ab0]">Regies pubs</strong> : les regies publicitaires (Monetag, HilltopAds, Adsterra) peuvent deposer des cookies pour diffuser des publicites ciblees.</li>
+      <ul class="list-disc pl-5 mt-1 text-sm text-[#7a7590] leading-relaxed space-y-1">
+        <li>Chrome : Parametres &rarr; Confidentialite & securite &rarr; Cookies</li>
+        <li>Firefox : Options &rarr; Vie privee & securite &rarr; Cookies</li>
+        <li>Safari : Preferences &rarr; Confidentialite &rarr; Cookies</li>
+        <li>Brave : Bouclier &rarr; Controles avances &rarr; Cookies</li>
       </ul>
       <p class="text-sm text-[#7a7590] leading-relaxed mt-2">
-        En cliquant sur "Accepter" dans le bandeau, vous consentez au depot de ces cookies. Vous pouvez retirer votre consentement a tout moment via les parametres de votre navigateur.
+        Le bandeau de consentement s'affiche a la premiere visite. En cliquant sur "Accepter", vous consentiez au depot des cookies publicitaires.
       </p>
     </section>
 
+    <!-- 4. CGU -->
     <section class="mb-10">
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">9. Vos droits (RGPD)</h2>
+      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">4. Conditions Generales d'Utilisation (CGU)</h2>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Objet</h3>
       <p class="text-sm text-[#7a7590] leading-relaxed">
-        Conformement au RGPD, vous disposez d'un droit d'acces, de rectification, d'effacement et de portabilite de vos donnees. Vous pouvez exercer ces droits en nous contactant via le formulaire de contact.
+        Les presentes CGU regissent l'acces et l'utilisation du site WebMedia. En utilisant le site, vous acceptez ces conditions.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Service</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        WebMedia est un annuaire de liens externes vers des contenus heberges par des tiers. WebMedia ne stocke aucun fichier (video, audio, archive) sur ses serveurs. Les liens sont fournis a titre informatif.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Compte utilisateur</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        La creation d'un compte est facultative. L'utilisateur s'engage a fournir des informations exactes et a ne pas usurper l'identite d'autrui. Le mot de passe est stocke de maniere chiffree (bcrypt). L'utilisateur est responsable de la confidentialite de son mot de passe.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Contenu et propriete intellectuelle</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Les titres, synopsis et affiches proviennent d'API publiques (TMDB, Anilist, etc.) et appartiennent a leurs ayants droit. Le code du site est open source sous licence MIT (voir le <a href="https://github.com/KOUSSEMONAUREL/Project-WebMedia" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">depot GitHub</a>).
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Responsabilite</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        WebMedia agit uniquement comme un annuaire. Nous n'avons pas de controle sur le contenu des sites tiers verses lesquels nos liens pointent. En cas de contenu illicit, signalez-le-nous pour retrait du lien.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Publicite</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Le site est finance par la publicite via des regies tiers. L'utilisateur peut utiliser un bloqueur de publicite pour ne pas les afficher.
+      </p>
+
+      <h3 class="text-sm font-semibold text-[#a09ab0] mt-4 mb-1">Loi applicable</h3>
+      <p class="text-sm text-[#7a7590] leading-relaxed">
+        Les presentes CGU sont soumises au droit francais. Tout litige sera porte devant les tribunaux competents de Cayenne (97300).
       </p>
     </section>
 
+    <!-- 5. Contact -->
     <section>
-      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">10. Contact</h2>
+      <h2 class="text-lg font-semibold text-[#f0ede8] mb-3">5. Contact</h2>
       <p class="text-sm text-[#7a7590] leading-relaxed">
-        Pour toute question relative a ces mentions : <a href="/contact" class="text-blue-400 hover:underline">formulaire de contact</a>.
+        Pour toute question, signalement ou exercice de vos droits :
+        <a href="mailto:reyseilfullbryger@gmail.com" class="text-blue-400 hover:underline">reyseilfullbryger@gmail.com</a>
       </p>
     </section>
 
     <p class="text-xs text-[#5a5570] mt-12 pt-4 border-t border-white/5">
-      Derniere mise a jour : juillet 2026.
+      Derniere mise a jour : juillet 2026. Projet open source &ndash; <a href="https://github.com/KOUSSEMONAUREL/Project-WebMedia" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">GitHub</a>
     </p>
   </div>
 </Layout>
