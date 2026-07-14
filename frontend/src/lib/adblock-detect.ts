@@ -1,60 +1,57 @@
 const STORAGE_KEY = 'wm_adblock_detected';
 const DISMISS_KEY = 'wm_popup_dismissed';
-const POPUP_INTERVAL = 120_000;
-const AD_DOMAINS = ['quge5.com', 'elderlygoal.com', 'effectivecpmnetwork.com'];
+const DISMISS_INTERVAL = 120_000;
+const WHITELIST_INTERVAL = 300_000;
 
-function t(): string {
-  return Math.random().toString(36).slice(2, 10);
+export function setDismissed(): void {
+  try { sessionStorage.setItem(DISMISS_KEY, `d:${Date.now()}`); } catch {}
 }
 
-function checkBaitScript(domain: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const s = document.createElement('script');
-    s.src = `https://${domain}/bait/${t()}.js`;
-    s.onerror = () => resolve(true);
-    s.onload = () => resolve(false);
-    document.head.appendChild(s);
-    setTimeout(() => resolve(true), 3000);
-  });
-}
-
-function checkAdContent(): Promise<boolean> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const scriptsFound = AD_DOMAINS.some((d) =>
-        document.querySelector(`script[src*="${d}"]`),
-      );
-      const iframes = document.querySelectorAll('iframe').length;
-      const blocked = scriptsFound && iframes <= 1;
-      resolve(blocked);
-    }, 4000);
-  });
+export function setWhitelistPending(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.setItem(DISMISS_KEY, `w:${Date.now()}`);
+  } catch {}
 }
 
 function isInCooldown(): boolean {
   const raw = sessionStorage.getItem(DISMISS_KEY);
   if (!raw) return false;
-  return Date.now() - Number(raw) < POPUP_INTERVAL;
-}
-
-export function setDismissed(): void {
-  try { sessionStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}
+  const [mode, ts] = raw.split(':');
+  const interval = mode === 'w' ? WHITELIST_INTERVAL : DISMISS_INTERVAL;
+  return Date.now() - Number(ts) < interval;
 }
 
 export async function detectAdBlocker(): Promise<boolean> {
   const prefilled = sessionStorage.getItem(STORAGE_KEY);
   if (prefilled !== null) return prefilled === 'true';
 
-  const [b1, b2, adContent] = await Promise.all([
-    checkBaitScript(AD_DOMAINS[0]),
-    checkBaitScript(AD_DOMAINS[1]),
-    checkAdContent(),
-  ]);
+  const s = document.createElement('script');
+  s.src = 'https://quge5.com/bait/detect.js?' + Math.random();
+  const bait = new Promise<boolean>((r) => {
+    s.onerror = () => r(true);
+    s.onload = () => r(false);
+    document.head.appendChild(s);
+    setTimeout(() => r(true), 3000);
+  });
 
-  const afterCheck = sessionStorage.getItem(STORAGE_KEY);
-  if (afterCheck !== null) return afterCheck === 'true';
+  const content = new Promise<boolean>((r) => {
+    setTimeout(() => {
+      const domains = ['quge5.com', 'elderlygoal.com', 'effectivecpmnetwork.com'];
+      const found = domains.some((d) =>
+        document.querySelector(`script[src*="${d}"]`),
+      );
+      const iframes = document.querySelectorAll('iframe').length;
+      r(found && iframes <= 1);
+    }, 4000);
+  });
 
-  const detected = (b1 && b2) || adContent;
+  const [baitResult, contentResult] = await Promise.all([bait, content]);
+
+  const inline = sessionStorage.getItem(STORAGE_KEY);
+  if (inline !== null) return inline === 'true';
+
+  const detected = baitResult && contentResult;
   try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch {}
   return detected;
 }
@@ -62,7 +59,6 @@ export async function detectAdBlocker(): Promise<boolean> {
 export function shouldShowPopup(): boolean {
   if (isInCooldown()) return false;
   const blocked = sessionStorage.getItem(STORAGE_KEY);
-  if (blocked === null) return false;
   return blocked === 'true';
 }
 
