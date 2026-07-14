@@ -70,8 +70,10 @@ export function CookieBanner() {
               <span>Favoris & watchlist (IndexedDB)</span>
               <span>Cache hors-ligne (optionnel)</span>
               <span className="w-full mt-1 text-white/25 leading-relaxed">
-                Protection anti-bot par Cloudflare Turnstile (adresse IP, user-agent, signature TLS) &ndash; aucune donnee perso collectee. 
-                <a href="https://www.cloudflare.com/en-gb/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-white/40">Politique Cloudflare</a>
+                Regies pubs : Monetag, HilltopAds, Adsterra &ndash; voir <a href="/legal" className="text-blue-400 hover:underline">mentions legales</a>
+              </span>
+              <span className="w-full mt-1 text-white/25 leading-relaxed">
+                Protection anti-bot Cloudflare Turnstile &ndash; <a href="https://www.cloudflare.com/en-gb/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-white/40">Politique Cloudflare</a>
               </span>
             </div>
           </div>
