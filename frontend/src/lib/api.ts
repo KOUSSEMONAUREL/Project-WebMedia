@@ -3,7 +3,7 @@ import { mockTrending, mockFilms, mockSeries, mockAnimes, mockGames, mockWebtoon
 import { cacheGet, cacheSet } from './api-cache';
 export { allMockData, getMockByType };
 
-const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || (import.meta.env.PROD ? 'https://webmedia-backend.koussemonaurel.workers.dev' : 'http://localhost:8787')).replace(/\/+$/, '') + '/api';
+const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const TTL = { LIST: 12 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
@@ -16,12 +16,16 @@ export function getApiHeaders(extra?: Record<string, string>): Record<string, st
   return { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-Internal-API-Key': API_KEY } : {}), ...extra };
 }
 
-async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const url = `${API_BASE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: { ...getApiHeaders(), ...options.headers },
-  });
+  const backend = (globalThis as any).__BACKEND;
+  const headers = { ...getApiHeaders(), ...options.headers };
+  if (backend) return backend.fetch(url, { ...options, headers });
+  return fetch(url, { ...options, headers });
+}
+
+async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(endpoint, options);
   if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
   return await response.json();
 }
@@ -68,7 +72,7 @@ export async function getMediaByType(
   const cached = await cacheGet<{ success: boolean; data: Media[]; total?: number }>(ck, TTL.LIST);
   if (cached) return cached;
   try {
-    const res = await fetch(`${API_BASE_URL}/media?${ps}`, { headers: getApiHeaders() });
+    const res = await apiFetch(`/media?${ps}`);
     if (!res.ok) throw new Error('API Error');
     const json = await res.json();
     if (json.data) json.data = json.data.map((m: Media) => ({ ...m, type }));

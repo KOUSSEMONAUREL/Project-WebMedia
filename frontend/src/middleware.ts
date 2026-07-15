@@ -11,6 +11,9 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  const env = (context.locals as any).runtime?.env;
+  if (env?.BACKEND) (globalThis as any).__BACKEND = env.BACKEND;
+
   const response = await next();
 
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
