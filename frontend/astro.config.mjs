@@ -15,7 +15,7 @@ export default defineConfig({
         schema: {
             PUBLIC_API_URL: {
                 context: 'server',
-                access: 'secret',
+                access: 'public',
                 type: 'string',
                 optional: true,
                 default: 'https://webmedia-backend.koussemonaurel.workers.dev',
