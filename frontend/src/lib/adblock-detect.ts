@@ -4,14 +4,14 @@ const DISMISS_INTERVAL = 120_000;
 const WHITELIST_INTERVAL = 300_000;
 
 export function setDismissed(): void {
-  try { sessionStorage.setItem(DISMISS_KEY, `d:${Date.now()}`); } catch {}
+  try { sessionStorage.setItem(DISMISS_KEY, `d:${Date.now()}`); } catch { }
 }
 
 export function setWhitelistPending(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.setItem(DISMISS_KEY, `w:${Date.now()}`);
-  } catch {}
+  } catch { }
 }
 
 function isInCooldown(): boolean {
@@ -52,7 +52,7 @@ export async function detectAdBlocker(): Promise<boolean> {
   if (inline !== null) return inline === 'true';
 
   const detected = baitResult && contentResult;
-  try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch {}
+  try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch { }
   return detected;
 }
 
@@ -66,5 +66,5 @@ export function clearDetectionCache(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(DISMISS_KEY);
-  } catch {}
+  } catch { }
 }
