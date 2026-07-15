@@ -5,6 +5,7 @@ main = "@astrojs/cloudflare/entrypoints/server"
 
 [vars]
 ENVIRONMENT = "production"
+PUBLIC_API_URL = "https://webmedia-backend.koussemonaurel.workers.dev"
 
 [assets]
 directory = "./dist"

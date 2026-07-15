@@ -11,17 +11,6 @@ export default defineConfig({
     integrations: [react()],
     output: 'static',
     adapter,
-    env: {
-        schema: {
-            PUBLIC_API_URL: {
-                context: 'server',
-                access: 'public',
-                type: 'string',
-                optional: true,
-                default: 'https://webmedia-backend.koussemonaurel.workers.dev',
-            },
-        },
-    },
     vite: {
         plugins: [
             tailwindcss(),
