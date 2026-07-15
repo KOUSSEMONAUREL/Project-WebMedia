@@ -1,6 +1,6 @@
 name = "webmedia-front"
 compatibility_date = "2026-07-12"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 main = "@astrojs/cloudflare/entrypoints/server"
 
 [vars]

@@ -11,18 +11,12 @@ export default defineConfig({
     integrations: [react()],
     output: 'static',
     adapter,
-    env: {
-        schema: {
-            PUBLIC_API_URL: {
-                context: 'server',
-                access: 'public',
-                type: 'string',
-                optional: true,
-                default: 'https://webmedia-backend.koussemonaurel.workers.dev',
+    vite: {
+        build: {
+            rollupOptions: {
+                external: ['cloudflare:workers'],
             },
         },
-    },
-    vite: {
         plugins: [
             tailwindcss(),
             VitePWA({
@@ -43,16 +37,6 @@ export default defineConfig({
                 },
                 workbox: {
                     globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp}'],
-                    runtimeCaching: [
-                        {
-                            urlPattern: /^https?:\/\/webmedia-backend\.koussemonaurel\.workers\.dev\/api\/.*/i,
-                            handler: 'StaleWhileRevalidate',
-                            options: {
-                                cacheName: 'api-cache',
-                                expiration: { maxEntries: 50, maxAgeSeconds: 43200 },
-                            },
-                        },
-                    ],
                 },
             }),
         ],

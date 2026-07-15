@@ -10,10 +10,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
 };
 
-export const onRequest = defineMiddleware(async (context, next) => {
-  const env = (context.locals as any).runtime?.env;
-  if (env?.BACKEND) (globalThis as any).__BACKEND = env.BACKEND;
-
+export const onRequest = defineMiddleware(async (_context, next) => {
   const response = await next();
 
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {

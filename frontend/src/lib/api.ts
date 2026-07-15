@@ -3,7 +3,7 @@ import { mockTrending, mockFilms, mockSeries, mockAnimes, mockGames, mockWebtoon
 import { cacheGet, cacheSet } from './api-cache';
 export { allMockData, getMockByType };
 
-const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+const FALLBACK_API_URL = import.meta.env.PUBLIC_API_URL;
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const TTL = { LIST: 12 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
@@ -17,11 +17,14 @@ export function getApiHeaders(extra?: Record<string, string>): Record<string, st
 }
 
 async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const backend = (globalThis as any).__BACKEND;
   const headers = { ...getApiHeaders(), ...options.headers };
-  if (backend) return backend.fetch(url, { ...options, headers });
-  return fetch(url, { ...options, headers });
+  const path = `/api${endpoint}`;
+  try {
+    const { env } = await import('cloudflare:workers');
+    if (env?.BACKEND) return env.BACKEND.fetch(new URL(path, 'http://backend'), { ...options, headers });
+  } catch {}
+  if (FALLBACK_API_URL) return fetch(`${FALLBACK_API_URL.replace(/\/+$/, '')}${path}`, { ...options, headers });
+  throw new Error('Aucun backend disponible');
 }
 
 async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
