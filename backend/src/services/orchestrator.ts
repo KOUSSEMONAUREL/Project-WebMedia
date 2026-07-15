@@ -36,7 +36,7 @@ export class OrchestratorService {
         const { results: staleMedia } = await this.db.prepare(`
             SELECT media_id, type, metadata_ok, title, slug
             FROM media_state
-            WHERE next_scrape < ? AND type != 'book'
+            WHERE next_scrape < ? AND type NOT IN ('book', 'film', 'serie', 'anime')
             ORDER BY next_scrape ASC
             LIMIT 100
         `).bind(now).all<{ media_id: string; type: string; metadata_ok: number; title: string | null; slug: string | null }>();
