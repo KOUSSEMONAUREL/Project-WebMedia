@@ -64,7 +64,7 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         import.meta.env.PROD && (
             <>
                 <script src="https://pl30353931.effectivecpmnetwork.com/39/f6/a0/39f6a0b9b7ab659ae48c9784ab9b8608.js"></script>
-                <script>(function(){var k='wm_adblock_detected';var s=document.currentScript.previousElementSibling;s&&s.src&&s.addEventListener('error',function(){try{sessionStorage.setItem(k,'true')}catch(e){}});})();</script>
+                <script>(function(){try{var k='wm_adblock_detected';var s=document.currentScript&&document.currentScript.previousElementSibling;s&&s.src&&s.addEventListener('error',function(){sessionStorage.setItem(k,'true')});}catch(e){}})();</script>
             </>
         )
     }

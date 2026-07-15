@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { createAuthClient } from 'better-auth/react';
 
-const AUTH_URL = (typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_AUTH_URL) || 'http://localhost:3000';
+const AUTH_URL = typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_AUTH_URL;
 
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
