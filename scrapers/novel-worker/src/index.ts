@@ -16,7 +16,7 @@ const lncrawlBin = process.env.LNCRAWL_PATH || 'lncrawl';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const CONCURRENCY = 3;
-const MAX_JOBS = 10;
+const MAX_JOBS = 20;
 
 const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
 const sb = drizzle(supabaseClient);

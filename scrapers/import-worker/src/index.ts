@@ -50,8 +50,9 @@ async function startApp() {
     const internalApiKey = process.env.INTERNAL_API_KEY || '';
 
     const LIMIT = parseInt(process.env.IMPORT_LIMIT || '20', 10);
+    const LIMIT_OTHER = parseInt(process.env.IMPORT_LIMIT_OTHER || '40', 10);
 
-    log.info(`Limit=${LIMIT}`);
+    log.info(`Limit(streaming+books)=${LIMIT}, Limit(other)=${LIMIT_OTHER}`);
 
     if (process.env.GITHUB_ACTIONS) {
       let totalProcessed = 0;
@@ -69,16 +70,19 @@ async function startApp() {
         }
       };
 
+      // Passe 1 : streaming + books (LIMIT=20)
+      await run('AniList', () => importAnime(databaseUrl, LIMIT));
       if (tmdbKey) await run('TMDB', () => importTMDB(tmdbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
-      if (twitchId && twitchSecret) await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
       if (gbKey) await run('Books (Google)', () => importPopularBooks(gbKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
       await run('Gutenberg', () => importGutenberg(databaseUrl, LIMIT));
       await run('OpenLibrary', () => importOpenLibrary(databaseUrl, 'popular', LIMIT));
       await run('NosLivres', () => importPopularBooksFR(databaseUrl, LIMIT));
-      if (cvKey) await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT));
-      await run('MangaDex', () => importTrendingManga(databaseUrl, '', LIMIT));
-      await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT));
-      await run('AniList', () => importAnime(databaseUrl, LIMIT));
+
+      // Passe 2 : non-streaming (LIMIT_OTHER=40)
+      if (twitchId && twitchSecret) await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT_OTHER));
+      if (cvKey) await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT_OTHER));
+      await run('MangaDex', () => importTrendingManga(databaseUrl, '', LIMIT_OTHER));
+      await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT_OTHER));
       await run('Sync Turso', () => syncNeonToTurso(databaseUrl, tursoUrl, tursoToken));
 
       log.summary(totalProcessed, totalErrors);

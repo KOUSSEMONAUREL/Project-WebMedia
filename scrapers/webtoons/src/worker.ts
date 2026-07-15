@@ -67,7 +67,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
       let processed = 0;
       let errors = 0;
-      const maxJobs = 10;
+      const maxJobs = 20;
 
       while (processed < maxJobs) {
         const [job] = await sb`

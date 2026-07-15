@@ -38,7 +38,7 @@ export class OrchestratorService {
             FROM media_state
             WHERE next_scrape < ? AND type NOT IN ('book', 'film', 'serie', 'anime')
             ORDER BY next_scrape ASC
-            LIMIT 100
+            LIMIT 200
         `).bind(now).all<{ media_id: string; type: string; metadata_ok: number; title: string | null; slug: string | null }>();
 
         if (staleMedia.length === 0) {
@@ -137,7 +137,7 @@ export class OrchestratorService {
         // 4. Construire les batchs pour les inserts + updates
         const insertValues: any[] = [];
         const updateStatements: any[] = [];
-        const nextScrape = now + (6 * 3600000);
+        const nextScrape = now + (24 * 3600000);
 
         for (const media of readyMedia) {
             const { media_id, type } = media;
