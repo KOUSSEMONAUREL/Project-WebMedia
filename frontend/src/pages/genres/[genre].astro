@@ -1,7 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { allMockData } from '../../lib/api';
-import { optimizePosterUrl } from '../../lib/image';
+import { GenreGrid } from '../../components/GenreGrid';
 
 export const prerender = true;
 
@@ -12,75 +11,8 @@ export function getStaticPaths() {
 
 const { genre } = Astro.params;
 const displayName = genre ? genre.charAt(0).toUpperCase() + genre.slice(1).replace(/-/g, ' ') : '';
-
-const genreMap: Record<string, string[]> = {
-  action: ['Action'],
-  aventure: ['Aventure'],
-  comedie: ['Comédie', 'Comedy'],
-  drame: ['Drame', 'Drama'],
-  fantastique: ['Fantastique', 'Fantasy'],
-  horreur: ['Horreur', 'Horror'],
-  mystere: ['Mystère', 'Mystery'],
-  romance: ['Romance'],
-  'science-fiction': ['Science-Fiction', 'Sci-Fi'],
-  thriller: ['Thriller'],
-  animation: ['Animation'],
-  documentaire: ['Documentaire'],
-  crime: ['Crime'],
-  famille: ['Familial', 'Family', 'Famille'],
-  western: ['Western'],
-  rpg: ['RPG'],
-  'arts-martiaux': ['Arts Martiaux'],
-};
-
-const searchGenres = genreMap[genre || ''] || [];
-const matching = allMockData.filter(m =>
-  m.genres?.some(g => searchGenres.some(sg => g.toLowerCase().includes(sg.toLowerCase())))
-);
 ---
 
 <Layout title={displayName}>
-  <div class="container mx-auto px-6 py-10">
-    <header class="mb-8">
-      <div class="flex items-center gap-4 mb-2">
-        <h1 class="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white">{displayName}</h1>
-        <span class="text-sm text-muted-foreground bg-white/5 px-3 py-1 rounded-full">{matching.length} contenus</span>
-      </div>
-      <p class="text-muted-foreground">Explorez les contenus du genre {displayName.toLowerCase()}.</p>
-      <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mt-4" />
-    </header>
-
-    {matching.length > 0 ? (
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {matching.map(m => (
-          <a href={`/${m.type}/${m.slug}`}
-             class="group relative rounded-xl overflow-hidden bg-card border border-border hover:border-primary/30 transition-all hover:scale-[1.02]">
-            {m.posterUrl ? (
-              <img src={optimizePosterUrl(m.posterUrl)} alt={m.title} class="w-full aspect-[2/3] object-cover" loading="lazy" />
-            ) : (
-              <div class="w-full aspect-[2/3] flex items-center justify-center bg-gradient-to-br from-card to-secondary/80">
-                <span class="text-white/20 text-4xl font-bold">{m.title.charAt(0)}</span>
-              </div>
-            )}
-            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-8">
-              <p class="text-sm font-bold text-white leading-tight line-clamp-2">{m.title}</p>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-[10px] uppercase tracking-wider text-white/50">{m.type}</span>
-                {m.year && <span class="text-[10px] text-white/40">{m.year}</span>}
-                {m.rating && <span class="text-[10px] text-amber-400">{m.rating}/10</span>}
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
-    ) : (
-      <div class="text-center py-20">
-        <p class="text-muted-foreground mb-8">Aucun contenu trouve pour ce genre pour le moment.</p>
-        <p class="text-muted-foreground mb-8">Les genres seront disponibles apres le prochain import des donnees.</p>
-        <a href="/genres" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-          Tous les genres
-        </a>
-      </div>
-    )}
-  </div>
+  <GenreGrid genre={genre || ''} displayName={displayName} client:visible />
 </Layout>

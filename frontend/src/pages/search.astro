@@ -1,10 +1,12 @@
 ---
 export const prerender = true;
 import Layout from '../layouts/Layout.astro';
+import { allMockData } from '../lib/api';
 ---
 
 <Layout title="Recherche">
-  <div class="container mx-auto px-6 py-10">
+  <div id="search-page" class="container mx-auto px-6 py-10"
+    data-mock={JSON.stringify(allMockData)}>
     <header class="mb-8">
       <h1 id="search-title" class="text-2xl md:text-3xl font-display font-bold"
         style="background:linear-gradient(135deg,#93c5fd,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
@@ -23,7 +25,11 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script data-astro-rerun>
-(async function() {
+(function() {
+  var page = document.getElementById('search-page');
+  var mockData = JSON.parse(page.dataset.mock);
+  var apiBase = (self.__ENV && self.__ENV.PUBLIC_API_URL) || (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PUBLIC_API_URL);
+
   var params = new URLSearchParams(window.location.search);
   var q = params.get('q');
   var type = params.get('type');
@@ -36,11 +42,7 @@ import Layout from '../layouts/Layout.astro';
   document.title = 'Recherche' + (type ? ' ' + type + 's' : '') + ': ' + q;
   document.getElementById('search-title').textContent = 'Recherche' + (type ? ' ' + type + 's' : '') + ': ' + q;
 
-  try {
-    var mod = await import('../lib/api.ts');
-    var res = await mod.searchMedia(q, type && type !== 'all' ? { type: type } : {});
-    var items = res.data || [];
-
+  function render(items) {
     var desc = document.getElementById('search-description');
     desc.textContent = items.length + ' resultat' + (items.length > 1 ? 's' : '') + ' pour "' + q + '"' + (type ? ' dans ' + type + 's' : '');
 
@@ -70,9 +72,26 @@ import Layout from '../layouts/Layout.astro';
         + (m.year ? '<div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground"><span>' + m.year + '</span></div>' : '')
         + '</div></a>';
     }).join('');
-  } catch(e) {
-    document.getElementById('search-none').classList.remove('hidden');
-    document.getElementById('search-none').querySelector('p').textContent = 'Erreur lors de la recherche.';
+  }
+
+  // Try API first, fall back to mock data filter
+  var apiUrl = apiBase ? (apiBase.replace(/\/+$/, '') + '/api/search?q=' + encodeURIComponent(q) + (type ? '&type=' + encodeURIComponent(type) : '')) : null;
+
+  if (apiUrl) {
+    fetch(apiUrl, { headers: { 'Content-Type': 'application/json' } })
+      .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function(json) { render(json.data || []); })
+      .catch(function() {
+        var lower = q.toLowerCase();
+        var items = mockData.filter(function(m) { return (m.title || '').toLowerCase().indexOf(lower) !== -1; });
+        if (type && type !== 'all') items = items.filter(function(m) { return m.type === type; });
+        render(items);
+      });
+  } else {
+    var lower = q.toLowerCase();
+    var items = mockData.filter(function(m) { return (m.title || '').toLowerCase().indexOf(lower) !== -1; });
+    if (type && type !== 'all') items = items.filter(function(m) { return m.type === type; });
+    render(items);
   }
 })();
 </script>
