@@ -18,28 +18,23 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
   let chaptersSaved = 0;
 
   for (const result of results) {
-    if (result.chapters.length === 0) continue;
+    if (!result.rootUrl) continue;
 
-    const links = result.chapters.map((ch, i) => {
-      let playerHost = result.source;
-      try { playerHost = new URL(ch.url).hostname; } catch { /* relative url */ }
-      return {
-        source_site: result.source,
-        player_host: playerHost,
-        url: ch.url,
-        qualite: 'webtoon',
-        langue: 'EN',
-        titre: ch.name,
-        numero: ch.chapterNumber ?? i + 1,
-      };
-    });
+    let playerHost = result.source;
+    try { playerHost = new URL(result.rootUrl).hostname; } catch { /* relative url */ }
 
     try {
       await callInternal('/ingest/liens', {
         mediaId: result.mediaId,
-        links,
+        links: [{
+          source_site: result.source,
+          player_host: playerHost,
+          url: result.rootUrl,
+          qualite: 'webtoon',
+          langue: 'EN',
+        }],
       });
-      chaptersSaved += links.length;
+      chaptersSaved += 1;
     } catch (err: any) {
       console.error(`    ✗ Failed to save: ${err.message}`);
     }
@@ -107,7 +102,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
         if (result.chaptersSaved > 0) {
           await sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`;
-          log.success(`Saved ${result.chaptersSaved} chapters`);
+          log.success(`Saved ${result.chaptersSaved} link(s)`);
         } else {
           if (job.attempts >= 3) {
             await sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'No chapters found', updated_at = NOW() WHERE id = ${job.id}`;

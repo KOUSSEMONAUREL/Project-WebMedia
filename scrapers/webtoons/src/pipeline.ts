@@ -20,6 +20,7 @@ export interface MediaTarget {
 export interface ScrapeResult {
   mediaId: string;
   source: string;
+  rootUrl: string;
   chapters: { name: string; url: string; chapterNumber?: number }[];
   pages?: { url: string; index: number }[];
 }
@@ -132,6 +133,7 @@ export async function scrapeMedia(media: MediaTarget): Promise<ScrapeResult[]> {
       results.push({
         mediaId: media.id,
         source: name,
+        rootUrl: url,
         chapters: unique,
         pages,
       });
