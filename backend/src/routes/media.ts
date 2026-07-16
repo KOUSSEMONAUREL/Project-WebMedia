@@ -145,6 +145,61 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
     }
 });
 
+const GENRE_MAP: Record<string, string[]> = {
+  action: ['Action', 'Action & Adventure'],
+  aventure: ['Aventure', 'Adventure'],
+  comedie: ['Comédie', 'Comedy'],
+  drame: ['Drame', 'Drama'],
+  fantastique: ['Fantastique', 'Fantasy'],
+  horreur: ['Horreur', 'Horror'],
+  mystere: ['Mystère', 'Mystery'],
+  romance: ['Romance'],
+  'science-fiction': ['Science-Fiction', 'Sci-Fi'],
+  thriller: ['Thriller'],
+  animation: ['Animation'],
+  documentaire: ['Documentaire'],
+  crime: ['Crime'],
+  famille: ['Familial', 'Family', 'Famille'],
+  western: ['Western'],
+  rpg: ['RPG'],
+  'arts-martiaux': ['Arts Martiaux'],
+};
+
+// ========== GET /api/media/genre-counts ==========
+mediaRoutes.get('/genre-counts', async (c) => {
+  try {
+    const db = getTursoDb(c);
+    const rows = await db.select({ type: medias.type, genres: medias.genres })
+      .from(medias)
+      .where(sql`${medias.genres} IS NOT NULL`);
+
+    const counts: Record<string, Record<string, number>> = {};
+    for (const slug of Object.keys(GENRE_MAP)) {
+      counts[slug] = { total: 0 };
+    }
+
+    for (const row of rows) {
+      if (!row.genres) continue;
+      let genreList: string[];
+      try { genreList = JSON.parse(row.genres); }
+      catch { continue; }
+      if (!Array.isArray(genreList)) continue;
+
+      for (const [slug, variants] of Object.entries(GENRE_MAP)) {
+        if (genreList.some(g => variants.some(v => g.toLowerCase() === v.toLowerCase()))) {
+          counts[slug].total++;
+        }
+      }
+    }
+
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.json({ success: true, data: counts });
+  } catch (error: any) {
+    console.error('Erreur genre-counts:', error.message);
+    return c.json({ success: false, data: {} });
+  }
+});
+
 // ========== GET /api/media/:type/:slug/similar ==========
 mediaRoutes.get('/:type/:slug/similar', async (c) => {
     const { type, slug } = c.req.param();
