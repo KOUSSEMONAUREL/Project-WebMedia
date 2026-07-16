@@ -27,6 +27,7 @@ export const medias = sqliteTable('medias', {
     metadataSource: text('metadata_source').default('tmdb'),
     metadataFreshAt: integer('metadata_fresh_at', { mode: 'timestamp' }),
     linksLastScrapedAt: integer('links_last_scraped_at', { mode: 'timestamp' }),
+    genres: text('genres'),
     activeLinksCount: integer('active_links_count').default(0),
     createdAt: integer('created_at', { mode: 'timestamp' }),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),

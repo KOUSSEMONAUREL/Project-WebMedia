@@ -2,11 +2,13 @@
 export const prerender = true;
 import Layout from '../layouts/Layout.astro';
 import { allMockData } from '../lib/api';
+const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL || '';
 ---
 
 <Layout title="Recherche">
   <div id="search-page" class="container mx-auto px-6 py-10"
-    data-mock={JSON.stringify(allMockData)}>
+    data-mock={JSON.stringify(allMockData)}
+    data-api-url={PUBLIC_API_URL}>
     <header class="mb-8">
       <h1 id="search-title" class="text-2xl md:text-3xl font-display font-bold"
         style="background:linear-gradient(135deg,#93c5fd,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
@@ -28,7 +30,7 @@ import { allMockData } from '../lib/api';
 (function() {
   var page = document.getElementById('search-page');
   var mockData = JSON.parse(page.dataset.mock);
-  var apiBase = (self.__ENV && self.__ENV.PUBLIC_API_URL) || (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PUBLIC_API_URL);
+  var apiBase = page.dataset.apiUrl || (self.__ENV && self.__ENV.PUBLIC_API_URL) || '';
 
   var params = new URLSearchParams(window.location.search);
   var q = params.get('q');

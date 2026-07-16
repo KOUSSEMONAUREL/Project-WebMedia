@@ -27,6 +27,7 @@ export const medias = pgTable('medias', {
     metadataSource: varchar('metadata_source', { length: 50 }).default('tmdb'),
     metadataFreshAt: timestamp('metadata_fresh_at', { withTimezone: true }),
     linksLastScrapedAt: timestamp('links_last_scraped_at', { withTimezone: true }),
+    genres: text('genres'),
     activeLinksCount: integer('active_links_count').default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
