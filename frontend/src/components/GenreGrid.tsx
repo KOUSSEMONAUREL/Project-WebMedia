@@ -17,13 +17,13 @@ const MEDIA_TABS: { type: MediaType; label: string }[] = [
 const PER_PAGE = 8;
 
 const genreMap: Record<string, string[]> = {
-  action: ['Action'],
-  aventure: ['Aventure'],
-  comedie: ['Comedie', 'Comedy'],
+  action: ['Action', 'Action & Adventure'],
+  aventure: ['Aventure', 'Adventure'],
+  comedie: ['Comédie', 'Comedy'],
   drame: ['Drame', 'Drama'],
   fantastique: ['Fantastique', 'Fantasy'],
   horreur: ['Horreur', 'Horror'],
-  mystere: ['Mystere', 'Mystery'],
+  mystere: ['Mystère', 'Mystery'],
   romance: ['Romance'],
   'science-fiction': ['Science-Fiction', 'Sci-Fi'],
   thriller: ['Thriller'],
@@ -127,7 +127,7 @@ interface Props {
 
 function GenreContent({ genre, displayName }: Props) {
   const searchGenres = genreMap[genre] || [];
-  const genreParam = searchGenres[0] || '';
+  const genreParam = searchGenres.join(',') || '';
   const [activeTab, setActiveTab] = useState<MediaType>('film');
 
   return (

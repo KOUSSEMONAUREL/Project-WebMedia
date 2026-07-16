@@ -115,7 +115,14 @@ mediaRoutes.get('/', zValidator('query', listMediaSchema as any), async (c) => {
         const orderByColumn = orderFn(SORT_COLUMNS[sort]);
 
         const conditions: any[] = [eq(medias.type, mediaType)];
-        if (genre) conditions.push(like(medias.genres, `%${genre}%`));
+        if (genre) {
+          const terms = genre.split(',').map((g: string) => g.trim()).filter(Boolean);
+          if (terms.length === 1) {
+            conditions.push(like(medias.genres, `%${terms[0]}%`));
+          } else if (terms.length > 1) {
+            conditions.push(or(...terms.map((g: string) => like(medias.genres, `%${g}%`))));
+          }
+        }
         if (yearMin) conditions.push(gte(medias.year, yearMin));
         if (yearMax) conditions.push(lte(medias.year, yearMax));
         if (ratingMin) conditions.push(gte(sql`cast(${medias.rating} as real)`, ratingMin));
@@ -165,8 +172,10 @@ mediaRoutes.get('/:type/:slug/similar', async (c) => {
             if (!current) return c.json({ success: false, error: 'Média non trouvé' }, 404);
         }
 
-        const genres = current.genres || '';
-        const genreList = genres.split(',').map((g: string) => g.trim()).filter(Boolean);
+        const genreList: string[] = (() => {
+            try { return JSON.parse(current.genres || '[]'); }
+            catch { return (current.genres || '').split(',').map((g: string) => g.trim().replace(/^\["|"\]/g, '').replace(/^"|"$/g, '')).filter(Boolean); }
+        })();
 
         let results: typeof medias.$inferSelect[] = [];
         if (genreList.length > 0) {
