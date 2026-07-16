@@ -184,7 +184,21 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     localStorage.removeItem('webmedia_user');
   };
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const isMac = typeof navigator !== 'undefined' ? /Mac|iPod|iPhone|iPad/.test(navigator.platform) : false;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   function pathToTypeFilter(p: string): string | null {
     return ({
@@ -336,6 +350,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -351,7 +366,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                 className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
               />
               <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/40 border border-border/30 pointer-events-none">
-                <Command className="h-2.5 w-2.5" />K
+                {isMac ? <><Command className="h-2.5 w-2.5" />K</> : <>Ctrl+K</>}
               </kbd>
 
               {showSuggestions && suggestions.length > 0 && (

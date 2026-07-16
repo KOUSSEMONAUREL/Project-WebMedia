@@ -1,46 +1,78 @@
 ---
 export const prerender = true;
 import Layout from '../layouts/Layout.astro';
-import GridPage from '../components/GridPage.astro';
-import { searchMedia, type Media, type MediaType } from '../lib/api';
-
-const query = Astro.url.searchParams.get('q') || '';
-const type = Astro.url.searchParams.get('type') || undefined;
-
-let results: Media[] = [];
-let error = '';
-
-if (query) {
-  try {
-    const res = await searchMedia(query, type ? { type: type as MediaType } : {});
-    results = res.data || [];
-  } catch (e) {
-    error = "Erreur lors de la recherche.";
-  }
-}
 ---
 
-{query && !error ? (
-  <GridPage
-    title={`Recherche${type ? ` ${type}s` : ''}: ${query}`}
-    items={results}
-    pageTitle={`Recherche${type ? ` ${type}s` : ''}: ${query}`}
-    description={`${results.length} résultat${results.length > 1 ? 's' : ''} pour "${query}"${type ? ` dans ${type}s` : ''}`}
-  />
-) : (
-  <Layout title="Recherche">
-    <div class="container mx-auto px-6 pt-28 pb-16">
-      <header class="mb-12">
-        <h1 class="text-4xl font-black italic uppercase tracking-tighter text-white border-l-4 border-primary pl-4">
-          RECHERCHE
-        </h1>
-        {query && <p class="mt-2 text-red-400">{error || 'Aucun resultat trouve.'}</p>}
-      </header>
-      {!query && (
-        <div class="flex flex-col items-center justify-center min-h-[40vh] text-center">
-          <p class="text-muted-foreground text-lg">Utilisez la barre de recherche pour trouver du contenu.</p>
-        </div>
-      )}
+<Layout title="Recherche">
+  <div class="container mx-auto px-6 py-10">
+    <header class="mb-8">
+      <h1 id="search-title" class="text-2xl md:text-3xl font-display font-bold"
+        style="background:linear-gradient(135deg,#93c5fd,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+        Recherche
+      </h1>
+      <p id="search-description" class="text-muted-foreground text-sm"></p>
+    </header>
+    <div id="search-empty" class="flex flex-col items-center justify-center min-h-[40vh] text-center hidden">
+      <p class="text-muted-foreground text-lg">Utilisez la barre de recherche pour trouver du contenu.</p>
     </div>
-  </Layout>
-)}
+    <div id="search-none" class="flex flex-col items-center justify-center min-h-[40vh] text-center hidden">
+      <p class="text-muted-foreground text-lg">Aucun resultat trouve.</p>
+    </div>
+    <div id="search-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8"></div>
+  </div>
+</Layout>
+
+<script data-astro-rerun>
+(async function() {
+  var params = new URLSearchParams(window.location.search);
+  var q = params.get('q');
+  var type = params.get('type');
+
+  if (!q) {
+    document.getElementById('search-empty').classList.remove('hidden');
+    return;
+  }
+
+  document.title = 'Recherche' + (type ? ' ' + type + 's' : '') + ': ' + q;
+  document.getElementById('search-title').textContent = 'Recherche' + (type ? ' ' + type + 's' : '') + ': ' + q;
+
+  try {
+    var mod = await import('../lib/api.ts');
+    var res = await mod.searchMedia(q, type && type !== 'all' ? { type: type } : {});
+    var items = res.data || [];
+
+    var desc = document.getElementById('search-description');
+    desc.textContent = items.length + ' resultat' + (items.length > 1 ? 's' : '') + ' pour "' + q + '"' + (type ? ' dans ' + type + 's' : '');
+
+    if (items.length === 0) {
+      document.getElementById('search-none').classList.remove('hidden');
+      return;
+    }
+
+    var grid = document.getElementById('search-grid');
+    grid.innerHTML = items.map(function(m) {
+      var img = '';
+      if (m.posterUrl) {
+        img = '<div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md relative">'
+          + '<img src="' + m.posterUrl + '" alt="" class="absolute inset-0 z-10 h-full w-full object-cover" loading="lazy" onerror="this.style.display=\'none\'"/>'
+          + '<div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card" style="display:none">'
+          + '<span class="text-white/30 text-xs font-bold uppercase tracking-wider">' + m.type.toUpperCase() + '</span>'
+          + '<span class="text-white/50 text-base font-bold leading-snug line-clamp-6">' + m.title + '</span></div>'
+          + (m.rating ? '<div class="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg z-20">'
+          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+          + '<span class="text-xs font-bold text-amber-400">' + m.rating + '</span></div>' : '')
+          + '</div>';
+      }
+      return '<a href="/' + m.type + '/' + (m.slug || m.id) + '" class="group block transition-all duration-300 hover:-translate-y-1.5">'
+        + img
+        + '<div class="mt-2.5 px-0.5">'
+        + '<h3 class="font-display font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">' + m.title + '</h3>'
+        + (m.year ? '<div class="flex items-center gap-3 mt-1.5 text-[13px] text-muted-foreground"><span>' + m.year + '</span></div>' : '')
+        + '</div></a>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('search-none').classList.remove('hidden');
+    document.getElementById('search-none').querySelector('p').textContent = 'Erreur lors de la recherche.';
+  }
+})();
+</script>
