@@ -5,8 +5,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "types": ["node"],
     "paths": {
       "@engine/*": ["./engine/*"],
