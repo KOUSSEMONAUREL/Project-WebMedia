@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pl30353930.effectivecpmnetwork.com; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:; connect-src 'self' https:; font-src 'self' data: https:; frame-src 'self' https://challenges.cloudflare.com https://vsembed.ru https://vsembed.su https://vidsrcme.ru https://vidsrc.to https://www.2embed.cc; object-src 'none'; media-src 'self' https:; worker-src 'self' blob:; base-uri 'self'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.effectivecpmnetwork.com; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:; connect-src 'self' https:; font-src 'self' data: https:; frame-src 'self' https://challenges.cloudflare.com https://vsembed.ru https://vsembed.su https://vidsrcme.ru https://vidsrc.to https://www.2embed.cc; object-src 'none'; media-src 'self' https:; worker-src 'self' blob:; base-uri 'self'; form-action 'self'";
 
 const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': CSP,
