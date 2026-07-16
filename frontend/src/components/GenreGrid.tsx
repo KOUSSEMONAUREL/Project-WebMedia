@@ -4,7 +4,7 @@ import { MediaCard } from './MediaCard';
 import { getMediaByType, type Media, type MediaType } from '../lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const MEDIA_TYPES: { type: MediaType; label: string }[] = [
+const MEDIA_TABS: { type: MediaType; label: string }[] = [
   { type: 'film', label: 'Films' },
   { type: 'serie', label: 'Series' },
   { type: 'anime', label: 'Animes' },
@@ -40,7 +40,29 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
-function TypeSection({ type, label, genreParam }: { type: MediaType; label: string; genreParam: string }) {
+function GenreTab({ type, label, genreParam, isActive, onSelect }: {
+  type: MediaType; label: string; genreParam: string; isActive: boolean; onSelect: () => void;
+}) {
+  const { data } = useQuery({
+    queryKey: ['genre-count', type, genreParam],
+    queryFn: () => getMediaByType(type, { limit: 1, genre: genreParam }),
+    staleTime: 120_000,
+  });
+
+  return (
+    <button onClick={onSelect}
+      class={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+        isActive
+          ? 'bg-primary text-white shadow-lg shadow-primary/20'
+          : 'bg-secondary/50 text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
+      }`}>
+      {label}
+      {data?.total ? <span class="ml-1.5 text-xs opacity-60">({data.total})</span> : null}
+    </button>
+  );
+}
+
+function TypeContent({ type, label, genreParam }: { type: MediaType; label: string; genreParam: string }) {
   const [page, setPage] = useState(0);
 
   const { data, isPending } = useQuery({
@@ -53,10 +75,16 @@ function TypeSection({ type, label, genreParam }: { type: MediaType; label: stri
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
-  if (!isPending && items.length === 0) return null;
+  if (!isPending && items.length === 0) {
+    return (
+      <div class="text-center py-16 text-muted-foreground">
+        Aucun contenu trouve pour ce genre.
+      </div>
+    );
+  }
 
   return (
-    <section>
+    <>
       <div class="flex items-center gap-3 mb-4">
         <h2 class="text-xl font-bold text-foreground">{label}</h2>
         {!isPending && <span class="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded-full">{total}</span>}
@@ -88,7 +116,7 @@ function TypeSection({ type, label, genreParam }: { type: MediaType; label: stri
           )}
         </>
       )}
-    </section>
+    </>
   );
 }
 
@@ -100,6 +128,7 @@ interface Props {
 function GenreContent({ genre, displayName }: Props) {
   const searchGenres = genreMap[genre] || [];
   const genreParam = searchGenres[0] || '';
+  const [activeTab, setActiveTab] = useState<MediaType>('film');
 
   return (
     <div class="container mx-auto px-6 py-10">
@@ -111,11 +140,14 @@ function GenreContent({ genre, displayName }: Props) {
         <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mt-4" />
       </header>
 
-      <div class="flex flex-col gap-10">
-        {MEDIA_TYPES.map(({ type, label }) => (
-          <TypeSection key={type} type={type} label={label} genreParam={genreParam} />
+      <div class="flex flex-wrap gap-2 mb-8">
+        {MEDIA_TABS.map(({ type, label }) => (
+          <GenreTab key={type} type={type} label={label} genreParam={genreParam}
+            isActive={activeTab === type} onSelect={() => setActiveTab(type)} />
         ))}
       </div>
+
+      <TypeContent key={activeTab} type={activeTab} label={MEDIA_TABS.find(t => t.type === activeTab)!.label} genreParam={genreParam} />
     </div>
   );
 }
