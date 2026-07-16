@@ -234,6 +234,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
             className="poster-img relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
             loading={isLcp ? undefined : 'lazy'}
             fetchPriority={isLcp ? 'high' : undefined}
+            ref={(el) => { if (el?.complete) el.classList.add('loaded'); }}
             onLoad={(e) => (e.target as HTMLImageElement).classList.add('loaded')}
             onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
           />

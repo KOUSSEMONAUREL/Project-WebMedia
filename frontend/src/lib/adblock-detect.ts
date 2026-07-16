@@ -26,32 +26,29 @@ export async function detectAdBlocker(): Promise<boolean> {
   const prefilled = sessionStorage.getItem(STORAGE_KEY);
   if (prefilled !== null) return prefilled === 'true';
 
-  const s = document.createElement('script');
-  s.src = 'https://quge5.com/bait/detect.js?' + Math.random();
+  const baitEl = document.createElement('div');
+  baitEl.className = 'adsbox pub_300x250 pub_300x250m pub_728x90 text-ad textAd ad-wrapper';
+  baitEl.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;';
+  document.body.appendChild(baitEl);
+
   const bait = new Promise<boolean>((r) => {
-    s.onerror = () => r(true);
-    s.onload = () => r(false);
-    document.head.appendChild(s);
-    setTimeout(() => r(true), 3000);
+    setTimeout(() => {
+      const hidden = baitEl.offsetParent === null || baitEl.offsetHeight === 0;
+      baitEl.remove();
+      r(hidden);
+    }, 500);
   });
 
   const content = new Promise<boolean>((r) => {
     setTimeout(() => {
-      const domains = ['quge5.com', 'elderlygoal.com', 'effectivecpmnetwork.com'];
-      const found = domains.some((d) =>
-        document.querySelector(`script[src*="${d}"]`),
-      );
       const iframes = document.querySelectorAll('iframe').length;
-      r(found && iframes <= 1);
-    }, 4000);
+      r(iframes <= 1);
+    }, 500);
   });
 
   const [baitResult, contentResult] = await Promise.all([bait, content]);
-
-  const inline = sessionStorage.getItem(STORAGE_KEY);
-  if (inline !== null) return inline === 'true';
-
   const detected = baitResult && contentResult;
+
   try { sessionStorage.setItem(STORAGE_KEY, String(detected)); } catch { }
   return detected;
 }
