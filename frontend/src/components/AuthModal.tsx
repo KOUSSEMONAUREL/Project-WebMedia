@@ -26,7 +26,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
-    const { getToken: getTurnstileToken } = useTurnstile();
+    const { getToken: getTurnstileToken, loading: turnstileLoading, error: turnstileError, errorMessage: turnstileErrorMsg } = useTurnstile();
 
     const passwordRules = useMemo(() => ({
         minMax: formData.password.length >= 8 && formData.password.length <= 16,
@@ -58,9 +58,13 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     };
 
     const handleResendVerification = async () => {
+        if (turnstileError) {
+            setError(turnstileErrorMsg || 'Erreur anti-bot, recharge la page');
+            return;
+        }
         const turnstileToken = await getTurnstileToken();
         if (!turnstileToken) {
-            setError("Verification anti-bot echouee, reessaye");
+            setError("Verification anti-bot indisponible. Verifie ton bloqueur de pubs ou reseau.");
             return;
         }
         setResending(true);
@@ -318,11 +322,19 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                     setError('Email invalide');
                                     return;
                                 }
-                                const turnstileToken = await getTurnstileToken();
-                                if (!turnstileToken) {
-                                    setError("Verification anti-bot echouee, reessaye");
-                                    return;
-                                }
+        if (turnstileError) {
+            setError(turnstileErrorMsg || 'Erreur anti-bot, recharge la page');
+            return;
+        }
+        if (turnstileLoading) {
+            setError('Verification anti-bot en cours, patiente...');
+            return;
+        }
+        const turnstileToken = await getTurnstileToken();
+        if (!turnstileToken) {
+            setError('Verification anti-bot echouee. Verifie que ton bloqueur de pubs n\'empeche pas Turnstile, puis reessaye.');
+            return;
+        }
                                 setLoading(true);
                                 try {
                                     const { error: resetError } = await authClient.requestPasswordReset({
@@ -492,12 +504,28 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </div>
                         )}
 
+                        {turnstileLoading && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                                <span className="relative inline-flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
+                                </span>
+                                Verification anti-bot en cours...
+                            </div>
+                        )}
+
+                        {turnstileErrorMsg && (
+                            <p className="text-sm text-amber-500 bg-amber-500/10 p-2 rounded-lg">
+                                {turnstileErrorMsg}
+                            </p>
+                        )}
+
                         {error && (
                             <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
                         )}
 
-                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading || (mode === 'signup' && !isSignupFormValid)}>
-                            {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
+                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading || turnstileLoading || (mode === 'signup' && !isSignupFormValid)}>
+                            {loading ? 'Connexion...' : turnstileLoading ? 'Verification...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
                         </Button>
 
                         {mode === 'login' && (

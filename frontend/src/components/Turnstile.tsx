@@ -7,11 +7,17 @@ declare global {
                 sitekey: string;
                 callback?: (token: string) => void;
                 'expired-callback'?: () => void;
-                'error-callback'?: () => void;
+                'error-callback'?: (errorCode: string) => void;
+                'timeout-callback'?: () => void;
                 theme?: 'light' | 'dark' | 'auto';
                 size?: 'normal' | 'compact' | 'invisible';
                 tabindex?: number;
+                retry?: 'auto' | 'never';
+                'retry-interval'?: number;
+                'refresh-expired'?: 'auto' | 'manual' | 'never';
+                execution?: 'render' | 'execute';
             }) => string;
+            execute: (container: string | HTMLElement) => void;
             reset: (widgetId: string) => void;
             remove: (widgetId: string) => void;
             getResponse: (widgetId: string) => string | undefined;
@@ -21,128 +27,211 @@ declare global {
 
 const SCRIPT_ID = 'cf-turnstile';
 const SITE_KEY = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+const LOAD_TIMEOUT = 10000;
+const TOKEN_TIMEOUT = 15000;
+const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
 
-let scriptLoaded = false;
-let widgetRendered = false;
-let globalWidgetId: string | null = null;
-let globalContainer: HTMLDivElement | null = null;
-let globalToken: string | null = null;
-let globalResolve: ((token: string) => void) | null = null;
+// ── Module-level shared widget (used by both hook and direct API) ──
+
+let sharedInit: Promise<void> | null = null;
+let sharedWidgetId: string | null = null;
+let sharedContainer: HTMLDivElement | null = null;
+let sharedToken: string | null = null;
+let sharedResolve: ((token: string) => void) | null = null;
 
 function loadScript(): Promise<void> {
-    if (scriptLoaded) return Promise.resolve();
-    return new Promise((resolve) => {
+    if (document.getElementById(SCRIPT_ID) && window.turnstile) return Promise.resolve();
+    return new Promise((resolve, reject) => {
         const existing = document.getElementById(SCRIPT_ID);
         if (existing && window.turnstile) {
-            scriptLoaded = true;
             resolve();
             return;
         }
         const script = document.createElement('script');
         script.id = SCRIPT_ID;
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        script.src = SCRIPT_SRC;
         script.async = true;
         script.defer = true;
+        const timer = setTimeout(() => {
+            script.onload = null;
+            script.onerror = null;
+            reject(new Error('Le script Turnstile ne charge pas (timout). Verifie ton bloqueur de pubs ou reseau.'));
+        }, LOAD_TIMEOUT);
         script.onload = () => {
-            scriptLoaded = true;
-            resolve();
+            clearTimeout(timer);
+            const check = () => {
+                if (window.turnstile) resolve();
+                else setTimeout(check, 50);
+            };
+            check();
+        };
+        script.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error('Echec de chargement du script Turnstile. Verifie ton bloqueur de pubs.'));
         };
         document.head.appendChild(script);
     });
 }
 
-function initWidget() {
-    if (widgetRendered || !window.turnstile || !globalContainer) return;
-    widgetRendered = true;
-
-    if (globalWidgetId) {
-        window.turnstile.remove(globalWidgetId);
-    }
-
-    globalWidgetId = window.turnstile.render(globalContainer, {
-        sitekey: SITE_KEY,
-        callback: (token: string) => {
-            globalToken = token;
-            if (globalResolve) {
-                globalResolve(token);
-                globalResolve = null;
-            }
-        },
-        'expired-callback': () => {
-            globalToken = null;
-        },
-        'error-callback': () => {
-            globalToken = null;
-            if (globalResolve) {
-                globalResolve('');
-                globalResolve = null;
-            }
-        },
-    });
-}
-
-async function ensureWidget(): Promise<void> {
-    if (widgetRendered && window.turnstile) return;
-    await loadScript();
-    if (!globalContainer) {
+function initSharedWidget() {
+    if (sharedWidgetId || !window.turnstile) return;
+    if (!sharedContainer) {
         const div = document.createElement('div');
         div.style.position = 'absolute';
         div.style.left = '-9999px';
         div.style.top = '-9999px';
-        div.className = 'turnstile-global-widget';
+        div.className = 'turnstile-widget';
         document.body.appendChild(div);
-        globalContainer = div;
+        sharedContainer = div;
     }
-    initWidget();
+    sharedWidgetId = window.turnstile.render(sharedContainer, {
+        sitekey: SITE_KEY!,
+        execution: 'execute',
+        retry: 'never',
+        'refresh-expired': 'manual',
+        callback: (token: string) => {
+            sharedToken = token;
+            if (sharedResolve) {
+                sharedResolve(token);
+                sharedResolve = null;
+            }
+        },
+        'expired-callback': () => { sharedToken = null; },
+        'error-callback': () => {
+            if (sharedResolve) {
+                sharedResolve('');
+                sharedResolve = null;
+            }
+            sharedToken = null;
+        },
+        'timeout-callback': () => {
+            if (sharedResolve) {
+                sharedResolve('');
+                sharedResolve = null;
+            }
+        },
+    });
 }
 
-async function getTokenLazy(): Promise<string> {
-    if (globalToken) return globalToken;
-    await ensureWidget();
-    return new Promise((resolve) => {
-        globalResolve = resolve;
-        if (globalWidgetId && window.turnstile) {
-            window.turnstile.reset(globalWidgetId);
+async function ensureSharedWidget(): Promise<void> {
+    if (sharedWidgetId && window.turnstile) return;
+    if (!sharedInit) {
+        sharedInit = loadScript().then(() => { initSharedWidget(); });
+    }
+    await sharedInit;
+}
+
+async function getSharedToken(): Promise<string> {
+    if (sharedToken) return sharedToken;
+    await ensureSharedWidget();
+    if (!sharedWidgetId || !window.turnstile) return '';
+
+    window.turnstile.execute(sharedContainer!);
+
+    return new Promise<string>((resolve) => {
+        const timer = setTimeout(() => {
+            if (sharedResolve) {
+                sharedResolve('');
+                sharedResolve = null;
+            }
+            resolve('');
+        }, TOKEN_TIMEOUT);
+
+        sharedResolve = (t: string) => {
+            clearTimeout(timer);
+            resolve(t);
+        };
+
+        const existing = window.turnstile.getResponse(sharedWidgetId);
+        if (existing) {
+            clearTimeout(timer);
+            sharedToken = existing;
+            sharedResolve = null;
+            resolve(existing);
         }
     });
 }
 
+function resetSharedWidget() {
+    sharedToken = null;
+    if (sharedWidgetId && window.turnstile) {
+        try { window.turnstile.reset(sharedWidgetId); } catch { }
+    }
+}
+
+function cleanupSharedWidget() {
+    if (sharedContainer && sharedContainer.parentNode) {
+        sharedContainer.parentNode.removeChild(sharedContainer);
+    }
+    sharedContainer = null;
+    sharedWidgetId = null;
+    sharedToken = null;
+    sharedInit = null;
+}
+
+// ── React hook ──
+
 export function useTurnstile() {
-    const [ready, setReady] = useState(!!SITE_KEY);
+    const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+        SITE_KEY ? 'idle' : 'error'
+    );
+    const [errorMessage, setErrorMessage] = useState<string | null>(
+        SITE_KEY ? null : 'Cle Turnstile manquante'
+    );
     const mounted = useRef(false);
+    const busy = useRef(false);
 
     useEffect(() => {
         if (!SITE_KEY || mounted.current) return;
         mounted.current = true;
-        setReady(true);
+        setStatus('loading');
+
+        loadScript()
+            .then(() => {
+                if (!mounted.current) return;
+                setStatus('ready');
+            })
+            .catch((err: Error) => {
+                if (!mounted.current) return;
+                setStatus('error');
+                setErrorMessage(err.message);
+            });
 
         return () => {
-            if (globalContainer && globalContainer.parentNode) {
-                globalContainer.parentNode.removeChild(globalContainer);
-                globalContainer = null;
-            }
-            widgetRendered = false;
-            if (globalWidgetId && window.turnstile) {
-                window.turnstile.remove(globalWidgetId);
-                globalWidgetId = null;
-            }
+            mounted.current = false;
         };
     }, []);
 
-    const getToken = useCallback((): Promise<string> => {
-        return getTokenLazy();
-    }, []);
+    const getToken = useCallback(async (): Promise<string> => {
+        if (status === 'error') return '';
+        if (busy.current) return '';
+        busy.current = true;
+        try {
+            const token = await getSharedToken();
+            return token;
+        } finally {
+            busy.current = false;
+        }
+    }, [status]);
 
     const reset = useCallback(() => {
-        globalToken = null;
-        if (globalWidgetId && window.turnstile) {
-            window.turnstile.reset(globalWidgetId);
-        }
+        resetSharedWidget();
     }, []);
 
-    return { getToken, reset, ready };
+    return {
+        getToken,
+        reset,
+        ready: status === 'ready',
+        error: status === 'error',
+        errorMessage,
+        loading: status === 'loading',
+    };
 }
 
+// ── Direct API for non-React code (sync-queue, reviews) ──
+
 export async function getTurnstileTokenDirect(): Promise<string> {
-    return getTokenLazy();
+    if (!SITE_KEY) return '';
+    const token = await getSharedToken();
+    return token;
 }
