@@ -124,6 +124,20 @@ export async function searchMedia(query: string, filters?: {
   }
 }
 
+export async function searchAdvancedMedia(query: string, filters?: {
+  type?: MediaType | 'all';
+}): Promise<ApiResponse<Media[]>> {
+  const params = new URLSearchParams({ q: query });
+  if (filters?.type && filters.type !== 'all') params.set('type', filters.type);
+  try {
+    const res = await apiClient<{ success: boolean; data: Media[] }>(`/search/advanced?${params}`);
+    if (res.data) res.data = mapTypes(res.data);
+    return res;
+  } catch {
+    return { success: true, data: [] };
+  }
+}
+
 export async function getMediaDetails(type: string, slug: string): Promise<ApiResponse<Media>> {
   const ck = cacheKey(`/media/${type}/${slug}`);
   const cached = await cacheGet<ApiResponse<Media>>(ck, TTL.DETAIL);

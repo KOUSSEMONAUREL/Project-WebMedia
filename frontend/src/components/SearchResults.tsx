@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MediaCard } from './MediaCard';
-import { searchMedia, type Media } from '../lib/api';
+import { searchAdvancedMedia, type Media } from '../lib/api';
 import { Search, X, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +53,7 @@ export default function SearchResults() {
     setHasSearched(true);
     setError('');
     try {
-      const res = await searchMedia(q, { type: type === 'all' ? undefined : type as any });
+      const res = await searchAdvancedMedia(q, { type: type === 'all' ? undefined : type as any });
       setResults(res.data || []);
     } catch {
       setError('Erreur lors de la recherche.');
