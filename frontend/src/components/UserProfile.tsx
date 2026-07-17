@@ -86,7 +86,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         const adminToken = await getAuthToken();
         if (adminToken) {
           try {
-            const adminUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+            const adminUrl = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
             const adminRes = await fetch(`${adminUrl}/admin/check`, {
               headers: { 'Authorization': `Bearer ${adminToken}` },
               credentials: 'include',
