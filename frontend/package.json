@@ -42,7 +42,7 @@
     "cmdk": "^1.1.1",
     "hls.js": "^1.6.16",
     "idb": "^8.0.3",
-    "lucide-react": "^1.23.0",
+    "lucide-react": "^1.25.0",
     "plyr": "^3.8.4",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",
