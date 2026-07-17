@@ -364,13 +364,9 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                 placeholder="Rechercher..."
                 className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
               />
-              <button
-                type="button"
-                onClick={() => { window.location.href = '/search/advanced' }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/40 border border-border/30 cursor-pointer hover:text-muted-foreground/70 hover:border-border/50 transition-colors"
-              >
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/40 border border-border/30">
                 {isMac ? <><Command className="h-2.5 w-2.5" />K</> : <>Ctrl+K</>}
-              </button>
+              </span>
 
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">

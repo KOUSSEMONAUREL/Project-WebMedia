@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MediaCard } from './MediaCard';
 import { searchMedia, type Media } from '../lib/api';
-import { Search, X } from 'lucide-react';
+import { Search, X, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TYPES = [
@@ -111,31 +111,8 @@ export default function SearchResults() {
         <p className="text-muted-foreground text-sm">Trouvez vos films, séries, animés et plus encore.</p>
       </header>
 
-      {/* Search input */}
-      <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto md:mx-0 mb-8 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
-        <div className="relative glass rounded-2xl overflow-hidden border border-white/[0.06] focus-within:border-primary/30 focus-within:shadow-[0_0_40px_rgba(59,130,246,0.10)] transition-all duration-300">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un titre..."
-            className="w-full h-14 bg-transparent pl-14 pr-14 text-lg focus:outline-none text-foreground placeholder:text-muted-foreground/50"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-white/[0.06]"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-      </form>
-
       {/* Type filters */}
-      <div className="flex flex-wrap gap-2 mb-10 animate-fade-in-up justify-center md:justify-start" style={{ animationDelay: '0.1s' }}>
+      <div className="flex flex-wrap gap-2 mb-6 animate-fade-in-up justify-center md:justify-start" style={{ animationDelay: '0.05s' }}>
         {TYPES.map((t) => (
           <button
             key={t.value}
@@ -151,6 +128,37 @@ export default function SearchResults() {
           </button>
         ))}
       </div>
+
+      {/* Search input */}
+      <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto md:mx-0 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        <div className="relative glass rounded-2xl overflow-hidden border border-white/[0.06] focus-within:border-primary/30 focus-within:shadow-[0_0_40px_rgba(59,130,246,0.10)] transition-all duration-300">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un titre..."
+            className="w-full h-14 bg-transparent pl-14 pr-28 text-lg focus:outline-none text-foreground placeholder:text-muted-foreground/50"
+          />
+          {query && (
+            <>
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-16 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-white/[0.06]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <button
+                type="submit"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 transition-colors p-2 rounded-lg hover:bg-primary/10"
+              >
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
+        </div>
+      </form>
 
       {/* Error */}
       {error && (

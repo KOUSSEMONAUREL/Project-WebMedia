@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { User, LogOut, ChevronDown, Film, Tv, Library, BarChart3 } from 'lucide-react';
+import { User, LogOut, ChevronDown, Film, Tv, Library, BarChart3, Search } from 'lucide-react';
 
 import { getAllFavorites, getWatchlist } from '../lib/indexeddb';
 
@@ -122,6 +122,7 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
                     <nav className="p-1.5">
                         {[
                             { href: '/profile', icon: User, label: 'Mon Profil' },
+                            { href: '/search/advanced', icon: Search, label: 'Recherche avancée' },
                         ].map(item => (
                             <a
                                 key={item.href}
