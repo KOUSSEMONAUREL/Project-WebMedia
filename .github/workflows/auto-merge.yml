@@ -23,7 +23,7 @@ jobs:
           cache-dependency-path: ${{ matrix.dir }}/package-lock.json
 
       - name: Install dependencies
-        run: cd ${{ matrix.dir }} && npm ci
+        run: cd ${{ matrix.dir }} && npm ci --legacy-peer-deps
 
       - name: TypeScript check (backend)
         if: matrix.dir == 'backend'
