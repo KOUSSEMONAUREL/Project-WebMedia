@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 // ========== TABLE MEDIAS (Catalogue principal) ==========
@@ -33,9 +33,17 @@ export const medias = sqliteTable('medias', {
     tagline: text('tagline'),
     studios: text('studios'),
     episodeCount: integer('episode_count'),
+    duration: integer('duration'),
     createdAt: integer('created_at', { mode: 'timestamp' }),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
-});
+}, (table) => [
+    index('idx_medias_type').on(table.type),
+    index('idx_medias_type_slug').on(table.type, table.slug),
+    index('idx_medias_type_created').on(table.type, table.createdAt),
+    index('idx_medias_type_rating').on(table.type, table.rating),
+    index('idx_medias_type_title').on(table.type, table.title),
+    index('idx_medias_type_year').on(table.type, table.year),
+]);
 
 // ========== TABLE EPISODES ==========
 export const episodes = sqliteTable('episodes', {
@@ -48,7 +56,10 @@ export const episodes = sqliteTable('episodes', {
     airDate: integer('air_date', { mode: 'timestamp' }),
     thumbnailUrl: text('thumbnail_url'),
     duration: integer('duration'),
-});
+}, (table) => [
+    index('idx_episodes_media').on(table.mediaId),
+    index('idx_episodes_media_season_ep').on(table.mediaId, table.seasonNumber, table.episodeNumber),
+]);
 
 // ========== TABLE LIENS (Scraping) ==========
 export const liens = sqliteTable('liens', {
@@ -65,7 +76,9 @@ export const liens = sqliteTable('liens', {
     failCount: integer('fail_count').default(0),
     lastVerified: integer('last_verified', { mode: 'timestamp' }),
     scrapedAt: integer('scraped_at', { mode: 'timestamp' }),
-});
+}, (table) => [
+    index('idx_liens_media').on(table.mediaId),
+]);
 
 // ========== RELATIONS ==========
 export const mediaRelations = relations(medias, ({ many }) => ({

@@ -22,7 +22,9 @@ type Bindings = {
     HYPERDRIVE: Hyperdrive;
     DB: D1Database;
     KV: KVNamespace;
-};
+    UPSTASH_REDIS_REST_URL: string;
+    UPSTASH_REDIS_REST_TOKEN: string;
+  };
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -189,12 +191,52 @@ const advancedSchema = z.object({
   type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
 });
 
+async function getRedisRestClient(c: any) {
+  const url = getVar(c, 'UPSTASH_REDIS_REST_URL');
+  const token = getVar(c, 'UPSTASH_REDIS_REST_TOKEN');
+  return {
+    url: url.replace(/\/$/, ''),
+    headers: { Authorization: `Bearer ${token}` },
+  };
+}
+
+async function acquireSearchLock(c: any, ip: string): Promise<boolean> {
+  try {
+    const redis = await getRedisRestClient(c);
+    const lockKey = `lock:search-advanced:${ip}`;
+    const res = await fetch(`${redis.url}/set/${lockKey}/1/EX/120/NX`, {
+      headers: redis.headers,
+    });
+    const data = await res.json() as any;
+    return data.result === 'OK';
+  } catch {
+    return true;
+  }
+}
+
+async function releaseSearchLock(c: any, ip: string): Promise<void> {
+  try {
+    const redis = await getRedisRestClient(c);
+    const lockKey = `lock:search-advanced:${ip}`;
+    await fetch(`${redis.url}/del/${lockKey}`, { headers: redis.headers });
+  } catch { /* best effort */ }
+}
+
 // ========== GET /api/search/advanced ==========
 searchRoutes.get(
   '/advanced',
   zValidator('query', advancedSchema as any),
   async (c) => {
     const { q, type } = c.req.valid('query' as any);
+    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+    const acquired = await acquireSearchLock(c, ip);
+    if (!acquired) {
+      return c.json({
+        success: false,
+        error: 'Une recherche avancee est deja en cours. Reessaye dans quelques secondes.',
+      }, 429);
+    }
 
     try {
       const db = getTursoDb(c);
@@ -371,8 +413,10 @@ searchRoutes.get(
         }),
       ];
 
+      releaseSearchLock(c, ip);
       return c.json({ success: true, query: q, data: results, queuedJobs, dispatchedJobs });
     } catch (error: any) {
+      releaseSearchLock(c, ip);
       console.error('Erreur recherche avancee:', error.message);
       return c.json({ success: false, error: 'Erreur lors de la recherche avancee' }, 500);
     }
