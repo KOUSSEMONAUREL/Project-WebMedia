@@ -19,7 +19,7 @@ export function SearchProvider({ children }: SearchProviderProps) {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        setOpen((open) => !open)
+        window.location.href = '/search/advanced'
       }
     }
     document.addEventListener('keydown', down)

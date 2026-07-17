@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '20 8,20 * * *'
   workflow_dispatch:
+    inputs:
+      title:
+        description: 'Titre specifique a rechercher (optionnel)'
+        required: false
+        type: string
 
 jobs:
   scrape:
@@ -26,4 +31,10 @@ jobs:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
           INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
-        run: cd scrapers/playwright-worker && python src/main.py
+          SCRAPER_TITLE: ${{ inputs.title || '' }}
+        run: |
+          if [ -n "$SCRAPER_TITLE" ]; then
+            cd scrapers/playwright-worker && python src/main.py --title "$SCRAPER_TITLE"
+          else
+            cd scrapers/playwright-worker && python src/main.py
+          fi

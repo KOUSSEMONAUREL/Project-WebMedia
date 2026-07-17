@@ -46,7 +46,23 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
 if (process.argv[1]?.endsWith('worker.ts')) {
   const mode = process.argv[2];
 
-  if (mode === '--queue') {
+  if (mode === '--title') {
+    const title = process.argv[3];
+    if (!title) {
+      console.error('Usage: npx tsx src/worker.ts --title <webtoon-title>');
+      process.exit(1);
+    }
+    console.log(`[DIRECT] Searching webtoon sources for: ${title}`);
+    import('postgres').then(async ({ default: postgres }) => {
+      const result = await processMedia({
+        id: '0', title, slug: title.toLowerCase().replace(/\s+/g, '-'),
+        type: 'webtoon', externalId: null,
+        metadataSource: null, synopsis: null,
+      } as any);
+      console.log(`[DIRECT] Found ${result.chaptersSaved} link(s) for '${title}'`);
+      process.exit(0);
+    });
+  } else if (mode === '--queue') {
     import('postgres').then(async ({ default: postgres }) => {
       const supabaseUrl = process.env.SUPABASE_DATABASE_URL || '';
       const neonUrl = process.env.NEON_DATABASE_URL || '';

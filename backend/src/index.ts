@@ -37,6 +37,10 @@ type Bindings = {
     MONGODB_URI: string;
     ENVIRONMENT: string;
     TURNSTILE_SECRET_KEY: string;
+    GOOGLE_BOOKS_API_KEY: string;
+    TWITCH_CLIENT_ID: string;
+    TWITCH_CLIENT_SECRET: string;
+    GITHUB_TOKEN: string;
 };
 
 type Variables = {

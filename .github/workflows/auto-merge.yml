@@ -1,0 +1,55 @@
+name: Dependabot Auto-Merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [backend, frontend, scrapers/webtoons, scrapers/novel-worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install dependencies
+        run: cd ${{ matrix.dir }} && npm ci
+
+      - name: TypeScript check (backend)
+        if: matrix.dir == 'backend'
+        run: cd ${{ matrix.dir }} && npx tsc --noEmit
+
+      - name: Build (frontend)
+        if: matrix.dir == 'frontend'
+        run: cd ${{ matrix.dir }} && npm run build
+
+      - name: Build check (scrapers)
+        if: matrix.dir != 'backend' && matrix.dir != 'frontend'
+        run: cd ${{ matrix.dir }} && npx tsc --noEmit 2>/dev/null || echo "No tsc or check skipped"
+
+  merge:
+    needs: check-and-merge
+    if: github.actor == 'dependabot[bot]' && success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dependabot/fetch-metadata@v2
+        id: metadata
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge patch/minor
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

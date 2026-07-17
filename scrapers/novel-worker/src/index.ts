@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
 import axios from 'axios';
@@ -229,4 +230,36 @@ async function runOneShot() {
   process.exit(0);
 }
 
-runOneShot();
+async function runSearchDirect(title: string) {
+  const log = createLog('Novel Worker', 'direct');
+  log.header();
+  log.info(`Searching novel sources for: ${title}`);
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'novel-search-'));
+  try {
+    const urls = await runSearch(title, tempDir);
+    if (urls.length > 0) {
+      console.log(`[DIRECT] Found ${urls.length} link(s) for '${title}':`);
+      for (const u of urls) {
+        console.log(`  - ${u.url} (${u.site})`);
+      }
+    } else {
+      console.log(`[DIRECT] No results found for '${title}'`);
+    }
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+  process.exit(0);
+}
+
+const titleArg = process.argv.find(a => a.startsWith('--title=')) || (
+  process.argv.includes('--title') && process.argv.indexOf('--title') + 1 < process.argv.length
+    ? `--title=${process.argv[process.argv.indexOf('--title') + 1]}`
+    : null
+);
+
+if (titleArg) {
+  runSearchDirect(titleArg.split('=', 2)[1] || '');
+} else {
+  runOneShot();
+}

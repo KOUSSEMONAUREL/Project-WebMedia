@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: '40 8,20 * * *'
   workflow_dispatch:
+    inputs:
+      title:
+        description: 'Titre specifique a rechercher (optionnel)'
+        required: false
+        type: string
 
 jobs:
   scrape:
@@ -27,4 +32,10 @@ jobs:
           INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           LNCRAWL_PATH: lncrawl
-        run: cd scrapers/novel-worker && npx tsx src/index.ts
+          SCRAPER_TITLE: ${{ inputs.title || '' }}
+        run: |
+          if [ -n "$SCRAPER_TITLE" ]; then
+            cd scrapers/novel-worker && npx tsx src/index.ts --title "$SCRAPER_TITLE"
+          else
+            cd scrapers/novel-worker && npx tsx src/index.ts
+          fi

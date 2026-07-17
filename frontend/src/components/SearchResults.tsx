@@ -29,7 +29,7 @@ function SkeletonGrid() {
   );
 }
 
-export function SearchResults() {
+export default function SearchResults() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Media[]>([]);
   const [isLoading, setIsLoading] = useState(false);

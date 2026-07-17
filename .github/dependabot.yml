@@ -1,0 +1,103 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/frontend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'frontend'
+    groups:
+      frontend-safe:
+        applies-to: version-updates
+        patterns: ['*']
+        exclude-patterns:
+          - 'next*'
+          - 'react*'
+          - 'react-dom*'
+          - '@types/react*'
+          - 'tailwindcss*'
+          - 'lucide-react*'
+          - 'framer-motion*'
+
+  - package-ecosystem: 'npm'
+    directory: '/backend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'backend'
+    groups:
+      backend-safe:
+        applies-to: version-updates
+        patterns: ['*']
+        exclude-patterns:
+          - 'hono'
+          - 'drizzle-orm'
+          - 'drizzle-kit'
+          - 'better-auth*'
+          - '@libsql/client*'
+          - 'postgres*'
+          - 'zod*'
+          - 'wrangler*'
+          - '@cloudflare/*'
+
+  - package-ecosystem: 'npm'
+    directory: '/scrapers/webtoons'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'scraper'
+    groups:
+      scraper-all:
+        applies-to: version-updates
+        patterns: ['*']
+
+  - package-ecosystem: 'npm'
+    directory: '/scrapers/novel-worker'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'scraper'
+    groups:
+      scraper-all:
+        applies-to: version-updates
+        patterns: ['*']
+
+  - package-ecosystem: 'pip'
+    directory: '/scrapers/playwright-worker'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'scraper'
+    groups:
+      scraper-all:
+        applies-to: version-updates
+        patterns: ['*']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'ci'
+    groups:
+      actions-all:
+        applies-to: version-updates
+        patterns: ['*']

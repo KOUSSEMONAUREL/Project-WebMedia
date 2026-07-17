@@ -315,6 +315,84 @@ internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSc
     }
 });
 
+// ========== POST /api/internal/ingest/media/create ==========
+const createMediaSchema = z.object({
+  title: z.string().min(1).max(500),
+  type: z.string().min(1).max(20),
+  slug: z.string().min(1).max(500),
+  synopsis: z.string().optional().nullable(),
+  year: z.number().int().optional().nullable(),
+  posterUrl: z.string().optional().nullable(),
+  backdropUrl: z.string().optional().nullable(),
+  rating: z.number().optional().nullable(),
+  externalId: z.string().optional().nullable(),
+  metadataSource: z.string().optional().nullable(),
+});
+
+internalRoutes.post('/ingest/media/create', zValidator('json', createMediaSchema as any), async (c) => {
+  const input = c.req.valid('json') as z.infer<typeof createMediaSchema>;
+
+  try {
+    const connStr = getVar(c, 'NEON_DATABASE_URL');
+    const hyperdrive = c.env?.HYPERDRIVE;
+    const db = getNeonDb(connStr, hyperdrive) as any;
+
+    const mediaId = crypto.randomUUID();
+
+    await db.insert(medias).values({
+      id: mediaId,
+      title: input.title,
+      type: input.type,
+      slug: input.slug,
+      synopsis: input.synopsis || null,
+      year: input.year || null,
+      posterUrl: input.posterUrl || null,
+      backdropUrl: input.backdropUrl || null,
+      rating: input.rating ? String(input.rating) : null,
+      externalId: input.externalId || null,
+      metadataSource: input.metadataSource || 'external',
+      activeLinksCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Upsert D1 media_state
+    if (c.env?.DB) {
+      await c.env.DB.prepare(`
+        INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+        VALUES (?, ?, ?, ?, 1, 0, 0, ?, 1)
+        ON CONFLICT(media_id) DO UPDATE SET
+          title = COALESCE(excluded.title, title),
+          slug = COALESCE(excluded.slug, slug),
+          metadata_ok = 1
+      `).bind(mediaId, input.type, input.title, input.slug, Date.now() + 10000).run();
+    }
+
+    // Sync to Turso
+    const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
+    const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
+    if (tursoUrl && tursoToken) {
+      try {
+        const turso = createClient({ url: tursoUrl, authToken: tursoToken });
+        await turso.execute({
+          sql: 'INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, backdrop_url, rating, metadata_source, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          args: [mediaId, input.externalId || null, input.type, input.title, input.slug, input.synopsis || null, input.year || null, input.posterUrl || null, input.backdropUrl || null, input.rating?.toString() || null, input.metadataSource || 'external', 0, new Date().toISOString(), new Date().toISOString()]
+        });
+        await turso.close();
+      } catch (tursoError: any) {
+        console.warn(`[CreateMedia] Turso sync failed (non-blocking): ${tursoError.message}`);
+      }
+    }
+
+    await logger.audit('CreateMedia', `Media created: ${input.title}`, { mediaId, type: input.type }, mongoUri(c));
+    return c.json({ success: true, mediaId });
+  } catch (error: any) {
+    await logger.error('CreateMedia', `Erreur creation media: ${error.message}`, { title: input.title }, mongoUri(c));
+    console.error('CreateMedia Error:', error.message);
+    return c.json({ success: false, error: `Erreur creation: ${error.message}` }, 500);
+  }
+});
+
 // ========== POST /api/internal/ingest/mapping ==========
 const mappingSchema = z.object({
     mappings: z.array(z.object({

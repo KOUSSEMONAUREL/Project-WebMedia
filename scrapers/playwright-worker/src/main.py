@@ -282,6 +282,49 @@ def process_jobs():
     log.summary(jobs_processed, errors)
 
 
+def search_title_direct(game_name):
+    """Search for a specific title across all game sources and print results."""
+    internal_api_url = os.environ.get("INTERNAL_API_URL", "")
+    internal_api_key = os.environ.get("INTERNAL_API_KEY", "")
+    GAME_SOURCES = [
+        ("steamunlocked.org", "https://steamunlocked.org/?s="),
+        ("fitgirl-repacks.site", "https://fitgirl-repacks.site/?s="),
+        ("gamedrive.org", "https://gamedrive.org/?s="),
+        ("elamigos.site", "https://elamigos.site/?q="),
+        ("romspure.cc", "https://romspure.cc/?s="),
+        ("cfinder.xyz", "https://cfinder.xyz/jeux.php?q="),
+        ("emulatorgamesx.net", "https://www.emulatorgamesx.net/?s="),
+        ("romsfun.com", "https://romsfun.com/?s="),
+        ("games4u.org", "https://games4u.org/?s="),
+        ("steamrip.com", "https://steamrip.com/?s="),
+    ]
+    fetcher = None
+    all_links = []
+    for site_name, base_url in GAME_SOURCES:
+        try:
+            search_url = base_url + game_name.replace(" ", "+")
+            if not fetcher:
+                fetcher = Fetcher(auto_wait=True)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            page = fetcher.get(search_url, headers=headers)
+            if getattr(page, 'status', 200) == 200:
+                site_links = extract_game_links(page, search_url, game_name)
+                if site_links:
+                    all_links.extend(site_links[:5])
+        except Exception:
+            continue
+    print(f"[DIRECT] Found {len(all_links)} links for '{game_name}':")
+    for link in all_links:
+        print(f"  - {link.get('url', 'N/A')} ({link.get('source_site', 'N/A')})")
+
 if __name__ == "__main__":
-    threading.Thread(target=run_health_server, daemon=True).start()
-    process_jobs()
+    import sys
+    if "--title" in sys.argv:
+        idx = sys.argv.index("--title")
+        if idx + 1 < len(sys.argv):
+            search_title_direct(sys.argv[idx + 1])
+        else:
+            print("Usage: --title <game-title>")
+    else:
+        threading.Thread(target=run_health_server, daemon=True).start()
+        process_jobs()
