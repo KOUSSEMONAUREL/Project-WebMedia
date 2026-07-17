@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Edit, Trash2, Search } from 'lucide-react';
 import Pagination from './Pagination';
 
-const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 async function getToken() {

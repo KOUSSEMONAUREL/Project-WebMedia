@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { RotateCcw, Search, RefreshCw } from 'lucide-react';
 import Pagination from './Pagination';
 
-const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 const jobsCache: { data: Job[] | null } = { data: null };
 

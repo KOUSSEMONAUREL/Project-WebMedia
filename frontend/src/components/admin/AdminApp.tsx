@@ -16,7 +16,7 @@ import EpisodesTab from './tabs/EpisodesTab';
 import LiensTab from './tabs/LiensTab';
 import JobsTab from './tabs/JobsTab';
 
-const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
