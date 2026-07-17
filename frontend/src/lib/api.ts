@@ -126,13 +126,17 @@ export async function searchMedia(query: string, filters?: {
 
 export async function searchAdvancedMedia(query: string, filters?: {
   type?: MediaType | 'all';
+  turnstileToken?: string;
 }): Promise<ApiResponse<Media[]>> {
   const params = new URLSearchParams({ q: query });
   if (filters?.type && filters.type !== 'all') params.set('type', filters.type);
+  if (filters?.turnstileToken) params.set('turnstile_token', filters.turnstileToken);
   try {
-    const res = await apiClient<{ success: boolean; data: Media[] }>(`/search/advanced?${params}`);
-    if (res.data) res.data = mapTypes(res.data);
-    return res;
+    const res = await apiFetch(`/search/advanced?${params}`);
+    const json = await res.json() as any;
+    if (!res.ok) return { success: false, data: [], error: json.error || 'Erreur' };
+    if (json.data) json.data = mapTypes(json.data);
+    return json;
   } catch {
     return { success: true, data: [] };
   }

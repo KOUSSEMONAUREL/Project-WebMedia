@@ -7,6 +7,7 @@ import { medias as neonMedias } from '../db/neon/schema';
 import { and, eq, like, or, sql } from 'drizzle-orm';
 import { searchExternalSources } from '../services/search-advanced';
 import { createClient } from '@libsql/client';
+import { verifyCloudflareTurnstile } from '../lib/turnstile';
 
 type Bindings = {
     TURSO_DATABASE_URL: string;
@@ -24,6 +25,7 @@ type Bindings = {
     KV: KVNamespace;
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
+    TURNSTILE_SECRET_KEY: string;
   };
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
@@ -239,6 +241,16 @@ searchRoutes.get(
     }
 
     try {
+      const turnstileToken = c.req.query('turnstile_token') || '';
+      const secret = getVar(c, 'TURNSTILE_SECRET_KEY');
+      if (turnstileToken && secret) {
+        const valid = await verifyCloudflareTurnstile(turnstileToken, secret);
+        if (!valid) {
+          releaseSearchLock(c, ip);
+          return c.json({ success: false, error: 'Captcha invalide' }, 403);
+        }
+      }
+
       const db = getTursoDb(c);
       const searchQ = normalizeQuery(q);
       let dbFilters: any[] = [or(like(tursoMedias.title, `%${searchQ}%`), like(tursoMedias.originalTitle, `%${searchQ}%`))];
