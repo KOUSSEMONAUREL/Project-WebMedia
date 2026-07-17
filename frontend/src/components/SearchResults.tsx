@@ -43,7 +43,7 @@ export default function SearchResults() {
     const t = params.get('type') || 'all';
     setQuery(q);
     setActiveType(t);
-    if (q.length >= 2) {
+    if (q.length >= 10) {
       performSearch(q, t);
     }
   }, []);
@@ -65,7 +65,7 @@ export default function SearchResults() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim().length >= 2) {
+    if (query.trim().length >= 10) {
       const url = new URL(window.location.href);
       url.searchParams.set('q', query.trim());
       if (activeType !== 'all') url.searchParams.set('type', activeType);
@@ -77,7 +77,7 @@ export default function SearchResults() {
 
   const handleTypeChange = (type: string) => {
     setActiveType(type);
-    if (query.trim().length >= 2) {
+    if (query.trim().length >= 10) {
       const url = new URL(window.location.href);
       url.searchParams.set('q', query.trim());
       if (type !== 'all') url.searchParams.set('type', type);

@@ -156,7 +156,8 @@ app.use('/api/*', async (c, next) => {
     if (c.env?.ENVIRONMENT === 'development' || c.env?.ENVIRONMENT === 'test') return next();
 
     const path = c.req.path;
-    const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/search') || path.startsWith('/api/user');
+    if (path.startsWith('/api/search')) return rateLimit(10, 60)(c, next);
+    const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/user');
     return rateLimit(isSensitive ? 20 : 60, 60)(c, next);
 });
 

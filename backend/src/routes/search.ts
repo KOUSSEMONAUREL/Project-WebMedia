@@ -47,7 +47,7 @@ const getTursoDb = (c: any) => {
 };
 
 const searchSchema = z.object({
-    q: z.string().min(1).max(200),
+    q: z.string().min(10).max(200),
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
@@ -179,7 +179,7 @@ async function dispatchGitHubAction(c: any, workerType: string, title: string): 
 }
 
 const advancedSchema = z.object({
-  q: z.string().min(1).max(200),
+  q: z.string().min(10).max(200),
   type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
 });
 
@@ -214,8 +214,7 @@ searchRoutes.get(
       .where(and(...dbFilters))
         .limit(20);
 
-      const externalResults = await searchExternalSources(q, type, c.env);
-
+      const externalResults = q.length >= 3 ? await searchExternalSources(q, type, c.env) : [];
       const existingKeys = new Set(dbResults.map(m => m.externalId || m.id));
       const uniqueExternal = externalResults.filter(r => !existingKeys.has(r.externalId || ''));
 
