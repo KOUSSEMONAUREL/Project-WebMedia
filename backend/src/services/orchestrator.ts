@@ -55,7 +55,7 @@ export class OrchestratorService {
 
         const mediaIds = [...new Set(readyMedia.map(m => m.media_id))];
 
-        // 2. UNE seule query Supabase : vérifie les jobs existants pour tous les media_ids
+        // 2. UNE seule query Supabase : verifie les jobs existants pour tous les media_ids
         const { data: existingJobs, error: jobsError } = await this.supabase
             .from('scraping_jobs')
             .select('media_id')
@@ -63,13 +63,30 @@ export class OrchestratorService {
             .in('status', ['pending', 'processing']);
 
         if (jobsError) {
-            console.error("Erreur vérification jobs Supabase:", jobsError);
+            console.error("Erreur verification jobs Supabase:", jobsError);
             return { processed: 0 };
         }
 
         const existingMediaIds = new Set((existingJobs || []).map((j: any) => j.media_id));
 
-        // 3. Récupère title/slug : priorité D1 (stocké à l'ingest), fallback Neon avec retry
+        // Exclure les medias qui ont cumule 5 echecs ou plus (tous jobs confondus)
+        const { data: allAttempts } = await this.supabase
+            .from('scraping_jobs')
+            .select('media_id, attempts')
+            .in('media_id', mediaIds);
+        const attemptTotals = new Map<string, number>();
+        for (const j of (allAttempts || [])) {
+            attemptTotals.set(j.media_id, (attemptTotals.get(j.media_id) || 0) + (j.attempts || 0));
+        }
+        const deadMediaIds = new Set<string>();
+        for (const [mid, total] of attemptTotals) {
+            if (total >= 5) deadMediaIds.add(mid);
+        }
+        if (deadMediaIds.size > 0) {
+            console.warn(`${deadMediaIds.size} medias ignores (${[...deadMediaIds].join(', ')}) : ${[...deadMediaIds].length} medias avec >= 5 echecs cumules`);
+        }
+
+        // 3. Recupere title/slug : priorite D1 (stocke a l'ingest), fallback Neon avec retry
         const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>();
 
         // 3a. D'abord, récupérer ceux qui ont déjà title/slug dans D1
@@ -142,6 +159,7 @@ export class OrchestratorService {
         for (const media of readyMedia) {
             const { media_id, type } = media;
             if (existingMediaIds.has(media_id)) continue;
+            if (deadMediaIds.has(media_id)) continue;
 
             const mediaInfo = mediaInfoMap.get(media_id);
             if (!mediaInfo) continue;

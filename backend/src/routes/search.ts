@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getTursoClient, getNeonDb, getSupabaseHttpClient } from '../db/singleton';
 import { medias as tursoMedias } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { and, eq, gt, like, or, sql } from 'drizzle-orm';
+import { and, eq, like, or, sql } from 'drizzle-orm';
 import { searchExternalSources } from '../services/search-advanced';
 import { createClient } from '@libsql/client';
 
@@ -46,12 +46,16 @@ const getTursoDb = (c: any) => {
     return getTursoClient(url, token);
 };
 
+function normalizeQuery(q: string): string {
+    return q.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 const searchSchema = z.object({
     q: z.string().min(10).max(200),
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-    offset: z.coerce.number().int().min(0).max(1000).optional().default(0),
+    offset: z.coerce.number().int().min(0).max(100).optional().default(0),
 });
 
 // ========== GET /api/search ==========
@@ -65,10 +69,12 @@ searchRoutes.get(
             c.header('Cache-Control', 'public, max-age=60');
             const db = getTursoDb(c);
 
+            const searchQ = normalizeQuery(q);
+
             let searchFilters: any[] = [
                 or(
-                    like(tursoMedias.title, `%${q}%`),
-                    like(tursoMedias.originalTitle, `%${q}%`)
+                    like(tursoMedias.title, `%${searchQ}%`),
+                    like(tursoMedias.originalTitle, `%${searchQ}%`)
                 )
             ];
 
@@ -192,7 +198,8 @@ searchRoutes.get(
 
     try {
       const db = getTursoDb(c);
-      let dbFilters: any[] = [or(like(tursoMedias.title, `%${q}%`), like(tursoMedias.originalTitle, `%${q}%`))];
+      const searchQ = normalizeQuery(q);
+      let dbFilters: any[] = [or(like(tursoMedias.title, `%${searchQ}%`), like(tursoMedias.originalTitle, `%${searchQ}%`))];
       if (type && type !== 'all') {
         dbFilters.push(eq(tursoMedias.type, mapType(type)));
       }
@@ -214,7 +221,7 @@ searchRoutes.get(
       .where(and(...dbFilters))
         .limit(20);
 
-      const externalResults = q.length >= 3 ? await searchExternalSources(q, type, c.env) : [];
+      const externalResults = searchQ.length >= 3 ? await searchExternalSources(q, type, c.env) : [];
       const existingKeys = new Set(dbResults.map(m => m.externalId || m.id));
       const uniqueExternal = externalResults.filter(r => !existingKeys.has(r.externalId || ''));
 
@@ -242,6 +249,21 @@ searchRoutes.get(
             const connStr = getVar(c, 'NEON_DATABASE_URL');
             const hyperdrive = c.env?.HYPERDRIVE;
             const db = getNeonDb(connStr, hyperdrive) as any;
+
+            // Dedup : verifie si un media existe deja avec cet externalId
+            if (r.externalId) {
+              const existing = await db.select({ id: neonMedias.id })
+                .from(neonMedias)
+                .where(eq(neonMedias.externalId, r.externalId))
+                .limit(1);
+              if (existing.length > 0) {
+                mediaId = existing[0].id;
+                createdMediaMap.set(r.externalId || r.slug || '', mediaId);
+                const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
+                if (jobId) queuedJobs.push(jobId);
+                continue;
+              }
+            }
 
             mediaId = crypto.randomUUID();
             await db.insert(neonMedias).values({
@@ -274,15 +296,33 @@ searchRoutes.get(
             const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
             const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
             if (tursoUrl && tursoToken) {
-              try {
-                const turso = createClient({ url: tursoUrl, authToken: tursoToken });
-                await turso.execute(
-                  'INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, rating, metadata_source, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                  [mediaId, r.externalId || null, r.type, r.title, r.slug ?? '', r.synopsis || null, r.year ?? null, r.posterUrl ?? null, r.rating?.toString() || null, r.metadataSource || 'external', 0, new Date().toISOString(), new Date().toISOString()]
-                );
-                await turso.close();
-              } catch (tursoError: any) {
-                console.warn(`[SearchAdv] Turso sync failed: ${tursoError.message}`);
+              let synced = false;
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  const turso = createClient({ url: tursoUrl, authToken: tursoToken });
+                  await turso.execute(
+                    'INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, rating, metadata_source, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                    [mediaId, r.externalId || null, r.type, r.title, r.slug ?? '', r.synopsis || null, r.year ?? null, r.posterUrl ?? null, r.rating?.toString() || null, r.metadataSource || 'external', 0, new Date().toISOString(), new Date().toISOString()]
+                  );
+                  await turso.close();
+                  synced = true;
+                  break;
+                } catch (tursoError: any) {
+                  if (attempt < 2) await new Promise(r2 => setTimeout(r2, 500));
+                  if (attempt === 2) console.warn(`[SearchAdv] Turso sync failed after 3 attempts: ${tursoError.message}`);
+                }
+              }
+              if (!synced) {
+                // Fallback: queue un job de sync differe
+                try {
+                  const kv = c.env?.KV;
+                  if (kv) {
+                    const existing = await kv.get('pending_turso_syncs');
+                    const pending = existing ? JSON.parse(existing) : [];
+                    pending.push({ mediaId, type: r.type, title: r.title, slug: r.slug, synopsis: r.synopsis, year: r.year, posterUrl: r.posterUrl, rating: r.rating, metadataSource: r.metadataSource, externalId: r.externalId });
+                    await kv.put('pending_turso_syncs', JSON.stringify(pending.slice(-50)));
+                  }
+                } catch { /* best effort */ }
               }
             }
 
