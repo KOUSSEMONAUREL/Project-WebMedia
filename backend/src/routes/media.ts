@@ -296,6 +296,15 @@ mediaRoutes.get('/:type/:slug', async (c) => {
                     .limit(1);
             }
             if (result.length === 0) {
+                const numericId = parseInt(slug, 10);
+                if (!isNaN(numericId)) {
+                    result = await db.select()
+                        .from(medias)
+                        .where(and(eq(medias.type, mediaType), eq(medias.tmdbId, numericId)))
+                        .limit(1);
+                }
+            }
+            if (result.length === 0) {
                 return c.json({ success: false, error: 'Média non trouvé' }, 404);
             }
         }

@@ -65,14 +65,14 @@ export default function SearchResults() {
       return;
     }
 
+    setError('');
+    setHasSearched(true);
+    setIsLoading(true);
+
     let turnstileToken = '';
     if (turnstile.ready) {
       turnstileToken = await turnstile.getToken();
     }
-
-    setIsLoading(true);
-    setHasSearched(true);
-    setError('');
     try {
       const res = await searchAdvancedMedia(q, {
         type: type === 'all' ? undefined : type as any,

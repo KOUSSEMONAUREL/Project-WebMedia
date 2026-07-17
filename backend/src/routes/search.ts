@@ -170,6 +170,7 @@ async function dispatchGitHubAction(c: any, workerType: string, title: string): 
           'Accept': 'application/vnd.github+json',
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'User-Agent': 'webmedia-backend/1.0',
         },
         body: JSON.stringify({ ref: 'main', inputs: { title } }),
       }
@@ -294,104 +295,117 @@ searchRoutes.get(
 
       for (const r of uniqueExternal) {
         const wt = WORKER_TYPE_MAP[r.type];
-        if (!wt) continue;
-
         let mediaId = r.externalId || r.slug || '';
 
-        if (nonStreaming.includes(r.type)) {
-          try {
-            const connStr = getVar(c, 'NEON_DATABASE_URL');
-            const hyperdrive = c.env?.HYPERDRIVE;
-            const db = getNeonDb(connStr, hyperdrive) as any;
+        try {
+          const connStr = getVar(c, 'NEON_DATABASE_URL');
+          const hyperdrive = c.env?.HYPERDRIVE;
+          const db = getNeonDb(connStr, hyperdrive) as any;
 
-            // Dedup : verifie si un media existe deja avec cet externalId
-            if (r.externalId) {
-              const existing = await db.select({ id: neonMedias.id })
+          const externalIdNum = r.externalId ? parseInt(r.externalId, 10) : null;
+          const internalType = mapType(r.type);
+
+          // Dedup : verifie si un media existe deja avec cet externalId ou tmdbId
+          if (r.externalId) {
+            let existing;
+            if (externalIdNum && !isNaN(externalIdNum)) {
+              existing = await db.select({ id: neonMedias.id, tmdbId: neonMedias.tmdbId })
+                .from(neonMedias)
+                .where(eq(neonMedias.tmdbId, externalIdNum))
+                .limit(1);
+            }
+            if (!existing || existing.length === 0) {
+              existing = await db.select({ id: neonMedias.id })
                 .from(neonMedias)
                 .where(eq(neonMedias.externalId, r.externalId))
                 .limit(1);
-              if (existing.length > 0) {
-                mediaId = existing[0].id;
-                createdMediaMap.set(r.externalId || r.slug || '', mediaId);
+            }
+            if (existing && existing.length > 0) {
+              mediaId = existing[0].id;
+              createdMediaMap.set(r.externalId || r.slug || '', mediaId);
+              if (wt) {
                 const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
                 if (jobId) queuedJobs.push(jobId);
-                continue;
+                const dispatchId = await dispatchGitHubAction(c, wt, r.title);
+                if (dispatchId) dispatchedJobs.push(dispatchId);
               }
+              continue;
             }
-
-            mediaId = crypto.randomUUID();
-            await db.insert(neonMedias).values({
-              id: mediaId,
-              title: r.title,
-              type: r.type,
-              slug: r.slug,
-              synopsis: r.synopsis || null,
-              year: r.year || null,
-              posterUrl: r.posterUrl || null,
-              rating: r.rating ? String(r.rating) : null,
-              externalId: r.externalId || null,
-              metadataSource: r.metadataSource || 'external',
-              activeLinksCount: 0,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-
-            if (c.env?.DB) {
-              await c.env.DB.prepare(`
-                INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
-                VALUES (?, ?, ?, ?, 1, 0, 0, ?, 1)
-                ON CONFLICT(media_id) DO UPDATE SET
-                  title = COALESCE(excluded.title, title),
-                  slug = COALESCE(excluded.slug, slug),
-                  metadata_ok = 1
-              `).bind(mediaId, r.type, r.title, r.slug, Date.now() + 10000).run();
-            }
-
-            const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
-            const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
-            if (tursoUrl && tursoToken) {
-              let synced = false;
-              for (let attempt = 0; attempt < 3; attempt++) {
-                try {
-                  const turso = createClient({ url: tursoUrl, authToken: tursoToken });
-                  await turso.execute(
-                    'INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, rating, metadata_source, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                    [mediaId, r.externalId || null, r.type, r.title, r.slug ?? '', r.synopsis || null, r.year ?? null, r.posterUrl ?? null, r.rating?.toString() || null, r.metadataSource || 'external', 0, new Date().toISOString(), new Date().toISOString()]
-                  );
-                  await turso.close();
-                  synced = true;
-                  break;
-                } catch (tursoError: any) {
-                  if (attempt < 2) await new Promise(r2 => setTimeout(r2, 500));
-                  if (attempt === 2) console.warn(`[SearchAdv] Turso sync failed after 3 attempts: ${tursoError.message}`);
-                }
-              }
-              if (!synced) {
-                // Fallback: queue un job de sync differe
-                try {
-                  const kv = c.env?.KV;
-                  if (kv) {
-                    const existing = await kv.get('pending_turso_syncs');
-                    const pending = existing ? JSON.parse(existing) : [];
-                    pending.push({ mediaId, type: r.type, title: r.title, slug: r.slug, synopsis: r.synopsis, year: r.year, posterUrl: r.posterUrl, rating: r.rating, metadataSource: r.metadataSource, externalId: r.externalId });
-                    await kv.put('pending_turso_syncs', JSON.stringify(pending.slice(-50)));
-                  }
-                } catch { /* best effort */ }
-              }
-            }
-
-            createdMediaMap.set(r.externalId || r.slug || '', mediaId);
-          } catch (createError: any) {
-            console.error(`[SearchAdv] Failed to create media '${r.title}': ${createError.message}`);
-            continue;
           }
+
+          mediaId = crypto.randomUUID();
+          await db.insert(neonMedias).values({
+            id: mediaId,
+            title: r.title,
+            type: internalType,
+            slug: r.slug,
+            synopsis: r.synopsis || null,
+            year: r.year || null,
+            posterUrl: r.posterUrl || null,
+            rating: r.rating ? String(r.rating) : null,
+            externalId: r.externalId || null,
+            tmdbId: (externalIdNum && !isNaN(externalIdNum) && r.metadataSource === 'tmdb') ? externalIdNum : null,
+            metadataSource: r.metadataSource || 'external',
+            activeLinksCount: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          if (c.env?.DB) {
+            await c.env.DB.prepare(`
+              INSERT INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+              VALUES (?, ?, ?, ?, 1, 0, 0, ?, 1)
+              ON CONFLICT(media_id) DO UPDATE SET
+                title = COALESCE(excluded.title, title),
+                slug = COALESCE(excluded.slug, slug),
+                metadata_ok = 1
+            `).bind(mediaId, internalType, r.title, r.slug, Date.now() + 10000).run();
+          }
+
+          const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
+          const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
+          if (tursoUrl && tursoToken) {
+            let synced = false;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                const turso = createClient({ url: tursoUrl, authToken: tursoToken });
+                await turso.execute(
+                  `INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, rating, metadata_source, tmdb_id, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                  [mediaId, r.externalId || null, internalType, r.title, r.slug ?? '', r.synopsis || null, r.year ?? null, r.posterUrl ?? null, r.rating?.toString() || null, r.metadataSource || 'external', externalIdNum && r.metadataSource === 'tmdb' ? externalIdNum : null, 0, new Date().toISOString(), new Date().toISOString()]
+                );
+                await turso.close();
+                synced = true;
+                break;
+              } catch (tursoError: any) {
+                if (attempt < 2) await new Promise(r2 => setTimeout(r2, 500));
+                if (attempt === 2) console.warn(`[SearchAdv] Turso sync failed after 3 attempts: ${tursoError.message}`);
+              }
+            }
+            if (!synced) {
+              try {
+                const kv = c.env?.KV;
+                if (kv) {
+                  const existing = await kv.get('pending_turso_syncs');
+                  const pending = existing ? JSON.parse(existing) : [];
+                  pending.push({ mediaId, type: internalType, title: r.title, slug: r.slug, synopsis: r.synopsis, year: r.year, posterUrl: r.posterUrl, rating: r.rating, metadataSource: r.metadataSource, externalId: r.externalId });
+                  await kv.put('pending_turso_syncs', JSON.stringify(pending.slice(-50)));
+                }
+              } catch { /* best effort */ }
+            }
+          }
+
+          createdMediaMap.set(r.externalId || r.slug || '', mediaId);
+        } catch (createError: any) {
+          console.error(`[SearchAdv] Failed to create media '${r.title}': ${createError.message}`);
+          continue;
         }
 
-        const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
-        if (jobId) queuedJobs.push(jobId);
-
-        const dispatchId = await dispatchGitHubAction(c, wt, r.title);
-        if (dispatchId) dispatchedJobs.push(dispatchId);
+        if (wt) {
+          const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
+          if (jobId) queuedJobs.push(jobId);
+          const dispatchId = await dispatchGitHubAction(c, wt, r.title);
+          if (dispatchId) dispatchedJobs.push(dispatchId);
+        }
       }
 
       const results = [
