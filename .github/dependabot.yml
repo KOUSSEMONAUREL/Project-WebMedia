@@ -5,46 +5,26 @@ updates:
     schedule:
       interval: 'weekly'
       day: 'monday'
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels:
       - 'dependencies'
       - 'frontend'
     groups:
-      frontend-safe:
-        applies-to: version-updates
+      frontend-all:
         patterns: ['*']
-        exclude-patterns:
-          - 'next*'
-          - 'react*'
-          - 'react-dom*'
-          - '@types/react*'
-          - 'tailwindcss*'
-          - 'lucide-react*'
-          - 'framer-motion*'
 
   - package-ecosystem: 'npm'
     directory: '/backend'
     schedule:
       interval: 'weekly'
       day: 'monday'
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels:
       - 'dependencies'
       - 'backend'
     groups:
-      backend-safe:
-        applies-to: version-updates
+      backend-all:
         patterns: ['*']
-        exclude-patterns:
-          - 'hono'
-          - 'drizzle-orm'
-          - 'drizzle-kit'
-          - 'better-auth*'
-          - '@libsql/client*'
-          - 'postgres*'
-          - 'zod*'
-          - 'wrangler*'
-          - '@cloudflare/*'
 
   - package-ecosystem: 'npm'
     directory: '/scrapers/webtoons'
@@ -57,7 +37,6 @@ updates:
       - 'scraper'
     groups:
       scraper-all:
-        applies-to: version-updates
         patterns: ['*']
 
   - package-ecosystem: 'npm'
@@ -71,7 +50,6 @@ updates:
       - 'scraper'
     groups:
       scraper-all:
-        applies-to: version-updates
         patterns: ['*']
 
   - package-ecosystem: 'pip'
@@ -85,7 +63,6 @@ updates:
       - 'scraper'
     groups:
       scraper-all:
-        applies-to: version-updates
         patterns: ['*']
 
   - package-ecosystem: 'github-actions'
@@ -99,5 +76,4 @@ updates:
       - 'ci'
     groups:
       actions-all:
-        applies-to: version-updates
         patterns: ['*']
