@@ -7,7 +7,7 @@ jobs:
   orchestrate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trigger Cloudflare Orchestrator
         env:
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
