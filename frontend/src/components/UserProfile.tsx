@@ -15,6 +15,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
   const [watchlist, setWatchlist] = useState<Favorite[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
@@ -80,6 +81,18 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           }
         } catch (syncErr) {
           console.warn('[sync-profile] Echec de la recuperation des favoris Supabase:', syncErr);
+        }
+
+        const adminToken = await getAuthToken();
+        if (adminToken) {
+          try {
+            const adminUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
+            const adminRes = await fetch(`${adminUrl}/admin/check`, {
+              headers: { 'Authorization': `Bearer ${adminToken}` },
+              credentials: 'include',
+            });
+            if (adminRes.ok) setIsAdmin(true);
+          } catch { /* non-admin user, badge reste cache */ }
         }
       }
 
@@ -172,13 +185,15 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           </div>
           
           <div className="flex items-center justify-center gap-3 shrink-0">
-            <a
-              href="/admin"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
-            >
-              <Shield className="w-4 h-4 text-muted-foreground" />
-              Admin
-            </a>
+            {isAdmin && (
+              <a
+                href="/admin"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
+              >
+                <Shield className="w-4 h-4 text-muted-foreground" />
+                Admin
+              </a>
+            )}
             <a
               href="/settings"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
