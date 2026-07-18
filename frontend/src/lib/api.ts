@@ -172,7 +172,20 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media>>(`/media/${type}/${slug}`);
-    if (res.data) res.data = mapMedia(res.data);
+    if (res.data) {
+      res.data = mapMedia(res.data);
+      const similar = res.data.similar ?? [];
+      if (similar.length < 10) {
+        try {
+          const more = await getMediaByType(res.data.type as MediaType, { limit: 12 });
+          if (more.data) {
+            const existingIds = new Set(similar.map((m: Media) => m.id));
+            const extra = more.data.filter(m => m.id !== res.data!.id && !existingIds.has(m.id));
+            res.data.similar = [...similar, ...extra].slice(0, 10);
+          }
+        } catch {}
+      }
+    }
     cacheSet(ck, res);
     return res;
   }
@@ -184,7 +197,7 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
     const mockType = typeMap[type] || type;
     const media = allMockData.find(m => m.type === mockType && m.slug === slug);
     if (media) return { success: true, data: media };
-    throw new Error('Média non trouvé');
+    throw new Error('Media non trouve');
   }
 }
 
