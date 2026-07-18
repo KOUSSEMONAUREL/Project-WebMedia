@@ -2,8 +2,11 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'url';
 
-const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
+const isCloudflare = !!(process.env.CF_PAGES || process.env.WORKERS_CI);
+
+const adapter = isCloudflare
   ? (await import('@astrojs/cloudflare')).default()
   : (await import('@astrojs/vercel')).default();
 
@@ -12,9 +15,14 @@ export default defineConfig({
     output: 'server',
     adapter,
     vite: {
+        resolve: {
+            alias: isCloudflare ? {} : {
+                'cloudflare:workers': fileURLToPath(new URL('src/lib/cloudflare-env.ts', import.meta.url)),
+            },
+        },
         build: {
             rollupOptions: {
-                external: ['cloudflare:workers'],
+                external: isCloudflare ? ['cloudflare:workers'] : [],
             },
         },
         plugins: [
