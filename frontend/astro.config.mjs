@@ -2,11 +2,8 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { fileURLToPath } from 'url';
 
-const isCloudflare = !!(process.env.CF_PAGES || process.env.WORKERS_CI);
-
-const adapter = isCloudflare
+const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
   ? (await import('@astrojs/cloudflare')).default()
   : (await import('@astrojs/vercel')).default();
 
@@ -15,17 +12,9 @@ export default defineConfig({
     output: 'server',
     adapter,
     vite: {
-        resolve: {
-            // On Vercel/dev: replace cloudflare:workers with a stub so the bundle has no native import
-            // On Cloudflare: the alias is absent, rollup marks it as external (provided by CF runtime)
-            alias: isCloudflare ? {} : {
-                'cloudflare:workers': fileURLToPath(new URL('src/lib/cloudflare-env.ts', import.meta.url)),
-            },
-        },
         build: {
             rollupOptions: {
-                // Only mark as external on Cloudflare (runtime provides it) — NOT on Vercel (Node.js doesn't know it)
-                external: isCloudflare ? ['cloudflare:workers'] : [],
+                external: ['cloudflare:workers'],
             },
         },
         plugins: [
@@ -52,10 +41,7 @@ export default defineConfig({
             }),
         ],
         optimizeDeps: {
-            include: ['react-dom/client', '@tanstack/react-query'],
-        },
-        ssr: {
-            noExternal: ['@tanstack/react-query'],
+            include: ['react-dom/client'],
         },
     },
 });

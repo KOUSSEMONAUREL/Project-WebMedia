@@ -9,6 +9,8 @@ const errorMessages: Record<string, string> = {
 };
 const errorMsg = error ? (errorMessages[error] || 'Une erreur est survenue.') : null;
 const pageTitle = errorMsg ? 'Verification echouee' : 'Email verifie';
+
+export const prerender = true;
 ---
 
 <Layout title={pageTitle}>

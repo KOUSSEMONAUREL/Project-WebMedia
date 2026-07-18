@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import { allMockData } from '../lib/api';
 const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL || '';
+
+export const prerender = true;
 ---
 
 <Layout title="Recherche">

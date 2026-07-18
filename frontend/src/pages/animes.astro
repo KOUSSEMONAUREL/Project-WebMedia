@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { CategoryGrid } from '../components/CategoryGrid';
+
+export const prerender = true;
 ---
 <Layout title="Animes">
   <CategoryGrid type="anime" title="Animes" client:visible />
