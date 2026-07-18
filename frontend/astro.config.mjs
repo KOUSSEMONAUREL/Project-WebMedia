@@ -9,7 +9,7 @@ const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
 
 export default defineConfig({
     integrations: [react()],
-    output: 'static',
+    output: 'server',
     adapter,
     vite: {
         build: {
