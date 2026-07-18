@@ -39,8 +39,35 @@ const API_TYPE_MAP: Record<string, string> = {
   comic: 'webtoon',
 };
 
-function mapTypes(items: Media[]): Media[] {
-  return items.map(m => ({ ...m, type: API_TYPE_MAP[m.type] || m.type }));
+function parseStringArray(val: any): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function mapMedia(m: any): Media {
+  if (!m) return m;
+  return {
+    ...m,
+    type: (API_TYPE_MAP[m.type] || m.type) as MediaType,
+    genres: parseStringArray(m.genres),
+    studios: parseStringArray(m.studios),
+    similar: Array.isArray(m.similar) ? m.similar.map(mapMedia) : undefined
+  };
+}
+
+function mapMedias(items: any[]): Media[] {
+  return items.map(mapMedia);
 }
 
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
@@ -50,7 +77,7 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media/trending');
     const data = Array.isArray(res.data) ? res.data : (res.data && Array.isArray((res.data as any).data) ? (res.data as any).data : []);
-    const result: ApiResponse<Media[]> = { success: true, data: mapTypes(data) };
+    const result: ApiResponse<Media[]> = { success: true, data: mapMedias(data) };
     cacheSet(ck, result);
     return result;
   }
@@ -78,7 +105,7 @@ export async function getMediaByType(
     const res = await apiFetch(`/media?${ps}`);
     if (!res.ok) throw new Error('API Error');
     const json = await res.json();
-    if (json.data) json.data = json.data.map((m: Media) => ({ ...m, type }));
+    if (json.data) json.data = json.data.map((m: any) => mapMedia({ ...m, type }));
     cacheSet(ck, json);
     return json;
   } catch {
@@ -93,7 +120,7 @@ export async function getAllMedia(): Promise<Media[]> {
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media/all');
-    const data = mapTypes(res.data);
+    const data = mapMedias(res.data);
     cacheSet(ck, data);
     return data;
   } catch {
@@ -113,7 +140,7 @@ export async function searchMedia(query: string, filters?: {
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media[]>>(`/search?${ps}`);
-    if (res.data) res.data = mapTypes(res.data);
+    if (res.data) res.data = mapMedias(res.data);
     cacheSet(ck, res);
     return res;
   } catch {
@@ -135,7 +162,7 @@ export async function searchAdvancedMedia(query: string, filters?: {
     const res = await apiFetch(`/search/advanced?${params}`);
     const json = await res.json() as any;
     if (!res.ok) return { success: false, data: [], error: json.error || 'Erreur' };
-    if (json.data) json.data = mapTypes(json.data);
+    if (json.data) json.data = mapMedias(json.data);
     return json;
   } catch {
     return { success: true, data: [] };
@@ -148,7 +175,7 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media>>(`/media/${type}/${slug}`);
-    if (res.data) res.data = { ...res.data, type: API_TYPE_MAP[res.data.type] || res.data.type };
+    if (res.data) res.data = mapMedia(res.data);
     cacheSet(ck, res);
     return res;
   }
