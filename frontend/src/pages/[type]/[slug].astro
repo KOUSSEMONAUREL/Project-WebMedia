@@ -8,21 +8,26 @@ import ReviewSection from '../../components/ReviewSection';
 import { SimilarSection } from '../../components/SimilarSection';
 
 const { type, slug } = Astro.params;
+const typeMap: Record<string, string> = {
+  films: 'film', series: 'serie', animes: 'anime',
+  jeux: 'jeu', livres: 'livre', novels: 'novel', webtoons: 'webtoon'
+};
+const mediaType = typeMap[type!] || type!;
 let media: Media | null = null;
 let error: string | null = null;
 
 try {
-  const response = await getMediaDetails(type!, slug!);
+  const response = await getMediaDetails(mediaType, slug!);
   if (response.success && response.data) media = response.data;
   else error = "Media non trouvé.";
 } catch (e: any) {
   error = e.message || "Erreur lors du chargement.";
 }
 
-const isEpisode = type === 'serie' || type === 'anime';
+const isEpisode = mediaType === 'serie' || mediaType === 'anime';
 const hasEpisodes = isEpisode && (media?.episodes?.length ?? 0) > 0;
 const hasLinks = (media?.links?.length ?? 0) > 0 || (media?.legalLinks?.length ?? 0) > 0;
-const isStreaming = type === 'film' || type === 'serie' || type === 'anime';
+const isStreaming = mediaType === 'film' || mediaType === 'serie' || mediaType === 'anime';
 
 const data = media ? {
   id: media.id, type: media.type, title: media.title, slug: media.slug,
