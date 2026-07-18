@@ -153,7 +153,12 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
     return res;
   }
   catch {
-    const media = allMockData.find(m => m.type === type && m.slug === slug);
+    const typeMap: Record<string, string> = {
+      films: 'film', series: 'serie', animes: 'anime',
+      jeux: 'jeu', webtoons: 'webtoon'
+    };
+    const mockType = typeMap[type] || type;
+    const media = allMockData.find(m => m.type === mockType && m.slug === slug);
     if (media) return { success: true, data: media };
     throw new Error('Média non trouvé');
   }
