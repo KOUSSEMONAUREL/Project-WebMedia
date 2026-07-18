@@ -4,7 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'url';
 
-const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
+const isCloudflare = !!(process.env.CF_PAGES || process.env.WORKERS_CI);
+
+const adapter = isCloudflare
   ? (await import('@astrojs/cloudflare')).default()
   : (await import('@astrojs/vercel')).default();
 
@@ -14,13 +16,16 @@ export default defineConfig({
     adapter,
     vite: {
         resolve: {
-            alias: {
+            // On Vercel/dev: replace cloudflare:workers with a stub so the bundle has no native import
+            // On Cloudflare: the alias is absent, rollup marks it as external (provided by CF runtime)
+            alias: isCloudflare ? {} : {
                 'cloudflare:workers': fileURLToPath(new URL('src/lib/cloudflare-env.ts', import.meta.url)),
             },
         },
         build: {
             rollupOptions: {
-                external: ['cloudflare:workers'],
+                // Only mark as external on Cloudflare (runtime provides it) — NOT on Vercel (Node.js doesn't know it)
+                external: isCloudflare ? ['cloudflare:workers'] : [],
             },
         },
         plugins: [
