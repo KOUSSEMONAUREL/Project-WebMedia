@@ -9,10 +9,10 @@ export function SimilarSection({ similar }: Props) {
   if (!similar || similar.length === 0) return null;
 
   return (
-    <section>
+    <section className="mt-16">
       <h2 className="text-xl font-display font-bold mb-6">Vous aimerez aussi</h2>
       <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 snap-x snap-mandatory scrollbar-none">
-        {similar.slice(0, 6).map((item) => (
+        {similar.slice(0, 10).map((item) => (
           <div key={item.id} className="flex-shrink-0 snap-start">
             <MediaCard media={item} />
           </div>
