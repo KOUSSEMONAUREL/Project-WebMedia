@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'url';
 
 const adapter = process.env.CF_PAGES || process.env.WORKERS_CI
   ? (await import('@astrojs/cloudflare')).default()
@@ -12,6 +13,11 @@ export default defineConfig({
     output: 'server',
     adapter,
     vite: {
+        resolve: {
+            alias: {
+                'cloudflare:workers': fileURLToPath(new URL('src/lib/cloudflare-env.ts', import.meta.url)),
+            },
+        },
         build: {
             rollupOptions: {
                 external: ['cloudflare:workers'],
@@ -41,7 +47,10 @@ export default defineConfig({
             }),
         ],
         optimizeDeps: {
-            include: ['react-dom/client'],
+            include: ['react-dom/client', '@tanstack/react-query'],
+        },
+        ssr: {
+            noExternal: ['@tanstack/react-query'],
         },
     },
 });
