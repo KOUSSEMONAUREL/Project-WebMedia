@@ -103,6 +103,92 @@ async function importEpisodesForSerie(db: any, apiKey: string, tmdbId: number, m
     }
 }
 
+async function processTmdbPage(
+    apiKey: string, category: string, pageNum: number,
+    genreMap: Map<number, string>, log: ReturnType<typeof createLog>,
+    db: any, internalApiUrl: string | null, internalApiKey: string | null
+): Promise<number> {
+    const response = await fetchWithRetry(`${TMDB_API_BASE}/${category}`, {
+        api_key: apiKey, language: 'fr-FR', page: pageNum, region: 'FR'
+    });
+    if (!response) return 0;
+
+    const items = response.data.results || [];
+    if (items.length === 0) return 0;
+
+    const itemKeys = items.map((i: any) => `${category}-${i.id}`);
+    const existing = await batchCheckExisting(db, medias.externalId, itemKeys);
+
+    const toInsert = items.filter((i: any) => !existing.has(`${category}-${i.id}`));
+    if (toInsert.length === 0) {
+        log.skip(`TMDB ${category} page ${pageNum}: all existing`);
+        return 0;
+    }
+
+    const mediaValues = toInsert.map((item: any) => {
+        const title = item.title || item.name;
+        const isJapanese = item.original_language === 'ja';
+        const isChinese = item.original_language === 'zh';
+        const isAnimeLang = isJapanese || isChinese;
+        const mediaType = category.startsWith('movie') ? 'movie' : (isAnimeLang ? 'anime' : 'serie');
+        const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
+        const backdropUrl = item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined;
+        const genreNames = (item.genre_ids || [])
+            .map((id: number) => genreMap.get(id))
+            .filter(Boolean);
+
+        return {
+            type: mediaType, title, originalTitle: item.original_title || item.original_name,
+            slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+            synopsis: item.overview, posterUrl, backdropUrl,
+            externalId: `${category}-${item.id}`, tmdbId: item.id,
+            year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
+            rating: item.vote_average ? String(Math.round(item.vote_average * 10) / 10) : undefined,
+            voteCount: item.vote_count || 0,
+            genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
+            metadataSource: 'tmdb', metadataFreshAt: new Date(),
+        };
+    });
+
+    const inserted: any[] = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId, title: medias.title, slug: medias.slug });
+
+    for (const m of inserted) {
+        if (!m.tmdbId) continue;
+        if (m.externalId?.startsWith('tv')) {
+            log.info(`Importing episodes for ${m.externalId}`);
+            await importEpisodesForSerie(db, apiKey, m.tmdbId, m.id, log);
+        }
+        const details = await fetchMediaDetails(apiKey, m.tmdbId, m.externalId || '');
+        if (details) {
+            const update: any = {};
+            if (details.backdropUrl) update.backdropUrl = details.backdropUrl;
+            if (details.tagline) update.tagline = details.tagline;
+            if (details.status) update.status = details.status;
+            if (details.imdbId) update.imdbId = details.imdbId;
+            if (details.trailerUrl) update.trailerUrl = details.trailerUrl;
+            if (details.studios) update.studios = details.studios;
+            if (details.voteAverage !== null) update.rating = String(Math.round(details.voteAverage * 10) / 10);
+            if (details.voteCount !== null) update.voteCount = details.voteCount;
+            if (Object.keys(update).length > 0) {
+                await db.update(medias).set(update).where(eq(medias.id, m.id));
+            }
+        }
+    }
+
+    const brainItems = inserted
+        .filter(m => m.externalId)
+        .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' as const : 'serie' as const, title: m.title, slug: m.slug }));
+    await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
+
+    for (const m of inserted) {
+        if (!m.externalId) continue;
+        const mediaType = m.externalId.startsWith('movie') ? 'movie' : 'serie';
+        log.success(`[${mediaType.toUpperCase()}] ${m.externalId}`);
+    }
+
+    return inserted.length;
+}
+
 export async function importTMDB(apiKey: string, databaseUrl: string, internalApiUrl: string | null = null, internalApiKey: string | null = null, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     const log = createLog('TMDB', 'one-shot');
@@ -118,90 +204,21 @@ export async function importTMDB(apiKey: string, databaseUrl: string, internalAp
         const catKey = `${KEY}:${category}`;
         let page = await getOffset(catKey, databaseUrl, 1);
 
+        // Freshness pass: always check page 1 for newly popular content
+        if (page > 1) {
+            try {
+                const freshCount = await processTmdbPage(apiKey, category, 1, genreMap, log, db, internalApiUrl, internalApiKey);
+                if (freshCount > 0) log.info(`Freshness: ${freshCount} new for ${category}`);
+                totalImported += freshCount;
+            } catch (err: any) {
+                log.warn(`Freshness pass failed for ${category}: ${err.message}`);
+            }
+        }
+
+        // Deep pass: continue from stored offset
         try {
-            const response = await fetchWithRetry(`${TMDB_API_BASE}/${category}`, {
-                api_key: apiKey, language: 'fr-FR', page, region: 'FR'
-            });
-            if (!response) continue;
-
-            const items = response.data.results || [];
-            if (items.length === 0) {
-                await setOffset(catKey, 1, databaseUrl);
-                continue;
-            }
-
-            const itemKeys = items.map((i: any) => `${category}-${i.id}`);
-            const existing = await batchCheckExisting(db, medias.externalId, itemKeys);
-
-            const toInsert = items.filter((i: any) => !existing.has(`${category}-${i.id}`));
-            if (toInsert.length === 0) {
-                log.skip(`TMDB ${category} page ${page}: all existing`);
-                await setOffset(catKey, page + 1, databaseUrl);
-                continue;
-            }
-
-            const mediaValues = toInsert.map((item: any) => {
-                const title = item.title || item.name;
-                const isJapanese = item.original_language === 'ja';
-                const isChinese = item.original_language === 'zh';
-                const isAnimeLang = isJapanese || isChinese;
-                const mediaType = category.startsWith('movie') ? 'movie' : (isAnimeLang ? 'anime' : 'serie');
-                const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
-                const backdropUrl = item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined;
-                const genreNames = (item.genre_ids || [])
-                    .map((id: number) => genreMap.get(id))
-                    .filter(Boolean);
-
-                return {
-                    type: mediaType, title, originalTitle: item.original_title || item.original_name,
-                    slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
-                    synopsis: item.overview, posterUrl, backdropUrl,
-                    externalId: `${category}-${item.id}`, tmdbId: item.id,
-                    year: item.release_date ? parseInt(item.release_date) : (item.first_air_date ? parseInt(item.first_air_date) : null),
-                    rating: item.vote_average ? String(Math.round(item.vote_average * 10) / 10) : undefined,
-                    voteCount: item.vote_count || 0,
-                    genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
-                    metadataSource: 'tmdb', metadataFreshAt: new Date(),
-                };
-            });
-
-            const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, tmdbId: medias.tmdbId, title: medias.title, slug: medias.slug });
-
-            for (const m of inserted) {
-                if (!m.tmdbId) continue;
-                if (m.externalId?.startsWith('tv')) {
-                    log.info(`Importing episodes for ${m.externalId}`);
-                    await importEpisodesForSerie(db, apiKey, m.tmdbId, m.id, log);
-                }
-                const details = await fetchMediaDetails(apiKey, m.tmdbId, m.externalId || '');
-                if (details) {
-                    const update: any = {};
-                    if (details.backdropUrl) update.backdropUrl = details.backdropUrl;
-                    if (details.tagline) update.tagline = details.tagline;
-                    if (details.status) update.status = details.status;
-                    if (details.imdbId) update.imdbId = details.imdbId;
-                    if (details.trailerUrl) update.trailerUrl = details.trailerUrl;
-                    if (details.studios) update.studios = details.studios;
-                    if (details.voteAverage !== null) update.rating = String(Math.round(details.voteAverage * 10) / 10);
-                    if (details.voteCount !== null) update.voteCount = details.voteCount;
-                    if (Object.keys(update).length > 0) {
-                        await db.update(medias).set(update).where(eq(medias.id, m.id));
-                    }
-                }
-            }
-
-            const brainItems = inserted
-                .filter(m => m.externalId)
-                .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' as const : 'serie' as const, title: m.title, slug: m.slug }));
-            await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
-
-            for (const m of inserted) {
-                if (!m.externalId) continue;
-                const mediaType = m.externalId.startsWith('movie') ? 'movie' : 'serie';
-                log.success(`[${mediaType.toUpperCase()}] ${m.externalId}`);
-            }
-
-            totalImported += inserted.length;
+            const deepCount = await processTmdbPage(apiKey, category, page, genreMap, log, db, internalApiUrl, internalApiKey);
+            totalImported += deepCount;
             await setOffset(catKey, page + 1, databaseUrl);
         } catch (err: any) {
             log.error(`TMDB Error for ${category}: ${err.message}`);

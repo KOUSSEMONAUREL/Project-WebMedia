@@ -47,6 +47,99 @@ async function fetchCovers(mangaIds: string[], log: ReturnType<typeof createLog>
   return coverMap;
 }
 
+async function processMangaDexOffset(offset: number, limit: number, searchTerm: string, db: any, log: ReturnType<typeof createLog>): Promise<number> {
+    const params: any = { limit, offset, includes: ['cover_art', 'author', 'artist'] };
+    if (searchTerm && searchTerm !== 'trending') {
+      params.title = searchTerm;
+      params.order = { relevance: 'desc' };
+    } else {
+      params.order = { followedCount: 'desc' };
+    }
+
+    log.info(`API (offset=${offset}): ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
+    const response = await axios.get(`${MANGADEX_API}/manga`, { params, timeout: 15000 });
+    const mangaList: MdManga[] = response.data.data || [];
+    log.info(`${mangaList.length} mangas found`);
+
+    if (mangaList.length === 0) return 0;
+
+    const ids = mangaList.map(m => m.id);
+    const covers = await fetchCovers(ids, log);
+
+    const prefixedIds = ids.map(id => `mangadex-${id}`);
+    const existing = await batchCheckExisting(db, medias.externalId, prefixedIds);
+
+    const toInsert = mangaList.filter(m => !existing.has(`mangadex-${m.id}`));
+    if (toInsert.length === 0) {
+        log.skip('MangaDex: all existing');
+        return 0;
+    }
+
+    const mediaValues = toInsert.map(manga => {
+        const attr = manga.attributes;
+        const title = Object.values(attr.title || {}).find(Boolean) as string || 'Unknown';
+        const slug = title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').substring(0, 490);
+        const desc = Object.values(attr.description || {}).find(Boolean) as string || '';
+        let posterUrl = covers.get(manga.id);
+        if (!posterUrl) {
+          const coverArt = manga.relationships?.find(r => r.type === 'cover_art');
+          const fn = coverArt?.attributes?.fileName;
+          if (fn) posterUrl = `https://uploads.mangadex.org/covers/${manga.id}/${fn}`;
+        }
+        const genreTags = (attr.tags || [])
+            .filter(t => t.attributes?.group === 'genre')
+            .map(t => {
+                const name = t.attributes?.name;
+                return Object.values(name || {}).find(Boolean) as string;
+            })
+            .filter(Boolean);
+        const formatTags = (attr.tags || [])
+            .filter(t => t.attributes?.group === 'format')
+            .map(t => {
+                const name = t.attributes?.name;
+                return Object.values(name || {}).find(Boolean) as string;
+            })
+            .filter(Boolean);
+        const allGenres = [...new Set([...genreTags, ...formatTags])];
+        const authorName = (manga.relationships || [])
+            .filter(r => r.type === 'author' || r.type === 'artist')
+            .map(r => r.attributes as any)
+            .filter(Boolean)
+            .map(a => Object.values(a.name || {}).find(Boolean) as string)
+            .filter(Boolean)
+            .join(', ');
+        return {
+            type: 'webtoon', title, synopsis: desc,
+            posterUrl: posterUrl || undefined,
+            year: attr.year || undefined,
+            status: attr.status || undefined,
+            genres: allGenres.length ? JSON.stringify(allGenres) : undefined,
+            author: authorName || undefined,
+            externalId: `mangadex-${manga.id}`, slug,
+            metadataSource: 'mangadex', metadataFreshAt: new Date(),
+        };
+    });
+
+    const inserted: any[] = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
+
+    for (const m of inserted) {
+        try {
+            await axios.post(`${INTERNAL_API_URL}/ingest/media`, {
+                id: m.id, type: 'webtoon', metadata_ok: 1,
+            }, {
+                headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
+                timeout: 5000,
+            });
+        } catch (err) {
+            log.error(`Failed to sync manga ${m.id}: ${err instanceof Error ? err.message : err}`);
+        }
+        log.success(`[MANGADEX] ${m.externalId}`);
+    }
+
+    log.success(`Import finished: ${inserted.length} new mangas (offset=${offset})`);
+    return inserted.length;
+}
+
 export async function importTrendingManga(databaseUrl: string, searchTerm: string = '', limit = 20) {
     const db = createDbClient(databaseUrl, 'neon');
     const log = createLog('MangaDex', 'one-shot');
@@ -55,103 +148,23 @@ export async function importTrendingManga(databaseUrl: string, searchTerm: strin
     try {
         const offset = await getOffset('mangadex-offset', databaseUrl, 0, db);
 
-        const params: any = { limit, offset, includes: ['cover_art', 'author', 'artist'] };
-        if (searchTerm && searchTerm !== 'trending') {
-          params.title = searchTerm;
-          params.order = { relevance: 'desc' };
-        } else {
-          params.order = { followedCount: 'desc' };
-        }
-
-        log.info(`API (offset=${offset}): ${searchTerm ? `search "${searchTerm}"` : 'trending (followedCount)'}`);
-        const response = await axios.get(`${MANGADEX_API}/manga`, { params, timeout: 15000 });
-        const mangaList: MdManga[] = response.data.data || [];
-        log.info(`${mangaList.length} mangas found`);
-
-        if (mangaList.length === 0) {
-            log.skip('End of catalog, reset');
-            await setOffset('mangadex-offset', 0, databaseUrl, db);
-            return 0;
-        }
-
-        const ids = mangaList.map(m => m.id);
-        const covers = await fetchCovers(ids, log);
-
-        const prefixedIds = ids.map(id => `mangadex-${id}`);
-        const existing = await batchCheckExisting(db, medias.externalId, prefixedIds);
-
-        const toInsert = mangaList.filter(m => !existing.has(`mangadex-${m.id}`));
-        if (toInsert.length === 0) {
-            log.skip('MangaDex: all existing');
-            return 0;
-        }
-
-        const mediaValues = toInsert.map(manga => {
-            const attr = manga.attributes;
-            const title = Object.values(attr.title || {}).find(Boolean) as string || 'Unknown';
-            const slug = title.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').substring(0, 490);
-            const desc = Object.values(attr.description || {}).find(Boolean) as string || '';
-            let posterUrl = covers.get(manga.id);
-            if (!posterUrl) {
-              const coverArt = manga.relationships?.find(r => r.type === 'cover_art');
-              const fn = coverArt?.attributes?.fileName;
-              if (fn) posterUrl = `https://uploads.mangadex.org/covers/${manga.id}/${fn}`;
-            }
-            const genreTags = (attr.tags || [])
-                .filter(t => t.attributes?.group === 'genre')
-                .map(t => {
-                    const name = t.attributes?.name;
-                    return Object.values(name || {}).find(Boolean) as string;
-                })
-                .filter(Boolean);
-            const formatTags = (attr.tags || [])
-                .filter(t => t.attributes?.group === 'format')
-                .map(t => {
-                    const name = t.attributes?.name;
-                    return Object.values(name || {}).find(Boolean) as string;
-                })
-                .filter(Boolean);
-            const allGenres = [...new Set([...genreTags, ...formatTags])];
-            const author = manga.relationships?.find(r => r.type === 'author')?.attributes?.fileName ? undefined : undefined;
-            const authorName = (manga.relationships || [])
-                .filter(r => r.type === 'author' || r.type === 'artist')
-                .map(r => r.attributes as any)
-                .filter(Boolean)
-                .map(a => Object.values(a.name || {}).find(Boolean) as string)
-                .filter(Boolean)
-                .join(', ');
-            return {
-                type: 'webtoon', title, synopsis: desc,
-                posterUrl: posterUrl || undefined,
-                year: attr.year || undefined,
-                status: attr.status || undefined,
-                genres: allGenres.length ? JSON.stringify(allGenres) : undefined,
-                author: authorName || undefined,
-                externalId: `mangadex-${manga.id}`, slug,
-                metadataSource: 'mangadex', metadataFreshAt: new Date(),
-            };
-        });
-
-        const inserted = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId });
-
-        for (const m of inserted) {
+        // Freshness pass: always check offset 0 for newly popular manga
+        let freshCount = 0;
+        if (offset > 0) {
             try {
-                await axios.post(`${INTERNAL_API_URL}/ingest/media`, {
-                    id: m.id, type: 'webtoon', metadata_ok: 1,
-                }, {
-                    headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
-                    timeout: 5000,
-                });
-            } catch (err) {
-                log.error(`Failed to sync manga ${m.id}: ${err instanceof Error ? err.message : err}`);
+                freshCount = await processMangaDexOffset(0, limit, searchTerm, db, log);
+                if (freshCount > 0) log.info(`Freshness: ${freshCount} new mangas`);
+            } catch (err: any) {
+                log.warn(`Freshness pass failed: ${err.message}`);
             }
-            log.success(`[MANGADEX] ${m.externalId}`);
         }
 
+        // Deep pass: continue from stored offset
+        const deepCount = await processMangaDexOffset(offset, limit, searchTerm, db, log);
         await setOffset('mangadex-offset', offset + limit, databaseUrl, db);
 
-        log.success(`Import finished: ${inserted.length} new mangas (offset=${offset})`);
-        return inserted.length;
+        log.success(`MangaDex: ${deepCount + freshCount} total`);
+        return deepCount + freshCount;
     } catch (error: any) {
         log.error(`MangaDex Import Error: ${error.message}`);
         throw error;
