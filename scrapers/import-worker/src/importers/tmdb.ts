@@ -130,7 +130,7 @@ async function processTmdbPage(
         const isJapanese = item.original_language === 'ja';
         const isChinese = item.original_language === 'zh';
         const isAnimeLang = isJapanese || isChinese;
-        const mediaType = category.startsWith('movie') ? 'movie' : (isAnimeLang ? 'anime' : 'serie');
+        const mediaType = category.startsWith('movie') ? 'film' : (isAnimeLang ? 'anime' : 'serie');
         const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
         const backdropUrl = item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined;
         const genreNames = (item.genre_ids || [])
@@ -177,12 +177,12 @@ async function processTmdbPage(
 
     const brainItems = inserted
         .filter(m => m.externalId)
-        .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'movie' as const : 'serie' as const, title: m.title, slug: m.slug }));
+        .map(m => ({ id: m.id, type: m.externalId!.startsWith('movie') ? 'film' as const : 'serie' as const, title: m.title, slug: m.slug }));
     await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
     for (const m of inserted) {
         if (!m.externalId) continue;
-        const mediaType = m.externalId.startsWith('movie') ? 'movie' : 'serie';
+        const mediaType = m.externalId.startsWith('movie') ? 'film' : 'serie';
         log.success(`[${mediaType.toUpperCase()}] ${m.externalId}`);
     }
 

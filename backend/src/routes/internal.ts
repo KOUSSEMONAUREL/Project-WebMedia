@@ -110,7 +110,7 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                         hasSubtitles: link.sous_titres ?? false,
                         headers: link.headers || null,
                         mediaId,
-                        episodeId: link.episode_id ?? link.episodeId ?? null,
+                        episodeId: link.episode_id || link.episodeId || null,
                         scrapedAt: new Date()
                     }))
                 ).returning();
