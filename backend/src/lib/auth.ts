@@ -45,6 +45,7 @@ export function getAuth(dbUrl?: string) {
             'https://webmediia.cfd',
             'https://www.webmediia.cfd',
             'https://app.webmediia.cfd',
+            'https://auth.webmediia.cfd',
         ],
         emailAndPassword: {
             enabled: true,
