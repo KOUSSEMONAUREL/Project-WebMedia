@@ -30,12 +30,6 @@ type Bindings = {
 
 const searchRoutes = new Hono<{ Bindings: Bindings }>();
 
-const TYPE_MAP: Record<string, string> = {
-  film: 'movie',
-  jeu: 'game',
-};
-const mapType = (t: string) => TYPE_MAP[t] || t;
-
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
     if (!val && c.env?.ENVIRONMENT === 'production') {
@@ -83,7 +77,7 @@ searchRoutes.get(
             ];
 
             if (type && type !== 'all') {
-                searchFilters.push(eq(tursoMedias.type, mapType(type as string)));
+                searchFilters.push(eq(tursoMedias.type, type as string));
             }
 
             if (year) {
@@ -207,7 +201,7 @@ async function acquireSearchLock(c: any, ip: string): Promise<boolean> {
   try {
     const redis = await getRedisRestClient(c);
     const lockKey = `lock:search-advanced:${ip}`;
-    const res = await fetch(`${redis.url}/set/${lockKey}/1/EX/120/NX`, {
+    const res = await fetch(`${redis.url}/set/${lockKey}/1/EX/15/NX`, {
       headers: redis.headers,
     });
     const data = await res.json() as any;
@@ -252,11 +246,44 @@ searchRoutes.get(
         }
       }
 
+      // Retry pending Turso syncs from previous failed attempts
+      try {
+        const kv = c.env?.KV;
+        if (kv) {
+          const existing = await kv.get('pending_turso_syncs');
+          if (existing) {
+            const pendings = JSON.parse(existing);
+            const remaining: any[] = [];
+            const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
+            const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
+            for (const p of pendings) {
+              if (tursoUrl && tursoToken) {
+                let synced = false;
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  try {
+                    const turso = createClient({ url: tursoUrl, authToken: tursoToken });
+                    await turso.execute(
+                      `INSERT OR REPLACE INTO medias (id, external_id, type, title, slug, synopsis, year, poster_url, rating, metadata_source, tmdb_id, active_links_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                      [p.mediaId, p.externalId || null, p.type, p.title, p.slug ?? '', p.synopsis || null, p.year ?? null, p.posterUrl ?? null, p.rating?.toString() || null, p.metadataSource || 'external', null, 0, new Date().toISOString(), new Date().toISOString()]
+                    );
+                    await turso.close();
+                    synced = true;
+                    break;
+                  } catch { /* retry */ }
+                }
+                if (!synced) remaining.push(p);
+              }
+            }
+            await kv.put('pending_turso_syncs', remaining.length ? JSON.stringify(remaining) : '');
+          }
+        }
+      } catch { /* best effort */ }
+
       const db = getTursoDb(c);
       const searchQ = normalizeQuery(q);
       let dbFilters: any[] = [or(like(tursoMedias.title, `%${searchQ}%`), like(tursoMedias.originalTitle, `%${searchQ}%`))];
       if (type && type !== 'all') {
-        dbFilters.push(eq(tursoMedias.type, mapType(type)));
+        dbFilters.push(eq(tursoMedias.type, type));
       }
 
       const dbResults = await db.select({
@@ -276,7 +303,24 @@ searchRoutes.get(
       .where(and(...dbFilters))
         .limit(20);
 
-      const externalResults = searchQ.length >= 3 ? await searchExternalSources(q, type, c.env) : [];
+      let externalResults: any[] = [];
+      if (searchQ.length >= 3) {
+        const cacheKey = `ext:search:${searchQ}:${type || 'all'}`;
+        const redis = await getRedisRestClient(c);
+        try {
+          const resp = await fetch(`${redis.url}/get/${cacheKey}`, { headers: redis.headers });
+          const cached = await resp.json() as any;
+          if (cached.result) externalResults = JSON.parse(cached.result);
+        } catch { /* cache miss */ }
+
+        if (externalResults.length === 0) {
+          externalResults = await searchExternalSources(q, type, c.env);
+          try {
+            const val = encodeURIComponent(JSON.stringify(externalResults));
+            await fetch(`${redis.url}/set/${cacheKey}/${val}/EX/3600`, { headers: redis.headers });
+          } catch { /* cache write fail */ }
+        }
+      }
       const existingKeys = new Set(dbResults.map(m => m.externalId || m.id));
       const uniqueExternal = externalResults.filter(r => !existingKeys.has(r.externalId || ''));
 
@@ -303,7 +347,7 @@ searchRoutes.get(
           const db = getNeonDb(connStr, hyperdrive) as any;
 
           const externalIdNum = r.externalId ? parseInt(r.externalId, 10) : null;
-          const internalType = mapType(r.type);
+          const internalType = r.type;
 
           // Dedup : verifie si un media existe deja avec cet externalId ou tmdbId
           if (r.externalId) {

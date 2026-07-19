@@ -32,12 +32,6 @@ async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promis
   return await response.json();
 }
 
-const API_TYPE_MAP: Record<string, string> = {
-  movie: 'film',
-  game: 'jeu',
-  comic: 'webtoon',
-};
-
 function parseStringArray(val: any): string[] {
   if (!val) return [];
   if (Array.isArray(val)) return val;
@@ -58,7 +52,7 @@ function mapMedia(m: any): Media {
   if (!m) return m;
   return {
     ...m,
-    type: (API_TYPE_MAP[m.type] || m.type) as MediaType,
+    type: m.type as MediaType,
     genres: parseStringArray(m.genres),
     studios: parseStringArray(m.studios),
     similar: Array.isArray(m.similar) ? m.similar.map(mapMedia) : undefined
