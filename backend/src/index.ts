@@ -52,7 +52,7 @@ type Variables = {
 export const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // ========== GLOBAL MIDDLEWARES ==========
-const allowedOrigins = ['https://app.webmedia.com', 'https://webmedia.com', 'http://localhost:3000', 'https://project-web-media.vercel.app', 'https://webmedia-front.koussemonaurel.workers.dev'];
+const allowedOrigins = ['https://app.webmediia.cfd', 'https://webmediia.cfd', 'https://www.webmediia.cfd', 'http://localhost:3000', 'https://project-web-media.vercel.app', 'https://webmedia-front.koussemonaurel.workers.dev'];
 
 app.use('*', cors({
     origin: (origin) => {

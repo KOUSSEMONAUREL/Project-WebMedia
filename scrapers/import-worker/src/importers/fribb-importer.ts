@@ -2,7 +2,7 @@ import axios from 'axios';
 import postgres from 'postgres';
 
 const FRIBB_URL = 'https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json';
-const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmediia.cfd/api/internal');
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const NEON_URL = process.env.NEON_DATABASE_URL || '';
 

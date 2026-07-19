@@ -7,7 +7,7 @@ import { getOffset, setOffset } from '../utils/offset-tracker.js';
 import { createLog } from '../utils/log.js';
 
 const MANGADEX_API = 'https://api.mangadex.org';
-const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmediia.cfd/api/internal');
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 interface MdManga {

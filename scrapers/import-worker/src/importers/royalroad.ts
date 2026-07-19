@@ -9,7 +9,7 @@ import { createLog } from '../utils/log.js';
 
 const RR_BASE = 'https://www.royalroad.com';
 const RR_API = new RoyalRoadAPI();
-const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmedia.com/api/internal');
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL || (process.env.ENVIRONMENT === 'development' ? 'http://localhost:8787/api/internal' : 'https://api.webmediia.cfd/api/internal');
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 async function processRoyalRoadCandidates(candidates: any[], db: any, log: ReturnType<typeof createLog>): Promise<number> {
