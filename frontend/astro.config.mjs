@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'url';
 
-const isCloudflare = !!(process.env.CF_PAGES || process.env.WORKERS_CI);
+const isCloudflare = !!(process.env.CF_PAGES || process.env.WORKERS_CI) || process.env.npm_lifecycle_event === 'build';
 
 const adapter = isCloudflare
   ? (await import('@astrojs/cloudflare')).default()
