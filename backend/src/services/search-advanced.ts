@@ -38,7 +38,7 @@ export async function searchTmdb(q: string, type: string | undefined, tmdbKey: s
     const results = data.results || [];
 
     return results.filter((r: any) => r.media_type !== 'person').slice(0, 8).map((r: any) => {
-      const mediaType = r.media_type === 'movie' ? 'film' : r.media_type === 'tv' ? 'serie' : 'serie';
+      const mediaType = type && type !== 'all' ? type : r.media_type === 'movie' ? 'film' : r.media_type === 'tv' ? 'serie' : 'serie';
       return {
         title: r.title || r.name || '',
         type: mediaType,
