@@ -42,10 +42,14 @@ Astro.response.headers.set(
 
 ---
 
-<Layout title="Accueil">
+<Layout title="WebMedia - Films, Series, Animes, Mangas et Jeux en streaming">
     <DynamicHero client:load />
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+        <h2 class="text-center text-muted-foreground text-sm sm:text-base max-w-2xl mx-auto mb-8 -mt-4">
+            WebMedia est un annuaire de streaming gratuit qui reference des films, series, animes, mangas,
+            webtoons, jeux, livres et light novels. Decouvrez les meilleurs contenus en un clic.
+        </h2>
         <TrendingCarousel items={trending} client:load />
 
         <div class="flex flex-col items-center text-center pt-4 pb-12">

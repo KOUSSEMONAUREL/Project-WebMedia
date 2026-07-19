@@ -12,7 +12,7 @@ interface Props {
     description?: string;
 }
 
-const { title, description = 'Découvrez les meilleurs films, séries, animés, webtoons et light novels' } = Astro.props;
+const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -21,7 +21,8 @@ const { title, description = 'Découvrez les meilleurs films, séries, animés, 
         <meta charset="UTF-8" />
         <meta name="description" content={description} />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
         <meta name="generator" content={Astro.generator} />
         <ClientRouter />
         
