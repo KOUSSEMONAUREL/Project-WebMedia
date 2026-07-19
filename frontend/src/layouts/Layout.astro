@@ -4,7 +4,6 @@ import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
 import { VerificationBanner } from '../components/VerificationBanner';
 import { ToastInit } from '../components/ToastInit';
-import AdBlockGuard from '../components/AdBlockGuard';
 import ClientRouter from 'astro/components/ClientRouter.astro';
 
 interface Props {
@@ -37,16 +36,8 @@ const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, 
         <meta name="bc14130edae9fcd074dff1fe4c4b55ead59835e6" content="bc14130edae9fcd074dff1fe4c4b55ead59835e6" />
         <meta name="referrer" content="no-referrer-when-downgrade" />
 
-        {
-            import.meta.env.PROD && (
-                <>
-                    <script>(function(){var k='wm_adblock_detected';try{sessionStorage.setItem(k,'false')}catch(e){}})();</script>
-                </>
-            )
-        }
     </head>
     <body class="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
-        <AdBlockGuard client:only="react" />
         <Navbar client:idle initialPathname={Astro.url.pathname} />
         <VerificationBanner client:visible />
         <main class="flex-1 pt-[74px]">
@@ -59,14 +50,6 @@ const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, 
                 © 2025 WebMedia
             </p>
         </footer>
-    {
-        import.meta.env.PROD && (
-            <>
-                <script src="https://pl30353931.effectivecpmnetwork.com/39/f6/a0/39f6a0b9b7ab659ae48c9784ab9b8608.js"></script>
-                <script>(function(){try{var k='wm_adblock_detected';var s=document.currentScript&&document.currentScript.previousElementSibling;s&&s.src&&s.addEventListener('error',function(){sessionStorage.setItem(k,'true')});}catch(e){}})();</script>
-            </>
-        )
-    }
     </body>
     <CookieBanner client:visible />
     <ToastInit client:only="react" />
