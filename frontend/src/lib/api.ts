@@ -21,10 +21,8 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Re
   const backend = (globalThis as any).__BACKEND;
   const headers = { ...getApiHeaders(), ...options.headers };
   if (backend) {
-    console.log('[apiFetch] using __BACKEND service binding for', endpoint);
     return backend.fetch(url, { ...options, headers });
   }
-  console.log('[apiFetch] HTTP fetch (no __BACKEND)', url);
   return fetch(url, { ...options, headers });
 }
 
