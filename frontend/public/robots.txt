@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /reset-password
+Disallow: /verify-success
+
+Sitemap: https://www.webmediia.cfd/sitemap-index.xml

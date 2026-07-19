@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
+import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'url';
@@ -11,7 +12,13 @@ const adapter = isCloudflare
   : (await import('@astrojs/vercel')).default();
 
 export default defineConfig({
-    integrations: [react()],
+    site: 'https://www.webmediia.cfd',
+    integrations: [react(), sitemap({
+        filter: (page) => !page.includes('/admin') && !page.includes('/reset-password') && !page.includes('/verify-success'),
+        changefreq: 'daily',
+        priority: 0.7,
+        lastmod: new Date(),
+    })],
     output: 'server',
     adapter,
     vite: {

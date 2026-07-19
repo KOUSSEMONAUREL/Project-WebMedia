@@ -1,0 +1,5 @@
+Contact: mailto:koussemonaurel@gmail.com
+Preferred-Languages: fr, en
+Encryption: https://keys.openpgp.org/
+Canonical: https://www.webmediia.cfd/security.txt
+Policy: https://www.webmediia.cfd/legal

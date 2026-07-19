@@ -1,0 +1,18 @@
+# WebMedia
+> Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels.
+
+## About
+WebMedia est un annuaire qui reference des liens de streaming exterieurs. Le site ne stocke aucun fichier video sur ses serveurs.
+
+## Pages
+- Accueil: https://www.webmediia.cfd/
+- Films: https://www.webmediia.cfd/films
+- Series: https://www.webmediia.cfd/series
+- Animes: https://www.webmediia.cfd/animes
+- Mangas/Webtoons: https://www.webmediia.cfd/webtoons
+- Jeux: https://www.webmediia.cfd/games
+- Livres: https://www.webmediia.cfd/books
+- Light Novels: https://www.webmediia.cfd/novels
+- Genres: https://www.webmediia.cfd/genres
+- Mentions legales: https://www.webmediia.cfd/legal
+- A propos: https://www.webmediia.cfd/about

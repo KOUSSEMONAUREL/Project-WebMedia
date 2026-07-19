@@ -1,0 +1,10 @@
+/* TEAM */
+Developer: Godwill Koussemon
+Contact: koussemonaurel@gmail.com
+Site: https://www.webmediia.cfd
+
+/* SITE */
+Language: French
+Code: Open source (MIT)
+Repository: https://github.com/KOUSSEMONAUREL/Project-WebMedia
+Last update: 2026-07
