@@ -261,27 +261,6 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
         >
           <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
           <div className="flex items-center relative" ref={linksRef}>
-            {/* Bouton Menu Burger sur Mobile */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-              className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 mr-1 rounded-xl transition-all duration-200 cursor-pointer ${
-                isMobileMenuOpen
-                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
-                  : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground'
-              }`}
-            >
-              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
-                isMobileMenuOpen ? 'w-4 rotate-45 translate-y-[7px]' : 'w-4'
-              }`} />
-              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 ${
-                isMobileMenuOpen ? 'w-0 opacity-0' : 'w-3'
-              }`} />
-              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
-                isMobileMenuOpen ? 'w-4 -rotate-45 -translate-y-[7px]' : 'w-4'
-              }`} />
-            </button>
-
             <div
               ref={indicatorRef}
               className="absolute top-1/2 -translate-y-1/2 rounded-full pointer-events-none opacity-0"
@@ -417,6 +396,26 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {/* Bouton Menu Burger sur Mobile (droite) */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 rounded-xl transition-all duration-200 cursor-pointer ${
+                isMobileMenuOpen
+                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+                  : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground'
+              }`}
+            >
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
+                isMobileMenuOpen ? 'w-4 rotate-45 translate-y-[7px]' : 'w-4'
+              }`} />
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 ${
+                isMobileMenuOpen ? 'w-0 opacity-0' : 'w-3'
+              }`} />
+              <span className={`block h-[2px] rounded-full bg-current transition-all duration-300 origin-center ${
+                isMobileMenuOpen ? 'w-4 -rotate-45 -translate-y-[7px]' : 'w-4'
+              }`} />
+            </button>
             <Button
               variant="ghost"
               size="icon"

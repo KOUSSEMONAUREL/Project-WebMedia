@@ -42,6 +42,9 @@ export function getAuth(dbUrl?: string) {
             'https://project-web-media.vercel.app',
             'https://webmedia-front.koussemonaurel.workers.dev',
             'https://webmedia-backend.koussemonaurel.workers.dev',
+            'https://webmediia.cfd',
+            'https://www.webmediia.cfd',
+            'https://app.webmediia.cfd',
         ],
         emailAndPassword: {
             enabled: true,
