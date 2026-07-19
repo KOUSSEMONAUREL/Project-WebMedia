@@ -205,6 +205,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
 
     const handleGoogleLogin = async () => {
         setLoading(true);
+        setError('');
         try {
             await authClient.signIn.social({
                 provider: 'google',
@@ -212,6 +213,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             });
         } catch (err: any) {
             setError(err?.message || 'Erreur lors de la connexion Google');
+        } finally {
             setLoading(false);
         }
     };
