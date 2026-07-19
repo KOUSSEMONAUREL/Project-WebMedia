@@ -11,7 +11,6 @@ export function getStaticPaths() {
 const { genre } = Astro.params;
 const displayName = genre ? genre.charAt(0).toUpperCase() + genre.slice(1).replace(/-/g, ' ') : '';
 
-export const prerender = true;
 ---
 
 <Layout title={displayName}>

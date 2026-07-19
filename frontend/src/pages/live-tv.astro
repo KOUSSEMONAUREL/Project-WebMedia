@@ -2,7 +2,6 @@
 import Layout from '../layouts/Layout.astro';
 import { LiveTVClient } from '../components/LiveTVClient';
 
-export const prerender = true;
 ---
 <Layout title="TV en Direct">
   <LiveTVClient client:only="react" />

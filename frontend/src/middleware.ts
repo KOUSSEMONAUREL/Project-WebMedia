@@ -10,11 +10,9 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
 };
 
-export const onRequest = defineMiddleware(async (_, next) => {
-  try {
-    const mod = await import('cloudflare:workers');
-    if (mod.env?.BACKEND) (globalThis as any).__BACKEND = mod.env.BACKEND;
-  } catch {}
+export const onRequest = defineMiddleware(async (context, next) => {
+  const runtimeEnv = (context.locals as any).runtime?.env;
+  if (runtimeEnv?.BACKEND) (globalThis as any).__BACKEND = runtimeEnv.BACKEND;
 
   const response = await next();
 
