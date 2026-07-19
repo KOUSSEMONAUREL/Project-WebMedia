@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import { env } from 'cloudflare:workers';
 
 const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline' https:; img-src 'self' https: http: data: blob:; connect-src 'self' https: http:; font-src 'self' data: https:; frame-src 'self' https://challenges.cloudflare.com https://vsembed.ru https://vsembed.su https://vidsrcme.ru https://vidsrc.to https://www.2embed.cc https://*.effectivecpmnetwork.com; object-src 'none'; media-src 'self' https: http:; worker-src 'self' blob:; base-uri 'self'; form-action 'self'";
 
@@ -11,16 +12,29 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  const runtimeEnv = (context.locals as any).runtime?.env;
-  if (runtimeEnv?.BACKEND) (globalThis as any).__BACKEND = runtimeEnv.BACKEND;
+  const url = context.request.url;
+  console.log('[MW] START', url);
 
-  const response = await next();
-
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    if (!response.headers.has(key)) {
-      response.headers.set(key, value);
-    }
+  if (env?.BACKEND) {
+    (globalThis as any).__BACKEND = env.BACKEND;
+    console.log('[MW] __BACKEND set from cloudflare:workers env.BACKEND');
+  } else {
+    console.log('[MW] __BACKEND not available - env type:', typeof env, 'BACKEND:', (env as any)?.BACKEND);
   }
 
-  return response;
+  try {
+    const response = await next();
+    console.log('[MW] response', response.status, url);
+
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      if (!response.headers.has(key)) {
+        response.headers.set(key, value);
+      }
+    }
+
+    return response;
+  } catch (err) {
+    console.error('[MW] ERROR', url, err);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 });

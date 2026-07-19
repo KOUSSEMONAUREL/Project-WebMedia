@@ -20,7 +20,11 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Re
   const url = `${API_BASE_URL}${endpoint}`;
   const backend = (globalThis as any).__BACKEND;
   const headers = { ...getApiHeaders(), ...options.headers };
-  if (backend) return backend.fetch(url, { ...options, headers });
+  if (backend) {
+    console.log('[apiFetch] using __BACKEND service binding for', endpoint);
+    return backend.fetch(url, { ...options, headers });
+  }
+  console.log('[apiFetch] HTTP fetch (no __BACKEND)', url);
   return fetch(url, { ...options, headers });
 }
 
@@ -78,7 +82,7 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
     cacheSet(ck, result);
     return result;
   }
-  catch { return { success: true, data: mockTrending }; }
+  catch { console.warn('[api] getTrending failed, using mock'); return { success: true, data: mockTrending }; }
 }
 
 export async function getMediaByType(
@@ -106,6 +110,7 @@ export async function getMediaByType(
     cacheSet(ck, json);
     return json;
   } catch {
+    console.warn('[api] getMediaByType failed, using mock for', type);
     const data = getMockByType(type);
     return { success: true, data, total: data.length };
   }
@@ -120,9 +125,7 @@ export async function getAllMedia(): Promise<Media[]> {
     const data = mapMedias(res.data);
     cacheSet(ck, data);
     return data;
-  } catch {
-    return allMockData;
-  }
+  } catch { console.warn('[api] getAllMedia failed, using allMockData'); return allMockData; }
 }
 
 export async function searchMedia(query: string, filters?: {
@@ -141,6 +144,7 @@ export async function searchMedia(query: string, filters?: {
     cacheSet(ck, res);
     return res;
   } catch {
+    console.warn('[api] searchMedia failed, using mock for', query);
     const lowerQuery = query.toLowerCase();
     let results = allMockData.filter(m => m.title?.toLowerCase().includes(lowerQuery));
     if (filters?.type && filters.type !== 'all') results = results.filter(m => m.type === filters.type);
@@ -161,9 +165,7 @@ export async function searchAdvancedMedia(query: string, filters?: {
     if (!res.ok) return { success: false, data: [], error: json.error || 'Erreur' };
     if (json.data) json.data = mapMedias(json.data);
     return json;
-  } catch {
-    return { success: true, data: [] };
-  }
+  } catch { console.warn('[api] searchAdvancedMedia failed'); return { success: true, data: [] }; }
 }
 
 export async function getMediaDetails(type: string, slug: string): Promise<ApiResponse<Media>> {
@@ -190,6 +192,7 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
     return res;
   }
   catch {
+    console.warn('[api] getMediaDetails failed, mock fallback for', type, slug);
     const typeMap: Record<string, string> = {
       films: 'film', series: 'serie', animes: 'anime',
       jeux: 'jeu', webtoons: 'webtoon'
