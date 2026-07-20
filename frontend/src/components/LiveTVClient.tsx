@@ -97,7 +97,7 @@ function PlayerModal({ channel, onClose }: {
     hls.loadSource(streamUrl);
     hls.attachMedia(video);
 
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    const onReady = () => {
       setStatus('ready');
       if (!plyrRef.current) {
         plyrRef.current = new Plyr(video, {
@@ -106,20 +106,20 @@ function PlayerModal({ channel, onClose }: {
         });
       }
       video.play().catch(() => {});
-    });
-
-    hls.on(Hls.Events.ERROR, (_e, data) => {
+    };
+    const onError = (_e: any, data: any) => {
       if (data.fatal) setStatus('error');
-    });
+    };
+
+    hls.on(Hls.Events.MANIFEST_PARSED, onReady);
+    hls.on(Hls.Events.ERROR, onError);
 
     return () => {
       if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
-      if (hlsRef.current) {
-        hlsRef.current.off(Hls.Events.MANIFEST_PARSED);
-        hlsRef.current.off(Hls.Events.ERROR);
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      hls.off(Hls.Events.MANIFEST_PARSED, onReady);
+      hls.off(Hls.Events.ERROR, onError);
+      hls.destroy();
+      hlsRef.current = null;
     };
   }, [streamUrl]);
 
