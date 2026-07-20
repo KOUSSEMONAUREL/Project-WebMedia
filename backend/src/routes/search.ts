@@ -117,7 +117,6 @@ searchRoutes.get(
 
 const WORKER_TYPE_MAP: Record<string, string> = {
   jeu: 'playwright',
-  game: 'playwright',
   webtoon: 'webtoon',
   comic: 'webtoon',
   manga: 'webtoon',
@@ -321,7 +320,7 @@ searchRoutes.get(
       const existingKeys = new Set(dbResults.map(m => m.externalId || m.id));
       const uniqueExternal = externalResults.filter(r => !existingKeys.has(r.externalId || ''));
 
-      const nonStreaming = ['jeu', 'game', 'webtoon', 'comic', 'manga', 'novel'];
+      const nonStreaming = ['jeu', 'webtoon', 'comic', 'manga', 'novel'];
       const queuedJobs: string[] = [];
       const dispatchedJobs: string[] = [];
 

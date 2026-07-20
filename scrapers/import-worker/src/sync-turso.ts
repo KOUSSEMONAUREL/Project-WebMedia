@@ -84,7 +84,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
 
         log.start('Syncing Neon -> Turso');
 
-    const STREAMING_TYPES = ['movie', 'serie', 'anime'];
+    const STREAMING_TYPES = ['film', 'serie', 'anime'];
 
     try {
         const allMedias = await neon.select().from(medias).where(
@@ -173,7 +173,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
         if (validIds.length > 0) {
             const deleted = await turso.delete(tursoMedias).where(
                 and(
-                    sql`type NOT IN ('movie', 'serie', 'anime')`,
+                    sql`type NOT IN ('film', 'serie', 'anime')`,
                     sql`id NOT IN (${sql.join(validIds.map(id => sql`${id}`), sql`, `)})`
                 )
             );

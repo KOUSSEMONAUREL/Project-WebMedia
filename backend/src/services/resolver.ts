@@ -50,7 +50,7 @@ export async function resolveAction(state: MediaState) {
         return { action: 'SCRAPE_WEBTOON', queue: 'queue:scrape:webtoon' };
     }
 
-    if (state.type === 'game' || state.type === 'jeu') {
+    if (state.type === 'jeu') {
         return { action: 'SCRAPE_GAME', queue: 'queue:scrape:playwright' };
     }
 

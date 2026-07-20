@@ -48,7 +48,7 @@ mediaRoutes.get('/trending', async (c) => {
             { type: 'movie', limit: 4 },
             { type: 'serie', limit: 4 },
             { type: 'anime', limit: 3 },
-            { type: 'game', limit: 3 },
+            { type: 'jeu', limit: 3 },
             { type: 'webtoon', limit: 3 },
             { type: 'book', limit: 2 },
             { type: 'novel', limit: 1 },

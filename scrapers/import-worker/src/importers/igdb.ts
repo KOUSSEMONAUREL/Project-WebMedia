@@ -54,7 +54,7 @@ function buildMediaRow(item: any) {
     const trailer = item.videos?.[0]?.video_id || undefined;
 
     return {
-        type: 'game' as const, title: item.name,
+        type: 'jeu' as const, title: item.name,
         synopsis: item.storyline || item.summary,
         year: item.first_release_date ? new Date(item.first_release_date * 1000).getFullYear() : undefined,
         posterUrl: item.cover?.url ? `https:${item.cover.url.replace('t_thumb', 't_cover_big')}` : undefined,
@@ -122,7 +122,7 @@ export async function importTrendingGames(clientId: string, clientSecret: string
                         .onConflictDoNothing()
                         .returning({ id: medias.id, igdbId: medias.igdbId, title: medias.title, slug: medias.slug });
 
-                    const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'game' as const, title: m.title, slug: m.slug }));
+                const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'jeu' as const, title: m.title, slug: m.slug }));
                     await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
                     for (const m of inserted) {
@@ -162,7 +162,7 @@ export async function importTrendingGames(clientId: string, clientSecret: string
                     .onConflictDoNothing()
                     .returning({ id: medias.id, igdbId: medias.igdbId, title: medias.title, slug: medias.slug });
 
-                const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'game' as const, title: m.title, slug: m.slug }));
+                const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'jeu' as const, title: m.title, slug: m.slug }));
                 await notifyBrainBatch(brainItems, internalApiUrl!, internalApiKey!);
 
                 for (const m of inserted) {

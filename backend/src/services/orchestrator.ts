@@ -170,7 +170,7 @@ export class OrchestratorService {
             if (isStreaming) continue;
 
             const workerType =
-                (type === 'game' || type === 'jeu') ? 'playwright' :
+                type === 'jeu' ? 'playwright' :
                 type === 'novel' ? 'novel' :
                 (type === 'webtoon' || type === 'comic' || type === 'manga') ? 'webtoon' :
                 null;

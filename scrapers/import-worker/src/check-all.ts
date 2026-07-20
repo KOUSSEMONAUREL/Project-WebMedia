@@ -18,7 +18,7 @@ async function main() {
   const mediaState = await supabaseClient`
     SELECT type, COUNT(*) as count
     FROM media_state
-    WHERE type IN ('webtoon', 'comic', 'game', 'novel')
+    WHERE type IN ('webtoon', 'comic', 'jeu', 'novel')
     GROUP BY type
     ORDER BY type
   `;
