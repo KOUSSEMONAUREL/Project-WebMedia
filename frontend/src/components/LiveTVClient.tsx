@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Search, Tv, Loader2, X, AlertCircle, Wifi, WifiOff, Radio } from 'lucide-react';
+import { AlertCircle, Loader2, X, Tv } from 'lucide-react';
 import Hls from 'hls.js';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
 import { saveLivetvCache, loadLivetvCache, saveStreamCheck, loadStreamChecksBatch } from '../lib/livetv-db';
+import { ChannelFilters } from './ChannelFilters';
+import { ChannelGrid } from './ChannelGrid';
+import { ChannelPagination } from './ChannelPagination';
 
 const CHANNELS_URL = 'https://iptv-org.github.io/api/channels.json';
 const STREAMS_URL = 'https://iptv-org.github.io/api/streams.json';
@@ -12,15 +15,6 @@ const MAX_CONCURRENT_CHECKS = 5;
 const CHECK_TIMEOUT = 8000;
 
 type StreamStatus = 'unknown' | 'checking' | 'alive' | 'dead';
-
-function flagEmoji(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return String.fromCodePoint(
-    ...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65)
-  );
-}
-
-
 
 interface StreamInfo { url: string; quality: string | null; }
 interface LiveChannel {
@@ -66,13 +60,6 @@ function enqueueCheck(url: string): Promise<boolean> {
     checkQueue.push({ url, resolve });
     pumpQueue();
   });
-}
-
-function StatusDot({ status }: { status: StreamStatus }) {
-  if (status === 'unknown') return <span className="w-2 h-2 rounded-full bg-muted-foreground/30 inline-block" title="Non verifie" />;
-  if (status === 'checking') return <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />;
-  if (status === 'alive') return <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Actif" />;
-  return <span className="w-2 h-2 rounded-full bg-red-500 inline-block" title="Inactif" />;
 }
 
 function SkeletonGrid() {
@@ -147,9 +134,6 @@ function PlayerModal({ channel, onClose }: {
               />
             )}
             <h2 className="font-semibold truncate">{channel.name}</h2>
-            {channel.country && (
-              <span className="text-lg flex-shrink-0" title={channel.country}>{flagEmoji(channel.country)}</span>
-            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {channel.streams.length > 1 && (
@@ -205,7 +189,6 @@ export function LiveTVClient() {
   const [aliveOnly, setAliveOnly] = useState(false);
   const [channelStatus, setChannelStatus] = useState<Record<string, StreamStatus>>({});
   const gridRef = useRef<HTMLDivElement>(null);
-  const checkingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -379,19 +362,6 @@ export function LiveTVClient() {
 
   useEffect(() => { setPage(0); }, [search, country, category, sortBy]);
 
-  const pageNumbers = useMemo(() => {
-    const cur = safePage + 1;
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages: (number | string)[] = [1];
-    const start = Math.max(2, cur - 2);
-    const end = Math.min(totalPages - 1, cur + 2);
-    if (start > 2) pages.push('...');
-    for (let i = start; i <= end; i++) pages.push(i);
-    if (end < totalPages - 1) pages.push('...');
-    pages.push(totalPages);
-    return pages;
-  }, [safePage, totalPages]);
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -413,64 +383,21 @@ export function LiveTVClient() {
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl p-4 mb-6 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text" placeholder="Rechercher une chaine..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <select
-            aria-label="Pays"
-            value={country} onChange={e => setCountry(e.target.value)}
-            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          >
-            <option value="">Tous les pays</option>
-            {countries.map(c => (
-              <option key={c} value={c}>{flagEmoji(c)} {c}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Categorie"
-            value={category} onChange={e => setCategory(e.target.value)}
-            className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          >
-            <option value="">Toutes les categories</option>
-            {categories.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Trier par"
-            value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-            className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          >
-            <option value="name">Nom A-Z</option>
-            <option value="name-desc">Nom Z-A</option>
-            <option value="streams">Plus de sources</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setAliveOnly(!aliveOnly)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${
-              aliveOnly
-                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                : 'bg-muted/50 border-border hover:border-primary/50'
-            }`}
-            title="Afficher uniquement les chaines dont les flux sont actifs"
-          >
-            {aliveOnly ? <Wifi className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
-            <span className="hidden sm:inline">{aliveOnly ? 'Actifs' : 'Verifier'}</span>
-            {verifyingCount > 0 && (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            )}
-          </button>
-        </div>
-      </div>
+      <ChannelFilters
+        search={search}
+        onSearchChange={setSearch}
+        country={country}
+        onCountryChange={setCountry}
+        category={category}
+        onCategoryChange={setCategory}
+        sortBy={sortBy}
+        onSortChange={(v) => setSortBy(v as any)}
+        aliveOnly={aliveOnly}
+        onAliveToggle={() => setAliveOnly(!aliveOnly)}
+        countries={countries}
+        categories={categories}
+        verifyingCount={verifyingCount}
+      />
 
       {loading ? (
         <SkeletonGrid />
@@ -482,81 +409,8 @@ export function LiveTVClient() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {visibleChannels.map(ch => (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => setSelected(ch)}
-                className={`group bg-card hover:bg-card/80 border rounded-xl p-4 text-left transition-all hover:shadow-[var(--glow-blue-subtle)] ${
-                  channelStatus[ch.id] === 'alive'
-                    ? 'border-emerald-500/30 hover:border-emerald-500/50'
-                    : channelStatus[ch.id] === 'dead'
-                    ? 'border-red-500/20 opacity-60'
-                    : 'border-border hover:border-primary/50'
-                }`}
-              >
-                <div className="w-full aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                  {ch.logo ? (
-                    <img src={ch.logo} alt={ch.name} className="w-full h-full object-contain p-2" loading="lazy"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <Tv className="w-8 h-8 text-muted-foreground" />
-                  )}
-                </div>
-                <h3 className="text-sm font-medium truncate group-hover:text-primary transition-colors">{ch.name}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  {ch.country && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1" title={ch.country}>
-                      {flagEmoji(ch.country)}
-                    </span>
-                  )}
-                  <StatusDot status={channelStatus[ch.id] || 'unknown'} />
-                  <span className="text-xs text-muted-foreground">{ch.streams.length} flux</span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1 mt-8">
-              <button
-                type="button"
-                onClick={() => goToPage(safePage - 1)}
-                disabled={safePage === 0}
-                className="px-3 py-1.5 text-sm rounded-lg bg-card border border-border disabled:opacity-30 hover:border-primary/50 transition-colors"
-              >
-                Prev
-              </button>
-              {pageNumbers.map((p, i) =>
-                typeof p === 'string' ? (
-                  <span key={`e${i}`} className="px-2 text-muted-foreground">...</span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => goToPage(p - 1)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                      p === safePage + 1
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-card border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                onClick={() => goToPage(safePage + 1)}
-                disabled={safePage >= totalPages - 1}
-                className="px-3 py-1.5 text-sm rounded-lg bg-card border border-border disabled:opacity-30 hover:border-primary/50 transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <ChannelGrid channels={visibleChannels} statusMap={channelStatus} onSelect={setSelected} />
+          <ChannelPagination page={safePage} totalPages={totalPages} onPageChange={goToPage} />
         </>
       )}
 
