@@ -53,7 +53,7 @@ export function CookieBanner() {
                   var e = document.getElementById('cookie-details');
                   if (e) e.style.display = e.style.display === 'block' ? 'none' : 'block';
                 }}
-                className="ml-1.5 text-white/40 hover:text-white/60 underline decoration-dotted underline-offset-2"
+                className="ml-1.5 text-white/60 hover:text-white/80 underline decoration-dotted underline-offset-2"
               >
                 Details
               </button>
@@ -62,7 +62,7 @@ export function CookieBanner() {
               <button
                 type="button"
                 onClick={function() { dismiss('minimal'); }}
-                className="px-2.5 py-1.5 rounded-lg text-[11px] text-white/40 hover:text-white/60 transition-colors"
+                className="px-2.5 py-1.5 rounded-lg text-[11px] text-white/60 hover:text-white/80 transition-colors"
               >
                 Refuser
               </button>

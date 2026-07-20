@@ -72,7 +72,7 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
 
       <ul
         ref={containerRef}
-        role="listbox"
+        role="list"
         aria-label="Recommandations"
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}

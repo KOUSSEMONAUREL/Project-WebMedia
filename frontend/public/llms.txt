@@ -1,18 +1,32 @@
 # WebMedia
-> Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels.
 
-## About
-WebMedia est un annuaire qui reference des liens de streaming exterieurs. Le site ne stocke aucun fichier video sur ses serveurs.
+> Annuaire de streaming gratuit referencant des liens de streaming exterieurs pour films, series, animes, mangas, webtoons, jeux, livres et light novels. Le site ne stocke aucun fichier video sur ses serveurs.
 
-## Pages
-- Accueil: https://www.webmediia.cfd/
-- Films: https://www.webmediia.cfd/films
-- Series: https://www.webmediia.cfd/series
-- Animes: https://www.webmediia.cfd/animes
-- Mangas/Webtoons: https://www.webmediia.cfd/webtoons
-- Jeux: https://www.webmediia.cfd/games
-- Livres: https://www.webmediia.cfd/books
-- Light Novels: https://www.webmediia.cfd/novels
-- Genres: https://www.webmediia.cfd/genres
-- Mentions legales: https://www.webmediia.cfd/legal
-- A propos: https://www.webmediia.cfd/about
+WebMedia est un annuaire qui organise et reference du contenu multimedia accessible en ligne. Chaque fiche contient synopsis, note, genre, annee et un lien vers une source de streaming externe.
+
+## Pages principales
+
+- [Accueil](https://www.webmediia.cfd/): Page d'accueil avec recommandations et contenu trending
+- [Films](https://www.webmediia.cfd/films): Catalogue de films par genre et popularite
+- [Series](https://www.webmediia.cfd/series): Catalogue de series tele
+- [Animes](https://www.webmediia.cfd/animes): Catalogue d'animes
+- [Mangas / Webtoons](https://www.webmediia.cfd/webtoons): Catalogue de mangas et webtoons
+- [Jeux](https://www.webmediia.cfd/games): Catalogue de jeux video
+- [Livres](https://www.webmediia.cfd/books): Catalogue de livres
+- [Light Novels](https://www.webmediia.cfd/novels): Catalogue de light novels
+
+## Pages secondaires
+
+- [Genres](https://www.webmediia.cfd/genres): Page de recherche et filtrage par genre
+- [Mentions legales](https://www.webmediia.cfd/legal): Informations legales, privacy, regies publicitaires et RGPD
+- [A propos](https://www.webmediia.cfd/about): Presentation du site
+
+## Pages dynamiques
+
+- [Details](https://www.webmediia.cfd/film/stream-{slug}): Page de detail d'un film
+- [Details](https://www.webmediia.cfd/serie/stream-{slug}): Page de detail d'une serie
+- [Details](https://www.webmediia.cfd/anime/stream-{slug}): Page de detail d'un anime
+- [Details](https://www.webmediia.cfd/jeu/stream-{slug}): Page de detail d'un jeu
+- [Details](https://www.webmediia.cfd/webtoon/stream-{slug}): Page de detail d'un webtoon/comic
+- [Details](https://www.webmediia.cfd/book/stream-{slug}): Page de detail d'un livre
+- [Details](https://www.webmediia.cfd/novel/stream-{slug}): Page de detail d'un light novel
