@@ -1,10 +1,11 @@
 import { createDbClient } from '../db/client.js';
 import { medias } from '../db/neon/schema.js';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import axios from 'axios';
-import { batchCheckExisting, notifyBrain, withRetry } from '../utils/batch-import.js';
-import { getOffset, setOffset } from '../utils/offset-tracker.js';
-import { createLog } from '../utils/log.js';
+import { batchCheckExisting, notifyBrainBatch, withRetry } from '../utils/batch-import.js';
+import { runScanner } from '../utils/api-scanner.js';
+import type { ScannerConfig, ProcessContext, FetchResult } from '../utils/api-scanner.js';
+import type { createLog } from '../utils/log.js';
 
 const ANILIST_API = 'https://graphql.anilist.co';
 const KEY = 'anilist';
@@ -28,93 +29,123 @@ const POPULAR_QUERY = `
   }
 `;
 
-async function processAnilistPage(db: any, pageNum: number, limit: number, log: ReturnType<typeof createLog>): Promise<number> {
-    const response = await withRetry(() => axios.post(ANILIST_API, {
-        query: POPULAR_QUERY,
-        variables: { page: pageNum, perPage: limit }
-    }, { headers: { 'User-Agent': 'WebMedia/1.0' } }));
 
-    const entries = response.data?.data?.Page?.media || [];
-    if (entries.length === 0) return 0;
+function buildMediaRow(entry: any) {
+    const title = entry.title?.romaji || entry.title?.english || entry.title?.native || 'Unknown';
+    const synopsis = entry.description?.replace(/<[^>]*>/g, '').slice(0, 2000);
+    const genreNames = entry.genres || [];
+    const studios = entry.studios?.nodes?.length
+        ? JSON.stringify(entry.studios.nodes.map((s: any) => s.name))
+        : undefined;
+    const trailerUrl = entry.trailer?.site === 'youtube' ? entry.trailer.id : undefined;
 
-    const externalIds = entries.map((m: any) => `al-${m.id}`);
-    const existing = await batchCheckExisting(db, medias.externalId, externalIds);
-
-    const toInsert = entries.filter((e: any) => !existing.has(`al-${e.id}`));
-    if (toInsert.length === 0) {
-        log.skip(`AniList page ${pageNum}: all existing`);
-        return 0;
-    }
-
-    const mediaValues = toInsert.map((entry: any) => {
-        const title = entry.title?.romaji || entry.title?.english || entry.title?.native || 'Unknown';
-        const synopsis = entry.description?.replace(/<[^>]*>/g, '').slice(0, 2000);
-        const genreNames = entry.genres || [];
-        const studios = entry.studios?.nodes?.length
-            ? JSON.stringify(entry.studios.nodes.map((s: any) => s.name))
-            : undefined;
-        const trailerUrl = entry.trailer?.site === 'youtube' ? entry.trailer.id : undefined;
-        const seasonStr = entry.season && entry.seasonYear
-            ? `${entry.season}-${entry.seasonYear}`
-            : undefined;
-
-        return {
-            type: 'anime', title, originalTitle: entry.title?.native,
-            slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
-            synopsis, posterUrl: entry.coverImage?.extraLarge || entry.coverImage?.large,
-            backdropUrl: entry.bannerImage || undefined,
-            externalId: `al-${entry.id}`, anilistId: entry.id, malId: entry.idMal || undefined,
-            year: entry.startDate?.year,
-            rating: entry.averageScore ? String((entry.averageScore / 10).toFixed(1)) : undefined,
-            voteCount: entry.popularity || 0,
-            genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
-            status: entry.status || undefined,
-            trailerUrl: trailerUrl || undefined,
-            duration: entry.duration || undefined,
-            episodeCount: entry.episodes || undefined,
-            studios,
-            metadataSource: 'anilist', metadataFreshAt: new Date(),
-        };
-    });
-
-    const inserted: any[] = await db.insert(medias).values(mediaValues).onConflictDoNothing().returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
-
-    for (const m of inserted) {
-        log.success(`[ANIME] ${m.externalId}`);
-        try {
-            await notifyBrain(m.id, 'anime', process.env.INTERNAL_API_URL!, process.env.INTERNAL_API_KEY!, m.title, m.slug);
-        } catch { /* ignore brain errors */ }
-    }
-
-    log.success(`AniList: ${inserted.length} added (page ${pageNum})`);
-    return inserted.length;
+    return {
+        type: 'anime' as const, title, originalTitle: entry.title?.native,
+        slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+        synopsis, posterUrl: entry.coverImage?.extraLarge || entry.coverImage?.large,
+        backdropUrl: entry.bannerImage || undefined,
+        externalId: `al-${entry.id}`, anilistId: entry.id, malId: entry.idMal || undefined,
+        year: entry.seasonYear,
+        rating: entry.averageScore ? String((entry.averageScore / 10).toFixed(1)) : undefined,
+        voteCount: entry.popularity || 0,
+        genres: genreNames.length ? JSON.stringify(genreNames) : undefined,
+        status: entry.status || undefined,
+        trailerUrl: trailerUrl || undefined,
+        duration: entry.duration || undefined,
+        episodeCount: entry.episodes || undefined,
+        studios,
+        metadataSource: 'anilist', metadataFreshAt: new Date(),
+    };
 }
 
 export async function importAnime(databaseUrl: string, limit: number = 20) {
     const db = createDbClient(databaseUrl, 'neon');
-    const log = createLog('AniList', 'one-shot');
-    log.start(`Import (limit=${limit})`);
+    const ctx: ProcessContext = { db, databaseUrl };
 
-    try {
-        const page = await getOffset(KEY, databaseUrl, 1);
+    const config: ScannerConfig = {
+        key: KEY,
+        name: 'AniList',
+        rateLimit: { requestsPerSecond: 1, maxConcurrent: 1 },
+        freshness: {
+            maxHistoryDays: 3,
+            defaultCheckpointAgeMs: 3600 * 1000,
+            fetch: async (fetchLimit: number, _checkpoint: string) => {
+                const response = await withRetry(() => axios.post(ANILIST_API, {
+                    query: POPULAR_QUERY,
+                    variables: { page: 1, perPage: fetchLimit }
+                }, { headers: { 'User-Agent': 'WebMedia/1.0' }, timeout: 15000 }));
 
-        // Freshness pass: always check page 1 for newly popular anime
-        let freshCount = 0;
-        if (page > 1) {
-            try {
-                freshCount = await processAnilistPage(db, 1, limit, log);
-                if (freshCount > 0) log.info(`Freshness: ${freshCount} new anime`);
-            } catch (err: any) {
-                log.warn(`Freshness pass failed: ${err.message}`);
-            }
-        }
+                const entries = response.data?.data?.Page?.media || [];
+                return { items: entries, nextCheckpoint: new Date().toISOString() };
+            },
+            process: async (items: any[], _ctx: ProcessContext, log: ReturnType<typeof createLog>) => {
+                if (items.length === 0) return 0;
+                const ids = items.map((m: any) => `al-${m.id}`);
+                const existing = await batchCheckExisting(db, medias.externalId, ids);
+                let affected = 0;
 
-        // Deep pass: continue from stored page
-        const deepCount = await processAnilistPage(db, page, limit, log);
-        await setOffset(KEY, page + 1, databaseUrl);
-        return deepCount + freshCount;
-    } catch (error: any) {
-        log.error(`AniList Import Error: ${error.message}`);
-        throw error;
-    }
+                const toUpdate = items.filter((m: any) => existing.has(`al-${m.id}`));
+                for (const entry of toUpdate) {
+                    const row = buildMediaRow(entry);
+                    await db.update(medias).set({ ...row, externalId: undefined, anilistId: undefined, malId: undefined, type: undefined, slug: undefined, metadataFreshAt: new Date() })
+                        .where(eq(medias.anilistId, entry.id));
+                    affected++;
+                }
+
+                const toInsert = items.filter((m: any) => !existing.has(`al-${m.id}`));
+                if (toInsert.length > 0) {
+                    const mediaValues = toInsert.map((entry: any) => buildMediaRow(entry));
+                    const inserted: any[] = await db.insert(medias).values(mediaValues).onConflictDoNothing()
+                        .returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
+
+                    const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'anime' as const, title: m.title, slug: m.slug }));
+                    await notifyBrainBatch(brainItems, ctx.internalApiUrl || '', ctx.internalApiKey || '');
+
+                    for (const m of inserted) log.success(`[ANIME] ${m.externalId}`);
+                    affected += inserted.length;
+                }
+
+                if (affected > 0) log.info(`Freshness: ${affected} affected`);
+                return affected;
+            },
+        },
+        discovery: {
+            maxPages: 500,
+            advanceBy: 1,
+            fetchPage: async (offset: number, fetchLimit: number): Promise<FetchResult> => {
+                const page = offset || 1;
+                const response = await withRetry(() => axios.post(ANILIST_API, {
+                    query: POPULAR_QUERY,
+                    variables: { page, perPage: fetchLimit }
+                }, { headers: { 'User-Agent': 'WebMedia/1.0' }, timeout: 15000 }));
+
+                const entries = response.data?.data?.Page?.media || [];
+                const hasNext = response.data?.data?.Page?.pageInfo?.hasNextPage || false;
+                return { items: entries, hasMore: hasNext };
+            },
+            getTotal: () => 0,
+            process: async (items: any[], _ctx: ProcessContext, log: ReturnType<typeof createLog>) => {
+                if (items.length === 0) return 0;
+                const ids = items.map((m: any) => `al-${m.id}`);
+                const existing = await batchCheckExisting(db, medias.externalId, ids);
+                const toInsert = items.filter((m: any) => !existing.has(`al-${m.id}`));
+                if (toInsert.length === 0) {
+                    log.skip('AniList: all existing');
+                    return 0;
+                }
+
+                const mediaValues = toInsert.map((entry: any) => buildMediaRow(entry));
+                const inserted: any[] = await db.insert(medias).values(mediaValues).onConflictDoNothing()
+                    .returning({ id: medias.id, externalId: medias.externalId, title: medias.title, slug: medias.slug });
+
+                const brainItems = inserted.map((m: any) => ({ id: m.id, type: 'anime' as const, title: m.title, slug: m.slug }));
+                await notifyBrainBatch(brainItems, ctx.internalApiUrl || '', ctx.internalApiKey || '');
+
+                for (const m of inserted) log.success(`[ANIME] ${m.externalId}`);
+                return inserted.length;
+            },
+        },
+    };
+
+    return runScanner(config, ctx, limit);
 }

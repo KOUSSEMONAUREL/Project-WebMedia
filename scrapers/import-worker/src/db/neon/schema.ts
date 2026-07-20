@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, varchar, timestamp, integer, decimal, boolean, json } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, varchar, timestamp, integer, decimal, boolean, json, bigint } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // ========== TABLE MEDIAS (Catalogue principal) ==========
@@ -67,7 +67,7 @@ export const liens = pgTable('liens', {
 // ========== TABLE IMPORT OFFSETS ==========
 export const importOffsets = pgTable('import_offsets', {
     key: varchar('key', { length: 50 }).primaryKey(),
-    value: integer('value').notNull().default(0),
+    value: bigint('value', { mode: 'number' }).notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
