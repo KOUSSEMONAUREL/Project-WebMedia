@@ -49,10 +49,10 @@ function normalizeQuery(q: string): string {
 }
 
 const searchSchema = z.object({
-    q: z.string().min(10).max(200),
+    q: z.string().min(3).max(200),
     type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    limit: z.coerce.number().int().min(1).max(20).optional().default(20),
     offset: z.coerce.number().int().min(0).max(100).optional().default(0),
 });
 
@@ -184,7 +184,7 @@ async function dispatchGitHubAction(c: any, workerType: string, title: string): 
 }
 
 const advancedSchema = z.object({
-  q: z.string().min(10).max(200),
+  q: z.string().min(3).max(200),
   type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
 });
 
@@ -197,26 +197,23 @@ async function getRedisRestClient(c: any) {
   };
 }
 
-async function acquireSearchLock(c: any, ip: string): Promise<boolean> {
-  try {
-    const redis = await getRedisRestClient(c);
-    const lockKey = `lock:search-advanced:${ip}`;
-    const res = await fetch(`${redis.url}/set/${lockKey}/1/EX/15/NX`, {
-      headers: redis.headers,
-    });
-    const data = await res.json() as any;
-    return data.result === 'OK';
-  } catch {
-    return true;
-  }
-}
+const SEARCH_RATE_LIMIT = 2; // max searches per hour per IP
 
-async function releaseSearchLock(c: any, ip: string): Promise<void> {
+async function checkSearchRateLimit(c: any, ip: string): Promise<{ allowed: boolean; remaining: number }> {
   try {
     const redis = await getRedisRestClient(c);
-    const lockKey = `lock:search-advanced:${ip}`;
-    await fetch(`${redis.url}/del/${lockKey}`, { headers: redis.headers });
-  } catch { /* best effort */ }
+    const key = `rate:search:${ip}`;
+    const res = await fetch(`${redis.url}/incr/${key}`, { headers: redis.headers });
+    const data = await res.json() as any;
+    const count = parseInt(data, 10) || 1;
+    if (count === 1) {
+      // premiere requete : set TTL 1h
+      await fetch(`${redis.url}/expire/${key}/3600`, { headers: redis.headers });
+    }
+    return { allowed: count <= SEARCH_RATE_LIMIT, remaining: Math.max(0, SEARCH_RATE_LIMIT - count) };
+  } catch {
+    return { allowed: true, remaining: SEARCH_RATE_LIMIT };
+  }
 }
 
 // ========== GET /api/search/advanced ==========
@@ -227,11 +224,12 @@ searchRoutes.get(
     const { q, type } = c.req.valid('query' as any);
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-    const acquired = await acquireSearchLock(c, ip);
-    if (!acquired) {
+    const { allowed, remaining } = await checkSearchRateLimit(c, ip);
+    if (!allowed) {
       return c.json({
         success: false,
-        error: 'Une recherche avancee est deja en cours. Reessaye dans quelques secondes.',
+        error: `Limite de recherche atteinte (2/h). Reessaye dans une heure.`,
+        remaining: 0,
       }, 429);
     }
 
@@ -241,7 +239,6 @@ searchRoutes.get(
       if (turnstileToken && secret) {
         const valid = await verifyCloudflareTurnstile(turnstileToken, secret);
         if (!valid) {
-          releaseSearchLock(c, ip);
           return c.json({ success: false, error: 'Captcha invalide' }, 403);
         }
       }
@@ -483,10 +480,8 @@ searchRoutes.get(
         }),
       ];
 
-      releaseSearchLock(c, ip);
-      return c.json({ success: true, query: q, data: results, queuedJobs, dispatchedJobs });
+      return c.json({ success: true, query: q, data: results, queuedJobs, dispatchedJobs, rateLimitRemaining: remaining - 1 });
     } catch (error: any) {
-      releaseSearchLock(c, ip);
       console.error('Erreur recherche avancee:', error.message);
       return c.json({ success: false, error: 'Erreur lors de la recherche avancee' }, 500);
     }
