@@ -122,7 +122,7 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
                     <nav className="p-1.5">
                         {[
                             { href: '/profile', icon: User, label: 'Mon Profil' },
-                            { href: '/search/advanced', icon: Search, label: 'Recherche avancée' },
+                            // { href: '/search/advanced', icon: Search, label: 'Recherche avancée' },
                         ].map(item => (
                             <a
                                 key={item.href}

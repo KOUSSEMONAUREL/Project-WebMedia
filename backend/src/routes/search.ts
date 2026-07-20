@@ -215,11 +215,12 @@ async function checkSearchRateLimit(c: any, ip: string): Promise<{ allowed: bool
   }
 }
 
-// ========== GET /api/search/advanced ==========
+// ========== GET /api/search/advanced (DESACTIVE - bugs persistants) ==========
 searchRoutes.get(
   '/advanced',
   zValidator('query', advancedSchema as any),
   async (c) => {
+    return c.json({ success: false, error: 'Recherche avancee temporairement indisponible' }, 503);
     const { q, type } = c.req.valid('query' as any);
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 

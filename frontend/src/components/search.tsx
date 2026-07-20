@@ -16,7 +16,7 @@ export function Search({
         className
       )}
       aria-keyshortcuts='Meta+K Control+K'
-      onClick={() => { window.location.href = '/search/advanced' }}
+      onClick={() => { window.location.href = '/search' }}
     >
       <SearchIcon
         aria-hidden='true'
