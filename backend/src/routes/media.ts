@@ -16,11 +16,7 @@ type Bindings = {
 
 const mediaRoutes = new Hono<{ Bindings: Bindings }>();
 
-const TYPE_MAP: Record<string, string> = {
-  film: 'movie',
-  jeu: 'game',
-};
-const mapType = (t: string) => TYPE_MAP[t] || t;
+const mapType = (t: string) => t;
 
 const getVar = (c: any, key: string) => {
     const val = c.env?.[key] || (process.env as any)[key];
