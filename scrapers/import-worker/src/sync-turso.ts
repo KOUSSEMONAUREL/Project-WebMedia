@@ -1,4 +1,4 @@
-import { sql, inArray, or, and, gt } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
 import { medias, episodes, liens } from './db/neon/schema.js';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from './db/turso/schema.js';
@@ -84,15 +84,8 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
 
         log.start('Syncing Neon -> Turso');
 
-    const STREAMING_TYPES = ['film', 'serie', 'anime'];
-
     try {
-        const allMedias = await neon.select().from(medias).where(
-            or(
-                inArray(medias.type, STREAMING_TYPES),
-                gt(medias.activeLinksCount, 0)
-            )
-        );
+        const allMedias = await neon.select().from(medias);
         if (allMedias.length > 0) {
             for (let i = 0; i < allMedias.length; i += BATCH) {
                 const batch = allMedias.slice(i, i + BATCH).map(m => ({
@@ -169,15 +162,12 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             }
         }
 
-        const validIds = allMedias.filter(m => !STREAMING_TYPES.includes(m.type)).map(m => m.id);
-        if (validIds.length > 0) {
+        const allIds = allMedias.map(m => m.id);
+        if (allIds.length > 0) {
             const deleted = await turso.delete(tursoMedias).where(
-                and(
-                    sql`type NOT IN ('film', 'serie', 'anime')`,
-                    sql`id NOT IN (${sql.join(validIds.map(id => sql`${id}`), sql`, `)})`
-                )
+                sql`id NOT IN (${sql.join(allIds.map(id => sql`${id}`), sql`, `)})`
             );
-            log.info(`Medias sans liens nettoyes de Turso`);
+            if (deleted.rowsAffected > 0) log.info(`${deleted.rowsAffected} medias obsoletes nettoyes de Turso`);
         }
 
         log.success(`Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links`);
