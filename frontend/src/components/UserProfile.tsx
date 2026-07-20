@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { authClient, getAuthToken, useCachedSession, clearUserCache } from '@/lib/auth-client';
-import { Heart, Clock, LogOut, Star, History, Settings, Shield } from 'lucide-react';
-import { getAllFavorites, getWatchlist, getHistory, removeFavorite, removeFromWatchlist } from '../lib/indexeddb';
+import { Heart, Clock, History } from 'lucide-react';
+import { getAllFavorites, getWatchlist, getHistory } from '../lib/indexeddb';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
-import { MediaCard } from './MediaCard';
 import { EmptyState } from './EmptyState';
+import { ProfileHeader } from './ProfileHeader';
+import { MediaGridTab } from './MediaGridTab';
 
 function mapToMedia(item: any): Media {
   return {
@@ -34,7 +35,6 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
   const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
 
-  // Charger les données réelles avec synchronisation Supabase (si authentifié)
   const loadData = async (signal?: AbortSignal) => {
     try {
       let localFavs = await getAllFavorites();
@@ -47,7 +47,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
           const headers: Record<string, string> = {};
           if (token) headers['Authorization'] = `Bearer ${token}`;
 
-          const res = await fetch(`${apiBaseUrl}/user/favorites`, { 
+          const res = await fetch(`${apiBaseUrl}/user/favorites`, {
             headers,
             credentials: 'include',
             signal,
@@ -63,7 +63,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
               if (missingIds.length > 0) {
                 const { getMediaDetails } = await import('../lib/api');
                 const { addFavorite } = await import('../lib/indexeddb');
-                
+
                 await Promise.all(missingIds.map(async (id) => {
                   try {
                     const details = await getMediaDetails('', id);
@@ -83,12 +83,11 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
                     await addFavorite({
                       id,
                       type: 'film',
-                      title: 'Média de ma bibliothèque',
+                      title: 'Media de ma bibliotheque',
                       slug: id
                     });
                   }
                 }));
-                // Refetch local
                 localFavs = await getAllFavorites();
               }
             }
@@ -107,7 +106,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
               signal,
             });
             if (adminRes.ok) setIsAdmin(true);
-          } catch { /* non-admin user, badge reste cache */ }
+          } catch {}
         }
       }
 
@@ -152,197 +151,72 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
     return (
       <div className="container mx-auto px-4 pt-24 pb-16 max-w-xl">
         <EmptyState
-          title="Non connecté"
-          description="Connectez-vous pour accéder et synchroniser votre bibliothèque de favoris, liste de lecture et historique."
-          action={{ label: "Retour à l'accueil", href: '/' }}
+          title="Non connecte"
+          description="Connectez-vous pour acceder et synchroniser votre bibliotheque de favoris, liste de lecture et historique."
+          action={{ label: "Retour a l'accueil", href: '/' }}
         />
       </div>
     );
   }
 
+  const handleLogout = () => {
+    clearUserCache();
+    authClient.signOut();
+    window.location.href = '/';
+  };
+
+  const tabContent = () => {
+    switch (activeTab) {
+      case 'favorites':
+        return (
+          <MediaGridTab
+            icon={<Heart className="w-5 h-5 text-primary fill-current" />}
+            title="Mes Favoris"
+            items={favorites.map(f => ({ id: f.id, media: mapToMedia(f) }))}
+            emptyTitle="Aucun favori"
+            emptyDescription="Cliquez sur le bouton favoris de n'importe quel media pour l'ajouter ici."
+          />
+        );
+      case 'watchlist':
+        return (
+          <MediaGridTab
+            icon={<Clock className="w-5 h-5 text-purple-400" />}
+            title="Ma Watchlist (A voir)"
+            items={watchlist.map(f => ({ id: f.id, media: mapToMedia(f) }))}
+            emptyTitle="Watchlist vide"
+            emptyDescription="Ajoutez des series ou des films a votre plan de lecture."
+          />
+        );
+      case 'history':
+        return (
+          <MediaGridTab
+            icon={<History className="w-5 h-5 text-teal-400" />}
+            title="Historique recent"
+            items={history.map(f => ({ id: f.mediaId, media: mapToMedia(f) }))}
+            emptyTitle="Aucune activite"
+            emptyDescription="Parcourez des fiches medias pour commencer a accumuler votre historique."
+          />
+        );
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16 animate-fade-in-up">
-      {/* Profil Header Card */}
-      <div className="relative mb-10 overflow-hidden rounded-3xl bg-secondary/35 border border-border/40 shadow-2xl">
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-primary/15 via-purple-500/5 to-transparent" />
-        <div className="h-32 sm:h-40 w-full bg-gradient-to-r from-primary/20 via-blue-600/10 to-transparent" />
-        
-        <div className="relative px-6 pb-6 pt-0 flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-10 sm:-mt-14">
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
-            <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full border-4 border-background overflow-hidden bg-card shadow-xl shrink-0 group-hover:scale-105 transition-all">
-              <img
-                src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`}
-                alt={currentUser.username}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="mb-2">
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center justify-center sm:justify-start gap-2">
-                {currentUser.username}
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 tracking-wider">
-                  Membre
-                </span>
-              </h1>
-              <p className="text-[13px] text-muted-foreground mt-0.5">{currentUser.email}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-center gap-3 shrink-0">
-            {isAdmin && (
-              <a
-                href="/admin"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
-              >
-                <Shield className="w-4 h-4 text-muted-foreground" />
-                Admin
-              </a>
-            )}
-            <a
-              href="/settings"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
-            >
-              <Settings className="w-4 h-4 text-muted-foreground" />
-              Réglages
-            </a>
-            <button
-              type="button"
-              onClick={async () => {
-                clearUserCache();
-                await authClient.signOut();
-                window.location.href = '/';
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all duration-200"
-            >
-              <LogOut className="w-4 h-4" />
-              Déconnexion
-            </button>
-          </div>
-        </div>
-      </div>
+      <ProfileHeader
+        username={currentUser.username}
+        email={currentUser.email}
+        avatar={currentUser.avatar}
+        activeTab={activeTab}
+        favCount={favorites.length}
+        wlCount={watchlist.length}
+        histCount={history.length}
+        isAdmin={isAdmin}
+        onTabChange={setActiveTab}
+        onLogout={handleLogout}
+      />
 
-      {/* Compteurs / Stats */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
-        <button
-          type="button"
-          onClick={() => setActiveTab('favorites')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
-            activeTab === 'favorites'
-              ? 'bg-primary/10 border-primary/30 text-primary shadow-[0_4px_16px_rgba(59,130,246,0.1)]'
-              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Heart className="h-5 w-5 mb-1.5 fill-current" />
-          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{favorites.length}</span>
-          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Favoris</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('watchlist')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
-            activeTab === 'watchlist'
-              ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_4px_16px_rgba(168,85,247,0.1)]'
-              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Clock className="h-5 w-5 mb-1.5" />
-          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{watchlist.length}</span>
-          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">À voir</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('history')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
-            activeTab === 'history'
-              ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 shadow-[0_4px_16px_rgba(20,184,166,0.1)]'
-              : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <History className="h-5 w-5 mb-1.5" />
-          <span className="text-xl sm:text-2xl font-display font-bold text-foreground">{history.length}</span>
-          <span className="text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Historique</span>
-        </button>
-      </div>
-
-      {/* Main Grid Content Column */}
       <div className="bg-secondary/15 border border-border/40 rounded-3xl p-5 sm:p-7">
-        
-        {/* Contenu de l'onglet favoris */}
-        {activeTab === 'favorites' && (
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <Heart className="w-5 h-5 text-primary fill-current" />
-              <h2 className="text-lg font-display font-semibold text-foreground">Mes Favoris</h2>
-            </div>
-            
-            {favorites.length === 0 ? (
-              <div className="py-12">
-                <EmptyState
-                  title="Aucun favori"
-                  description="Cliquez sur le bouton favoris de n'importe quel média pour l'ajouter ici."
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
-                {favorites.map(item => (
-                  <MediaCard key={item.id} media={mapToMedia(item)} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Contenu de l'onglet watchlist */}
-        {activeTab === 'watchlist' && (
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <Clock className="w-5 h-5 text-purple-400" />
-              <h2 className="text-lg font-display font-semibold text-foreground">Ma Watchlist (À voir)</h2>
-            </div>
-            
-            {watchlist.length === 0 ? (
-              <div className="py-12">
-                <EmptyState
-                  title="Watchlist vide"
-                  description="Ajoutez des séries ou des films à votre plan de lecture."
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
-                {watchlist.map(item => (
-                  <MediaCard key={item.id} media={mapToMedia(item)} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Contenu de l'onglet historique */}
-        {activeTab === 'history' && (
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <History className="w-5 h-5 text-teal-400" />
-              <h2 className="text-lg font-display font-semibold text-foreground">Historique récent</h2>
-            </div>
-            
-            {history.length === 0 ? (
-              <div className="py-12">
-                <EmptyState
-                  title="Aucune activité"
-                  description="Parcourez des fiches médias pour commencer à accumuler votre historique."
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4">
-                {history.map(item => (
-                  <MediaCard key={item.mediaId} media={mapToMedia(item)} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
+        {tabContent()}
       </div>
     </div>
   );
