@@ -36,7 +36,10 @@ export function optimizePosterUrl(url?: string): string | undefined {
 export function posterSrcSet(url?: string): string | undefined {
   if (!url) return undefined;
   const sizes = [342, 500, 780, 1200];
-  const set = sizes.map((w_) => wsrc(sourceUrl(url), w_)).filter(Boolean).join(', ');
+  const set = sizes.flatMap((w_) => {
+    const src = wsrc(sourceUrl(url), w_);
+    return src ? [src] : [];
+  }).join(', ');
   return set || undefined;
 }
 

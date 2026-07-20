@@ -35,7 +35,7 @@ const { useSession: _useSession } = authClient;
  * (user id, nom, email, avatar). Le token de session reste exclusivement
  * dans le cookie httpOnly géré par better-auth (back-end Render).
  */
-const USER_CACHE_KEY = 'webmedia_user_cache';
+const USER_CACHE_KEY = 'webmedia_user_cache:v1';
 const USER_CACHE_TTL = 12 * 60 * 60 * 1000; // 12h
 
 interface UserProfile {

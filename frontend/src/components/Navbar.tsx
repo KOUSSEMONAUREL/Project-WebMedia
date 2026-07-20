@@ -42,6 +42,34 @@ interface UserData {
   avatar?: string;
 }
 
+function handleLogin(userData: UserData) {
+  localStorage.setItem('webmedia_user:v1', JSON.stringify({
+    id: 'session',
+    email: userData.email,
+    username: userData.name,
+    avatar: userData.avatar,
+  }));
+}
+
+async function handleLogout() {
+  clearUserCache();
+  await authClient.signOut();
+  localStorage.removeItem('webmedia_user:v1');
+}
+
+function pathToTypeFilter(p: string): string | null {
+  return ({
+    '/films': 'film',
+    '/series': 'serie',
+    '/animes': 'anime',
+    '/games': 'jeu',
+    '/comics': 'comic',
+    '/webtoons': 'webtoon',
+    '/books': 'book',
+    '/novels': 'novel',
+  } as Record<string, string>)[p] || null;
+}
+
 export function Navbar({ initialPathname = typeof window !== 'undefined' ? window.location.pathname : '/' }: { initialPathname?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Media[]>([]);
@@ -170,21 +198,6 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const handleLogin = (userData: UserData) => {
-    localStorage.setItem('webmedia_user', JSON.stringify({
-      id: 'session',
-      email: userData.email,
-      username: userData.name,
-      avatar: userData.avatar,
-    }));
-  };
-
-  const handleLogout = async () => {
-    clearUserCache();
-    await authClient.signOut();
-    localStorage.removeItem('webmedia_user');
-  };
-
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -200,19 +213,6 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, []);
-
-  function pathToTypeFilter(p: string): string | null {
-    return ({
-      '/films': 'film',
-      '/series': 'serie',
-      '/animes': 'anime',
-      '/games': 'jeu',
-      '/comics': 'comic',
-      '/webtoons': 'webtoon',
-      '/books': 'book',
-      '/novels': 'novel',
-    } as Record<string, string>)[p] || null;
-  }
 
   const typeFilter = pathToTypeFilter(pathname);
 
@@ -270,8 +270,8 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
               style={{
                 height: '36px',
                 background: 'rgba(255,255,255,0.06)',
-                backdropFilter: 'blur(16px) saturate(200%)',
-                WebkitBackdropFilter: 'blur(16px) saturate(200%)',
+                backdropFilter: 'blur(8px) saturate(200%)',
+                WebkitBackdropFilter: 'blur(8px) saturate(200%)',
                 border: '1px solid rgba(255,255,255,0.10)',
                 boxShadow: 'inset 0 1px 1.5px rgba(255,255,255,0.12), 0 4px 16px rgba(0,0,0,0.20)',
               }}
@@ -401,6 +401,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
           <div className="flex items-center gap-1 shrink-0">
             {/* Bouton Menu Burger sur Mobile (droite) */}
             <button
+              type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
               className={`lg:hidden flex flex-col items-center justify-center gap-[5px] w-9 h-9 shrink-0 rounded-xl transition-all duration-200 cursor-pointer ${

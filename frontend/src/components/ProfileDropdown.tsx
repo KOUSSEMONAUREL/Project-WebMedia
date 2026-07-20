@@ -54,6 +54,7 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
     if (!user) {
         return (
             <button
+                type="button"
                 className="flex items-center gap-2 px-3.5 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 hover:scale-[1.02] cursor-pointer"
                 style={{
                     background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%)',
@@ -139,6 +140,7 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
                     {/* Logout */}
                     <div className="p-1.5 border-t border-border/50">
                         <button
+                            type="button"
                             onClick={() => { onLogout(); setIsOpen(false); }}
                             className="flex items-center gap-3 w-full px-3 py-2 text-[13px] text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
                         >

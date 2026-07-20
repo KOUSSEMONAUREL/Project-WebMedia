@@ -5,6 +5,16 @@ import { EmptyState } from './EmptyState';
 import { clearFavorites, clearWatchlist } from '../lib/indexeddb';
 import { useTurnstile } from './Turnstile';
 
+async function clearFavs() {
+  await clearFavorites();
+  window.location.reload();
+}
+
+async function clearWl() {
+  await clearWatchlist();
+  window.location.reload();
+}
+
 export function UserSettings() {
   const { data: session, isPending } = useCachedSession();
   const sessionUser = session?.user;
@@ -15,7 +25,7 @@ export function UserSettings() {
   const [pwSending, setPwSending] = useState(false);
   const [pwDone, setPwDone] = useState(false);
   const [offlineEnabled, setOfflineEnabled] = useState(
-    () => typeof window !== 'undefined' && localStorage.getItem('webmedia_storage_consent') === 'full'
+    () => typeof window !== 'undefined' && localStorage.getItem('webmedia_storage_consent:v1') === 'full'
   );
   const [cacheCleared, setCacheCleared] = useState(false);
   const { getToken: getTurnstileToken } = useTurnstile();
@@ -80,19 +90,9 @@ export function UserSettings() {
     setVerifSending(false);
   };
 
-  const clearFavs = async () => {
-    await clearFavorites();
-    window.location.reload();
-  };
-
-  const clearWl = async () => {
-    await clearWatchlist();
-    window.location.reload();
-  };
-
   const toggleOffline = (enable: boolean) => {
     setOfflineEnabled(enable);
-    localStorage.setItem('webmedia_storage_consent', enable ? 'full' : 'minimal');
+    localStorage.setItem('webmedia_storage_consent:v1', enable ? 'full' : 'minimal');
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'SET_OFFLINE', value: enable });
     }
@@ -128,6 +128,7 @@ export function UserSettings() {
           <p className="text-sm text-muted-foreground truncate">{currentUser.email}</p>
         </div>
         <button
+          type="button"
           onClick={() => { clearUserCache(); authClient.signOut(); window.location.reload(); }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all cursor-pointer"
         >
@@ -153,6 +154,7 @@ export function UserSettings() {
             </div>
             {!isVerified && (
               <button
+                type="button"
                 onClick={handleSendVerification}
                 disabled={verifSending}
                 className="shrink-0 text-xs font-medium text-amber-300 hover:text-amber-100 transition-colors px-3 py-1.5 rounded-lg border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
@@ -268,6 +270,10 @@ export function UserSettings() {
               </div>
             </div>
             <button
+              type="button"
+              role="switch"
+              aria-checked={offlineEnabled}
+              aria-label={offlineEnabled ? 'Desactiver le mode hors-ligne' : 'Activer le mode hors-ligne'}
               onClick={() => toggleOffline(!offlineEnabled)}
               className={`relative w-11 h-6 rounded-full border transition-all duration-300 cursor-pointer ${
                 offlineEnabled ? 'bg-blue-600 border-blue-500' : 'bg-secondary border-border'
@@ -282,6 +288,7 @@ export function UserSettings() {
             <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between">
               <p className="text-xs text-muted-foreground">Vider le cache</p>
               <button
+                type="button"
                 onClick={clearCache}
                 className="text-xs font-medium text-muted-foreground hover:text-red-400 px-3 py-1.5 rounded-lg border border-border hover:border-red-500/30 transition-all cursor-pointer"
               >
@@ -300,10 +307,10 @@ export function UserSettings() {
             <p className="text-sm font-semibold text-foreground">Donnees locales</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={clearFavs} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
+            <button type="button" onClick={clearFavs} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
               Vider les favoris
             </button>
-            <button onClick={clearWl} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
+            <button type="button" onClick={clearWl} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
               Vider la watchlist
             </button>
           </div>

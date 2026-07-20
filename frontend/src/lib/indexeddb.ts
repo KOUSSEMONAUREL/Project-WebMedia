@@ -135,27 +135,27 @@ export async function markReviewSynced(id: string): Promise<void> {
 
 export async function migrateFromLocalStorage(): Promise<void> {
   try {
-    const favRaw = localStorage.getItem('webmedia_favorites');
+    const favRaw = localStorage.getItem('webmedia_favorites:v1');
     if (favRaw) {
       const ids: string[] = JSON.parse(favRaw);
-      for (const id of ids) {
+      await Promise.all(ids.map(async (id) => {
         const exists = await isFavorite(id);
         if (!exists) {
           await addFavorite({ id, type: '', title: '', slug: '' });
         }
-      }
-      localStorage.removeItem('webmedia_favorites');
+      }));
+      localStorage.removeItem('webmedia_favorites:v1');
     }
-    const wlRaw = localStorage.getItem('webmedia_watchlist');
+    const wlRaw = localStorage.getItem('webmedia_watchlist:v1');
     if (wlRaw) {
       const ids: string[] = JSON.parse(wlRaw);
-      for (const id of ids) {
+      await Promise.all(ids.map(async (id) => {
         const exists = await isInWatchlist(id);
         if (!exists) {
           await addToWatchlist({ id, type: '', title: '', slug: '' });
         }
-      }
-      localStorage.removeItem('webmedia_watchlist');
+      }));
+      localStorage.removeItem('webmedia_watchlist:v1');
     }
     console.log('[indexeddb] migrated from localStorage');
   } catch (err) {

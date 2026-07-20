@@ -12,7 +12,11 @@ self.addEventListener('install', function(e) {
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(ks) {
-      return Promise.all(ks.filter(function(k) { return !Object.values(C).includes(k); }).map(function(k) { return caches.delete(k); }));
+      var cacheSet = new Set(Object.values(C));
+      return Promise.all(ks.reduce(function(acc, k) {
+        if (!cacheSet.has(k)) acc.push(caches.delete(k));
+        return acc;
+      }, []));
     }).then(function() { return self.clients.claim(); })
   );
 });

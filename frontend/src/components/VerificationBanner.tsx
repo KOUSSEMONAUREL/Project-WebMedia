@@ -55,6 +55,7 @@ export function VerificationBanner() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={handleResend}
             disabled={sending}
             className="text-xs font-medium text-blue-300 hover:text-blue-100 transition-colors px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-500/10 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
@@ -63,6 +64,7 @@ export function VerificationBanner() {
             {sending ? 'Envoi...' : sent ? 'Envoye !' : 'Renvoyer'}
           </button>
           <button
+            type="button"
             onClick={() => {
               sessionStorage.setItem(DISMISS_KEY, String(Date.now()));
               setDismissed(true);

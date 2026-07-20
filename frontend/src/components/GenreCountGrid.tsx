@@ -23,10 +23,12 @@ export default function GenreCountGrid() {
   const [counts, setCounts] = useState<Record<string, { total: number }>>({});
 
   useEffect(() => {
-    fetch(`${API_BASE}/media/genre-counts`)
+    const ac = new AbortController();
+    fetch(`${API_BASE}/media/genre-counts`, { signal: ac.signal })
       .then(r => r.json())
-      .then(d => { if (d.success) setCounts(d.data); })
+      .then(d => { if (!ac.signal.aborted && d.success) setCounts(d.data); })
       .catch(() => {});
+    return () => ac.abort();
   }, []);
 
   return (

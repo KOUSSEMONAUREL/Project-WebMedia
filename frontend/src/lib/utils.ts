@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function sleep(ms: number = 1000) {
+function sleep(ms: number = 1000) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
@@ -21,7 +21,7 @@ export function sleep(ms: number = 1000) {
  * - In middle: [1, '...', 4, 5, 6, '...', 10]
  * - Near end: [1, '...', 7, 8, 9, 10]
  */
-export function getPageNumbers(currentPage: number, totalPages: number) {
+function getPageNumbers(currentPage: number, totalPages: number) {
   const maxVisiblePages = 5 // Maximum number of page buttons to show
   const rangeWithDots = []
 

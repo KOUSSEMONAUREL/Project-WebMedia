@@ -8,27 +8,27 @@ function createAuthStore() {
 
     return {
         get user(): AuthUser | null {
-            const raw = typeof window !== 'undefined' ? localStorage.getItem('webmedia_user') : null;
+            const raw = typeof window !== 'undefined' ? localStorage.getItem('webmedia_user:v1') : null;
             if (!raw) return null;
             try { return JSON.parse(raw); } catch { return null; }
         },
 
         setSession(user: AuthUser) {
             if (typeof window === 'undefined') return;
-            localStorage.setItem('webmedia_user', JSON.stringify(user));
-            localStorage.setItem('webmedia_email_verified', String(!!user.emailVerified));
+            localStorage.setItem('webmedia_user:v1', JSON.stringify(user));
+            localStorage.setItem('webmedia_email_verified:v1', String(!!user.emailVerified));
             listeners.forEach(l => l());
         },
 
         isEmailVerified(): boolean {
             if (typeof window === 'undefined') return true;
-            return localStorage.getItem('webmedia_email_verified') !== 'false';
+            return localStorage.getItem('webmedia_email_verified:v1') !== 'false';
         },
 
         logout() {
             if (typeof window === 'undefined') return;
-            localStorage.removeItem('webmedia_user');
-            localStorage.removeItem('better-auth_session_token');
+            localStorage.removeItem('webmedia_user:v1');
+            localStorage.removeItem('better-auth_session_token:v1');
             authClient.signOut();
             listeners.forEach(l => l());
         },

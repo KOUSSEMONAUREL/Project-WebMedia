@@ -127,7 +127,12 @@ function PlayerModal({ channel, onClose }: {
 
     return () => {
       if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      if (hlsRef.current) {
+        hlsRef.current.off(Hls.Events.MANIFEST_PARSED);
+        hlsRef.current.off(Hls.Events.ERROR);
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
     };
   }, [streamUrl]);
 
@@ -149,22 +154,25 @@ function PlayerModal({ channel, onClose }: {
           <div className="flex items-center gap-2 flex-shrink-0">
             {channel.streams.length > 1 && (
               <select
+                aria-label="Selectionner le flux"
                 value={streamIndex}
                 onChange={e => setStreamIndex(Number(e.target.value))}
                 className="text-xs bg-muted border border-border rounded-lg px-2 py-1"
               >
                 {channel.streams.map((s, i) => (
-                  <option key={i} value={i}>{s.quality || `Flux ${i + 1}`}</option>
+                  <option key={s.url} value={i}>{s.quality || `Flux ${i + 1}`}</option>
                 ))}
               </select>
             )}
-            <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
+            <button type="button" aria-label="Fermer le lecteur" onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
         <div className="relative bg-black aspect-video">
-          <video ref={videoRef} className="w-full h-full" playsInline crossOrigin="anonymous" />
+          <video ref={videoRef} className="w-full h-full" playsInline crossOrigin="anonymous">
+            <track kind="captions" src="" label="Sous-titres" />
+          </video>
           {status === 'loading' && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -248,7 +256,10 @@ export function LiveTVClient() {
   }, []);
 
   const countries = useMemo(() => {
-    const set = new Set(allChannels.filter(c => c.country).map(c => c.country));
+    const set = new Set<string>();
+    for (const c of allChannels) {
+      if (c.country) set.add(c.country);
+    }
     return Array.from(set).sort();
   }, [allChannels]);
 
@@ -298,7 +309,7 @@ export function LiveTVClient() {
       const urlsToCheck: { chId: string; url: string }[] = [];
       const statusUpdates: Record<string, StreamStatus> = {};
 
-      for (const ch of pageChannels) {
+      const statusResults = await Promise.all(pageChannels.map(async (ch) => {
         const cached = await loadStreamChecksBatch(ch.streams.map(s => s.url));
         let hasAlive = false;
         let hasDead = false;
@@ -307,16 +318,22 @@ export function LiveTVClient() {
           if (r === true) hasAlive = true;
           else if (r === false) hasDead = true;
         }
+        let status: StreamStatus;
         if (hasAlive) {
-          statusUpdates[ch.id] = 'alive';
+          status = 'alive';
         } else if (hasDead && ch.streams.every(s => cached.get(s.url) === false)) {
-          statusUpdates[ch.id] = 'dead';
+          status = 'dead';
         } else {
-          statusUpdates[ch.id] = 'checking';
+          status = 'checking';
           for (const s of ch.streams) {
             if (!cached.has(s.url)) urlsToCheck.push({ chId: ch.id, url: s.url });
           }
         }
+        return { chId: ch.id, status };
+      }));
+
+      for (const { chId, status } of statusResults) {
+        statusUpdates[chId] = status;
       }
 
       if (!cancelled) setChannelStatus(prev => ({ ...prev, ...statusUpdates }));
@@ -330,10 +347,11 @@ export function LiveTVClient() {
 
       if (cancelled) return;
       const newStatus = { ...statusUpdates };
+      const channelMap = new Map(pageChannels.map(ch => [ch.id, ch]));
       for (const result of results) {
         if (result.status !== 'fulfilled') continue;
         const { chId, alive } = result.value;
-        const ch = pageChannels.find(c => c.id === chId);
+        const ch = channelMap.get(chId);
         if (!ch) continue;
         const cur = newStatus[chId];
         if (cur === 'alive') continue;
@@ -406,6 +424,7 @@ export function LiveTVClient() {
         </div>
         <div className="flex flex-wrap gap-2">
           <select
+            aria-label="Pays"
             value={country} onChange={e => setCountry(e.target.value)}
             className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           >
@@ -415,6 +434,7 @@ export function LiveTVClient() {
             ))}
           </select>
           <select
+            aria-label="Categorie"
             value={category} onChange={e => setCategory(e.target.value)}
             className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           >
@@ -425,6 +445,7 @@ export function LiveTVClient() {
           </select>
 
           <select
+            aria-label="Trier par"
             value={sortBy} onChange={e => setSortBy(e.target.value as any)}
             className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           >
@@ -433,6 +454,7 @@ export function LiveTVClient() {
             <option value="streams">Plus de sources</option>
           </select>
           <button
+            type="button"
             onClick={() => setAliveOnly(!aliveOnly)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${
               aliveOnly
@@ -464,6 +486,7 @@ export function LiveTVClient() {
             {visibleChannels.map(ch => (
               <button
                 key={ch.id}
+                type="button"
                 onClick={() => setSelected(ch)}
                 className={`group bg-card hover:bg-card/80 border rounded-xl p-4 text-left transition-all hover:shadow-[var(--glow-blue-subtle)] ${
                   channelStatus[ch.id] === 'alive'
@@ -499,6 +522,7 @@ export function LiveTVClient() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-1 mt-8">
               <button
+                type="button"
                 onClick={() => goToPage(safePage - 1)}
                 disabled={safePage === 0}
                 className="px-3 py-1.5 text-sm rounded-lg bg-card border border-border disabled:opacity-30 hover:border-primary/50 transition-colors"
@@ -511,6 +535,7 @@ export function LiveTVClient() {
                 ) : (
                   <button
                     key={p}
+                    type="button"
                     onClick={() => goToPage(p - 1)}
                     className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                       p === safePage + 1
@@ -523,6 +548,7 @@ export function LiveTVClient() {
                 )
               )}
               <button
+                type="button"
                 onClick={() => goToPage(safePage + 1)}
                 disabled={safePage >= totalPages - 1}
                 className="px-3 py-1.5 text-sm rounded-lg bg-card border border-border disabled:opacity-30 hover:border-primary/50 transition-colors"

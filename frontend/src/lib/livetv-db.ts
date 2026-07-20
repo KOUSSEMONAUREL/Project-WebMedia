@@ -61,17 +61,18 @@ export async function loadStreamChecksBatch(urls: string[]): Promise<Map<string,
   const results = new Map<string, boolean>();
   try {
     const db = await getDb();
-    for (const url of urls) {
-      const entry = await db.get('stream-checks', url);
+    const entries = await Promise.all(urls.map(url => db.get('stream-checks', url)));
+    for (let i = 0; i < urls.length; i++) {
+      const entry = entries[i];
       if (entry && Date.now() - entry.ts <= CHECK_TTL) {
-        results.set(url, entry.alive);
+        results.set(urls[i], entry.alive);
       }
     }
   } catch {}
   return results;
 }
 
-export async function getCachedAliveChannelIds(channelUrls: Map<string, string[]>): Promise<Set<string>> {
+async function getCachedAliveChannelIds(channelUrls: Map<string, string[]>): Promise<Set<string>> {
   const alive = new Set<string>();
   for (const [chId, urls] of channelUrls) {
     for (const url of urls) {

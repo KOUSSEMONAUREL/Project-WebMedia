@@ -29,28 +29,28 @@ function interleave(items: Media[]): Media[] {
 export function TrendingCarousel({ items }: { items: Media[] }) {
   const ordered = interleave(items);
   const doubled = [...ordered, ...ordered];
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLUListElement>(null);
   const [paused, setPaused] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
   const dragStartX = useRef(0);
   const dragScrollX = useRef(0);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
-    setIsDragging(true);
+    isDraggingRef.current = true;
     setPaused(true);
     dragStartX.current = e.clientX;
     dragScrollX.current = containerRef.current.scrollLeft;
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
+    if (!isDraggingRef.current || !containerRef.current) return;
     const dx = e.clientX - dragStartX.current;
     containerRef.current.scrollLeft = dragScrollX.current - dx;
   };
 
   const onMouseUp = () => {
-    setIsDragging(false);
+    isDraggingRef.current = false;
     setPaused(false);
   };
 
@@ -70,23 +70,27 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
         </h2>
       </div>
 
-      <div
+      <ul
         ref={containerRef}
+        role="listbox"
+        aria-label="Recommandations"
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
-        className="trending-track flex gap-4 select-none"
+        className="trending-track flex gap-4 select-none list-none"
         style={{
           padding: '0.75rem 0.25rem 1rem',
           animationPlayState: paused ? 'paused' : 'running',
         } as React.CSSProperties}
       >
         {doubled.map((m, i) => (
-          <MediaCard key={`${m.id}-${i}`} media={m} size="large" isLcp={i === 0} />
+          <li key={`${m.id}-${i < ordered.length ? 0 : 1}`}>
+            <MediaCard media={m} size="large" isLcp={i === 0} />
+          </li>
         ))}
-      </div>
+      </ul>
 
       <style>
         {`

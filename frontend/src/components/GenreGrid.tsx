@@ -51,14 +51,14 @@ function GenreTab({ type, label, genreParam, isActive, onSelect }: {
   });
 
   return (
-    <button onClick={onSelect}
-      class={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+    <button type="button" onClick={onSelect}
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
         isActive
           ? 'bg-primary text-white shadow-lg shadow-primary/20'
           : 'bg-secondary/50 text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
       }`}>
       {label}
-      {data?.total ? <span class="ml-1.5 text-xs opacity-60">({data.total})</span> : null}
+      {data?.total ? <span className="ml-1.5 text-xs opacity-60">({data.total})</span> : null}
     </button>
   );
 }
@@ -78,7 +78,7 @@ function TypeContent({ type, label, genreParam }: { type: MediaType; label: stri
 
   if (!isPending && items.length === 0) {
     return (
-      <div class="text-center py-16 text-muted-foreground">
+      <div className="text-center py-16 text-muted-foreground">
         Aucun contenu trouve pour ce genre.
       </div>
     );
@@ -86,32 +86,32 @@ function TypeContent({ type, label, genreParam }: { type: MediaType; label: stri
 
   return (
     <>
-      <div class="flex items-center gap-3 mb-4">
-        <h2 class="text-xl font-bold text-foreground">{label}</h2>
-        {!isPending && <span class="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded-full">{total}</span>}
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-xl font-bold text-foreground">{label}</h2>
+        {!isPending && <span className="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded-full">{total}</span>}
       </div>
 
       {isPending ? (
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} class="aspect-[2/3] w-full rounded-xl card-skeleton" />
+            <div key={i} className="aspect-[2/3] w-full rounded-xl card-skeleton" />
           ))}
         </div>
       ) : (
         <>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
             {items.map((media) => <MediaCard key={media.id} media={media} />)}
           </div>
           {totalPages > 1 && (
-            <div class="flex items-center justify-center gap-4 mt-6 mb-10">
-              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                <ChevronLeft class="h-3.5 w-3.5" /> Precedent
+            <div className="flex items-center justify-center gap-4 mt-6 mb-10">
+              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <ChevronLeft className="h-3.5 w-3.5" /> Precedent
               </button>
-              <span class="text-xs text-muted-foreground">{page + 1} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                Suivant <ChevronRight class="h-3.5 w-3.5" />
+              <span className="text-xs text-muted-foreground">{page + 1} / {totalPages}</span>
+              <button type="button" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                Suivant <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -132,16 +132,16 @@ function GenreContent({ genre, displayName }: Props) {
   const [activeTab, setActiveTab] = useState<MediaType>('film');
 
   return (
-    <div class="container mx-auto px-6 py-10">
-      <header class="mb-8">
-        <div class="flex items-center gap-4 mb-2">
-          <h1 class="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white">{displayName}</h1>
+    <div className="container mx-auto px-6 py-10">
+      <header className="mb-8">
+        <div className="flex items-center gap-4 mb-2">
+          <h1 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white">{displayName}</h1>
         </div>
-        <p class="text-muted-foreground">Explorez les contenus du genre {displayName.toLowerCase()}.</p>
-        <div class="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mt-4" />
+        <p className="text-muted-foreground">Explorez les contenus du genre {displayName.toLowerCase()}.</p>
+        <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent mt-4" />
       </header>
 
-      <div class="flex flex-wrap gap-2 mb-8">
+      <div className="flex flex-wrap gap-2 mb-8">
         {MEDIA_TABS.map(({ type, label }) => (
           <GenreTab key={type} type={type} label={label} genreParam={genreParam}
             isActive={activeTab === type} onSelect={() => setActiveTab(type)} />

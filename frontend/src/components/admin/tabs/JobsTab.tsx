@@ -45,7 +45,7 @@ export default function JobsTab() {
   const [page, setPage] = useState(1);
   const pageSize = 100;
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     if (jobsCache.data) {
       setJobs(jobsCache.data);
       setLoading(false);
@@ -54,19 +54,26 @@ export default function JobsTab() {
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/jobs`, {
         headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
+        signal,
       });
+      if (signal?.aborted) return;
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       jobsCache.data = data;
       setJobs(data);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error('load jobs', e);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, []);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
   const filtered = useMemo(() => {
@@ -147,6 +154,7 @@ export default function JobsTab() {
           <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <select
+          aria-label="Filtrer par statut"
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
           className="flex h-10 w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm"

@@ -22,6 +22,7 @@ export function LanguageSwitcher() {
         value={targetLang}
         onChange={handleSwitch}
         aria-label="Changer la langue"
+        suppressHydrationWarning
         className="h-9 w-9 cursor-pointer rounded-full border-0 bg-transparent text-transparent hover:bg-white/[0.06] transition-colors appearance-none focus:outline-none focus:ring-1 focus:ring-primary/40"
         style={{ WebkitAppearance: 'none' }}
       >

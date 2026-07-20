@@ -130,8 +130,8 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
         }
       } catch (err) {
         try {
-          const storedFavs = JSON.parse(localStorage.getItem('webmedia_favorites') || '[]');
-          const storedWl = JSON.parse(localStorage.getItem('webmedia_watchlist') || '[]');
+          const storedFavs = JSON.parse(localStorage.getItem('webmedia_favorites:v1') || '[]');
+          const storedWl = JSON.parse(localStorage.getItem('webmedia_watchlist:v1') || '[]');
           if (active) {
             setIsFav(storedFavs.includes(media.id));
             setIsWl(storedWl.includes(media.id));
@@ -173,12 +173,12 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
     } catch (err) {
       console.warn('[toggle-favorite] erreur locale:', err);
       try {
-        const stored = localStorage.getItem('webmedia_favorites');
+        const stored = localStorage.getItem('webmedia_favorites:v1');
         const favs: string[] = stored ? JSON.parse(stored) : [];
         const idx = favs.indexOf(media.id);
         if (nextVal) { if (idx === -1) favs.push(media.id); }
         else          { if (idx !== -1) favs.splice(idx, 1); }
-        localStorage.setItem('webmedia_favorites', JSON.stringify(favs));
+        localStorage.setItem('webmedia_favorites:v1', JSON.stringify(favs));
       } catch {}
     }
   };
@@ -209,7 +209,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
     } catch (err) {
       console.warn('[watchlist] local error:', err);
       try {
-        const stored = localStorage.getItem('webmedia_watchlist');
+        const stored = localStorage.getItem('webmedia_watchlist:v1');
         const wl: string[] = stored ? JSON.parse(stored) : [];
         const idx = wl.indexOf(media.id);
         if (nextVal) {
@@ -217,7 +217,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
         } else {
           if (idx !== -1) wl.splice(idx, 1);
         }
-        localStorage.setItem('webmedia_watchlist', JSON.stringify(wl));
+        localStorage.setItem('webmedia_watchlist:v1', JSON.stringify(wl));
       } catch {}
     }
   };
@@ -273,6 +273,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
         {/* Hover overlay */}
         <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
           <button
+            type="button"
             className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
             style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
           >
@@ -281,6 +282,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
           </button>
           <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
             <button
+              type="button"
               onClick={toggleFavorite}
               className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
                 isFav
@@ -292,6 +294,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
               <Heart className={`h-3 w-3 ${isFav ? 'fill-red-500 text-red-500' : ''}`} />
             </button>
             <button
+              type="button"
               onClick={toggleWatchlist}
               className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
                 isWl

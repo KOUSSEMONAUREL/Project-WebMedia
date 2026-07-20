@@ -7,6 +7,20 @@ import type { Media } from '../lib/api';
 import { MediaCard } from './MediaCard';
 import { EmptyState } from './EmptyState';
 
+function mapToMedia(item: any): Media {
+  return {
+    id: item.id || item.mediaId,
+    type: item.type as any,
+    title: item.title,
+    slug: item.slug,
+    posterUrl: item.posterUrl || '',
+    rating: typeof item.rating === 'string' ? parseFloat(item.rating) : (item.rating || 0),
+    year: typeof item.year === 'string' ? parseInt(item.year, 10) : (item.year || 0),
+    createdAt: '',
+    updatedAt: '',
+  };
+}
+
 type TabType = 'favorites' | 'watchlist' | 'history';
 
 export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType }) {
@@ -21,7 +35,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
   const sessionUser = session?.user;
 
   // Charger les données réelles avec synchronisation Supabase (si authentifié)
-  const loadData = async () => {
+  const loadData = async (signal?: AbortSignal) => {
     try {
       let localFavs = await getAllFavorites();
 
@@ -35,22 +49,23 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
 
           const res = await fetch(`${apiBaseUrl}/user/favorites`, { 
             headers,
-            credentials: 'include' 
+            credentials: 'include',
+            signal,
           });
           if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {
               const remoteIds: string[] = json.data.map((f: any) => f.mediaId);
               const localIds = localFavs.map(f => f.id);
-              const missingIds = remoteIds.filter(id => !localIds.includes(id));
+              const localIdSet = new Set(localIds);
+              const missingIds = remoteIds.filter(id => !localIdSet.has(id));
 
               if (missingIds.length > 0) {
                 const { getMediaDetails } = await import('../lib/api');
                 const { addFavorite } = await import('../lib/indexeddb');
                 
-                for (const id of missingIds) {
+                await Promise.all(missingIds.map(async (id) => {
                   try {
-                    // Tentative d'obtention de métadonnées riches
                     const details = await getMediaDetails('', id);
                     if (details.success && details.data) {
                       const media = details.data;
@@ -65,7 +80,6 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
                       });
                     }
                   } catch {
-                    // Fallback basique
                     await addFavorite({
                       id,
                       type: 'film',
@@ -73,7 +87,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
                       slug: id
                     });
                   }
-                }
+                }));
                 // Refetch local
                 localFavs = await getAllFavorites();
               }
@@ -90,6 +104,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
             const adminRes = await fetch(`${adminUrl}/admin/check`, {
               headers: { 'Authorization': `Bearer ${adminToken}` },
               credentials: 'include',
+              signal,
             });
             if (adminRes.ok) setIsAdmin(true);
           } catch { /* non-admin user, badge reste cache */ }
@@ -109,9 +124,10 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
   };
 
   useEffect(() => {
-    if (!isPending) {
-      loadData();
-    }
+    if (isPending) return;
+    const ac = new AbortController();
+    loadData(ac.signal);
+    return () => ac.abort();
   }, [sessionUser, isPending]);
 
   const currentUser = sessionUser ? {
@@ -143,19 +159,6 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
       </div>
     );
   }
-
-  // Convertir le type local en type Media pour MediaCard
-  const mapToMedia = (item: any): Media => ({
-    id: item.id || item.mediaId,
-    type: item.type as any,
-    title: item.title,
-    slug: item.slug,
-    posterUrl: item.posterUrl || '',
-    rating: typeof item.rating === 'string' ? parseFloat(item.rating) : (item.rating || 0),
-    year: typeof item.year === 'string' ? parseInt(item.year, 10) : (item.year || 0),
-    createdAt: '',
-    updatedAt: ''
-  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16 animate-fade-in-up">
@@ -202,6 +205,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
               Réglages
             </a>
             <button
+              type="button"
               onClick={async () => {
                 clearUserCache();
                 await authClient.signOut();
@@ -219,6 +223,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
       {/* Compteurs / Stats */}
       <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
         <button
+          type="button"
           onClick={() => setActiveTab('favorites')}
           className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
             activeTab === 'favorites'
@@ -232,6 +237,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('watchlist')}
           className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
             activeTab === 'watchlist'
@@ -245,6 +251,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('history')}
           className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
             activeTab === 'history'

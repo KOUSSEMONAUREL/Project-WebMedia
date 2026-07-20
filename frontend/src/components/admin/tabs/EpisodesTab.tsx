@@ -42,18 +42,25 @@ export default function EpisodesTab() {
   const [page, setPage] = useState(1);
   const pageSize = 100;
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, []);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     try {
       let rows: EpisodeRow[] | null = null;
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/episodes`, {
         headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
+        signal,
       });
+      if (signal?.aborted) return;
       if (res.ok) rows = await res.json();
       setEpisodes(rows || []);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error('load episodes', e);
     } finally {
       setLoading(false);
@@ -198,34 +205,34 @@ export default function EpisodesTab() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Titre</label>
-              <Input value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
+              <label htmlFor="ep-title" className="text-sm font-medium">Titre</label>
+              <Input id="ep-title" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Saison</label>
-                <Input type="number" value={form.season_number || ''} onChange={e => setForm({ ...form, season_number: e.target.value })} />
+                <label htmlFor="ep-season" className="text-sm font-medium">Saison</label>
+                <Input id="ep-season" type="number" value={form.season_number || ''} onChange={e => setForm({ ...form, season_number: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Episode</label>
-                <Input type="number" value={form.episode_number || ''} onChange={e => setForm({ ...form, episode_number: e.target.value })} />
+                <label htmlFor="ep-episode" className="text-sm font-medium">Episode</label>
+                <Input id="ep-episode" type="number" value={form.episode_number || ''} onChange={e => setForm({ ...form, episode_number: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Duree (min)</label>
-                <Input type="number" value={form.duration || ''} onChange={e => setForm({ ...form, duration: e.target.value })} />
+                <label htmlFor="ep-duration" className="text-sm font-medium">Duree (min)</label>
+                <Input id="ep-duration" type="number" value={form.duration || ''} onChange={e => setForm({ ...form, duration: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Synopsis</label>
-              <textarea
+              <label htmlFor="ep-synopsis" className="text-sm font-medium">Synopsis</label>
+              <textarea id="ep-synopsis"
                 value={form.synopsis || ''}
                 onChange={e => setForm({ ...form, synopsis: e.target.value })}
                 className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Thumbnail URL</label>
-              <Input value={form.thumbnail_url || ''} onChange={e => setForm({ ...form, thumbnail_url: e.target.value })} />
+              <label htmlFor="ep-thumbnail" className="text-sm font-medium">Thumbnail URL</label>
+              <Input id="ep-thumbnail" value={form.thumbnail_url || ''} onChange={e => setForm({ ...form, thumbnail_url: e.target.value })} />
             </div>
           </div>
           <DialogFooter>

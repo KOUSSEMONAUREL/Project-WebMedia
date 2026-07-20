@@ -33,13 +33,14 @@ export function CookieBanner() {
   };
 
   return (
-    <div
-      role="dialog"
+    <dialog
       aria-label="Stockage local"
+      open
       className={
-        'fixed bottom-0 left-0 right-0 z-[999] transition-all duration-250 ' +
+        'fixed bottom-0 left-0 right-0 z-[999] transition-all duration-250 max-w-full m-0 bg-transparent border-none ' +
         (!visible ? 'invisible' : hiding ? 'opacity-0 translate-y-full' : 'opacity-100 translate-y-0')
       }
+      style={{ display: 'block', background: 'none' }}
     >
       <div className="mx-auto max-w-3xl px-4 py-3">
         <div className="rounded-xl border border-white/8 bg-[#111318] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
@@ -47,6 +48,7 @@ export function CookieBanner() {
             <p className="text-[12px] text-white/50 leading-relaxed">
               Donnees locales (favoris, watchlist, session) et protection anti-bot Cloudflare Turnstile.
               <button
+                type="button"
                 onClick={function() {
                   var e = document.getElementById('cookie-details');
                   if (e) e.style.display = e.style.display === 'block' ? 'none' : 'block';
@@ -58,12 +60,14 @@ export function CookieBanner() {
             </p>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
+                type="button"
                 onClick={function() { dismiss('minimal'); }}
                 className="px-2.5 py-1.5 rounded-lg text-[11px] text-white/40 hover:text-white/60 transition-colors"
               >
                 Refuser
               </button>
               <button
+                type="button"
                 onClick={function() { dismiss('full'); }}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white/10 hover:bg-white/14 text-white/80 transition-all"
               >
@@ -86,6 +90,6 @@ export function CookieBanner() {
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

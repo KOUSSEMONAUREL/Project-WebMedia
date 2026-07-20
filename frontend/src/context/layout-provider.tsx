@@ -76,7 +76,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
 
 // Define the hook for the provider
 // eslint-disable-next-line react-refresh/only-export-components
-export function useLayout() {
+function useLayout() {
   const context = useContext(LayoutContext)
   if (!context) {
     throw new Error('useLayout must be used within a LayoutProvider')

@@ -220,8 +220,10 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-            <div
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            <button
+                type="button"
+                aria-label="Fermer"
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
                 onClick={onClose}
             />
 
@@ -282,6 +284,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </Button>
                             <div>
                                 <button
+                                    type="button"
                                     onClick={() => { setMode('login'); resetForm(); }}
                                     className="text-sm text-primary font-medium hover:underline cursor-pointer"
                                 >
@@ -304,6 +307,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             </p>
                             <div>
                                 <button
+                                    type="button"
                                     onClick={() => { setView('form'); setError(''); }}
                                     className="text-sm text-primary font-medium hover:underline cursor-pointer"
                                 >
@@ -376,6 +380,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                                 </Button>
                             </form>
                             <button
+                                type="button"
                                 onClick={() => { setView('form'); setError(''); }}
                                 className="mt-4 text-sm text-primary font-medium hover:underline cursor-pointer"
                             >
@@ -455,6 +460,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             />
                             <button
                                 type="button"
+                                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                             >
@@ -548,6 +554,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <>
                                 Pas encore de compte ?{' '}
                                 <button
+                                    type="button"
                                     onClick={() => { setMode('signup'); setError(''); }}
                                     className="text-primary font-medium hover:underline cursor-pointer"
                                 >
@@ -558,6 +565,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                             <>
                                 Deja un compte ?{' '}
                                 <button
+                                    type="button"
                                     onClick={() => { setMode('login'); setError(''); }}
                                     className="text-primary font-medium hover:underline cursor-pointer"
                                 >

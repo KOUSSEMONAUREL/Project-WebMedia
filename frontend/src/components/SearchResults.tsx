@@ -33,7 +33,7 @@ function SkeletonGrid() {
 
 function getAuthUser() {
   if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem('webmedia_user');
+  const raw = localStorage.getItem('webmedia_user:v1');
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
@@ -169,6 +169,7 @@ export default function SearchResults() {
         {TYPES.map((t) => (
           <button
             key={t.value}
+            type="button"
             onClick={() => handleTypeChange(t.value)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
@@ -196,6 +197,7 @@ export default function SearchResults() {
             <>
               <button
                 type="button"
+                aria-label="Effacer la recherche"
                 onClick={clearSearch}
                 className="absolute right-16 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-white/[0.06]"
               >
@@ -203,6 +205,7 @@ export default function SearchResults() {
               </button>
               <button
                 type="submit"
+                aria-label="Lancer la recherche"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 transition-colors p-2 rounded-lg hover:bg-primary/10"
               >
                 <ArrowRight className="h-5 w-5" />

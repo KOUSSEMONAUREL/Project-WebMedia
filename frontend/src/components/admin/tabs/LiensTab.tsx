@@ -46,18 +46,25 @@ export default function LiensTab() {
   const [page, setPage] = useState(1);
   const pageSize = 100;
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, []);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     try {
       let rows: LienRow[] | null = null;
       const token = await getToken();
       const res = await fetch(`${API_BASE}/admin/liens`, {
         headers: getApiHeaders({ Authorization: `Bearer ${token}` }),
+        signal,
       });
+      if (signal?.aborted) return;
       if (res.ok) rows = await res.json();
       setLiens(rows || []);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error('load liens', e);
     } finally {
       setLoading(false);
@@ -153,7 +160,7 @@ export default function LiensTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <select
+        <select aria-label="Filtrer par statut"
           value={activeFilter}
           onChange={e => setActiveFilter(e.target.value as any)}
           className="flex h-10 w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -230,30 +237,30 @@ export default function LiensTab() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Source</label>
-                <Input value={form.source_site || ''} onChange={e => setForm({ ...form, source_site: e.target.value })} />
+                <label htmlFor="lien-source" className="text-sm font-medium">Source</label>
+                <Input id="lien-source" value={form.source_site || ''} onChange={e => setForm({ ...form, source_site: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Player</label>
-                <Input value={form.player_host || ''} onChange={e => setForm({ ...form, player_host: e.target.value })} />
+                <label htmlFor="lien-player" className="text-sm font-medium">Player</label>
+                <Input id="lien-player" value={form.player_host || ''} onChange={e => setForm({ ...form, player_host: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">URL</label>
-              <Input value={form.url || ''} onChange={e => setForm({ ...form, url: e.target.value })} />
+              <label htmlFor="lien-url" className="text-sm font-medium">URL</label>
+              <Input id="lien-url" value={form.url || ''} onChange={e => setForm({ ...form, url: e.target.value })} />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Qualite</label>
-                <Input value={form.quality || ''} onChange={e => setForm({ ...form, quality: e.target.value })} />
+                <label htmlFor="lien-qualite" className="text-sm font-medium">Qualite</label>
+                <Input id="lien-qualite" value={form.quality || ''} onChange={e => setForm({ ...form, quality: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Langue</label>
-                <Input value={form.language || ''} onChange={e => setForm({ ...form, language: e.target.value })} />
+                <label htmlFor="lien-langue" className="text-sm font-medium">Langue</label>
+                <Input id="lien-langue" value={form.language || ''} onChange={e => setForm({ ...form, language: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Sous-titres</label>
-                <select
+                <label htmlFor="lien-subtitles" className="text-sm font-medium">Sous-titres</label>
+                <select id="lien-subtitles"
                   value={form.has_subtitles}
                   onChange={e => setForm({ ...form, has_subtitles: parseInt(e.target.value) })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -264,8 +271,8 @@ export default function LiensTab() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Statut</label>
-              <select
+              <label htmlFor="lien-statut" className="text-sm font-medium">Statut</label>
+              <select id="lien-statut"
                 value={form.is_active}
                 onChange={e => setForm({ ...form, is_active: parseInt(e.target.value) })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"

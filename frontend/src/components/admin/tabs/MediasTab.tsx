@@ -37,6 +37,25 @@ type FormData = {
   poster_url: string; backdrop_url: string;
 };
 
+function fillForm(m: Media): FormData {
+  const g = m.genres ? (Array.isArray(m.genres) ? m.genres.join(', ') : m.genres) : '';
+  return {
+    title: m.title || '',
+    original_title: m.originalTitle || '',
+    slug: m.slug || '',
+    type: m.type || 'movie',
+    year: m.year?.toString() || '',
+    synopsis: m.synopsis || '',
+    status: m.status || '',
+    rating: m.rating?.toString() || '',
+    genres: g,
+    author: m.author || '',
+    tagline: m.tagline || '',
+    poster_url: m.posterUrl || '',
+    backdrop_url: m.backdropUrl || '',
+  };
+}
+
 const EMPTY_FORM: FormData = {
   title: '', original_title: '', slug: '', type: 'movie',
   year: '', synopsis: '', status: '', rating: '',
@@ -86,25 +105,6 @@ export default function MediasTab() {
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => { setPage(1); }, [search, typeFilter]);
-
-  function fillForm(m: Media): FormData {
-    const g = m.genres ? (Array.isArray(m.genres) ? m.genres.join(', ') : m.genres) : '';
-    return {
-      title: m.title || '',
-      original_title: m.originalTitle || '',
-      slug: m.slug || '',
-      type: m.type || 'movie',
-      year: m.year?.toString() || '',
-      synopsis: m.synopsis || '',
-      status: m.status || '',
-      rating: m.rating?.toString() || '',
-      genres: g,
-      author: m.author || '',
-      tagline: m.tagline || '',
-      poster_url: m.posterUrl || '',
-      backdrop_url: m.backdropUrl || '',
-    };
-  }
 
   async function handleSave(id: string) {
     setSaving(true);
@@ -208,6 +208,7 @@ export default function MediasTab() {
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
           className="flex h-10 w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Filtrer par type"
         >
           {MEDIA_TYPES.map(t => (
             <option key={t} value={t}>
@@ -338,49 +339,48 @@ function MediaForm({ formData, setFormData }: { formData: FormData; setFormData:
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Titre</label>
-          <Input value={formData.title} onChange={set('title')} />
+          <label htmlFor="field-title" className="text-sm font-medium">Titre</label>
+          <Input id="field-title" value={formData.title} onChange={set('title')} />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Titre original</label>
-          <Input value={formData.original_title} onChange={set('original_title')} />
+          <label htmlFor="field-original_title" className="text-sm font-medium">Titre original</label>
+          <Input id="field-original_title" value={formData.original_title} onChange={set('original_title')} />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Slug</label>
-          <Input value={formData.slug} onChange={set('slug')} />
+          <label htmlFor="field-slug" className="text-sm font-medium">Slug</label>
+          <Input id="field-slug" value={formData.slug} onChange={set('slug')} />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Type</label>
+          <label htmlFor="field-type" className="text-sm font-medium">Type</label>
           <select
+            id="field-type"
             value={formData.type}
             onChange={set('type')}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {MEDIA_TYPES.filter(t => t !== 'all').map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
+            {MEDIA_TYPES.flatMap(t => t === 'all' ? [] : [<option key={t} value={t}>{t}</option>])}
           </select>
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Annee</label>
-          <Input type="number" value={formData.year} onChange={set('year')} />
+          <label htmlFor="field-year" className="text-sm font-medium">Annee</label>
+          <Input id="field-year" type="number" value={formData.year} onChange={set('year')} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Statut</label>
-          <Input value={formData.status} onChange={set('status')} placeholder="released | ongoing | upcoming" />
+          <label htmlFor="field-status" className="text-sm font-medium">Statut</label>
+          <Input id="field-status" value={formData.status} onChange={set('status')} placeholder="released | ongoing | upcoming" />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Note</label>
-          <Input type="number" step="0.1" min="0" max="10" value={formData.rating} onChange={set('rating')} />
+          <label htmlFor="field-rating" className="text-sm font-medium">Note</label>
+          <Input id="field-rating" type="number" step="0.1" min="0" max="10" value={formData.rating} onChange={set('rating')} />
         </div>
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Synopsis</label>
-        <textarea
+        <label htmlFor="field-synopsis" className="text-sm font-medium">Synopsis</label>
+        <textarea id="field-synopsis"
           value={formData.synopsis}
           onChange={set('synopsis')}
           className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -388,42 +388,43 @@ function MediaForm({ formData, setFormData }: { formData: FormData; setFormData:
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Genres (separes par virgules)</label>
-          <Input value={formData.genres} onChange={set('genres')} placeholder="Action, Drama, Sci-Fi" />
+          <label htmlFor="field-genres" className="text-sm font-medium">Genres (separes par virgules)</label>
+          <Input id="field-genres" value={formData.genres} onChange={set('genres')} placeholder="Action, Drama, Sci-Fi" />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Auteur</label>
-          <Input value={formData.author} onChange={set('author')} />
+          <label htmlFor="field-author" className="text-sm font-medium">Auteur</label>
+          <Input id="field-author" value={formData.author} onChange={set('author')} />
         </div>
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Tagline</label>
-        <Input value={formData.tagline} onChange={set('tagline')} />
+        <label htmlFor="field-tagline" className="text-sm font-medium">Tagline</label>
+        <Input id="field-tagline" value={formData.tagline} onChange={set('tagline')} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Poster URL</label>
-          <Input value={formData.poster_url} onChange={set('poster_url')} />
+          <label htmlFor="field-poster_url" className="text-sm font-medium">Poster URL</label>
+          <Input id="field-poster_url" value={formData.poster_url} onChange={set('poster_url')} />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Backdrop URL</label>
-          <Input value={formData.backdrop_url} onChange={set('backdrop_url')} />
+          <label htmlFor="field-backdrop_url" className="text-sm font-medium">Backdrop URL</label>
+          <Input id="field-backdrop_url" value={formData.backdrop_url} onChange={set('backdrop_url')} />
         </div>
       </div>
     </div>
   );
 }
 
+const STATUS_MAP: Record<string, string> = {
+  released: 'bg-green-500/10 text-green-600',
+  ongoing: 'bg-blue-500/10 text-blue-600',
+  upcoming: 'bg-yellow-500/10 text-yellow-600',
+  cancelled: 'bg-red-500/10 text-red-600',
+  unknown: 'bg-muted text-muted-foreground',
+};
+
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    released: 'bg-green-500/10 text-green-600',
-    ongoing: 'bg-blue-500/10 text-blue-600',
-    upcoming: 'bg-yellow-500/10 text-yellow-600',
-    cancelled: 'bg-red-500/10 text-red-600',
-    unknown: 'bg-muted text-muted-foreground',
-  };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${map[status] || map.unknown}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_MAP[status] || STATUS_MAP.unknown}`}>
       {status || 'unknown'}
     </span>
   );

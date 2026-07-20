@@ -38,7 +38,7 @@ function StarRating({ value, onChange }: { value: number; onChange?: (v: number)
   return (
     <div className="flex gap-1">
       {Array.from({ length: 10 }, (_, i) => (
-        <button
+        <button key={i}
           type="button"
           onClick={() => onChange?.(i + 1)}
           className="transition-all duration-150"
@@ -215,17 +215,18 @@ export default function ReviewSection({ mediaId }: Props) {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <div role="group" aria-label="Note" className="block text-xs font-medium mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
                 Note
-              </label>
-              <StarRating value={rating} onChange={setRating} />
+                <StarRating value={rating} onChange={setRating} />
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <label htmlFor="review-comment" className="block text-xs font-medium mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
                 Commentaire (optionnel)
               </label>
               <textarea
+                id="review-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
