@@ -30,7 +30,8 @@ function wsrc(url: string, width: number): string {
 
 export function optimizePosterUrl(url?: string): string | undefined {
   if (!url) return undefined;
-  return w(sourceUrl(url));
+  const src = w(sourceUrl(url));
+  return `${src}&w=342`;
 }
 
 export function posterSrcSet(url?: string): string | undefined {
