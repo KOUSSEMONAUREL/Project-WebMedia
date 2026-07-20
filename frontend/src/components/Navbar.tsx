@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Bell } from 'lucide-react';
+import { Bell, Search, ArrowLeft } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { ProfileDropdown } from './ProfileDropdown';
 import { LanguageSwitcher } from './language-switcher';
@@ -69,6 +69,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   useEffect(() => {
     console.log('[Navbar] mounted', PAGE_URL);
@@ -211,7 +212,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
           }`}
         >
           <div className="h-full flex items-center justify-between px-4 sm:px-5 gap-3">
-          <div className="flex items-center relative" ref={linksRef}>
+          <div className={`flex items-center relative ${mobileSearchOpen ? 'hidden sm:flex' : ''}`} ref={linksRef}>
             <div
               ref={indicatorRef}
               className="absolute top-1/2 -translate-y-1/2 rounded-full pointer-events-none opacity-0"
@@ -275,9 +276,19 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
             </div>
           </div>
 
-          <NavbarSearch typeFilter={typeFilter} />
+          <div className={`${mobileSearchOpen ? 'hidden' : 'hidden sm:block'}`}>
+            <NavbarSearch typeFilter={typeFilter} />
+          </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className={`flex items-center gap-1 shrink-0 ${mobileSearchOpen ? 'hidden sm:flex' : ''}`}>
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(true)}
+              aria-label="Rechercher"
+              className="sm:hidden flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-all duration-200 cursor-pointer"
+            >
+              <Search className="h-[17px] w-[17px]" />
+            </button>
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -318,6 +329,21 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
               />
             </div>
           </div>
+
+          {mobileSearchOpen && (
+            <div className="absolute inset-x-0 top-0 h-full flex items-center px-4 gap-2 sm:hidden bg-background/95 backdrop-blur-xl rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(false)}
+                className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-all"
+              >
+                <ArrowLeft className="h-[17px] w-[17px]" />
+              </button>
+              <div className="flex-1">
+                <NavbarSearch typeFilter={typeFilter} />
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
