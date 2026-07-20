@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Mail, Lock, User as UserIcon, Eye, EyeOff, Globe, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { X } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import { useTurnstile } from './Turnstile';
+import { LoginForm } from './LoginForm';
+import { RegisterForm } from './RegisterForm';
+import { ResetPasswordForm } from './ResetPasswordForm';
+import { SignupSuccessView, ResetSentView } from './AuthSuccessViews';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -37,7 +41,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         match: formData.confirmPassword === '' || formData.password === formData.confirmPassword,
     }), [formData.password, formData.confirmPassword]);
 
-    const isSignupFormValid = mode !== 'signup' || (
+    const isSignupFormValid = (
         formData.name.trim().length > 0 &&
         formData.email.includes('@') &&
         passwordRules.minMax &&
@@ -104,6 +108,11 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
             }
         }
 
+        if (!formData.email.includes('@')) {
+            setError('Veuillez entrer un email valide');
+            return;
+        }
+
         if (mode === 'signup') {
             if (!formData.name.trim()) {
                 setError('Veuillez entrer votre nom');
@@ -137,11 +146,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 setError('Au moins un caractere special requis (!@#$%^&*)');
                 return;
             }
-        }
-
-        if (!formData.email.includes('@')) {
-            setError('Veuillez entrer un email valide');
-            return;
         }
 
         setLoading(true);
@@ -218,6 +222,124 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         }
     };
 
+    const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (!formData.email.includes('@')) {
+            setError('Email invalide');
+            return;
+        }
+        if (turnstileError) {
+            setError(turnstileErrorMsg || 'Erreur anti-bot, recharge la page');
+            return;
+        }
+        if (turnstileLoading) {
+            setError('Verification anti-bot en cours, patiente...');
+            return;
+        }
+        const turnstileToken = await getTurnstileToken();
+        if (!turnstileToken) {
+            setError('Verification anti-bot echouee. Verifie que ton bloqueur de pubs n\'empeche pas Turnstile, puis reessaye.');
+            return;
+        }
+        setLoading(true);
+        try {
+            const { error: resetError } = await authClient.requestPasswordReset({
+                email: formData.email,
+                redirectTo: window.location.origin + '/reset-password',
+                fetchOptions: {
+                    headers: { 'x-captcha-response': turnstileToken },
+                },
+            });
+            if (resetError) {
+                setError(resetError.message || 'Erreur');
+            } else {
+                setView('reset-sent');
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Erreur');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const headerTitle = view === 'signup-success'
+        ? 'Verification envoyee'
+        : mode === 'login' ? 'Connexion' : 'Inscription';
+
+    const renderContent = () => {
+        if (view === 'signup-success') {
+            return (
+                <SignupSuccessView
+                    email={formData.email}
+                    resending={resending}
+                    onResend={handleResendVerification}
+                    onBackToLogin={() => { setMode('login'); resetForm(); }}
+                />
+            );
+        }
+        if (view === 'reset-sent') {
+            return <ResetSentView email={formData.email} onBackToLogin={() => { setView('form'); setError(''); }} />;
+        }
+        if (view === 'forgot-password') {
+            return (
+                <ResetPasswordForm
+                    email={formData.email}
+                    onEmailChange={(v) => setFormData({ ...formData, email: v })}
+                    error={error}
+                    loading={loading}
+                    turnstileLoading={turnstileLoading}
+                    turnstileError={turnstileError}
+                    turnstileErrorMsg={turnstileErrorMsg}
+                    onSubmit={handleForgotPasswordSubmit}
+                    onBack={() => { setView('form'); setError(''); }}
+                />
+            );
+        }
+        if (mode === 'login') {
+            return (
+                <LoginForm
+                    email={formData.email}
+                    onEmailChange={(v) => setFormData({ ...formData, email: v })}
+                    password={formData.password}
+                    onPasswordChange={(v) => setFormData({ ...formData, password: v })}
+                    showPassword={showPassword}
+                    onTogglePassword={() => setShowPassword(!showPassword)}
+                    error={error}
+                    loading={loading}
+                    turnstileLoading={turnstileLoading}
+                    turnstileErrorMsg={turnstileErrorMsg}
+                    onSubmit={handleSubmit}
+                    onGoogleLogin={handleGoogleLogin}
+                    onForgotPassword={() => setView('forgot-password')}
+                    onSwitchToSignup={() => { setMode('signup'); setError(''); }}
+                />
+            );
+        }
+        return (
+            <RegisterForm
+                name={formData.name}
+                onNameChange={(v) => setFormData({ ...formData, name: v })}
+                email={formData.email}
+                onEmailChange={(v) => setFormData({ ...formData, email: v })}
+                password={formData.password}
+                onPasswordChange={(v) => setFormData({ ...formData, password: v })}
+                confirmPassword={formData.confirmPassword}
+                onConfirmPasswordChange={(v) => setFormData({ ...formData, confirmPassword: v })}
+                showPassword={showPassword}
+                onTogglePassword={() => setShowPassword(!showPassword)}
+                error={error}
+                loading={loading}
+                turnstileLoading={turnstileLoading}
+                turnstileErrorMsg={turnstileErrorMsg}
+                passwordRules={passwordRules}
+                isSignupFormValid={isSignupFormValid}
+                onSubmit={handleSubmit}
+                onSwitchToLogin={() => { setMode('login'); setError(''); }}
+            />
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
             <button
@@ -241,9 +363,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                         WebkitTextFillColor: 'transparent',
                         backgroundClip: 'text',
                     }}>
-                        {view === 'signup-success'
-                            ? 'Verification envoyee'
-                            : mode === 'login' ? 'Connexion' : 'Inscription'}
+                        {headerTitle}
                     </h2>
                     <Button
                         variant="ghost"
@@ -256,326 +376,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 </div>
 
                 <div className="p-6">
-                    {view === 'signup-success' ? (
-                        <div className="text-center py-4">
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                                <Mail className="h-8 w-8 text-primary" />
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">Verifie ta boite email</h3>
-                            <p className="text-sm text-muted-foreground mb-1">
-                                Un email de confirmation a ete envoye a :
-                            </p>
-                            <p className="text-sm font-medium text-foreground mb-4">{formData.email}</p>
-                            <p className="text-xs text-muted-foreground mb-2">
-                                Clique sur le lien dans l'email pour activer ton compte.
-                            </p>
-                            <p className="text-xs text-primary/80 mb-6">
-                                Tu peux deja te connecter sans attendre.
-                            </p>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleResendVerification}
-                                disabled={resending}
-                                className="gap-2 mb-3"
-                            >
-                                <RefreshCw className={`h-3.5 w-3.5 ${resending ? 'animate-spin' : ''}`} />
-                                {resending ? 'Envoi...' : 'Renvoyer'}
-                            </Button>
-                            <div>
-                                <button
-                                    type="button"
-                                    onClick={() => { setMode('login'); resetForm(); }}
-                                    className="text-sm text-primary font-medium hover:underline cursor-pointer"
-                                >
-                                    Retour a la connexion
-                                </button>
-                            </div>
-                        </div>
-                    ) : view === 'reset-sent' ? (
-                        <div className="text-center py-4">
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                                <Mail className="h-8 w-8 text-primary" />
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">Email envoye</h3>
-                            <p className="text-sm text-muted-foreground mb-1">
-                                Un lien de reinitialisation a ete envoye a :
-                            </p>
-                            <p className="text-sm font-medium text-foreground mb-4">{formData.email}</p>
-                            <p className="text-xs text-muted-foreground mb-6">
-                                Clique sur le lien dans l'email pour choisir un nouveau mot de passe.
-                            </p>
-                            <div>
-                                <button
-                                    type="button"
-                                    onClick={() => { setView('form'); setError(''); }}
-                                    className="text-sm text-primary font-medium hover:underline cursor-pointer"
-                                >
-                                    Retour a la connexion
-                                </button>
-                            </div>
-                        </div>
-                    ) : view === 'forgot-password' ? (
-                        <div className="text-center py-4">
-                            <h3 className="text-lg font-semibold mb-2">Mot de passe oublie</h3>
-                            <p className="text-sm text-muted-foreground mb-6">
-                                Saisis ton email pour recevoir un lien de reinitialisation.
-                            </p>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                setError('');
-                                if (!formData.email.includes('@')) {
-                                    setError('Email invalide');
-                                    return;
-                                }
-        if (turnstileError) {
-            setError(turnstileErrorMsg || 'Erreur anti-bot, recharge la page');
-            return;
-        }
-        if (turnstileLoading) {
-            setError('Verification anti-bot en cours, patiente...');
-            return;
-        }
-        const turnstileToken = await getTurnstileToken();
-        if (!turnstileToken) {
-            setError('Verification anti-bot echouee. Verifie que ton bloqueur de pubs n\'empeche pas Turnstile, puis reessaye.');
-            return;
-        }
-                                setLoading(true);
-                                try {
-                                    const { error: resetError } = await authClient.requestPasswordReset({
-                                        email: formData.email,
-                                        redirectTo: window.location.origin + '/reset-password',
-                                        fetchOptions: {
-                                            headers: { 'x-captcha-response': turnstileToken },
-                                        },
-                                    });
-                                    if (resetError) {
-                                        setError(resetError.message || 'Erreur');
-                                    } else {
-                                        setView('reset-sent');
-                                    }
-                                } catch (err: any) {
-                                    setError(err?.message || 'Erreur');
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }} className="space-y-4">
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <input
-                                        type="email"
-                                        placeholder="Email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        maxLength={254}
-                                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                    />
-                                </div>
-                                {error && (
-                                    <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
-                                )}
-                                <Button type="submit" className="w-full h-11 font-bold" disabled={loading}>
-                                    {loading ? 'Envoi...' : 'Envoyer le lien'}
-                                </Button>
-                            </form>
-                            <button
-                                type="button"
-                                onClick={() => { setView('form'); setError(''); }}
-                                className="mt-4 text-sm text-primary font-medium hover:underline cursor-pointer"
-                            >
-                                Retour a la connexion
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                    {mode === 'login' && (
-                        <div className="mb-6 p-4 bg-secondary/30 rounded-lg border border-border">
-                        <p className="text-sm font-medium text-foreground mb-2">Connectez-vous pour :</p>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>Sauvegarder vos favoris</li>
-                            <li>Telecharger du contenu</li>
-                            <li>Suivre vos series preferees</li>
-                            <li>Voir vos statistiques</li>
-                        </ul>
-                        </div>
-                    )}
-
-                    <div className="flex gap-3 mb-6">
-                        <Button
-                            variant="outline"
-                            className="flex-1 gap-2"
-                            onClick={handleGoogleLogin}
-                            disabled={loading}
-                        >
-                            <Globe className="h-4 w-4" />
-                            Google
-                        </Button>
-                    </div>
-
-                    <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border"></div>
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-card px-2 text-muted-foreground">ou</span>
-                        </div>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {mode === 'signup' && (
-                            <div className="relative">
-                                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <input
-                                    type="text"
-                                    placeholder="Nom d'utilisateur"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    maxLength={12}
-                                    className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                />
-                            </div>
-                        )}
-
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <input
-                                        type="email"
-                                        placeholder="Email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        maxLength={254}
-                                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                    />
-                                </div>
-
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="Mot de passe"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                            />
-                            <button
-                                type="button"
-                                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                            >
-                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                        </div>
-
-                        {mode === 'signup' && (
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    placeholder="Confirmer le mot de passe"
-                                    value={formData.confirmPassword}
-                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                    className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                />
-                            </div>
-                        )}
-
-                        {mode === 'signup' && formData.password.length > 0 && (
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                                <div className={`flex items-center gap-2 ${passwordRules.minMax ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                    {passwordRules.minMax ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span>8 a 16 caracteres</span>
-                                </div>
-                                <div className={`flex items-center gap-2 ${passwordRules.upper ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                    {passwordRules.upper ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span>1 lettre majuscule</span>
-                                </div>
-                                <div className={`flex items-center gap-2 ${passwordRules.lower ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                    {passwordRules.lower ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span>1 lettre minuscule</span>
-                                </div>
-                                <div className={`flex items-center gap-2 ${passwordRules.digit ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                    {passwordRules.digit ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span>1 chiffre</span>
-                                </div>
-                                <div className={`flex items-center gap-2 ${passwordRules.special ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                    {passwordRules.special ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span>1 caractere special (!@#$%^&*)</span>
-                                </div>
-                                {formData.confirmPassword.length > 0 && (
-                                    <div className={`flex items-center gap-2 ${passwordRules.match ? 'text-green-500' : 'text-red-500'}`}>
-                                        {passwordRules.match ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
-                                        <span>Les mots de passe correspondent</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {turnstileLoading && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
-                                <span className="relative inline-flex h-3 w-3">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
-                                </span>
-                                Verification anti-bot en cours...
-                            </div>
-                        )}
-
-                        {turnstileErrorMsg && (
-                            <p className="text-sm text-amber-500 bg-amber-500/10 p-2 rounded-lg">
-                                {turnstileErrorMsg}
-                            </p>
-                        )}
-
-                        {error && (
-                            <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded-lg">{error}</p>
-                        )}
-
-                        <Button type="submit" className="w-full h-11 font-bold" disabled={loading || turnstileLoading || (mode === 'signup' && !isSignupFormValid)}>
-                            {loading ? 'Connexion...' : turnstileLoading ? 'Verification...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
-                        </Button>
-
-                        {mode === 'login' && (
-                            <p className="text-center">
-                                <button
-                                    type="button"
-                                    onClick={() => setView('forgot-password')}
-                                    className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
-                                >
-                                    Mot de passe oublie ?
-                                </button>
-                            </p>
-                        )}
-                    </form>
-
-                    <p className="mt-6 text-center text-sm text-muted-foreground">
-                        {mode === 'login' ? (
-                            <>
-                                Pas encore de compte ?{' '}
-                                <button
-                                    type="button"
-                                    onClick={() => { setMode('signup'); setError(''); }}
-                                    className="text-primary font-medium hover:underline cursor-pointer"
-                                >
-                                    S'inscrire
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                Deja un compte ?{' '}
-                                <button
-                                    type="button"
-                                    onClick={() => { setMode('login'); setError(''); }}
-                                    className="text-primary font-medium hover:underline cursor-pointer"
-                                >
-                                    Se connecter
-                                </button>
-                            </>
-                        )}
-                    </p>
-                    </>
-                    )}
+                    {renderContent()}
                 </div>
             </div>
         </div>
