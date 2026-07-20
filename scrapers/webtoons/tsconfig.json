@@ -5,13 +5,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
     "types": ["node"],
     "paths": {
-      "@engine/*": ["./engine/*"],
-      "*": ["node_modules/*"]
+      "@engine/*": ["./engine/*"]
     }
   }
 }

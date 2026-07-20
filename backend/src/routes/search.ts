@@ -251,7 +251,7 @@ searchRoutes.get(
         if (kv) {
           const existing = await kv.get('pending_turso_syncs');
           if (existing) {
-            const pendings = JSON.parse(existing);
+            const pendings = JSON.parse(existing!);
             const remaining: any[] = [];
             const tursoUrl = c.env?.TURSO_DATABASE_URL || '';
             const tursoToken = c.env?.TURSO_AUTH_TOKEN || '';
@@ -330,7 +330,7 @@ searchRoutes.get(
       for (const m of dbResults) {
         if (nonStreaming.includes(m.type) && (m.activeLinksCount || 0) === 0) {
           const jobId = await queueScrapingJob(c, m.id, m.type, m.title, m.slug);
-          if (jobId) queuedJobs.push(jobId);
+          if (jobId) queuedJobs.push(jobId!);
         }
       }
 
@@ -351,10 +351,10 @@ searchRoutes.get(
           // Dedup : verifie si un media existe deja avec cet externalId ou tmdbId
           if (r.externalId) {
             let existing;
-            if (externalIdNum && !isNaN(externalIdNum)) {
+            if (externalIdNum && !isNaN(externalIdNum!)) {
               existing = await db.select({ id: neonMedias.id, tmdbId: neonMedias.tmdbId })
                 .from(neonMedias)
-                .where(eq(neonMedias.tmdbId, externalIdNum))
+                .where(eq(neonMedias.tmdbId, externalIdNum!))
                 .limit(1);
             }
             if (!existing || existing.length === 0) {
@@ -368,9 +368,9 @@ searchRoutes.get(
               createdMediaMap.set(r.externalId || r.slug || '', mediaId);
               if (wt) {
                 const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
-                if (jobId) queuedJobs.push(jobId);
+                if (jobId) queuedJobs.push(jobId!);
                 const dispatchId = await dispatchGitHubAction(c, wt, r.title);
-                if (dispatchId) dispatchedJobs.push(dispatchId);
+                if (dispatchId) dispatchedJobs.push(dispatchId!);
               }
               continue;
             }
@@ -387,7 +387,7 @@ searchRoutes.get(
             posterUrl: r.posterUrl || null,
             rating: r.rating ? String(r.rating) : null,
             externalId: r.externalId || null,
-            tmdbId: (externalIdNum && !isNaN(externalIdNum) && r.metadataSource === 'tmdb') ? externalIdNum : null,
+            tmdbId: (externalIdNum && !isNaN(externalIdNum!) && r.metadataSource === 'tmdb') ? externalIdNum! : null,
             metadataSource: r.metadataSource || 'external',
             activeLinksCount: 0,
             createdAt: new Date(),
@@ -429,7 +429,7 @@ searchRoutes.get(
                 const kv = c.env?.KV;
                 if (kv) {
                   const existing = await kv.get('pending_turso_syncs');
-                  const pending = existing ? JSON.parse(existing) : [];
+                  const pending = existing ? JSON.parse(existing!) : [];
                   pending.push({ mediaId, type: internalType, title: r.title, slug: r.slug, synopsis: r.synopsis, year: r.year, posterUrl: r.posterUrl, rating: r.rating, metadataSource: r.metadataSource, externalId: r.externalId });
                   await kv.put('pending_turso_syncs', JSON.stringify(pending.slice(-50)));
                 }
@@ -445,9 +445,9 @@ searchRoutes.get(
 
         if (wt) {
           const jobId = await queueScrapingJob(c, mediaId, r.type, r.title, r.slug || '');
-          if (jobId) queuedJobs.push(jobId);
+          if (jobId) queuedJobs.push(jobId!);
           const dispatchId = await dispatchGitHubAction(c, wt, r.title);
-          if (dispatchId) dispatchedJobs.push(dispatchId);
+          if (dispatchId) dispatchedJobs.push(dispatchId!);
         }
       }
 

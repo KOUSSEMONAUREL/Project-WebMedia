@@ -52,6 +52,19 @@ updates:
       scraper-all:
         patterns: ['*']
 
+  - package-ecosystem: 'npm'
+    directory: '/scrapers/import-worker'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'scraper'
+    groups:
+      scraper-all:
+        patterns: ['*']
+
   - package-ecosystem: 'pip'
     directory: '/scrapers/playwright-worker'
     schedule:
