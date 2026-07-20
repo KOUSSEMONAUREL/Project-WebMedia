@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Languages } from 'lucide-react'
 import { SUPPORTED_LANGS, getCurrentLang, setLanguage } from '@/lib/translate-init'
 
-export function LanguageSwitcher() {
-  const [targetLang, setTargetLang] = useState('french')
+function subscribeToLang(cb: () => void) {
+  window.addEventListener('storage', cb)
+  return () => window.removeEventListener('storage', cb)
+}
 
-  useEffect(() => {
-    setTargetLang(getCurrentLang())
-  }, [])
+function getSnapshot() { return getCurrentLang() }
+function getServerSnapshot() { return 'french' }
+
+export function LanguageSwitcher() {
+  const [targetLang, setTargetLang] = useState(() => getCurrentLang())
+  useSyncExternalStore(subscribeToLang, getSnapshot, getServerSnapshot)
 
   const handleSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const lang = e.target.value

@@ -133,7 +133,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
     const ac = new AbortController();
     loadData(ac.signal);
     return () => ac.abort();
-  }, [sessionUser, isPending]);
+  }, [sessionUser, isPending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentUser = sessionUser ? {
     id: sessionUser.id,

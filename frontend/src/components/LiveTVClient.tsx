@@ -352,7 +352,7 @@ export function LiveTVClient() {
     })();
 
     return () => { cancelled = true; };
-  }, [allChannels, loading, safePage]);
+  }, [allChannels, loading, safePage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goToPage = useCallback((p: number) => {
     if (p < 0 || p >= totalPages) return;
