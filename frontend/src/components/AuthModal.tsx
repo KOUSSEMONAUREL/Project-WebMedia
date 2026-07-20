@@ -1,13 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
 import { authClient, sendVerificationEmail } from '@/lib/auth-client';
 import { authStore } from '@/stores/auth';
 import { useTurnstile } from './Turnstile';
-import { LoginForm } from './LoginForm';
-import { RegisterForm } from './RegisterForm';
-import { ResetPasswordForm } from './ResetPasswordForm';
-import { SignupSuccessView, ResetSentView } from './AuthSuccessViews';
+import { AuthModalShell } from './AuthModalShell';
+import { AuthModalContent } from './AuthModalContent';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -267,118 +263,32 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         ? 'Verification envoyee'
         : mode === 'login' ? 'Connexion' : 'Inscription';
 
-    const renderContent = () => {
-        if (view === 'signup-success') {
-            return (
-                <SignupSuccessView
-                    email={formData.email}
-                    resending={resending}
-                    onResend={handleResendVerification}
-                    onBackToLogin={() => { setMode('login'); resetForm(); }}
-                />
-            );
-        }
-        if (view === 'reset-sent') {
-            return <ResetSentView email={formData.email} onBackToLogin={() => { setView('form'); setError(''); }} />;
-        }
-        if (view === 'forgot-password') {
-            return (
-                <ResetPasswordForm
-                    email={formData.email}
-                    onEmailChange={(v) => setFormData({ ...formData, email: v })}
-                    error={error}
-                    loading={loading}
-                    turnstileLoading={turnstileLoading}
-                    turnstileError={turnstileError}
-                    turnstileErrorMsg={turnstileErrorMsg}
-                    onSubmit={handleForgotPasswordSubmit}
-                    onBack={() => { setView('form'); setError(''); }}
-                />
-            );
-        }
-        if (mode === 'login') {
-            return (
-                <LoginForm
-                    email={formData.email}
-                    onEmailChange={(v) => setFormData({ ...formData, email: v })}
-                    password={formData.password}
-                    onPasswordChange={(v) => setFormData({ ...formData, password: v })}
-                    showPassword={showPassword}
-                    onTogglePassword={() => setShowPassword(!showPassword)}
-                    error={error}
-                    loading={loading}
-                    turnstileLoading={turnstileLoading}
-                    turnstileErrorMsg={turnstileErrorMsg}
-                    onSubmit={handleSubmit}
-                    onGoogleLogin={handleGoogleLogin}
-                    onForgotPassword={() => setView('forgot-password')}
-                    onSwitchToSignup={() => { setMode('signup'); setError(''); }}
-                />
-            );
-        }
-        return (
-            <RegisterForm
-                name={formData.name}
-                onNameChange={(v) => setFormData({ ...formData, name: v })}
-                email={formData.email}
-                onEmailChange={(v) => setFormData({ ...formData, email: v })}
-                password={formData.password}
-                onPasswordChange={(v) => setFormData({ ...formData, password: v })}
-                confirmPassword={formData.confirmPassword}
-                onConfirmPasswordChange={(v) => setFormData({ ...formData, confirmPassword: v })}
-                showPassword={showPassword}
-                onTogglePassword={() => setShowPassword(!showPassword)}
+    return (
+        <AuthModalShell title={headerTitle} onClose={onClose}>
+            <AuthModalContent
+                view={view}
+                mode={mode}
+                formData={formData}
                 error={error}
                 loading={loading}
+                resending={resending}
+                showPassword={showPassword}
                 turnstileLoading={turnstileLoading}
+                turnstileError={turnstileError}
                 turnstileErrorMsg={turnstileErrorMsg}
                 passwordRules={passwordRules}
                 isSignupFormValid={isSignupFormValid}
-                onSubmit={handleSubmit}
-                onSwitchToLogin={() => { setMode('login'); setError(''); }}
+                setMode={setMode}
+                setView={setView}
+                setError={setError}
+                setFormData={setFormData}
+                setShowPassword={setShowPassword}
+                handleSubmit={handleSubmit}
+                handleGoogleLogin={handleGoogleLogin}
+                handleForgotPasswordSubmit={handleForgotPasswordSubmit}
+                handleResendVerification={handleResendVerification}
+                resetForm={resetForm}
             />
-        );
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-            <button
-                type="button"
-                aria-label="Fermer"
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
-                onClick={onClose}
-            />
-
-            <div className="relative w-full max-w-md mx-4 bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden" style={{boxShadow:'0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)'}}>
-                <div
-                    className="relative h-20 flex items-center justify-center"
-                    style={{
-                        background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.06) 100%)',
-                        borderBottom: '1px solid rgba(59,130,246,0.15)',
-                    }}
-                >
-                    <h2 className="text-xl font-display font-bold tracking-tight" style={{
-                        background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}>
-                        {headerTitle}
-                    </h2>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-3 right-3 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
-                        onClick={onClose}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
-                </div>
-
-                <div className="p-6">
-                    {renderContent()}
-                </div>
-            </div>
-        </div>
+        </AuthModalShell>
     );
 }

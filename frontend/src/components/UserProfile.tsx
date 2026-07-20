@@ -8,6 +8,12 @@ import { EmptyState } from './EmptyState';
 import { ProfileHeader } from './ProfileHeader';
 import { MediaGridTab } from './MediaGridTab';
 
+function handleLogout() {
+  clearUserCache();
+  authClient.signOut();
+  window.location.href = '/';
+}
+
 function mapToMedia(item: any): Media {
   return {
     id: item.id || item.mediaId,
@@ -158,12 +164,6 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
       </div>
     );
   }
-
-  const handleLogout = () => {
-    clearUserCache();
-    authClient.signOut();
-    window.location.href = '/';
-  };
 
   const tabContent = () => {
     switch (activeTab) {

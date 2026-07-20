@@ -14,6 +14,12 @@ async function clearFavs() {
   window.location.reload();
 }
 
+function handleLogout() {
+  clearUserCache();
+  authClient.signOut();
+  window.location.reload();
+}
+
 async function clearWl() {
   await clearWatchlist();
   window.location.reload();
@@ -153,12 +159,6 @@ export function UserSettings() {
     }
     setCacheCleared(true);
     setTimeout(() => setCacheCleared(false), 3000);
-  };
-
-  const handleLogout = () => {
-    clearUserCache();
-    authClient.signOut();
-    window.location.reload();
   };
 
   return (

@@ -14,11 +14,11 @@ export function LocalDataCard({ onClearFavorites, onClearWatchlist }: Props) {
         </div>
         <p className="text-sm font-semibold text-foreground">Donnees locales</p>
       </div>
-      <div className="flex gap-2">
-        <button type="button" onClick={onClearFavorites} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
+      <div className="flex justify-center gap-3">
+        <button type="button" onClick={onClearFavorites} className="px-4 py-2 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
           Vider les favoris
         </button>
-        <button type="button" onClick={onClearWatchlist} className="flex-1 h-10 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
+        <button type="button" onClick={onClearWatchlist} className="px-4 py-2 rounded-xl text-sm font-medium bg-secondary/50 border border-border hover:bg-secondary/80 transition-all cursor-pointer">
           Vider la watchlist
         </button>
       </div>
