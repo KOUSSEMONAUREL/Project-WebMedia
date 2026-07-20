@@ -50,11 +50,13 @@ function normalizeQuery(q: string): string {
 
 const searchSchema = z.object({
     q: z.string().min(3).max(200),
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel', 'all']).optional(),
     year: z.coerce.number().int().min(1900).max(2100).optional(),
     limit: z.coerce.number().int().min(1).max(20).optional().default(20),
     offset: z.coerce.number().int().min(0).max(100).optional().default(0),
 });
+
+
 
 // ========== GET /api/search ==========
 searchRoutes.get(
@@ -184,7 +186,7 @@ async function dispatchGitHubAction(c: any, workerType: string, title: string): 
 
 const advancedSchema = z.object({
   q: z.string().min(3).max(200),
-  type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel', 'all']).optional(),
+  type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel', 'all']).optional(),
 });
 
 async function getRedisRestClient(c: any) {

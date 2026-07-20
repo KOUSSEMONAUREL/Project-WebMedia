@@ -45,7 +45,8 @@ mediaRoutes.get('/trending', async (c) => {
             { type: 'serie', limit: 4 },
             { type: 'anime', limit: 3 },
             { type: 'jeu', limit: 3 },
-            { type: 'webtoon', limit: 3 },
+            { type: 'webtoon', limit: 2 },
+            { type: 'comic', limit: 2 },
             { type: 'book', limit: 2 },
             { type: 'novel', limit: 1 },
         ];
@@ -84,7 +85,7 @@ mediaRoutes.get('/all', async (c) => {
 
 // ========== GET /api/media (Listing par type + filtres) ==========
 const listMediaSchema = z.object({
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel']),
     sort: z.enum(['created_at', 'title', 'rating', 'year']).optional().default('created_at'),
     order: z.enum(['asc', 'desc']).optional().default('desc'),
     limit: z.coerce.number().int().min(1).max(200).optional().default(20),
@@ -340,7 +341,7 @@ mediaRoutes.get('/:type/:slug', async (c) => {
 // ========== POST /api/media ==========
 const createMediaSchema = z.object({
     title: z.string().min(1).max(500),
-    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel']),
+    type: z.enum(['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel']),
     year: z.number().int().min(1900).max(2100),
     synopsis: z.string().optional(),
     posterUrl: z.string().url().optional(),

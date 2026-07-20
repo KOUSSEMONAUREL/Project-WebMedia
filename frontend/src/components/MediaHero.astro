@@ -5,14 +5,14 @@ const { media } = Astro.props;
 
 const typeLabel: Record<string, string> = {
   film: 'Film', serie: 'Serie', anime: 'Anime', jeu: 'Jeu',
-  webtoon: 'Webtoon', book: 'Livre', novel: 'Novel',
+  webtoon: 'Webtoon', comic: 'Comic', book: 'Livre', novel: 'Novel',
 };
 
 const grad: Record<string, string> = {
   film: 'from-indigo-700/60 via-indigo-900/30', serie: 'from-violet-700/60 via-violet-900/30',
   anime: 'from-rose-700/60 via-rose-900/30', jeu: 'from-emerald-700/60 via-emerald-900/30',
-  webtoon: 'from-amber-700/60 via-amber-900/30', book: 'from-orange-700/60 via-orange-900/30',
-  novel: 'from-teal-700/60 via-teal-900/30',
+  webtoon: 'from-amber-700/60 via-amber-900/30', comic: 'from-blue-700/60 via-blue-900/30',
+  book: 'from-orange-700/60 via-orange-900/30', novel: 'from-teal-700/60 via-teal-900/30',
 }[media.type] || 'from-indigo-700/60 via-indigo-900/30';
 
 const isEpisode = media.type === 'serie' || media.type === 'anime';

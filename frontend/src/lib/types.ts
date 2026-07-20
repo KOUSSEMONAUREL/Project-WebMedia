@@ -1,4 +1,4 @@
-export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon' | 'book' | 'novel';
+export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon' | 'comic' | 'book' | 'novel';
 
 export interface Media {
   id: string; title: string; type: MediaType; year?: number; rating?: number;

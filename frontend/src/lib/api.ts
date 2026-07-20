@@ -178,7 +178,7 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
     console.warn('[api] getMediaDetails failed, mock fallback for', type, slug);
     const typeMap: Record<string, string> = {
       films: 'film', series: 'serie', animes: 'anime',
-      jeux: 'jeu', webtoons: 'webtoon'
+      jeux: 'jeu', webtoons: 'webtoon', comics: 'comic'
     };
     const mockType = typeMap[type] || type;
     const media = allMockData.find(m => m.type === mockType && m.slug === slug);

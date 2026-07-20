@@ -18,6 +18,7 @@ const navLinks = [
   { label: 'Séries', href: '/series' },
   { label: 'Animés', href: '/animes' },
   { label: 'Jeux', href: '/games' },
+  { label: 'Comics', href: '/comics' },
   { label: 'Webtoons', href: '/webtoons' },
   { label: 'Livres', href: '/books' },
   { label: 'Light Novels', href: '/novels' },
@@ -30,6 +31,7 @@ const typeColors: Record<string, string> = {
   anime:   'bg-rose-700',
   jeu:     'bg-emerald-700',
   webtoon: 'bg-amber-700',
+  comic:   'bg-blue-700',
   book:    'bg-orange-700',
   novel:   'bg-teal-700',
 };
@@ -205,6 +207,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
       '/series': 'serie',
       '/animes': 'anime',
       '/games': 'jeu',
+      '/comics': 'comic',
       '/webtoons': 'webtoon',
       '/books': 'book',
       '/novels': 'novel',

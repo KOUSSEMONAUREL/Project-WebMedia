@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
 
-const TYPE_ORDER = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'book', 'novel'] as const;
+const TYPE_ORDER = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel'] as const;
 
 function interleave(items: Media[]): Media[] {
   const buckets = new Map<string, Media[]>();

@@ -11,6 +11,7 @@ const TYPES = [
   { value: 'serie', label: 'Series' },
   { value: 'anime', label: 'Animes' },
   { value: 'jeu', label: 'Jeux' },
+  { value: 'comic', label: 'Comics' },
   { value: 'webtoon', label: 'Webtoons' },
   { value: 'book', label: 'Livres' },
   { value: 'novel', label: 'Light Novels' },
@@ -267,7 +268,7 @@ export default function SearchResults() {
             Tapez un titre pour commencer.
           </p>
           <div className="flex items-center justify-center gap-5 mt-8 text-[12px] text-muted-foreground/40">
-            {['Film','Serie','Anime','Jeu','Livre','Webtoon'].map((t) => (
+            {['Film','Serie','Anime','Jeu','Comic','Webtoon','Livre'].map((t) => (
               <span key={t} className="px-3 py-1.5 rounded-full border border-border/20">{t}</span>
             ))}
           </div>

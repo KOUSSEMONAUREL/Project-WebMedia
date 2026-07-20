@@ -1,6 +1,6 @@
 import type { ApiResponse } from './api';
 
-export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon';
+export type MediaType = 'film' | 'serie' | 'anime' | 'jeu' | 'webtoon' | 'comic';
 
 export interface Media {
   id: string;

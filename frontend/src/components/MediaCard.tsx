@@ -11,6 +11,7 @@ const typeLabel: Record<string, string> = {
   anime:   'Animé',
   jeu:     'Jeu',
   webtoon: 'Webtoon',
+  comic:   'Comic',
   book:    'Livre',
   novel:   'Novel',
 };
@@ -21,6 +22,7 @@ const typeColors: Record<string, string> = {
   anime:   'bg-rose-700',
   jeu:     'bg-emerald-700',
   webtoon: 'bg-amber-700',
+  comic:   'bg-blue-700',
   book:    'bg-orange-700',
   novel:   'bg-teal-700',
 };
@@ -31,6 +33,7 @@ const typeGradients: Record<string, string> = {
   anime:   'from-rose-950/60 via-rose-900/30 to-card',
   jeu:     'from-emerald-950/60 via-emerald-900/30 to-card',
   webtoon: 'from-amber-950/60 via-amber-900/30 to-card',
+  comic:   'from-blue-950/60 via-blue-900/30 to-card',
   book:    'from-orange-950/60 via-orange-900/30 to-card',
   novel:   'from-teal-950/60 via-teal-900/30 to-card',
 };
@@ -41,6 +44,7 @@ const typeLabelUpper: Record<string, string> = {
   anime:   'ANIME',
   jeu:     'JEU',
   webtoon: 'WEBTOON',
+  comic:   'COMIC',
   book:    'LIVRE',
   novel:   'NOVEL',
 };
@@ -77,6 +81,13 @@ const typeIcons: Record<string, ReactNode> = {
       <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/>
       <line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/>
       <line x1="8" y1="15" x2="16" y2="15"/>
+    </svg>
+  ),
+  comic: (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/>
+      <path d="M12 6v7"/><path d="M9 9l3-3 3 3"/>
+      <line x1="8" y1="16" x2="16" y2="16"/>
     </svg>
   ),
   book: (

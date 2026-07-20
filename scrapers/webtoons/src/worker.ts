@@ -20,23 +20,46 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
   for (const result of results) {
     if (!result.rootUrl) continue;
 
-    let playerHost = result.source;
-    try { playerHost = new URL(result.rootUrl).hostname; } catch { /* relative url */ }
+    if (media.type === 'comic' && result.chapters.length > 0) {
+      for (const chapter of result.chapters) {
+        let playerHost = result.source;
+        try { playerHost = new URL(chapter.url).hostname; } catch { /* relative url */ }
 
-    try {
-      await callInternal('/ingest/liens', {
-        mediaId: result.mediaId,
-        links: [{
-          source_site: result.source,
-          player_host: playerHost,
-          url: result.rootUrl,
-          qualite: 'webtoon',
-          langue: 'EN',
-        }],
-      });
-      chaptersSaved += 1;
-    } catch (err: any) {
-      console.error(`    ✗ Failed to save: ${err.message}`);
+        try {
+          await callInternal('/ingest/liens', {
+            mediaId: result.mediaId,
+            links: [{
+              source_site: result.source,
+              player_host: playerHost,
+              url: chapter.url,
+              qualite: 'comic',
+              langue: 'EN',
+            }],
+          });
+          chaptersSaved += 1;
+        } catch (err: any) {
+          console.error(`    ✗ Failed to save: ${err.message}`);
+        }
+      }
+    } else {
+      let playerHost = result.source;
+      try { playerHost = new URL(result.rootUrl).hostname; } catch { /* relative url */ }
+
+      try {
+        await callInternal('/ingest/liens', {
+          mediaId: result.mediaId,
+          links: [{
+            source_site: result.source,
+            player_host: playerHost,
+            url: result.rootUrl,
+            qualite: 'webtoon',
+            langue: 'EN',
+          }],
+        });
+        chaptersSaved += 1;
+      } catch (err: any) {
+        console.error(`    ✗ Failed to save: ${err.message}`);
+      }
     }
   }
 
@@ -48,15 +71,16 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
   if (mode === '--title') {
     const title = process.argv[3];
+    const type = process.argv[4] === '--type' ? process.argv[5] || 'webtoon' : 'webtoon';
     if (!title) {
-      console.error('Usage: npx tsx src/worker.ts --title <webtoon-title>');
+      console.error('Usage: npx tsx src/worker.ts --title <title> [--type webtoon|comic]');
       process.exit(1);
     }
-    console.log(`[DIRECT] Searching webtoon sources for: ${title}`);
+    console.log(`[DIRECT] Searching sources for: ${title} (type: ${type})`);
     import('postgres').then(async ({ default: postgres }) => {
       const result = await processMedia({
         id: '0', title, slug: title.toLowerCase().replace(/\s+/g, '-'),
-        type: 'webtoon', externalId: null,
+        type, externalId: null,
         metadataSource: null, synopsis: null,
       } as any);
       console.log(`[DIRECT] Found ${result.chaptersSaved} link(s) for '${title}'`);

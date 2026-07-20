@@ -9,6 +9,7 @@ const MEDIA_TABS: { type: MediaType; label: string }[] = [
   { type: 'serie', label: 'Series' },
   { type: 'anime', label: 'Animes' },
   { type: 'jeu', label: 'Jeux' },
+  { type: 'comic', label: 'Comics' },
   { type: 'webtoon', label: 'Webtoons' },
   { type: 'book', label: 'Livres' },
   { type: 'novel', label: 'Light Novels' },
