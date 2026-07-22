@@ -25,6 +25,7 @@ jobs:
         run: |
           cd scrapers/playwright-worker
           pip install -r requirements.txt
+          playwright install chromium
         
       - name: Run Scraper
         env:

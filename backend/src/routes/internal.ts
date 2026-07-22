@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@libsql/client';
 import { getNeonDb } from '../db/singleton';
 import { medias, episodes, liens } from '../db/neon/schema';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, ne, sql } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
 import { logger } from '../services/logger';
 import { OrchestratorService } from '../services/orchestrator';
@@ -595,6 +595,48 @@ internalRoutes.post('/orchestrate', async (c) => {
         return c.json({ success: true, ...result });
     } catch (error: any) {
         await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, mongoUri(c));
+        return c.json({ success: false, error: error.message }, 500);
+    }
+});
+
+// ========== POST /api/internal/ingest/reconcile ==========
+// Compare Neon et D1, backfill les entrees manquantes dans D1
+internalRoutes.post('/ingest/reconcile', async (c) => {
+    try {
+        if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
+        const connStr = getVar(c, 'NEON_DATABASE_URL');
+        const hyperdrive = c.env?.HYPERDRIVE;
+        const db = getNeonDb(connStr, hyperdrive) as any;
+
+        const allNeon = await db.select({ id: medias.id, type: medias.type, title: medias.title, slug: medias.slug, activeLinksCount: medias.activeLinksCount })
+            .from(medias).where(ne(medias.type, 'book'));
+
+        const { results: d1Entries } = await c.env.DB.prepare('SELECT media_id FROM media_state').all<{ media_id: string }>();
+        const d1Ids = new Set(d1Entries.map(e => e.media_id));
+
+        const missing = allNeon.filter((m: any) => !d1Ids.has(m.id));
+        if (missing.length === 0) {
+            return c.json({ success: true, reconciled: 0, message: 'D1 deja synchronise' });
+        }
+
+        const statements = missing.map((m: any) =>
+            c.env.DB!.prepare(`
+                INSERT OR IGNORE INTO media_state (media_id, type, title, slug, metadata_ok, active_links, has_content, next_scrape, scrape_priority)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, 1)
+            `).bind(m.id, m.type, m.title, m.slug, m.activeLinksCount || 0, (m.activeLinksCount || 0) > 0 ? 1 : 0, Date.now() + 10000)
+        );
+
+        const BATCH_SIZE = 100;
+        let reconciled = 0;
+        for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+            await c.env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+            reconciled += Math.min(BATCH_SIZE, statements.length - i);
+        }
+
+        console.log(`Reconcile D1: ${reconciled} entree(s) ajoutee(s) (${missing.length} trouvees)`);
+        return c.json({ success: true, reconciled, found: missing.length });
+    } catch (error: any) {
+        console.error('Reconcile Error:', error.message);
         return c.json({ success: false, error: error.message }, 500);
     }
 });

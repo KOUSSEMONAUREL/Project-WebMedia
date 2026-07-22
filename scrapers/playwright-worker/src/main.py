@@ -186,9 +186,9 @@ def process_jobs():
 
     jobs_processed = 0
     errors = 0
-    max_jobs = 20
+    max_jobs = 50
     start_time = time.time()
-    max_duration = 5 * 60
+    max_duration = 15 * 60
 
     while (time.time() - start_time) < max_duration and jobs_processed < max_jobs:
         job_id = None
