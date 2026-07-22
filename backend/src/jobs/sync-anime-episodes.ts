@@ -1,9 +1,8 @@
 import 'dotenv/config';
 import { getNeonClient } from '../db/singleton';
 import { medias, episodes } from '../db/neon/schema';
-import { eq, and, isNotNull } from 'drizzle-orm';
+import { eq, and, isNotNull, inArray, sql } from 'drizzle-orm';
 import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
 
 const TMDB_ACCESS_TOKEN = process.env.TMDB_ACCESS_TOKEN || '';
 const FRIBB_URL = 'https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json';
@@ -66,12 +65,16 @@ async function fetchTmdbSeason(tmdbId: number, seasonNumber: number, mediaId: st
   return data.episodes ?? [];
 }
 
-async function syncToTurso(neonUrl: string) {
+async function syncToTurso(neonUrl: string, episodeIds: string[] = []) {
   if (!TURSO_URL || !TURSO_TOKEN) {
     console.log('Turso non configure, skipping sync');
     return;
   }
-  console.log('\nSyncing Neon -> Turso...');
+  if (episodeIds.length === 0) {
+    console.log('  Aucun nouvel episode a sync vers Turso');
+    return;
+  }
+  console.log(`\nSyncing ${episodeIds.length} new episodes Neon -> Turso...`);
   const { db: neonDb } = getNeonClient(neonUrl);
   const turso = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
 
@@ -87,7 +90,7 @@ async function syncToTurso(neonUrl: string) {
     duration: episodes.duration,
   })
     .from(episodes)
-    .where(sql`media_id IN (SELECT id FROM medias WHERE type = 'anime')`);
+    .where(inArray(episodes.id, episodeIds));
 
   if (animeEpisodes.length === 0) {
     console.log('  Aucun episode anime a sync vers Turso');
@@ -133,6 +136,43 @@ async function syncToTurso(neonUrl: string) {
   turso.close();
 }
 
+async function syncTmdbIdsToTurso(mediaTmdbMap: Map<string, number>) {
+  if (!TURSO_URL || !TURSO_TOKEN) return;
+  if (mediaTmdbMap.size === 0) return;
+
+  const turso = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
+  const missing: { id: string; tmdbId: number }[] = [];
+
+  const ids = [...mediaTmdbMap.keys()];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const placeholders = chunk.map(() => '?').join(',');
+    const result = await turso.execute({
+      sql: `SELECT id FROM medias WHERE id IN (${placeholders}) AND tmdb_id IS NULL`,
+      args: chunk,
+    });
+    for (const row of result.rows) {
+      const mid = row.id as string;
+      missing.push({ id: mid, tmdbId: mediaTmdbMap.get(mid)! });
+    }
+  }
+
+  if (missing.length === 0) {
+    turso.close();
+    return;
+  }
+
+  for (const m of missing) {
+    await turso.execute({
+      sql: 'UPDATE medias SET tmdb_id = ? WHERE id = ?',
+      args: [m.tmdbId, m.id],
+    });
+  }
+
+  console.log(`  ${missing.length} tmdb_id synced to Turso`);
+  turso.close();
+}
+
 async function main() {
   console.log('=== Sync Anime Episodes ===\n');
 
@@ -167,6 +207,8 @@ async function main() {
   let noFribb = 0;
   let noTmdb = 0;
   let alreadyExist = 0;
+  const newEpisodeIds: string[] = [];
+  const mediaTmdbMap = new Map<string, number>();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -177,6 +219,7 @@ async function main() {
 
     const tmdbId = fribbEntry.tmdbId ?? row.tmdbId;
     if (!tmdbId) { noTmdb++; skipped++; continue; }
+    mediaTmdbMap.set(row.id, tmdbId);
 
     try {
       const existingCount = await db.select({ count: sql<number>`COUNT(*)::int` })
@@ -211,7 +254,8 @@ async function main() {
         duration: ep.runtime || null,
       }));
 
-      await db.insert(episodes).values(episodeRows);
+      const inserted = await db.insert(episodes).values(episodeRows).returning({ id: episodes.id });
+      newEpisodeIds.push(...inserted.map(r => r.id));
       created += episodeRows.length;
       process.stdout.write(`[${i + 1}/${rows.length}] +${episodeRows.length} ${row.slug} (tmdb:${tmdbId} s${fribbEntry.season})\n`);
     } catch (err: any) {
@@ -228,7 +272,8 @@ async function main() {
   console.log(`Erreurs:           ${errors}`);
   console.log(`Total skipped:     ${skipped}`);
 
-  if (created > 0) await syncToTurso(neonUrl);
+  if (created > 0) await syncToTurso(neonUrl, newEpisodeIds);
+  await syncTmdbIdsToTurso(mediaTmdbMap);
 
   await pgClient.end();
 
