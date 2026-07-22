@@ -212,7 +212,7 @@ export function UserSettings() {
       </div>
 
       <p className="text-xs text-muted-foreground/50 text-center mt-8">
-        WebMedia v1.0.0
+        WebMediia v1.0.0
       </p>
     </div>
   );

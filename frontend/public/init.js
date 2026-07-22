@@ -11,7 +11,7 @@
   const favKey = 'webmedia_favorites';
   const wlKey = 'webmedia_watchlist';
   if (localStorage.getItem(favKey) || localStorage.getItem(wlKey)) {
-    const request = indexedDB.open('webmedia', 1);
+    const request = indexedDB.open('webmediia', 1);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains('favorites')) db.createObjectStore('favorites', { keyPath: 'id' });

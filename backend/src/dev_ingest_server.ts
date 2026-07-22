@@ -48,7 +48,7 @@ if (import.meta.main) {
         let body = ''
         for await (const chunk of req) body += chunk.toString()
         // dump received body for debugging
-        const tmpDir = mkdtempSync(join(tmpdir(), 'webmedia-ingest-'))
+        const tmpDir = mkdtempSync(join(tmpdir(), 'webmediia-ingest-'))
         try { writeFileSync(join(tmpDir, 'last_ingest_body.txt'), body) } catch (e) {}
         const data = JSON.parse(body || '{}')
         const result = await handleIngest(data)

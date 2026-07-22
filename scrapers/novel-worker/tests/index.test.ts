@@ -14,7 +14,7 @@ test('novel worker no longer hardcodes absolute path', async () => {
     'utf-8'
   );
   assert.ok(
-    !source.includes('/home/aurel/CODE/Project-WebMedia/scrapers/playwright-worker/venv/bin/lncrawl'),
+    !source.includes('/home/aurel/CODE/Project-WebMediia/scrapers/playwright-worker/venv/bin/lncrawl'),
     'hardcoded path removed from index.ts'
   );
   assert.ok(

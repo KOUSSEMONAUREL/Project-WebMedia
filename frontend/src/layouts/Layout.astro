@@ -11,7 +11,7 @@ interface Props {
     description?: string;
 }
 
-const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.' } = Astro.props;
+const { title, description = 'WebMediia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -25,13 +25,13 @@ const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, 
         <meta name="generator" content={Astro.generator} />
         <ClientRouter />
         
-        <title>{title} | WebMedia</title>
+        <title>{title} | WebMediia</title>
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="website" />
         <meta property="og:image" content="https://www.webmediia.cfd/images/logo.png" />
         <meta property="og:url" content={Astro.url.href} />
-        <meta property="og:site_name" content="WebMedia" />
+        <meta property="og:site_name" content="WebMediia" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
@@ -69,10 +69,10 @@ const { title, description = 'WebMedia - Annuaire de streaming gratuit : films, 
             <p class="text-muted-foreground text-xs">
                 <a href="/legal" class="hover:text-foreground transition-colors">Mentions legales</a>
                 <span class="mx-2 opacity-30">·</span>
-                © 2025 WebMedia
+                © 2025 WebMediia
             </p>
             <p class="text-[10px] text-muted-foreground/50 mt-2 max-w-md mx-auto leading-relaxed">
-                WebMedia est un annuaire de streaming gratuit referenceant des films, series, animes, mangas, webtoons, jeux, livres et light novels.
+                WebMediia est un annuaire de streaming gratuit referenceant des films, series, animes, mangas, webtoons, jeux, livres et light novels.
             </p>
         </footer>
     </body>

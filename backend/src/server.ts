@@ -134,7 +134,7 @@ app.route('/api/admin', adminRoutes);
 app.get('/', (c) => {
     return c.json({
         status: 'ok',
-        service: 'WebMedia Backend API (Render)',
+        service: 'WebMediia Backend API (Render)',
         environment: process.env.ENVIRONMENT || 'development',
     });
 });
@@ -152,5 +152,5 @@ app.onError((err, c) => {
 // ========== DÉMARRAGE ==========
 const port = parseInt(process.env.PORT || '3000', 10);
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
-    console.log(`WebMedia Backend demarre sur le port ${info.port} (0.0.0.0)`);
+    console.log(`WebMediia Backend demarre sur le port ${info.port} (0.0.0.0)`);
 });

@@ -1,7 +1,7 @@
 {
-  "name": "webmedia-backend",
+  "name": "webmediia-backend",
   "version": "1.0.0",
-  "description": "Backend API pour WebMedia - Plateforme de recommandations médias",
+  "description": "Backend API pour WebMediia - Plateforme de recommandations médias",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

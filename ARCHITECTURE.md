@@ -1,4 +1,4 @@
-# Architecture WebMedia
+# Architecture WebMediia
 
 ## Vue d'ensemble
 

@@ -10,7 +10,7 @@
  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝     ╚═╝╚══════╝╚═════╝ ╚═╝ ╚═╚═╝╚═╝
 ```
 
-**WebMedia — Distributed Media Archiver & Recommendation Engine**
+**WebMediia — Distributed Media Archiver & Recommendation Engine**
 
 <br/>
 
@@ -26,7 +26,7 @@
 
 ---
 
-> **WebMedia** is a distributed media recommendation and archival platform. It scrapes metadata from 12+ external APIs (TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, MangaDex, Comic Vine, etc.) and 188+ webtoon sources across 3 languages. Data flows into Neon Postgres (source of truth) with a Turso SQLite edge replica for low-latency reads.
+> **WebMediia** is a distributed media recommendation and archival platform. It scrapes metadata from 12+ external APIs (TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, MangaDex, Comic Vine, etc.) and 188+ webtoon sources across 3 languages. Data flows into Neon Postgres (source of truth) with a Turso SQLite edge replica for low-latency reads.
 
 ---
 
@@ -142,7 +142,7 @@ Flask app avec embeddings ML. Analyse le catalogue Neon pour recommandations per
 ## Development
 
 ```bash
-git clone https://github.com/KOUSSEMON-Aurel/Project-WebMedia.git
+git clone https://github.com/KOUSSEMON-Aurel/Project-WebMediia.git
 
 # Backend
 cd backend && npm install
@@ -166,7 +166,7 @@ cd test && docker-compose up
 
 <div align="center">
 
-**WebMedia — Distributed Media Engine**
+**WebMediia — Distributed Media Engine**
 
 *Scale. Automate. Persist.*
 

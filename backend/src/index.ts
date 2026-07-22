@@ -179,7 +179,7 @@ app.get('/', (c) => {
     }
     return c.json({
         status: 'ok',
-        service: 'WebMedia Backend API',
+        service: 'WebMediia Backend API',
         environment: c.env.ENVIRONMENT || 'development'
     });
 });

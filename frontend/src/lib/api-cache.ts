@@ -1,4 +1,4 @@
-const DB_NAME = 'webmedia-api-cache';
+const DB_NAME = 'webmediia-api-cache';
 const DB_VERSION = 1;
 const STORE = 'responses';
 

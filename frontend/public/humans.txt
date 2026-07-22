@@ -6,5 +6,5 @@ Site: https://www.webmediia.cfd
 /* SITE */
 Language: French
 Code: Open source (MIT)
-Repository: https://github.com/KOUSSEMONAUREL/Project-WebMedia
+Repository: https://github.com/KOUSSEMONAUREL/Project-WebMediia
 Last update: 2026-07

@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'webmedia-livetv';
+const DB_NAME = 'webmediia-livetv';
 const DB_VERSION = 2;
 
 let _db: any = null;

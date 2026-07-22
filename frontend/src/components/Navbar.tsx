@@ -247,7 +247,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                 }}
                 data-astro-transition-name="logo"
               >
-                WebMedia
+                WebMediia
               </span>
             </a>
             <div className="hidden lg:flex items-center gap-0.5">

@@ -6,7 +6,7 @@ import { createNeonClient } from '../db/client.js';
 import { importOffsets } from '../db/neon/schema.js';
 import { eq } from 'drizzle-orm';
 
-const TMP_DIR = mkdtempSync(join(tmpdir(), 'webmedia-offsets-'));
+const TMP_DIR = mkdtempSync(join(tmpdir(), 'webmediia-offsets-'));
 const OFFSET_FILE = join(TMP_DIR, 'import_offsets.json');
 
 interface OffsetStore {

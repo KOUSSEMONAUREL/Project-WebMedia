@@ -1,6 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
-const DB_NAME = 'webmedia';
+const DB_NAME = 'webmediia';
 const DB_VERSION = 1;
 
 let _db: IDBPDatabase | null = null;

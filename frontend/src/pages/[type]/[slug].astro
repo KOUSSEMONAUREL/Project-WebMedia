@@ -61,7 +61,7 @@ const data = media ? {
 
     function db() {
       return new Promise((ok, no) => {
-        const r = indexedDB.open('webmedia', 1);
+        const r = indexedDB.open('webmediia', 1);
         r.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('favorites')) db.createObjectStore('favorites', { keyPath: 'id' });

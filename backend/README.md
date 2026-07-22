@@ -1,6 +1,6 @@
-# Backend WebMedia
+# Backend WebMediia
 
-API Backend pour la plateforme WebMedia, construite avec **Hono** et déployée sur **Cloudflare**.
+API Backend pour la plateforme WebMediia, construite avec **Hono** et déployée sur **Cloudflare**.
 
 ## 🚀 Démarrage rapide
 

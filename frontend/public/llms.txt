@@ -1,8 +1,8 @@
-# WebMedia
+# WebMediia
 
 > Annuaire de streaming gratuit referencant des liens de streaming exterieurs pour films, series, animes, mangas, webtoons, jeux, livres et light novels. Le site ne stocke aucun fichier video sur ses serveurs.
 
-WebMedia est un annuaire qui organise et reference du contenu multimedia accessible en ligne. Chaque fiche contient synopsis, note, genre, annee et un lien vers une source de streaming externe.
+WebMediia est un annuaire qui organise et reference du contenu multimedia accessible en ligne. Chaque fiche contient synopsis, note, genre, annee et un lien vers une source de streaming externe.
 
 ## Pages principales
 

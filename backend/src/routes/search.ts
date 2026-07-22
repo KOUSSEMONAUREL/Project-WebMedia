@@ -158,14 +158,14 @@ async function dispatchGitHubAction(c: any, workerType: string, title: string): 
 
   try {
     const res = await fetch(
-      `https://api.github.com/repos/KOUSSEMONAUREL/Project-WebMedia/actions/workflows/${file}/dispatches`,
+      `https://api.github.com/repos/KOUSSEMONAUREL/Project-WebMediia/actions/workflows/${file}/dispatches`,
       {
         method: 'POST',
         headers: {
           'Accept': 'application/vnd.github+json',
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'webmedia-backend/1.0',
+          'User-Agent': 'webmediia-backend/1.0',
         },
         body: JSON.stringify({ ref: 'main', inputs: { title } }),
       }

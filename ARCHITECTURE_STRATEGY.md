@@ -1,4 +1,4 @@
-# Architecture — WebMedia
+# Architecture — WebMediia
 
 Architecture multi-cloud, coût 0€/mois, utilisant les limites gratuites des hébergeurs.
 

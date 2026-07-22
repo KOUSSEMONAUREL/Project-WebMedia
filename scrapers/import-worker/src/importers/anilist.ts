@@ -73,7 +73,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
                 const response = await withRetry(() => axios.post(ANILIST_API, {
                     query: POPULAR_QUERY,
                     variables: { page: 1, perPage: fetchLimit }
-                }, { headers: { 'User-Agent': 'WebMedia/1.0' }, timeout: 15000 }));
+                }, { headers: { 'User-Agent': 'WebMediia/1.0' }, timeout: 15000 }));
 
                 const entries = response.data?.data?.Page?.media || [];
                 return { items: entries, nextCheckpoint: new Date().toISOString() };
@@ -117,7 +117,7 @@ export async function importAnime(databaseUrl: string, limit: number = 20) {
                 const response = await withRetry(() => axios.post(ANILIST_API, {
                     query: POPULAR_QUERY,
                     variables: { page, perPage: fetchLimit }
-                }, { headers: { 'User-Agent': 'WebMedia/1.0' }, timeout: 15000 }));
+                }, { headers: { 'User-Agent': 'WebMediia/1.0' }, timeout: 15000 }));
 
                 const entries = response.data?.data?.Page?.media || [];
                 const hasNext = response.data?.data?.Page?.pageInfo?.hasNextPage || false;

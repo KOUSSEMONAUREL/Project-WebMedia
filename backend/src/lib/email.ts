@@ -1,6 +1,6 @@
 const API_URL = 'https://api.brevo.com/v3/smtp/email';
 const FROM_EMAIL = process.env.BETTER_AUTH_EMAIL_FROM || 'reyseilfullbryger@gmail.com';
-const APP_NAME = 'WebMedia';
+const APP_NAME = 'WebMediia';
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
