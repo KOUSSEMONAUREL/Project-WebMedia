@@ -224,6 +224,24 @@ internalRoutes.get('/resolve/stale', async (c) => {
     }
 });
 
+const TYPE_NORMALIZE: Record<string, string> = {
+    'game': 'jeu', 'movie': 'film', 'show': 'serie', 'tv': 'serie',
+    'manga': 'comic', 'bande-dessinee': 'comic',
+};
+
+const VALID_TYPES = new Set(['anime', 'comic', 'film', 'jeu', 'novel', 'serie', 'webtoon']);
+
+function normalizeType(type: string, id: string): string {
+    const normalized = TYPE_NORMALIZE[type] || type;
+    if (normalized !== type) {
+        console.log(`[TYPE FIX] ${id}: '${type}' -> '${normalized}'`);
+    }
+    if (!VALID_TYPES.has(normalized)) {
+        console.warn(`[TYPE WARN] ${id}: type '${normalized}' inattendu`);
+    }
+    return normalized;
+}
+
 // ========== POST /api/internal/ingest/media ==========
 const ingestMediaSchema = z.object({
     id: z.string().uuid(),
@@ -236,7 +254,8 @@ const ingestMediaSchema = z.object({
 });
 
 internalRoutes.post('/ingest/media', zValidator('json', ingestMediaSchema as any), async (c) => {
-    const { id, type, metadata_ok, active_links, has_content, title, slug } = c.req.valid('json');
+    let { id, type, metadata_ok, active_links, has_content, title, slug } = c.req.valid('json');
+    type = normalizeType(type, id);
     if (type === 'book') return c.json({ success: true, skipped: true });
     try {
         if (!c.env?.DB) return c.json({ success: false, error: 'D1 non disponible' }, 501);
@@ -277,6 +296,9 @@ const ingestMediaBatchSchema = z.object({
 
 internalRoutes.post('/ingest/media/batch', zValidator('json', ingestMediaBatchSchema as any), async (c) => {
     const { items } = c.req.valid('json') as z.infer<typeof ingestMediaBatchSchema>;
+    for (const item of items) {
+        item.type = normalizeType(item.type, item.id);
+    }
     const nonBooks = items.filter(i => i.type !== 'book');
     if (items.length !== nonBooks.length) {
         console.log(`Batch ingest: ${items.length - nonBooks.length} book(s) skipped`);
