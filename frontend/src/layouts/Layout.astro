@@ -4,7 +4,6 @@ import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
 import { VerificationBanner } from '../components/VerificationBanner';
 import { ToastInit } from '../components/ToastInit';
-import { BackToTop } from '../components/BackToTop';
 import ClientRouter from 'astro/components/ClientRouter.astro';
 
 interface Props {
@@ -100,29 +99,14 @@ const { title, description = 'WebMediia - Annuaire de streaming gratuit : films,
                 </div>
             </div>
             <div class="border-t border-border/20 px-4 py-5">
-                <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-semibold text-foreground">WebMediia</span>
-                        <span class="text-xs text-muted-foreground">© 2026 Tous droits réservés</span>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <a href="https://discord.gg/4E5YXXFaHg" target="_blank" rel="noopener" class="text-muted-foreground hover:text-foreground transition-colors" aria-label="Discord">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025 13.2 13.2 0 0 0-3.257 1.011.05.05 0 0 0-.021.018C.356 6.421-.13 9.583.099 12.57a.05.05 0 0 0 .019.03 13.3 13.3 0 0 0 4.027 2.04.05.05 0 0 0 .053-.018 10.3 10.3 0 0 0 .825-1.344.05.05 0 0 0-.027-.07 8.8 8.8 0 0 1-1.258-.6.05.05 0 0 1-.005-.083 10 10 0 0 0 .246-.162.05.05 0 0 1 .048-.003 9.3 9.3 0 0 0 7.858 0 .05.05 0 0 1 .048.003q.12.08.246.162a.05.05 0 0 1-.005.082 8.8 8.8 0 0 1-1.258.6.05.05 0 0 0-.027.07c.32.468.594.91.825 1.345a.05.05 0 0 0 .053.018 13.3 13.3 0 0 0 4.028-2.04.05.05 0 0 0 .019-.03c.278-3.53-.467-6.676-1.788-9.645a.04.04 0 0 0-.021-.019M5.79 10.87c-.787 0-1.434-.722-1.434-1.607s.639-1.607 1.434-1.607c.802 0 1.442.73 1.434 1.607 0 .885-.639 1.607-1.434 1.607m4.42 0c-.787 0-1.434-.722-1.434-1.607s.64-1.607 1.434-1.607c.802 0 1.442.73 1.434 1.607 0 .885-.632 1.607-1.434 1.607"/>
-                            </svg>
-                        </a>
-                        <a href="https://x.com/koussem_aurel" target="_blank" rel="noopener" class="text-muted-foreground hover:text-foreground transition-colors" aria-label="X">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865l8.875 11.633Z"/>
-                            </svg>
-                        </a>
-                    </div>
+                <div class="max-w-7xl mx-auto flex items-center justify-center gap-2">
+                    <span class="text-sm font-semibold text-foreground">WebMediia</span>
+                    <span class="text-xs text-muted-foreground">© 2026 Tous droits réservés</span>
                 </div>
             </div>
         </footer>
     </body>
     <CookieBanner client:visible />
-    <BackToTop client:visible />
     <ToastInit client:only="react" />
     <script>
         import { initSyncSession } from '../lib/sync-queue';

@@ -4,12 +4,11 @@ import { toast } from 'sonner';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
-import { useTilt } from '@/lib/useTilt';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
-  serie:   'Serie',
-  anime:   'Anime',
+  serie:   'Série',
+  anime:   'Animé',
   jeu:     'Jeu',
   webtoon: 'Webtoon',
   comic:   'Comic',
@@ -110,13 +109,11 @@ interface MediaCardProps {
   media: Media;
   size?: 'normal' | 'large';
   isLcp?: boolean;
-  animationDelay?: number;
 }
 
-export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp, animationDelay = 0 }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp }: MediaCardProps) {
   const detailHref = `/${media.type}/${media.slug || media.id}`;
   const isLarge = size === 'large';
-  const { ref: tiltRef, handleMouseMove, handleMouseLeave } = useTilt(6);
 
   const [isFav, setIsFav] = useState(false);
   const [isWl, setIsWl] = useState(false);
@@ -154,6 +151,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
     setIsFav(nextVal);
 
     try {
+      // 1. Écriture immédiate dans IndexedDB (locale, instantanée)
       if (nextVal) {
         await addFavorite({
           id: media.id,
@@ -225,136 +223,119 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
   };
 
   return (
-    <div
-      ref={tiltRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className={`flex-shrink-0 poster-row-card transition-all duration-500`}
-      style={{
-        animation: `fadeInUp 0.5s ease ${animationDelay}s both`,
-        transformStyle: 'preserve-3d',
-      }}
+    <a
+      href={detailHref}
+      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] ${
+        isLarge
+          ? 'w-[130px] xs:w-[148px] sm:w-[180px] md:w-[200px] lg:w-[212px]'
+          : 'w-[120px] xs:w-[138px] sm:w-[160px] md:w-[180px] lg:w-[192px]'
+      }`}
     >
-      <a
-        href={detailHref}
-        className={`group relative flex flex-col gap-2 block transition-all duration-300 ${
-          isLarge
-            ? 'w-[130px] xs:w-[148px] sm:w-[180px] md:w-[200px] lg:w-[212px]'
-            : 'w-[120px] xs:w-[138px] sm:w-[160px] md:w-[180px] lg:w-[192px]'
-        }`}
+      {/* Poster */}
+      <div
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl poster-wrap shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
+        style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
-        {/* Poster */}
-        <div
-          className="relative aspect-[2/3] w-full overflow-hidden rounded-xl poster-wrap shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
-          style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          {media.posterUrl ? (
-            <img
-              src={optimizePosterUrl(media.posterUrl)!}
-              srcSet={posterSrcSet(media.posterUrl)}
-              sizes="(max-width: 640px) 164px, (max-width: 1024px) 192px, 212px"
-              alt={media.title}
-              className="poster-img relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
-              loading={isLcp ? undefined : 'lazy'}
-              fetchPriority={isLcp ? 'high' : undefined}
-              ref={(el) => { if (el?.complete) el.classList.add('loaded'); }}
-              onLoad={(e) => (e.target as HTMLImageElement).classList.add('loaded')}
-              onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
-            />
-          ) : null}
+        {media.posterUrl ? (
+          <img
+            src={optimizePosterUrl(media.posterUrl)!}
+            srcSet={posterSrcSet(media.posterUrl)}
+            sizes="(max-width: 640px) 164px, (max-width: 1024px) 192px, 212px"
+            alt={media.title}
+            className="poster-img relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]"
+            loading={isLcp ? undefined : 'lazy'}
+            fetchPriority={isLcp ? 'high' : undefined}
+            ref={(el) => { if (el?.complete) el.classList.add('loaded'); }}
+            onLoad={(e) => (e.target as HTMLImageElement).classList.add('loaded')}
+            onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+          />
+        ) : null}
 
-          {/* Placeholder */}
-          <div className={`absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br ${typeGradients[media.type] || 'from-card to-secondary/80'}`}>
-            <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03]"></div>
-            <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/[0.02]"></div>
+        {/* Placeholder (shown when no image or image behind it) */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br ${typeGradients[media.type] || 'from-card to-secondary/80'}`}>
+          {/* Decorative circles */}
+          <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03]"></div>
+          <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/[0.02]"></div>
 
-            <div className="relative mb-3 opacity-30">
-              {typeIcons[media.type] || null}
-            </div>
-
-            <span className="relative text-white/25 text-[9px] font-bold uppercase tracking-[0.15em] mb-2">
-              {typeLabelUpper[media.type] || media.type.toUpperCase()}
-            </span>
-            <span className="relative text-white/60 text-sm font-display font-bold leading-snug line-clamp-6 px-1 drop-shadow-sm">
-              {media.title}
-            </span>
+          {/* Type icon */}
+          <div className="relative mb-3 opacity-30">
+            {typeIcons[media.type] || null}
           </div>
 
-          {/* Glow overlay on hover */}
-          <div
-            className="absolute inset-0 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-            style={{
-              background: 'radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(59,130,246,0.08), transparent 60%)',
-            }}
-          />
+          <span className="relative text-white/25 text-[9px] font-bold uppercase tracking-[0.15em] mb-2">
+            {typeLabelUpper[media.type] || media.type.toUpperCase()}
+          </span>
+          <span className="relative text-white/60 text-sm font-display font-bold leading-snug line-clamp-6 px-1 drop-shadow-sm">
+            {media.title}
+          </span>
+        </div>
 
-          {/* Hover overlay */}
-          <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
+        {/* Hover overlay */}
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-end pb-3.5 px-3 gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
+          >
+            <Play className="h-3 w-3 fill-current" />
+            Détails
+          </button>
+          <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
             <button
               type="button"
-              className="flex items-center gap-1.5 px-5 py-1.5 rounded-full text-[11px] font-bold text-black transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
+              onClick={toggleFavorite}
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+                isFav
+                  ? 'border-red-500/80 bg-red-500/25 text-red-400 hover:bg-red-500/35'
+                  : 'border-white/20 hover:border-red-500/60 hover:bg-red-500/20'
+              }`}
+              title="Favoris"
             >
-              <Play className="h-3 w-3 fill-current" />
-              Details
+              <Heart className={`h-3 w-3 ${isFav ? 'fill-red-500 text-red-500' : ''}`} />
             </button>
-            <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
-              <button
-                type="button"
-                onClick={toggleFavorite}
-                className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all cursor-pointer ${
-                  isFav
-                    ? 'border-red-500/80 bg-red-500/25 text-red-400 hover:bg-red-500/35'
-                    : 'border-white/20 hover:border-red-500/60 hover:bg-red-500/20'
-                }`}
-                title="Favoris"
-              >
-                <Heart className={`h-3 w-3 ${isFav ? 'fill-red-500 text-red-500' : ''}`} />
-              </button>
-              <button
-                type="button"
-                onClick={toggleWatchlist}
-                className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all cursor-pointer ${
-                  isWl
-                    ? 'border-primary/80 bg-primary/25 text-primary hover:bg-primary/35'
-                    : 'border-white/20 hover:border-primary/60 hover:bg-primary/15'
-                }`}
-                title="A voir"
-              >
-                <BookmarkPlus className={`h-3 w-3 ${isWl ? 'fill-primary text-primary' : ''}`} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={toggleWatchlist}
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+                isWl
+                  ? 'border-primary/80 bg-primary/25 text-primary hover:bg-primary/35'
+                  : 'border-white/20 hover:border-primary/60 hover:bg-primary/15'
+              }`}
+              title="À voir"
+            >
+              <BookmarkPlus className={`h-3 w-3 ${isWl ? 'fill-primary text-primary' : ''}`} />
+            </button>
           </div>
+        </div>
 
-          {/* Rating badge */}
-          <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
-            <Star className="h-2.5 w-2.5 fill-current" />
-            <span className="text-[11px] font-bold">{media.rating}</span>
-          </div>
+        {/* Rating badge */}
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-primary">
+          <Star className="h-2.5 w-2.5 fill-current" />
+          <span className="text-[11px] font-bold">{media.rating}</span>
+        </div>
 
-          {/* Type badge */}
-          <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm text-[9px] font-bold text-white uppercase tracking-wider`}>
+        {/* Type badge */}
+        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm text-[9px] font-bold text-white uppercase tracking-wider`}>
+          {typeLabel[media.type] || media.type}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="flex flex-col gap-1 px-0.5">
+        <h3 className="font-display font-semibold text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">
+          {media.title}
+        </h3>
+        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <span>{media.year}</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase text-white ${typeColors[media.type] || 'bg-gray-600'}`}>
             {typeLabel[media.type] || media.type}
-          </div>
+          </span>
+          <span className="flex items-center gap-0.5 text-primary ml-auto">
+            <Star className="h-3 w-3 fill-current" />
+            {media.rating}
+          </span>
         </div>
-
-        {/* Info */}
-        <div className="flex flex-col gap-1 px-0.5">
-          <h3 className="font-display font-semibold text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">
-            {media.title}
-          </h3>
-          <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span>{media.year}</span>
-            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase text-white ${typeColors[media.type] || 'bg-gray-600'}`}>
-              {typeLabel[media.type] || media.type}
-            </span>
-            <span className="flex items-center gap-0.5 text-primary ml-auto">
-              <Star className="h-3 w-3 fill-current" />
-              {media.rating}
-            </span>
-          </div>
-        </div>
-      </a>
-    </div>
+      </div>
+    </a>
   );
 });
