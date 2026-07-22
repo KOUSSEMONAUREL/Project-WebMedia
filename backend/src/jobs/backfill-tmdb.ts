@@ -77,25 +77,33 @@ async function backfill() {
         process.exit(0);
     }
 
-    console.log('Fetching Fribb mapping (fallback for TMDB search misses)...');
+    console.log('Fetching Fribb mapping (primary source)...');
     const fribbMap = await fetchFribbMapping();
     console.log(`Fribb: ${fribbMap.size} entries loaded`);
 
     let updated = 0;
     let notFound = 0;
+    let fromFribb = 0;
+    let fromTmdbSearch = 0;
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const title = row.title || `Anime ${row.anilistId}`;
 
         try {
-            // 1) TMDB search
-            let tmdbId = await findTmdbId(title);
+            // 1) Fribb first (curated, more reliable)
+            let tmdbId: number | null = null;
+            let source = '';
 
-            // 2) Fribb fallback
-            if (!tmdbId && row.anilistId) {
+            if (row.anilistId) {
                 tmdbId = fribbMap.get(String(row.anilistId)) ?? null;
-                if (tmdbId) console.log(`  Fribb fallback for ${title} -> TMDB ${tmdbId}`);
+                if (tmdbId) source = 'Fribb';
+            }
+
+            // 2) TMDB search fallback (only if Fribb has no entry)
+            if (!tmdbId) {
+                tmdbId = await findTmdbId(title);
+                if (tmdbId) source = 'TMDB search';
             }
 
             if (tmdbId) {
@@ -103,7 +111,9 @@ async function backfill() {
                     .set({ tmdbId, metadataSource: 'tmdb' })
                     .where(eq(medias.id, row.id));
                 updated++;
-                console.log(`[${i + 1}/${rows.length}] OK  ${title} -> TMDB ${tmdbId}`);
+                if (source === 'Fribb') fromFribb++;
+                else fromTmdbSearch++;
+                console.log(`[${i + 1}/${rows.length}] OK  ${title} -> TMDB ${tmdbId} (${source})`);
             } else {
                 notFound++;
                 console.warn(`[${i + 1}/${rows.length}] --  ${title} -> not found`);
@@ -113,7 +123,7 @@ async function backfill() {
         }
     }
 
-    console.log(`\nDone. Updated: ${updated}, Not found: ${notFound}, Total: ${rows.length}`);
+    console.log(`\nDone. Updated: ${updated} (Fribb: ${fromFribb}, TMDB search: ${fromTmdbSearch}), Not found: ${notFound}, Total: ${rows.length}`);
 
     await pgClient.end();
     process.exit(0);
