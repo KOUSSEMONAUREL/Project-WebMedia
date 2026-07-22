@@ -15,7 +15,7 @@ function sourceUrl(url: string): string {
 }
 
 function bypassProxy(url: string): boolean {
-  return ANILIST_RE.test(url) || MANGADEX_RE.test(url);
+  return ANILIST_RE.test(url) || MANGADEX_RE.test(url) || TMDB_RE.test(url);
 }
 
 function w(url: string): string {
