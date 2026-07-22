@@ -186,7 +186,7 @@ def process_jobs():
 
     jobs_processed = 0
     errors = 0
-    max_jobs = 50
+    max_jobs = 30
     start_time = time.time()
     max_duration = 15 * 60
 
