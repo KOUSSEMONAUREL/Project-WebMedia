@@ -7,6 +7,7 @@ import { medias as neonMedias } from '../db/neon/schema';
 import { eq, desc, asc, and, or, like, gte, lte, sql, ne } from 'drizzle-orm';
 
 type Bindings = {
+    KV: KVNamespace;
     HYPERDRIVE: Hyperdrive;
     NEON_DATABASE_URL: string;
     TURSO_DATABASE_URL: string;
@@ -68,14 +69,24 @@ mediaRoutes.get('/trending', async (c) => {
     }
 });
 
-// ========== GET /api/media/all (Admin: tous les medias sans filtre liens) ==========
+// ========== GET /api/media/all (tous les medias pour sitemap) ==========
 mediaRoutes.get('/all', async (c) => {
+    const CACHE_TTL = 43200; // 12h
+
     try {
+        const cached = await c.env.KV.get('sitemap:all', 'json');
+        if (cached && Array.isArray(cached)) {
+            return c.json({ success: true, data: cached, source: 'kv' });
+        }
+
         const db = getTursoDb(c);
         const results = await db.select()
             .from(medias)
             .orderBy(desc(medias.rating), desc(medias.createdAt))
             .limit(200);
+
+        c.executionCtx.waitUntil(c.env.KV.put('sitemap:all', JSON.stringify(results), { expirationTtl: CACHE_TTL }));
+        c.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
         return c.json({ success: true, data: results, source: 'turso' });
     } catch (error: any) {
         console.error('Erreur all media:', error.message);
