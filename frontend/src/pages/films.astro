@@ -1,9 +1,19 @@
 ---
-export const prerender = true;
 import Layout from '../layouts/Layout.astro';
 import { CategoryGrid } from '../components/CategoryGrid';
+import { getMediaByType } from '../lib/api';
 
+let initialData: any[] = [];
+let initialTotal = 0;
+try {
+  const result = await getMediaByType('film', { limit: 20, sort: 'created_at', order: 'desc' });
+  initialData = result.data || [];
+  initialTotal = result.total || 0;
+} catch (e) {
+  console.error('[films] SSR error:', e);
+}
 ---
-<Layout title="Films">
-  <CategoryGrid type="film" title="Films" client:visible />
+
+<Layout title="Films" description="Decouvrez tous les films disponibles sur WebMediia. Streaming gratuit, classement et filtres." canonicalUrl="https://www.webmediia.cfd/films">
+  <CategoryGrid type="film" title="Films" client:visible initialData={initialData} initialTotal={initialTotal} />
 </Layout>

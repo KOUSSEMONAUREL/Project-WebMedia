@@ -59,7 +59,7 @@ const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL || '';
       var img = '';
       if (m.posterUrl) {
         img = '<div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-secondary shadow-md relative">'
-          + '<img src="' + m.posterUrl + '" alt="" class="absolute inset-0 z-10 h-full w-full object-cover" loading="lazy" onerror="this.style.display=\'none\'"/>'
+          + '<img src="' + m.posterUrl + '" alt="' + m.title + '" class="absolute inset-0 z-10 h-full w-full object-cover" loading="lazy" onerror="this.style.display=\'none\'"/>'
           + '<div class="absolute inset-0 flex flex-col items-center justify-center p-5 text-center bg-gradient-to-br from-secondary to-card" style="display:none">'
           + '<span class="text-white/30 text-xs font-bold uppercase tracking-wider">' + m.type.toUpperCase() + '</span>'
           + '<span class="text-white/50 text-base font-bold leading-snug line-clamp-6">' + m.title + '</span></div>'

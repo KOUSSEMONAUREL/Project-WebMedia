@@ -1,11 +1,14 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getMediaDetails, type Media } from '../../lib/api';
+import JsonLd from '../../components/JsonLd.astro';
 import MediaHero from '../../components/MediaHero.astro';
 import ContentList from '../../components/ContentList.astro';
 import LinkFooter from '../../components/LinkFooter.astro';
 import ReviewSection from '../../components/ReviewSection';
 import { SimilarSection } from '../../components/SimilarSection';
+
+const SITE = 'https://www.webmediia.cfd';
 
 const { type, slug } = Astro.params;
 let media: Media | null = null;
@@ -28,9 +31,48 @@ const data = media ? {
   id: media.id, type: media.type, title: media.title, slug: media.slug,
   posterUrl: media.posterUrl, year: media.year, rating: media.rating
 } : null;
+
+const ogTypeMap: Record<string, string> = {
+  film: 'video.movie', serie: 'video.tv_show', anime: 'video.tv_show',
+  jeu: 'website', webtoon: 'website', comic: 'website', book: 'website', novel: 'website',
+};
+
+const ldTypeMap: Record<string, 'Movie' | 'TVSeries' | 'VideoGame' | 'Book' | 'CreativeWork'> = {
+  film: 'Movie', serie: 'TVSeries', anime: 'TVSeries',
+  jeu: 'VideoGame', webtoon: 'CreativeWork', comic: 'Book', book: 'Book', novel: 'Book',
+};
+
+const canonicalUrl = media ? `${SITE}/${media.type}/${media.slug || media.id}` : Astro.url.href;
+const ogType = media ? (ogTypeMap[media.type] || 'website') : 'website';
+const ogImage = media?.posterUrl || 'https://www.webmediia.cfd/images/logo.png';
+const description = media?.synopsis || (error ? 'Page introuvable' : '');
+const ldType = media ? (ldTypeMap[media.type] || 'CreativeWork') : undefined;
+const voteCount = media?.voteCount || media?.rating ? 1 : undefined;
 ---
 
-<Layout title={media ? media.title : 'Détails'}>
+<Layout
+  title={media ? media.title : 'Détails'}
+  description={description}
+  canonicalUrl={canonicalUrl}
+  ogType={ogType}
+  ogImage={ogImage}
+>
+  {media && ldType && (
+    <Fragment slot="json-ld">
+      <JsonLd
+        type={ldType}
+        name={media.title}
+        description={media.synopsis}
+        image={media.posterUrl}
+        url={canonicalUrl}
+        datePublished={media.createdAt}
+        genre={media.genres}
+        author={media.author}
+        ratingValue={media.rating}
+        ratingCount={voteCount}
+      />
+    </Fragment>
+  )}
   {error ? (
     <div class="container mx-auto px-6 py-20 text-center">
       <h1 class="text-4xl font-bold mb-4" style="color: #EF4444;">Erreur</h1>

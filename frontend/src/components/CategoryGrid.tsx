@@ -63,9 +63,11 @@ function pageNumbers(current: number, total: number): PageItem[] {
 interface Props {
   type: MediaType;
   title: string;
+  initialData?: Media[];
+  initialTotal?: number;
 }
 
-function GridContent({ type, title }: Props) {
+function GridContent({ type, title, initialData, initialTotal }: Props) {
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -83,12 +85,15 @@ function GridContent({ type, title }: Props) {
   }), [genre, yearMin, yearMax, ratingMin]);
   const queryKey = ['media', type, sortKey, sortDir, page, genre, yearMin, yearMax, ratingMin];
 
+  const isDefaultQuery = page === 0 && sortKey === 'created_at' && sortDir === 'desc' && !genre && !yearMin && !yearMax && !ratingMin;
+
   const { data, isPending, isError } = useQuery({
     queryKey,
     queryFn: () => getMediaByType(type, { limit: PER_PAGE, offset: page * PER_PAGE, sort: sortKey, order: sortDir, ...filters }),
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     gcTime: 300_000,
+    ...(initialData && isDefaultQuery ? { initialData: { data: initialData, total: initialTotal } as any } : {}),
   });
 
   const items = data?.data || [];

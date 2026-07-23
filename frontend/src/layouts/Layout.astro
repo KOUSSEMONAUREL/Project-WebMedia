@@ -9,9 +9,18 @@ import ClientRouter from 'astro/components/ClientRouter.astro';
 interface Props {
     title: string;
     description?: string;
+    canonicalUrl?: string;
+    ogType?: string;
+    ogImage?: string;
 }
 
-const { title, description = 'WebMediia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.' } = Astro.props;
+const {
+    title,
+    description = 'WebMediia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.',
+    canonicalUrl,
+    ogType = 'website',
+    ogImage = 'https://www.webmediia.cfd/images/logo.png',
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -23,19 +32,25 @@ const { title, description = 'WebMediia - Annuaire de streaming gratuit : films,
         <link rel="icon" type="image/png" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/favicon.png" />
         <meta name="generator" content={Astro.generator} />
+        {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+        <link rel="alternate" hrefLang="fr" href={canonicalUrl || Astro.url.href} />
+        <link rel="alternate" hrefLang="x-default" href={canonicalUrl || Astro.url.href} />
         <ClientRouter />
         
         <title>{title} | WebMediia</title>
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <meta property="og:type" content="website" />
-        <meta property="og:image" content="https://www.webmediia.cfd/images/logo.png" />
-        <meta property="og:url" content={Astro.url.href} />
+        <meta property="og:type" content={ogType} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:url" content={canonicalUrl || Astro.url.href} />
         <meta property="og:site_name" content="WebMediia" />
+        <meta property="og:locale" content="fr_FR" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
-        <meta name="twitter:image" content="https://www.webmediia.cfd/images/logo.png" />
+        <meta name="twitter:image" content={ogImage} />
+
+        <slot name="json-ld" />
 
         <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">

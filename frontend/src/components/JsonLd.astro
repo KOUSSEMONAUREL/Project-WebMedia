@@ -1,0 +1,37 @@
+---
+export interface Props {
+  type: 'Movie' | 'TVSeries' | 'VideoGame' | 'Book' | 'CreativeWork' | 'WebApplication';
+  name: string;
+  description?: string;
+  image?: string;
+  url?: string;
+  datePublished?: string;
+  genre?: string[];
+  author?: string;
+  ratingValue?: number;
+  ratingCount?: number;
+}
+
+const { type, name, description, image, url, datePublished, genre, author, ratingValue, ratingCount } = Astro.props;
+
+const json = {
+  '@context': 'https://schema.org',
+  '@type': type,
+  name,
+  ...(description && { description }),
+  ...(image && { image }),
+  ...(url && { url }),
+  ...(datePublished && { datePublished }),
+  ...(genre?.length && { genre }),
+  ...(author && { author }),
+  ...(ratingValue != null && ratingCount != null && {
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue,
+      ratingCount,
+    },
+  }),
+};
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(json)} />

@@ -1,9 +1,19 @@
 ---
-export const prerender = true;
 import Layout from '../layouts/Layout.astro';
 import { CategoryGrid } from '../components/CategoryGrid';
+import { getMediaByType } from '../lib/api';
 
+let initialData: any[] = [];
+let initialTotal = 0;
+try {
+  const result = await getMediaByType('anime', { limit: 20, sort: 'created_at', order: 'desc' });
+  initialData = result.data || [];
+  initialTotal = result.total || 0;
+} catch (e) {
+  console.error('[animes] SSR error:', e);
+}
 ---
-<Layout title="Animes">
-  <CategoryGrid type="anime" title="Animes" client:visible />
+
+<Layout title="Animes" description="Decouvrez tous les animes disponibles sur WebMediia. Streaming gratuit, classement et filtres." canonicalUrl="https://www.webmediia.cfd/animes">
+  <CategoryGrid type="anime" title="Animes" client:visible initialData={initialData} initialTotal={initialTotal} />
 </Layout>

@@ -1,9 +1,19 @@
 ---
-export const prerender = true;
 import Layout from '../layouts/Layout.astro';
 import { CategoryGrid } from '../components/CategoryGrid';
+import { getMediaByType } from '../lib/api';
 
+let initialData: any[] = [];
+let initialTotal = 0;
+try {
+  const result = await getMediaByType('webtoon', { limit: 20, sort: 'created_at', order: 'desc' });
+  initialData = result.data || [];
+  initialTotal = result.total || 0;
+} catch (e) {
+  console.error('[webtoons] SSR error:', e);
+}
 ---
-<Layout title="Webtoons">
-  <CategoryGrid type="webtoon" title="Webtoons" client:visible />
+
+<Layout title="Webtoons" description="Tous les webtoons disponibles sur WebMediia. Classement et filtres." canonicalUrl="https://www.webmediia.cfd/webtoons">
+  <CategoryGrid type="webtoon" title="Webtoons" client:visible initialData={initialData} initialTotal={initialTotal} />
 </Layout>
