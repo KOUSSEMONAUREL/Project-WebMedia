@@ -5,6 +5,8 @@ import { CookieBanner } from '../components/CookieBanner';
 import { VerificationBanner } from '../components/VerificationBanner';
 import { ToastInit } from '../components/ToastInit';
 import ClientRouter from 'astro/components/ClientRouter.astro';
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
 
 interface Props {
     title: string;
@@ -51,6 +53,8 @@ const {
         <meta name="twitter:image" content={ogImage} />
 
         <slot name="json-ld" />
+        <Analytics />
+        <SpeedInsights />
 
         <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">

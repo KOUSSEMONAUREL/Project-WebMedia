@@ -195,6 +195,7 @@ app.onError((err, c) => {
 });
 
 import { OrchestratorService } from './services/orchestrator';
+import { submitAllUrls } from './services/indexnow';
 
 // Export pour Cloudflare Workers
 export default {
@@ -203,5 +204,8 @@ export default {
         console.log("Cron Triggered:", event.cron);
         const orchestrator = new OrchestratorService(env);
         ctx.waitUntil(orchestrator.resolveStaleMedia());
+
+        // IndexNow: soumet toutes les URLs a 9h
+        ctx.waitUntil(submitAllUrls(env));
     }
 };
