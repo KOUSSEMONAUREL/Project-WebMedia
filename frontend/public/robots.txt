@@ -5,4 +5,4 @@ Disallow: /api/
 Disallow: /reset-password
 Disallow: /verify-success
 
-Sitemap: https://www.webmediia.cfd/sitemap-index.xml
+Sitemap: https://www.webmediia.cfd/sitemap.xml
