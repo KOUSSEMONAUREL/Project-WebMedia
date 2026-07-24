@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, varchar, timestamp, integer, decimal, boolean, json } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, varchar, timestamp, integer, decimal, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // ========== TABLE MEDIAS (Catalogue principal) ==========
@@ -56,7 +56,7 @@ export const liens = pgTable('liens', {
     quality: varchar('quality', { length: 20 }), // 1080p, 720p
     language: varchar('language', { length: 20 }), // Vostfr, Vf
     hasSubtitles: boolean('has_subtitles').default(false),
-    headers: json('headers'), // Headers requis pour Consumet (Referer, UA, etc.)
+    headers: jsonb('headers'), // Headers requis pour Consumet (Referer, UA, etc.)
     isActive: boolean('is_active').default(true),
     failCount: integer('fail_count').default(0),
     lastVerified: timestamp('last_verified'),
