@@ -35,8 +35,8 @@ const {
         <link rel="apple-touch-icon" href="/favicon.png" />
         <meta name="generator" content={Astro.generator} />
         {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
-        <link rel="alternate" hrefLang="fr" href={canonicalUrl || Astro.url.href} />
-        <link rel="alternate" hrefLang="x-default" href={canonicalUrl || Astro.url.href} />
+        <link rel="alternate" hreflang="fr" href={canonicalUrl || Astro.url.href} />
+        <link rel="alternate" hreflang="x-default" href={canonicalUrl || Astro.url.href} />
         <ClientRouter />
         
         <title>{title} | WebMediia</title>
