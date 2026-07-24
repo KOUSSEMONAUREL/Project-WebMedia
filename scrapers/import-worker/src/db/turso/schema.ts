@@ -44,6 +44,7 @@ export const episodes = sqliteTable('episodes', {
     airDate: integer('air_date', { mode: 'timestamp' }),
     thumbnailUrl: text('thumbnail_url'),
     duration: integer('duration'),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
 // ========== TABLE LIENS (Scraping) ==========
@@ -61,6 +62,7 @@ export const liens = sqliteTable('liens', {
     failCount: integer('fail_count').default(0),
     lastVerified: integer('last_verified', { mode: 'timestamp' }),
     scrapedAt: integer('scraped_at', { mode: 'timestamp' }),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
 // ========== RELATIONS ==========

@@ -44,6 +44,7 @@ export const episodes = pgTable('episodes', {
     airDate: timestamp('air_date'),
     thumbnailUrl: text('thumbnail_url'),
     duration: integer('duration'), // en minutes
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // ========== TABLE LIENS (Scraping) ==========
@@ -62,6 +63,7 @@ export const liens = pgTable('liens', {
     failCount: integer('fail_count').default(0),
     lastVerified: timestamp('last_verified'),
     scrapedAt: timestamp('scraped_at').defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // ========== TABLE IMPORT OFFSETS ==========

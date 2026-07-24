@@ -1,10 +1,11 @@
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
-import { medias, episodes, liens } from './db/neon/schema.js';
+import { medias, episodes, liens, importOffsets } from './db/neon/schema.js';
 import { medias as tursoMedias, episodes as tursoEpisodes, liens as tursoLiens } from './db/turso/schema.js';
 import { createLog } from './utils/log.js';
 
 const BATCH = 100;
+const SYNC_KEY = 'turso_last_sync_ms';
 
 function mediaUpsert() {
     return {
@@ -53,6 +54,7 @@ function episodeUpsert() {
             airDate: sql`excluded.air_date`,
             thumbnailUrl: sql`excluded.thumbnail_url`,
             duration: sql`excluded.duration`,
+            updatedAt: sql`excluded.updated_at`,
         }
     };
 }
@@ -73,22 +75,43 @@ function lienUpsert() {
             failCount: sql`excluded.fail_count`,
             lastVerified: sql`excluded.last_verified`,
             scrapedAt: sql`excluded.scraped_at`,
+            updatedAt: sql`excluded.updated_at`,
         }
     };
 }
 
 export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
     const neon = createNeonClient(neonUrl);
-    const turso = createTursoClient(tursoUrl, tursoToken);
     const log = createLog('Sync Turso', 'sync');
 
-        log.start('Syncing Neon -> Turso');
+    if (!tursoUrl || !tursoToken) {
+        log.warn('Turso non configure, sync ignore');
+        return;
+    }
+    const turso = createTursoClient(tursoUrl, tursoToken);
+
+    log.start('Syncing Neon -> Turso');
 
     try {
-        const allMedias = await neon.select().from(medias);
-        if (allMedias.length > 0) {
-            for (let i = 0; i < allMedias.length; i += BATCH) {
-                const batch = allMedias.slice(i, i + BATCH).map(m => ({
+        const [offset] = await neon.select()
+            .from(importOffsets)
+            .where(eq(importOffsets.key, SYNC_KEY));
+
+        const lastSyncMs = offset?.value ?? 0;
+        const hasOffset = !!offset;
+
+        if (lastSyncMs === 0) {
+            log.info('Aucun offset trouve: full sync pour etablir la baseline');
+        }
+
+        const filterSince = lastSyncMs > 0
+            ? sql`updated_at > ${new Date(lastSyncMs).toISOString()}`
+            : sql`1=1`;
+
+        const changedMedias = await neon.select().from(medias).where(filterSince);
+        if (changedMedias.length > 0) {
+            for (let i = 0; i < changedMedias.length; i += BATCH) {
+                const batch = changedMedias.slice(i, i + BATCH).map(m => ({
                     id: m.id,
                     externalId: m.externalId,
                     type: m.type,
@@ -97,8 +120,8 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                     slug: m.slug,
                     synopsis: m.synopsis,
                     year: m.year,
-            author: m.author,
-            posterUrl: m.posterUrl,
+                    author: m.author,
+                    posterUrl: m.posterUrl,
                     backdropUrl: m.backdropUrl,
                     rating: m.rating?.toString(),
                     voteCount: m.voteCount ?? 0,
@@ -122,10 +145,10 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             }
         }
 
-        const allEpisodes = await neon.select().from(episodes);
-        if (allEpisodes.length > 0) {
-            for (let i = 0; i < allEpisodes.length; i += BATCH) {
-                const batch = allEpisodes.slice(i, i + BATCH).map(e => ({
+        const changedEpisodes = await neon.select().from(episodes).where(filterSince);
+        if (changedEpisodes.length > 0) {
+            for (let i = 0; i < changedEpisodes.length; i += BATCH) {
+                const batch = changedEpisodes.slice(i, i + BATCH).map(e => ({
                     id: e.id,
                     mediaId: e.mediaId,
                     seasonNumber: e.seasonNumber,
@@ -135,15 +158,16 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                     airDate: e.airDate ? new Date(e.airDate) : null,
                     thumbnailUrl: e.thumbnailUrl,
                     duration: e.duration,
+                    updatedAt: e.updatedAt ? new Date(e.updatedAt) : null,
                 }));
                 await turso.insert(tursoEpisodes).values(batch).onConflictDoUpdate(episodeUpsert());
             }
         }
 
-        const allLiens = await neon.select().from(liens);
-        if (allLiens.length > 0) {
-            for (let i = 0; i < allLiens.length; i += BATCH) {
-                const batch = allLiens.slice(i, i + BATCH).map(l => ({
+        const changedLiens = await neon.select().from(liens).where(filterSince);
+        if (changedLiens.length > 0) {
+            for (let i = 0; i < changedLiens.length; i += BATCH) {
+                const batch = changedLiens.slice(i, i + BATCH).map(l => ({
                     id: l.id,
                     mediaId: l.mediaId,
                     episodeId: l.episodeId,
@@ -157,20 +181,31 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
                     failCount: l.failCount ?? 0,
                     lastVerified: l.lastVerified ? new Date(l.lastVerified) : null,
                     scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null,
+                    updatedAt: l.updatedAt ? new Date(l.updatedAt) : null,
                 }));
                 await turso.insert(tursoLiens).values(batch).onConflictDoUpdate(lienUpsert());
             }
         }
 
-        const allIds = allMedias.map(m => m.id);
-        if (allIds.length > 0) {
+        if (lastSyncMs === 0 && changedMedias.length > 0) {
+            const allIds = changedMedias.map(m => m.id);
             const deleted = await turso.delete(tursoMedias).where(
                 sql`id NOT IN (${sql.join(allIds.map(id => sql`${id}`), sql`, `)})`
             );
             if (deleted.rowsAffected > 0) log.info(`${deleted.rowsAffected} medias obsoletes nettoyes de Turso`);
         }
 
-        log.success(`Sync finished: ${allMedias.length} medias, ${allEpisodes.length} episodes, ${allLiens.length} links`);
+        const nowMs = Date.now();
+        if (hasOffset) {
+            await neon.update(importOffsets)
+                .set({ value: nowMs, updatedAt: new Date() })
+                .where(eq(importOffsets.key, SYNC_KEY));
+        } else {
+            await neon.insert(importOffsets)
+                .values({ key: SYNC_KEY, value: nowMs });
+        }
+
+        log.success(`Sync: ${changedMedias.length} medias, ${changedEpisodes.length} episodes, ${changedLiens.length} liens`);
     } catch (error: any) {
         log.error(`Sync Error: ${error.message}`);
     }
