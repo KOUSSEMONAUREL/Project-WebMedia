@@ -21,7 +21,7 @@ const {
     description = 'WebMediia - Annuaire de streaming gratuit : films, series, animes, mangas, webtoons, jeux, livres et light novels. Accedez aux meilleurs contenus sans inscription.',
     canonicalUrl,
     ogType = 'website',
-    ogImage = 'https://www.webmediia.cfd/images/logo.png',
+    ogImage = 'https://www.webmediia.cfd/og-image.png',
 } = Astro.props;
 ---
 
@@ -31,8 +31,11 @@ const {
         <meta charset="UTF-8" />
         <meta name="description" content={description} />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="generator" content={Astro.generator} />
         {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
         <link rel="alternate" hreflang="fr" href={canonicalUrl || Astro.url.href} />
@@ -44,6 +47,8 @@ const {
         <meta property="og:description" content={description} />
         <meta property="og:type" content={ogType} />
         <meta property="og:image" content={ogImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
         <meta property="og:url" content={canonicalUrl || Astro.url.href} />
         <meta property="og:site_name" content="WebMediia" />
         <meta property="og:locale" content="fr_FR" />
@@ -61,21 +66,6 @@ const {
 
         <meta name="bc14130edae9fcd074dff1fe4c4b55ead59835e6" content="bc14130edae9fcd074dff1fe4c4b55ead59835e6" />
         <meta name="referrer" content="no-referrer-when-downgrade" />
-        <!-- 
-            Google Search Console verification attempt — 19/07/2026
-            
-            Problem: Google OAuth consent screen validation fails because
-            Cloudflare Turnstile blocks Google's validator from seeing content.
-            Root page returns a challenge page instead of actual content.
-            
-            Solution tried: Created /about page as static verification target,
-            added sitemap, robots.txt, humans.txt, security.txt.
-            Google Auth Platform home page URL set to /about.
-            
-            Domain verified via Cloudflare DNS TXT record automatically.
-            Sitemap submitted: /sitemap-index.xml
-            Verification meta tag removed — using DNS TXT method instead.
-        -->
 
     </head>
     <body class="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
