@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { getAllMedia } from '../lib/api';
 import type { Media } from '../lib/api';
 
+export const prerender = true;
+
 export const GET: APIRoute = async () => {
   const site = 'https://www.webmediia.cfd';
 
