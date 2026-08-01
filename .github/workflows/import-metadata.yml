@@ -14,14 +14,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore import offsets cache
-        id: cache-offsets
-        uses: actions/cache@v6
-        with:
-          path: /tmp/import_offsets.json
-          key: import-offsets-${{ github.run_id }}
-          restore-keys: import-offsets-
-
       - name: Install dependencies
         run: cd scrapers/import-worker && npm ci
 
