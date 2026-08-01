@@ -31,8 +31,8 @@ jobs:
       - name: Run Importers
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          # TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          # TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}

@@ -21,13 +21,13 @@ class MongodbLogger {
 
     private async connect(uri: string) {
         if (this.isWorker) return null;
-        if (!this.isNode) return null; 
+        if (!this.isNode) return null;
         if (this.collection) return this.collection;
 
         try {
             // Import dynamique pour éviter de casser le déploiement Cloudflare
             const { MongoClient } = await import('mongodb');
-            
+
             this.client = new MongoClient(uri);
             await this.client.connect();
             const db = this.client.db();
@@ -35,7 +35,7 @@ class MongodbLogger {
 
             // Setup TTL index (7 days retention)
             await this.collection.createIndex({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 7 });
-            
+
             return this.collection;
         } catch (error) {
             console.error('❌ MongoDB Logger Connection Error:', error);

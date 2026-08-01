@@ -106,17 +106,17 @@ async function syncToTurso(neonUrl: string, episodeIds: string[] = []) {
     const args: any[] = [];
 
     for (const ep of chunk) {
-      values.push(`(${[1,2,3,4,5,6,7,8,9].map(() => '?').join(',')})`);
+      values.push(`(${[1,2,3,4,5,6,7,8,9,10].map(() => '?').join(',')})`);
       args.push(
         ep.id, ep.mediaId, ep.seasonNumber, ep.episodeNumber,
         ep.title ?? null, ep.synopsis ?? null,
         ep.airDate ? ep.airDate.toISOString() : null,
-        ep.thumbnailUrl ?? null, ep.duration ?? null
+        ep.thumbnailUrl ?? null, ep.duration ?? null,
+        new Date().toISOString()
       );
     }
 
-    await turso.execute({
-      sql: `INSERT INTO episodes (id, media_id, season_number, episode_number, title, synopsis, air_date, thumbnail_url, duration)
+    const sqlText = `INSERT INTO episodes (id, media_id, season_number, episode_number, title, synopsis, air_date, thumbnail_url, duration, updated_at)
             VALUES ${values.join(',')}
             ON CONFLICT(id) DO UPDATE SET
               media_id = excluded.media_id,
@@ -126,9 +126,21 @@ async function syncToTurso(neonUrl: string, episodeIds: string[] = []) {
               synopsis = excluded.synopsis,
               air_date = excluded.air_date,
               thumbnail_url = excluded.thumbnail_url,
-              duration = excluded.duration`,
-      args,
-    });
+              duration = excluded.duration,
+              updated_at = excluded.updated_at`;
+
+    let attempts = 0;
+    for (;;) {
+      try {
+        await turso.execute({ sql: sqlText, args });
+        break;
+      } catch (err: any) {
+        attempts++;
+        if (attempts >= 3) throw err;
+        console.warn(`  Turso retry ${attempts}/3: ${err.message}`);
+        await new Promise(r => setTimeout(r, 500 * 2 ** (attempts - 1)));
+      }
+    }
     synced += chunk.length;
   }
 
