@@ -56,16 +56,31 @@ async function cleanup() {
 
     // 4. Supprimer de D1 (media_state) via API (tous les types)
     if (apiUrl && apiKey) {
+        let cleaned = 0;
+        let failed = 0;
         for (const id of allMediaIds) {
-            try {
-                await fetch(`${apiUrl}/api/internal/cleanup/d1-state`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': apiKey },
-                    body: JSON.stringify({ mediaId: id })
-                });
-            } catch { /* ignore */ }
+            let ok = false;
+            for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+                try {
+                    const res = await fetch(`${apiUrl}/api/internal/cleanup/d1-state`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': apiKey },
+                        body: JSON.stringify({ mediaId: id })
+                    });
+                    if (res.ok) {
+                        ok = true;
+                    } else {
+                        console.warn(`D1: ${id} -> HTTP ${res.status} (tentative ${attempt}/3)`);
+                        if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+                    }
+                } catch (e: any) {
+                    console.warn(`D1: ${id} -> ${e?.message || e} (tentative ${attempt}/3)`);
+                    if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+                }
+            }
+            if (ok) cleaned++; else failed++;
         }
-        console.log(`D1: ${allMediaIds.length} media_state entries cleaned`);
+        console.log(`D1: ${cleaned} media_state entries cleaned${failed > 0 ? `, ${failed} FAILED after 3 attempts` : ''}`);
     } else {
         console.log('D1: skipped (no API config)');
     }
