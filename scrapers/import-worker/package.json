@@ -12,7 +12,7 @@
   "dependencies": {
     "@fsoc/royalroadl-api": "^0.16.3",
     "@libsql/client": "^0.17.4",
-    "axios": "^1.18.1",
+    "axios": "^1.19.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.9.3",
@@ -22,7 +22,7 @@
     "tsx": "^4.23.1"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.11.10",
     "drizzle-kit": "^0.31.10",
