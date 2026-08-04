@@ -25,6 +25,10 @@ updates:
     groups:
       backend-all:
         patterns: ['*']
+    ignore:
+      - dependency-name: 'better-sqlite3'
+        versions: ['13.x']
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: 'npm'
     directory: '/scrapers/webtoons'
