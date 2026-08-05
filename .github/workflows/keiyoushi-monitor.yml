@@ -147,6 +147,8 @@ jobs:
       FALLBACK_MODEL: opencode/big-pickle
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-analysis.md
+      SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_submit.py
+      HANDOFF_FILE: /tmp/keiyoushi_handoff.json
     steps:
       - uses: actions/checkout@v7
 
@@ -195,12 +197,6 @@ jobs:
           fi
           echo "issue_number=$ISSUE" >> "$GITHUB_OUTPUT"
 
-      - name: Configurer git
-        if: steps.issue.outputs.issue_number != ''
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Lancer l'agent (deepseek-v4 variant max)
         id: primary
         if: steps.issue.outputs.issue_number != ''
@@ -228,6 +224,7 @@ jobs:
 
       - name: Lancer l'agent (fallback Gemini)
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
@@ -237,3 +234,11 @@ jobs:
           opencode run --model "$GEMINI_MODEL" --auto \
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+
+      - name: Soumettre (commits, PRs, commentaire, fermeture)
+        if: steps.issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          python3 "$SUBMIT_SCRIPT"
