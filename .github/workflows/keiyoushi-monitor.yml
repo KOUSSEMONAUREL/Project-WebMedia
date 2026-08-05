@@ -150,6 +150,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scrapers/webtoons/package-lock.json
+
+      - name: Install dependencies
+        run: cd scrapers/webtoons && npm ci
+
+      - name: Install Cloudflare Warp
+        run: |
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update && sudo apt-get install -y cloudflare-warp
+          sudo warp-cli --accept-tos registration new
+          sudo systemctl start warp-svc
+          sleep 2
+          sudo warp-cli --accept-tos connect
+          sleep 3
+          sudo warp-cli --accept-tos status
+          echo "Public IP: $(curl -s https://ifconfig.me)"
+
       - name: Installer opencode
         run: |
           curl -fsSL https://opencode.ai/install | bash
