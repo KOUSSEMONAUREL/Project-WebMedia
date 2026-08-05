@@ -31,6 +31,7 @@ import sys
 REPO = os.environ.get("GITHUB_REPOSITORY", "KOUSSEMONAUREL/Project-WebMedia")
 ISSUE = os.environ["ISSUE_NUMBER"]
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
+PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 
 COMMITTER_NAME = "github-actions[bot]"
 COMMITTER_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
@@ -44,13 +45,6 @@ def run(*args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
-def comment_issue(body: str) -> None:
-    path = "/tmp/keiyoushi_comment.md"
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(body)
-    run("gh", "issue", "comment", str(ISSUE), "--repo", REPO, "--body-file", path)
-
-
 def main() -> None:
     if not os.path.exists(HANDOFF):
         print("Aucun handoff produit par l'agent, rien a soumettre.")
@@ -60,8 +54,6 @@ def main() -> None:
         handoff = json.load(f)
 
     changes = handoff.get("changes", [])
-    summary_md = handoff.get("summary_md", "")
-    close = bool(handoff.get("close", False))
 
     run("git", "config", "user.name", COMMITTER_NAME)
     run("git", "config", "user.email", COMMITTER_EMAIL)
@@ -81,7 +73,6 @@ def main() -> None:
                     "L'agent n'a pas ecrit les fichiers attendus. Issue laissee ouverte."
                 )
                 print("ERROR:", msg)
-                comment_issue(msg)
                 sys.exit(1)
 
         run("git", "stash", "push", "-u", "-m", f"keiyoushi-{ISSUE}-pending", check=False)
@@ -106,25 +97,19 @@ def main() -> None:
             print(f"PR creee pour {ext}: {url}")
         pr_urls.append(url)
 
-    comment_parts: list[str] = []
-    if pr_urls:
-        comment_parts.append("## Pull requests")
-        comment_parts.extend(f"- {url}" for url in pr_urls)
-        comment_parts.append("")
-    if summary_md:
-        comment_parts.append(summary_md)
-    if comment_parts:
-        comment_issue("\n".join(comment_parts).strip())
-
-    if close:
-        run("gh", "issue", "close", str(ISSUE), "--repo", REPO,
-            "--comment", "Issue traitee: PRs ouverts (verification 2 cycles), merge laisse a la revue humaine.")
+    pr_list = []
+    for url in pr_urls:
+        number = run("gh", "pr", "view", url, "--repo", REPO,
+                     "--json", "number,title", "-q", r'"\(.number)||\(.title)"')
+        num, _, title = number.partition("||")
+        pr_list.append({"number": int(num), "title": title, "url": url})
+    with open(PR_LIST_FILE, "w", encoding="utf-8") as f:
+        json.dump(pr_list, f, indent=2)
 
     print(json.dumps({
         "ok": True,
         "pr_urls": pr_urls,
-        "issue_commented": bool(comment_parts),
-        "issue_closed": close,
+        "pr_list_written": PR_LIST_FILE,
     }, indent=2))
 
 

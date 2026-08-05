@@ -147,8 +147,12 @@ jobs:
       FALLBACK_MODEL: opencode/big-pickle
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-analysis.md
+      REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
       SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_submit.py
+      MERGE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_merge.py
       HANDOFF_FILE: /tmp/keiyoushi_handoff.json
+      PR_LIST_FILE: /tmp/keiyoushi_prs.json
+      REVIEW_FILE: /tmp/keiyoushi_review.json
     steps:
       - uses: actions/checkout@v7
 
@@ -235,10 +239,43 @@ jobs:
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
 
-      - name: Soumettre (commits, PRs, commentaire, fermeture)
+      - name: Soumettre (branches, commits, PRs)
         if: steps.issue.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           python3 "$SUBMIT_SCRIPT"
+
+      - name: Verifier les PRs (reviewer big-pickle)
+        id: review
+        if: steps.issue.outputs.issue_number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          opencode run --model "$FALLBACK_MODEL" --variant max --thinking --auto \
+            --file "$REVIEW_PROMPT_FILE" \
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt."
+
+      - name: Verifier les PRs (reviewer fallback Gemini)
+        if: steps.issue.outputs.issue_number != '' && steps.review.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          echo "Reviewer big-pickle failed, falling back to $GEMINI_MODEL"
+          opencode run --model "$GEMINI_MODEL" --auto \
+            --file "$REVIEW_PROMPT_FILE" \
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt."
+
+      - name: Appliquer verdicts et merger
+        if: steps.issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          python3 "$MERGE_SCRIPT"
