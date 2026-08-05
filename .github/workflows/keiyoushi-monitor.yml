@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+    inputs:
+      force_agent:
+        description: 'Forcer le job agent meme sans changements upstream (test)'
+        type: boolean
+        default: false
 
 env:
   TSBASE: ${{ github.workspace }}/scrapers/webtoons/definitions/webtoons
@@ -135,7 +140,7 @@ jobs:
   agent-analysis:
     name: Agent - analyse et traitement de l'issue
     needs: check-upstream
-    if: needs.check-upstream.outputs.has_changes == 'true'
+    if: needs.check-upstream.outputs.has_changes == 'true' || github.event.inputs.force_agent == 'true'
     runs-on: ubuntu-latest
     env:
       PRIMARY_MODEL: opencode/deepseek-v4-flash-free
