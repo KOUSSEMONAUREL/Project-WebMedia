@@ -45,7 +45,7 @@ def extract_game_links(page, url, game_name=None):
 
     if "fitgirl-repacks.site" in url:
         game_links = page.css('article h1.entry-title a::attr(href)').getall()
-        game_links = [l for l in game_links if l and l.endswith('/') and "updates-digest" not in l and "category" not in l and "#respond" not in l]
+        game_links = [l for l in game_links if l and l.endswith('/') and "updates-digest" not in l and "updates-list" not in l and "category" not in l and "#respond" not in l]
         game_links = list(set(game_links))
         for l in game_links:
             add_link(l, "fitgirl-repacks.site", "page_selection", True)

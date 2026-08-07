@@ -5,6 +5,29 @@ import { createLog } from './log.js';
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
+// URLs génériques/polluées (pages de recherche, racines) à ne pas enregistrer
+const BLOCKED_URL_PATTERNS = [
+  /\/search/i,
+  /\?s=/i,
+  /updates-list/i,
+  /\/reader\/en\/?$/i,
+  /\/chapters\/?$/i,
+  /\?category=/i,
+];
+
+function isGenericUrl(url: string): boolean {
+  if (!url) return true;
+  try {
+    const u = new URL(url);
+    if (u.pathname === '/' || u.pathname === '') return true;
+    return BLOCKED_URL_PATTERNS.some(p => p.test(u.pathname + u.search));
+  } catch {
+    // URL relative (ex: /en/comic/... de ComicK) : légitime, pas une page
+    // générique. On évalue quand même les patterns sur le chemin brut.
+    return BLOCKED_URL_PATTERNS.some(p => p.test(url));
+  }
+}
+
 async function callInternal(endpoint: string, data: unknown) {
   const axios = (await import('axios')).default;
   return axios.post(`${INTERNAL_API_URL}${endpoint}`, data, {
@@ -42,6 +65,14 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
         }
       }
     } else {
+      // Webtoon/manga: un seul rootUrl. On S'EFFACE si aucun chapitre n'a été
+      // trouvé ET que l'URL ressemble à une page générique (search/home), pour
+      // ne pas re-injecter les URLs polluées (searchadvance, /chapters, reader/en).
+      if (result.chapters.length === 0 && isGenericUrl(result.rootUrl)) {
+        console.warn(`    Skip generic rootUrl (${result.source}): ${result.rootUrl}`);
+        continue;
+      }
+
       let playerHost = result.source;
       try { playerHost = new URL(result.rootUrl).hostname; } catch { /* relative url */ }
 

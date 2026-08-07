@@ -31,6 +31,29 @@ const getVar = (c: any, key: string) => {
     return val;
 };
 
+// Filtre des URLs génériques/polluées (pages de recherche, racines, catégories)
+const BLOCKED_URL_PATTERNS = [
+    /\/search/i,
+    /\?s=/i,
+    /updates-list/i,
+    /\/reader\/en\/?$/i,
+    /\/chapters\/?$/i,
+    /\?category=/i,
+];
+
+function isGenericUrl(url: string): boolean {
+    if (!url) return true;
+    try {
+        const u = new URL(url);
+        if (u.pathname === '/' || u.pathname === '') return true; // racine du domaine
+        return BLOCKED_URL_PATTERNS.some(p => p.test(u.pathname + u.search));
+    } catch {
+        // URL relative (ex: /en/comic/... de ComicK) : légitime, pas une page
+        // générique. On évalue quand même les patterns sur le chemin brut.
+        return BLOCKED_URL_PATTERNS.some(p => p.test(url));
+    }
+}
+
 const mongoUri = (c: any) => {
     try { return getVar(c, 'MONGODB_URI'); } catch { return ''; }
 };
@@ -81,7 +104,15 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
 
     // Plus de filtrage par whitelist : le X-Internal-API-Key garantit que seuls
     // les scrapers autorisés peuvent poster. Tous les liens sont acceptés.
-    const safeLinks = links;
+    // MAIS on ignore les URLs génériques (recherche, racine, catégories) qui
+    // polluent la base (fitgirl updates-list, hentairead searchadvance, beq racine...).
+    const safeLinks = links.filter((link: any) => {
+        if (!link?.url || isGenericUrl(link.url)) {
+            console.warn(`[IngestWorker] Lien générique ignoré: ${link?.url}`);
+            return false;
+        }
+        return true;
+    });
 
     let inserted: any[] = [];
     try {
@@ -126,21 +157,33 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
         }
         if (lastInsertError) throw lastInsertError;
 
+        // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément)
+        let realCount = 0;
+        try {
+            const [{ count }] = await db.execute(
+                sql`SELECT COUNT(*)::int AS count FROM liens WHERE media_id = ${mediaId}`
+            );
+            realCount = count ?? 0;
+        } catch (e: any) {
+            console.warn(`[IngestWorker] Failed to count liens for media: ${e.message}`);
+            realCount = inserted.length;
+        }
+
         if (c.env?.DB) {
             await c.env.DB.prepare(`
                 UPDATE media_state 
-                SET active_links = active_links + ?,
-                    has_content = 1,
+                SET active_links = ?,
+                    has_content = ?,
                     last_scraped = ?,
                     next_scrape = ?
                 WHERE media_id = ?
-            `).bind(inserted.length, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
+            `).bind(realCount, realCount > 0 ? 1 : 0, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
         }
 
-        // Update activeLinksCount in Neon
+        // Update activeLinksCount in Neon (recalcul scopé au media_id, auto-réparateur)
         try {
             await db.update(medias)
-                .set({ activeLinksCount: sql`active_links_count + ${inserted.length}` })
+                .set({ activeLinksCount: realCount })
                 .where(eq(medias.id, mediaId));
         } catch (e: any) {
             console.warn(`[IngestWorker] Failed to update activeLinksCount in Neon: ${e.message}`);
@@ -615,9 +658,16 @@ internalRoutes.post('/ingest/reconcile', async (c) => {
         const d1Ids = new Set(d1Entries.map(e => e.media_id));
 
         const missing = allNeon.filter((m: any) => !d1Ids.has(m.id));
-        if (missing.length === 0) {
-            return c.json({ success: true, reconciled: 0, message: 'D1 deja synchronise' });
-        }
+
+        // Recalcule active_links pour toutes les entrées existantes (corrige l'ancien
+        // compteur cumulatif `+= N` qui était volontairement gonflé)
+        const fixStatements = allNeon.map((m: any) =>
+            c.env.DB!.prepare(`
+                UPDATE media_state
+                SET active_links = ?, has_content = ?, next_scrape = ?
+                WHERE media_id = ?
+            `).bind(m.activeLinksCount || 0, (m.activeLinksCount || 0) > 0 ? 1 : 0, Date.now() + 10000, m.id)
+        );
 
         const statements = missing.map((m: any) =>
             c.env.DB!.prepare(`
@@ -628,13 +678,14 @@ internalRoutes.post('/ingest/reconcile', async (c) => {
 
         const BATCH_SIZE = 100;
         let reconciled = 0;
-        for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-            await c.env.DB.batch(statements.slice(i, i + BATCH_SIZE));
-            reconciled += Math.min(BATCH_SIZE, statements.length - i);
+        const allStatements = [...fixStatements, ...statements];
+        for (let i = 0; i < allStatements.length; i += BATCH_SIZE) {
+            await c.env.DB.batch(allStatements.slice(i, i + BATCH_SIZE));
+            reconciled += Math.min(BATCH_SIZE, allStatements.length - i);
         }
 
-        console.log(`Reconcile D1: ${reconciled} entree(s) ajoutee(s) (${missing.length} trouvees)`);
-        return c.json({ success: true, reconciled, found: missing.length });
+        console.log(`Reconcile D1: ${reconciled} statement(s) appliquée(s) (${missing.length} media manquants ajoutés, compteurs corrigés pour ${fixStatements.length})`);
+        return c.json({ success: true, reconciled, found: missing.length, updated: fixStatements.length });
     } catch (error: any) {
         console.error('Reconcile Error:', error.message);
         return c.json({ success: false, error: error.message }, 500);
