@@ -25,6 +25,7 @@ Handoff attendu (chemin: $HANDOFF_FILE):
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -35,6 +36,16 @@ PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 
 COMMITTER_NAME = "github-actions[bot]"
 COMMITTER_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+def safe_ext(ext: str) -> str:
+    """Slug du dossier upstream en identifiant de branche/fichier sure.
+
+    L'agent peut ecrire `fr/mangamoins` (avec dossier) au lieu de `mangamoins`.
+    On normalise: slash -> tiret, on retire les caracteres a risque.
+    """
+    slug = re.sub(r"[^A-Za-z0-9_.-]", "-", ext).strip("/.-")
+    return slug or "change"
 
 
 def run(*args: str, check: bool = True) -> str:
@@ -60,7 +71,7 @@ def main() -> None:
 
     pr_urls: list[str] = []
     for i, change in enumerate(changes):
-        ext = change["ext"]
+        ext = safe_ext(change.get("ext", ""))
         kind = change["type"]
         branch = f"fix/keiyoushi-{ISSUE}-{ext}"
         paths = change.get("paths", [])
@@ -90,6 +101,7 @@ def main() -> None:
             print(f"PR existante pour {ext}: {url}")
         else:
             body_file = f"/tmp/keiyoushi_pr_body_{ext}.md"
+            os.makedirs(os.path.dirname(body_file) or ".", exist_ok=True)
             with open(body_file, "w", encoding="utf-8") as f:
                 f.write(change.get("pr_body", ""))
             url = run("gh", "pr", "create", "--repo", REPO,

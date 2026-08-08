@@ -174,7 +174,7 @@ everything the execution step needs:
   "summary_md": "<full markdown synthesis: the verdict table PLUS the list of PRs opened>",
   "changes": [
     {
-      "ext": "<extension id>",
+      "ext": "<extension id, WITHOUT the lang/ prefix: 'mangamoins', never 'fr/mangamoins'>",
       "type": "ADAPT|BUILD|REMOVE",
       "paths": ["scrapers/webtoons/definitions/webtoons/<lang>/<ext>.ts"],
       "commit_msg": "fix(scrapers): adapt <ext> to upstream changes (#<issue>)",
