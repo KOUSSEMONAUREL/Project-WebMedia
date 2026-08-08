@@ -23,6 +23,8 @@ permissions:
 
 jobs:
   check-upstream:
+    outputs:
+      has_changes: ${{ steps.monitor.outputs.has_changes }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
