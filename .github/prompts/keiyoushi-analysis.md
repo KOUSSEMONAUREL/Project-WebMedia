@@ -113,6 +113,19 @@ For each critical extension:
      `<lang>` folder are written). Leave the file in the working tree.
    - `IGNORE` : dead, login-walled, JS-SPA requiring a browser engine, or hopelessly
      anti-bot (Cloudflare challenge even through WARP) → document why.
+4. **Anti-bot bypass ladder — mandatory before any IGNORE verdict**:
+   The upstream Kotlin extension may itself contain anti-403 mechanisms (interceptor that
+   fetches the home page / sets a cookie / adds Referer-Origin headers, then retries).
+   If the Kotlin does that, the site is IMPLEMENTABLE — do `BUILD` and transcribe the same
+   mechanism (cookie fetch + retry) into the TS scraper. Do NOT `IGNORE` merely because a
+   plain first `curl` returns 403. Before declaring `IGNORE` for an anti-bot reason you
+   MUST have tried, in order:
+   1. `curl -sL` through WARP (default route) — if 403, continue;
+   2. `curl --noproxy '*' -sIL <url>` — compare blocked-vs-open behavior;
+   3. cookie bootstrap exactly like the upstream Kotlin: fetch home page, extract the
+      cookie(s), then retry the API call with those cookies + `Referer` + `Origin` set.
+      Add an `IGNORE` verdict only if the authenticated/cookie call also 403s twice.
+   Document every attempt (URL, status codes) in the handoff `summary_md`.
 
 ### Phase 4 — Analyze every SUPPRIMEE entry
 
@@ -183,7 +196,14 @@ Rules for the handoff:
 - `close`: `true` if EVERY entry is resolved (all changed, or all NO_IMPACT/IGNORE/KEEP, or
   unresolved handled) — mirror 'no loose ends'. `false` when something is genuinely
   unresolved (e.g. WARP still blocked, API shape unclear after two full verification
-  cycles): then explain exactly what is missing in `summary_md` and keep `close: false`.
+  cycles, or an IGNORE was decided without a successful cookie-bootstrap retry): then
+  explain exactly what is missing in `summary_md` and keep `close: false`.
+- **Hard rule — close:false required**: any IGNORE decided on anti-bot grounds (403 even
+  after cookie bootstrap), any site you could not probe twice cleanly, any BUILD you were
+  unable to verify end-to-end → `close` MUST be `false`. A closed issue with an
+  unimplemented scraper is a silent loss of work; an open issue is retried on the next run.
+  When `close: false`, add the tag `keiyoushi-blocked` mention in `summary_md` and list
+  exactly what is missing to finish the entry.
 
 ## STRICT GUARDRAILS
 
