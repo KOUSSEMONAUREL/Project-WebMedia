@@ -68,9 +68,10 @@ export class MangarawclubScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
     const $ = this.$(res.data);
-    return $('#chapter-reader img').toArray().map((el, i) => ({
-      index: i,
-      imageUrl: this.absUrl($(el).attr('src') || ''),
-    }));
+    return $('#chapter-reader img')
+      .toArray()
+      .map(el => this.absUrl($(el).attr('src') || ''))
+      .filter(src => !src.includes('credits-mgeko.png'))
+      .map((imageUrl, i) => ({ index: i, imageUrl }));
   }
 }
