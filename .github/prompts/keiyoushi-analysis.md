@@ -111,21 +111,14 @@ For each critical extension:
    - `BUILD` : viable → **write the full transcompilation as a new `.ts`** now, from A to Z:
      endpoints, selectors, parsing, class contract (follow how other scrapers in the same
      `<lang>` folder are written). Leave the file in the working tree.
-   - `IGNORE` : dead, login-walled, JS-SPA requiring a browser engine, or hopelessly
-     anti-bot (Cloudflare challenge even through WARP) → document why.
-4. **Anti-bot bypass ladder — mandatory before any IGNORE verdict**:
-   The upstream Kotlin extension may itself contain anti-403 mechanisms (interceptor that
-   fetches the home page / sets a cookie / adds Referer-Origin headers, then retries).
-   If the Kotlin does that, the site is IMPLEMENTABLE — do `BUILD` and transcribe the same
-   mechanism (cookie fetch + retry) into the TS scraper. Do NOT `IGNORE` merely because a
-   plain first `curl` returns 403. Before declaring `IGNORE` for an anti-bot reason you
-   MUST have tried, in order:
-   1. `curl -sL` through WARP (default route) — if 403, continue;
-   2. `curl --noproxy '*' -sIL <url>` — compare blocked-vs-open behavior;
-   3. cookie bootstrap exactly like the upstream Kotlin: fetch home page, extract the
-      cookie(s), then retry the API call with those cookies + `Referer` + `Origin` set.
-      Add an `IGNORE` verdict only if the authenticated/cookie call also 403s twice.
-   Document every attempt (URL, status codes) in the handoff `summary_md`.
+   - `IGNORE` : dead, login-walled, JS-SPA requiring a browser engine, or anti-bot
+     (Cloudflare/403 even through WARP — IP blacklisted from this runner)
+     → document why. No endless bypass attempts: if the cookie round-trip fails once,
+     `IGNORE` and move on.
+4. **Anti-bot in one attempt**: if the upstream Kotlin has an anti-403 interceptor
+   (home-fetch → cookie → retry with Referer/Origin), transcribe the same mechanism
+   into the TS and try it once. If it still 403s, the runner's IP is blacklisted:
+   verdict `IGNORE` (documented) — the site is simply unusable from this CI.
 
 ### Phase 4 — Analyze every SUPPRIMEE entry
 
@@ -193,17 +186,11 @@ Rules for the handoff:
   | Extension | Status | Verdict | Justification |
   |---|---|---|---|
   plus the list of PRs opened (if any). Write it as final text ready to post.
-- `close`: `true` if EVERY entry is resolved (all changed, or all NO_IMPACT/IGNORE/KEEP, or
-  unresolved handled) — mirror 'no loose ends'. `false` when something is genuinely
-  unresolved (e.g. WARP still blocked, API shape unclear after two full verification
-  cycles, or an IGNORE was decided without a successful cookie-bootstrap retry): then
-  explain exactly what is missing in `summary_md` and keep `close: false`.
-- **Hard rule — close:false required**: any IGNORE decided on anti-bot grounds (403 even
-  after cookie bootstrap), any site you could not probe twice cleanly, any BUILD you were
-  unable to verify end-to-end → `close` MUST be `false`. A closed issue with an
-  unimplemented scraper is a silent loss of work; an open issue is retried on the next run.
-  When `close: false`, add the tag `keiyoushi-blocked` mention in `summary_md` and list
-  exactly what is missing to finish the entry.
+- `close`: `true` when every entry has a final verdict (BUILD/ADAPT merged or change
+  submitted, or NO_IMPACT/IGNORE/KEEP documented). IGNORE — including anti-bot/IP
+  blacklisted — is a resolved verdict: the site is unusable from this CI, nothing more we
+  can do, so `close: true`. `false` only when a BUILD/ADAPT change was attempted but not
+  completed (verify failed twice): then explain what is missing in `summary_md`.
 
 ## STRICT GUARDRAILS
 

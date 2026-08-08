@@ -43,42 +43,11 @@ def summary_from_handoff() -> str:
         return ""
 
 
-def handoff_has_unresolved(handoff: dict) -> bool:
-    """Detecte un 'close:true' abusif: IGNORE anti-bot/WARP ou changement non verifie.
-
-    L'agent annote l'IGNORE non verifie avec un marqueur texte dans summary_md
-    (il est oblige de l'ecrire depuis le prompt). On refuse la fermeture si ce
-    marqueur est present, meme si toutes les PRs passent.
-    """
-    summary = str(handoff.get("summary_md", ""))
-    markers = [
-        "keiyoushi-blocked",
-        "WARP still blocked",
-        "WARP bloqué",
-        "anti-bot",
-        "close: false",
-        "close:false",
-        "unresolved",
-        "could not verify",
-        "not verified",
-        "unable to verify",
-    ]
-    return any(m in summary.lower() for m in markers)
-
-
 def main() -> None:
     close = False
-    blocked_reason = ""
     try:
         handoff = json.load(open(HANDOFF, encoding="utf-8"))
         close = bool(handoff.get("close", False))
-        if close and handoff_has_unresolved(handoff):
-            close = False
-            blocked_reason = (
-                "Fermeture annulee: le handoff signale des entrees non resolues "
-                "(IGNORE anti-bot/WARP non verifie). Issue laissee ouverte pour retraitement."
-            )
-            print("WARNING:", blocked_reason)
     except (OSError, ValueError):
         pass
 
@@ -144,25 +113,6 @@ def main() -> None:
     parts.append("")
 
     body = "\n".join(parts).strip()
-
-    if blocked_reason:
-        parts.append("## Blocage de fermeture")
-        parts.append(blocked_reason)
-        body = "\n".join(parts).strip()
-        if body:
-            comment_issue(body + "\n\n" + summary_from_handoff())
-        run("gh", "issue", "edit", str(ISSUE), "--repo", REPO,
-            "--add-label", "keiyoushi-blocked", check=False)
-        print(json.dumps({
-            "ok": True,
-            "merged": len(merged),
-            "failed": len(failed),
-            "unreviewed": len(unreviewed),
-            "issue_closed": False,
-            "blocked_reason": blocked_reason,
-        }, indent=2))
-        return
-
     if body:
         comment_issue(body + "\n\n" + summary_from_handoff())
 

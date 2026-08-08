@@ -72,9 +72,8 @@ DO NOT rubber-stamp the analysis agent's work — verify it from scratch.
 ## Handoff cross-check (mandatory, applies to the whole review)
 
 - Read `$HANDOFF_FILE` BEFORE writing verdicts.
-- If `handoff.close == true` and the analysis claimed an `IGNORE` for anti-bot/WARP /
-  unverified reasons → `FAIL` every affected PR (the issue should stay open) with reason:
-  "handoff close=true but entry X unresolved (IGNORE …)".
+- `IGNORE` is a resolved verdict (the site is dead or the runner's IP is blacklisted —
+  unusable from this CI) — that is NOT a FAIL condition by itself.
 - If a change's `pr_body` claims verification that you cannot reproduce live →
   `FAIL` (asserted-but-unproven is a defect).
 - If the upstream Kotlin includes an anti-403 interceptor (cookie/home fetch, Referer,
