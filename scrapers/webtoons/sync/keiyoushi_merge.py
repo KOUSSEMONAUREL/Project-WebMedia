@@ -59,7 +59,16 @@ def main() -> None:
     try:
         review = json.load(open(REVIEW_FILE, encoding="utf-8"))
         verdicts = {v["number"]: v for v in review.get("prs", [])}
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        raw = ""
+        try:
+            with open(REVIEW_FILE, encoding="utf-8", errors="replace") as f:
+                raw = f.read(2000)
+        except OSError as e2:
+            raw = f"<non lisible: {e2}>"
+        print(f"REVIEW_ERROR: fichier de revue illisible ({e})\n"
+              f"  path={REVIEW_FILE}\n"
+              f"  contenu brut: {raw!r}")
         verdicts = {}
 
     merged: list[str] = []
