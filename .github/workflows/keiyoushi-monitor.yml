@@ -324,6 +324,7 @@ jobs:
           opencode run --model "$FALLBACK_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
             -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt. Also read the handoff at $HANDOFF_FILE: if close=true but any entry is unresolved (IGNORE due to WARP/anti-bot), you MUST flag FAIL on that PR list. Independently verify, like a human senior engineer would: fetch upstream Kotlin source and check our TS scraper matches exactly."
+        shell: bash
 
       - name: Verifier les PRs (reviewer fallback Gemini)
         id: review-fallback2
