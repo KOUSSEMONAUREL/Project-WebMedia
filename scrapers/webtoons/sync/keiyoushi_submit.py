@@ -87,12 +87,13 @@ def main() -> None:
                 sys.exit(1)
 
         run("git", "stash", "push", "-u", "-m", f"keiyoushi-{ISSUE}-pending", check=False)
+        run("git", "branch", "-D", branch, check=False)
         run("git", "switch", "-c", branch, "main")
         run("git", "stash", "pop", check=False)
 
         run("git", "add", "-A", "--", *paths)
         run("git", "commit", "-m", change["commit_msg"])
-        run("git", "push", "-u", "origin", branch)
+        run("git", "push", "-u", "--force", "origin", branch)
 
         existing = run("gh", "pr", "view", branch, "--repo", REPO,
                        "--json", "url", "-q", ".url", check=False)
