@@ -3,7 +3,7 @@
     "axios": "^1.19.0",
     "cheerio": "^1.2.0",
     "postgres": "^3.4.5",
-    "tsx": "^4.23.1"
+    "tsx": "^4.23.11"
   },
   "scripts": {
     "check-lockfile": "npm ls --package-lock-only"
