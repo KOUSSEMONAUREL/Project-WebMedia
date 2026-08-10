@@ -17,7 +17,7 @@ Closes #(issue)
 - [ ] Scrapers (webtoons)
 - [ ] Scrapers (novel-worker)
 - [ ] Scrapers (import-worker)
-- [ ] Scrapers (playwright-worker)
+- [ ] Scrapers (scrapling-worker)
 - [ ] CI / DevOps
 
 ## Checklist

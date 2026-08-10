@@ -70,7 +70,7 @@ updates:
         patterns: ['*']
 
   - package-ecosystem: 'pip'
-    directory: '/scrapers/playwright-worker'
+    directory: '/scrapers/scrapling-worker'
     schedule:
       interval: 'weekly'
       day: 'monday'

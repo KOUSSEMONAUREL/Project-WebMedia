@@ -499,7 +499,7 @@ Chaque media importe (TMDB, AniList, Google Books, etc.) passe par l'orchestrate
 |---|---|---|---|
 | **film/serie** | TMDB | Non (aucun lien) | `cheerio-worker` (7 sites streaming) |
 | **anime** | AniList | Non (aucun lien) | `cheerio-worker` (7 sites streaming) |
-| **jeu/game** | IGDB/Steam | Non | `playwright-worker` + Python scraper (10 sites) |
+| **jeu/game** | IGDB/Steam | Non | `scrapling-worker` + Python scraper (10 sites) |
 | **webtoon/manga/comic** | MangaDex | Non | `webtoon-worker` (150 sites, GH Actions 2x/jour) |
 | **novel** | RoyalRoad | Oui (URL du chapitre sur RoyalRoad) | Aucun (liens stockes a l'import) |
 | **book** | Google Books / Gutenberg / OpenLibrary / NosLivres | **Oui** (URL reference : preview Google Books, page Gutenberg, etc.) | **Aucun (skip volontaire)** |
@@ -521,8 +521,8 @@ Chaque media importe (TMDB, AniList, Google Books, etc.) passe par l'orchestrate
 
 #### jeu / game
 - Importeur IGDB/Steam stocke metadonnees
-- Orchestrateur : dispatch `playwright-worker`
-- `playwright-worker` + Python scraper (10 sites)
+- Orchestrateur : dispatch `scrapling-worker`
+- `scrapling-worker` + Python scraper (10 sites)
 - Liens vers telechargement/streaming stockes dans `liens`
 
 #### novel

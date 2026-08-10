@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Soumission pure-code des resultats de l'agent scraper-monitor.
+"""Soumission pure-code des resultats de l'agent game-monitor.
 
 L'agent (IA) ne fait qu'analyser, corriger main.py et produire un handoff
 JSON. Ce script realise les actions systeme : branches, commits, push, PRs.
@@ -14,7 +14,7 @@ Handoff attendu (chemin: $HANDOFF_FILE):
     {
       "ext": "<site-id ou 'all'>",
       "type": "ADAPT",
-      "paths": ["scrapers/playwright-worker/src/main.py"],
+      "paths": ["scrapers/scrapling-worker/src/main.py"],
       "commit_msg": "<message de commit>",
       "pr_title": "<titre du PR>",
       "pr_body": "<corps du PR (verdict, verification...)>"

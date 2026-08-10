@@ -1,4 +1,4 @@
-name: Scraper Monitor
+name: Game Monitor
 
 on:
   schedule:
@@ -11,11 +11,11 @@ on:
         default: false
 
 env:
-  SCRAPER_DIR: ${{ github.workspace }}/scrapers/playwright-worker
-  VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/playwright-worker/src/scraper_verify.py
-  SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/playwright-worker/sync/scraper_submit.py
-  MERGE_SCRIPT: ${{ github.workspace }}/scrapers/playwright-worker/sync/scraper_merge.py
-  PIPELINE_VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/playwright-worker/sync/scraper_verify.py
+  SCRAPER_DIR: ${{ github.workspace }}/scrapers/scrapling-worker
+  VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/scrapling-worker/src/scraper_verify.py
+  SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/scrapling-worker/sync/scraper_submit.py
+  MERGE_SCRIPT: ${{ github.workspace }}/scrapers/scrapling-worker/sync/scraper_merge.py
+  PIPELINE_VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/scrapling-worker/sync/scraper_verify.py
 
 permissions:
   issues: write
@@ -66,7 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           EXISTING=$(gh issue list \
-            --label "scraper-monitor" \
+            --label "game-monitor" \
             --state open \
             --json number \
             --jq '.[0].number // empty')
@@ -76,8 +76,8 @@ jobs:
             echo "Issue existante #$EXISTING mise a jour"
           else
             gh issue create \
-              --title "[Scraper] Sites casse detectes ($(date +'%d/%m/%Y'))" \
-              --label "scraper-monitor" \
+              --title "[Game Monitor] Sites casse detectes ($(date +'%d/%m/%Y'))" \
+              --label "game-monitor" \
               --body-file /tmp/scraper_issue_body.md
             echo "Issue creee"
           fi
@@ -88,7 +88,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           COUNT=$(gh issue list \
-            --label "scraper-monitor" \
+            --label "game-monitor" \
             --state open \
             --json number \
             --jq 'length' 2>/dev/null || echo 0)
@@ -110,8 +110,8 @@ jobs:
       GEMINI_MODEL: google/gemini-flash-latest
       FALLBACK3_MODEL: opencode/mimo-v2.5-free
       FALLBACK4_MODEL: opencode/north-mini-code-free
-      PROMPT_FILE: ${{ github.workspace }}/.github/prompts/scraper-analysis.md
-      REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/scraper-review.md
+      PROMPT_FILE: ${{ github.workspace }}/.github/prompts/game-monitor-analysis.md
+      REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/game-monitor-review.md
       HANDOFF_FILE: /tmp/scraper_handoff.json
       PR_LIST_FILE: /tmp/scraper_prs.json
       REVIEW_FILE: /tmp/scraper_review.json
@@ -139,7 +139,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ISSUE=$(gh issue list \
-            --label "scraper-monitor" \
+            --label "game-monitor" \
             --state open \
             --json number \
             --jq '.[0].number // empty')

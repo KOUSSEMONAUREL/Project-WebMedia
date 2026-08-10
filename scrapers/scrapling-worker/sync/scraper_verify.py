@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verification finale independante du pipeline scraper-monitor.
+"""Verification finale independante du pipeline game-monitor.
 
 Ne fait AUCUNE confiance a l'agent ni a ses artefacts : ce script verifie
 les faits reels (fichiers sur disque, etat des PRs et de l'issue sur

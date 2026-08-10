@@ -23,7 +23,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd scrapers/playwright-worker
+          cd scrapers/scrapling-worker
           pip install -r requirements.txt
           playwright install chromium
         
@@ -35,7 +35,7 @@ jobs:
           SCRAPER_TITLE: ${{ inputs.title || '' }}
         run: |
           if [ -n "$SCRAPER_TITLE" ]; then
-            cd scrapers/playwright-worker && python src/main.py --title "$SCRAPER_TITLE"
+            cd scrapers/scrapling-worker && python src/main.py --title "$SCRAPER_TITLE"
           else
-            cd scrapers/playwright-worker && python src/main.py
+            cd scrapers/scrapling-worker && python src/main.py
           fi

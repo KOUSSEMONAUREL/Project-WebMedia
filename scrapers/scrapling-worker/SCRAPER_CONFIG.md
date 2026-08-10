@@ -196,10 +196,10 @@ Tested with these games/sites:
 
 ```bash
 # Build image
-docker build -t playwright-worker .
+docker build -t scrapling-worker .
 
 # Run container
-docker run -e UPSTASH_REDIS_URL=... -e INTERNAL_API_URL=... playwright-worker
+docker run -e UPSTASH_REDIS_URL=... -e INTERNAL_API_URL=... scrapling-worker
 
 # Health check
 curl http://localhost:8080/health

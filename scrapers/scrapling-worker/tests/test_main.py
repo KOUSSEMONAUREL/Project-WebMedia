@@ -1,5 +1,5 @@
 """
-Tests for playwright-worker main.py fixes
+Tests for scrapling-worker main.py fixes
 """
 import os
 import unittest

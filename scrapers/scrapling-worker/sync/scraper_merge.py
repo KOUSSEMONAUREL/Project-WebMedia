@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Application des verdicts de revue et merge des PRs scraper-monitor.
+"""Application des verdicts de revue et merge des PRs game-monitor.
 
 Pipeline: agent (analyse) -> submit (cree branches + PRs, ecrit la PR list)
 -> reviewer (modele, verdicts dans $REVIEW_FILE) -> ce script merge les PRs

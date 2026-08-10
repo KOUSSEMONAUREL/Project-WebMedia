@@ -61,7 +61,7 @@ graph TD
 | Plateforme        | Horaire UTC               | Action                 | Détail                                                                                                  |
 | ----------------- | ------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | GitHub Actions    | **03:00** quotidien | `import-metadata`    | 12 sources : TMDB, AniList, IGDB, Google Books, Gutenberg, OpenLibrary, Comic Vine, NosLivres, RoyalRoad |
-| GitHub Actions    | **08:20 / 20:20**   | `playwright-scraper` | Scrape jeux (7 sites)                                                                                    |
+| GitHub Actions    | **08:20 / 20:20**   | `playwright-scraper` | Scrape jeux (10 sites)                                                                                    |
 | GitHub Actions    | **08:40 / 20:40**   | `novel-scraper`      | Scrape romans/novels                                                                                     |
 | GitHub Actions    | **09:00 / 21:00**   | `webtoon-scraper`    | Scrape 188+ définitions webtoon                                                                         |
 | GitHub Actions    | **06:00** quotidien | `keiyoushi-monitor`  | Surveille màj upstream des définitions                                                                 |

@@ -9,7 +9,7 @@ scrapers/
   webtoons/     -- Manga/webtoon scrapers (TypeScript, tsx)
   novel-worker/ -- Novel scrapers
   import-worker/-- Import pipeline
-  playwright-worker/ -- Playwright-based scrapers
+  scrapling-worker/ -- Scrapling-based scrapers
   shared/       -- Shared types and utilities
 ```
 

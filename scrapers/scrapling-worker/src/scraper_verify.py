@@ -161,7 +161,7 @@ def main() -> None:
             lines.append("")
         lines.append(
             "L'agent va inspecter le HTML reel de chaque site casse, "
-            "identifier le nouveau selecteur, corriger `scrapers/playwright-worker/src/main.py`, "
+            "identifier le nouveau selecteur, corriger `scrapers/scrapling-worker/src/main.py`, "
             "retester tous les sites et ouvrir une PR."
         )
         body = "\n".join(lines)
