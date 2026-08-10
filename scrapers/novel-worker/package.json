@@ -14,7 +14,7 @@
     "drizzle-orm": "^0.45.2",
     "p-limit": "^7.3.1",
     "postgres": "^3.4.3",
-    "tsx": "^4.23.1"
+    "tsx": "^4.23.11"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
