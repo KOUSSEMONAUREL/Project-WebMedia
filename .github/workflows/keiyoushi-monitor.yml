@@ -172,6 +172,7 @@ jobs:
       REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
       SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_submit.py
       MERGE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_merge.py
+      VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_verify.py
       HANDOFF_FILE: /tmp/keiyoushi_handoff.json
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
@@ -373,3 +374,11 @@ jobs:
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           python3 "$MERGE_SCRIPT"
+
+      - name: Verification finale (independante de l'agent)
+        if: always() && steps.issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          python3 "$VERIFY_SCRIPT"
