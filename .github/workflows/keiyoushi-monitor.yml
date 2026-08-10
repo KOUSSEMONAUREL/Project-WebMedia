@@ -376,19 +376,6 @@ jobs:
             --file "$REVIEW_PROMPT_FILE" \
             -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify scraper fidelity against upstream Kotlin. Flag close:true with unresolved IGNORE entries."
 
-      - name: Verifier les PRs (reviewer fallback north-mini-code)
-        id: review-fallback4
-        if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure' && steps.review-fallback3.outcome == 'failure'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
-        run: |
-          echo "mimo failed, switching to $FALLBACK4_MODEL"
-          opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
-            --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify scraper fidelity against upstream Kotlin. Flag close:true with unresolved IGNORE entries."
-
       - name: Appliquer verdicts et merger
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
         env:
