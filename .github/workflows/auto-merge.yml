@@ -1,9 +1,6 @@
 name: Dependabot Auto-Merge
 
-on:
-  pull_request:
-    branches:
-      - dependabot/**
+on: pull_request
 
 permissions:
   contents: write
@@ -15,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dir: [backend, frontend, scrapers/webtoons, scrapers/novel-worker]
+        dir: [backend, frontend, scrapers/webtoons, scrapers/novel-worker, scrapers/import-worker]
     steps:
       - uses: actions/checkout@v7
 
