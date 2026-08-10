@@ -23,6 +23,18 @@ def health():
 def run_health_server():
     app.run(host='0.0.0.0', port=8080)
 
+def clean_search_title(game_name):
+    """Normalise le titre pour la recherche.
+
+    Retire les suffixes d'edition/plateforme (ex: "Guilty Gear: Strive -
+    Nintendo Switch Edition" -> "Guilty Gear Strive") qui ne matchent aucun
+    resultat sur les sites de recherche.
+    """
+    title = re.sub(r'\s*[-–—]\s*.*$', '', game_name.strip())
+    title = title.replace(':', '')
+    return title.strip() or game_name.strip()
+
+
 def extract_game_links(page, url, game_name=None):
     found = []
 
@@ -52,7 +64,9 @@ def extract_game_links(page, url, game_name=None):
         return found
 
     if "steamunlocked.org" in url:
-        game_links = page.css('div.cover-item-title a::attr(href)').getall()
+        game_links = page.css('a.su-cat__card::attr(href)').getall()
+        if not game_links:
+            game_links = page.css('div.cover-item-title a::attr(href)').getall()
         game_links = list(set(l for l in game_links if "free-download" in (l or '').lower()))
         for l in game_links:
             add_link(l, "steamunlocked.org", "page_selection", True)
@@ -220,22 +234,22 @@ def process_jobs():
             all_links = []
 
             if media_type in ["game", "jeu"]:
-                fetcher = Fetcher(auto_wait=True)
                 collected = []
+                search_name = clean_search_title(game_name)
 
                 for site_name, base_url in GAME_SOURCES:
                     try:
-                        search_url = base_url + game_name.replace(" ", "+")
+                        search_url = base_url + search_name.replace(" ", "+")
                         headers = {
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                         }
                         kwargs = {"headers": headers}
                         if site_name == "steamunlocked.org":
                             kwargs["verify"] = False
-                        page = fetcher.get(search_url, **kwargs)
+                        page = Fetcher.get(search_url, **kwargs)
 
                         if getattr(page, 'status', 200) == 200:
-                            site_links = extract_game_links(page, search_url, game_name)
+                            site_links = extract_game_links(page, search_url, search_name)
                             if site_links:
                                 collected.extend(site_links[:5])
                     except Exception as e:
@@ -298,17 +312,15 @@ def search_title_direct(game_name):
         ("games4u.org", "https://games4u.org/?s="),
         ("steamrip.com", "https://steamrip.com/?s="),
     ]
-    fetcher = None
     all_links = []
+    search_name = clean_search_title(game_name)
     for site_name, base_url in GAME_SOURCES:
         try:
-            search_url = base_url + game_name.replace(" ", "+")
-            if not fetcher:
-                fetcher = Fetcher(auto_wait=True)
+            search_url = base_url + search_name.replace(" ", "+")
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            page = fetcher.get(search_url, headers=headers)
+            page = Fetcher.get(search_url, headers=headers)
             if getattr(page, 'status', 200) == 200:
-                site_links = extract_game_links(page, search_url, game_name)
+                site_links = extract_game_links(page, search_url, search_name)
                 if site_links:
                     all_links.extend(site_links[:5])
         except Exception:
