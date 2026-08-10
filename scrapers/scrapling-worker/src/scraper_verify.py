@@ -61,9 +61,37 @@ CANARIES = {
     "steamrip.com": ["Mario", "Elden Ring", "Cyberpunk 2077"],
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+CHALLENGE_MARKERS = [
+    "just a moment",
+    "cf-browser-verification",
+    "cf-chl-",
+    "attention required",
+    "checking your browser",
+    "ddos-guard",
+    "enable javascript and cookies",
+    "verify you are human",
+    "captcha",
+]
+
+
+def is_challenge_page(page) -> bool:
+    """Detecte une page de protection anti-bot (Cloudflare, DDoS-Guard...).
+
+    Un tel blocage n'est pas un souci de selecteur: le site est simplement
+    injoignable depuis l'IP du runner (datacenter/cloud). On le classe donc
+    UNREACHABLE et on ne declenche pas d'alerte.
+    """
+    try:
+        text = (page.get_all_text() or "")[:4000].lower()
+        html = ""
+        try:
+            html = str(page.body) if hasattr(page, "body") else ""
+        except Exception:
+            html = ""
+        haystack = text + " " + html[:4000].lower()
+        return any(marker in haystack for marker in CHALLENGE_MARKERS)
+    except Exception:
+        return False
 
 
 def check_site(site_name: str, base_url: str, canaries: list[str]) -> dict:
@@ -73,14 +101,20 @@ def check_site(site_name: str, base_url: str, canaries: list[str]) -> dict:
     for title in canaries:
         try:
             search_url = base_url + clean_search_title(title).replace(" ", "+")
-            kwargs = {"headers": HEADERS}
-            if site_name == "steamunlocked.org":
-                kwargs["verify"] = False
+            kwargs = {
+                "impersonate": "chrome",
+                "stealthy_headers": True,
+                "timeout": 30,
+                "verify": False,
+            }
             page = Fetcher.get(search_url, **kwargs)
             http = getattr(page, "status", 200)
             statuses.append(http)
             if http != 200:
                 results[title] = {"http": http, "links": -1}
+                continue
+            if is_challenge_page(page):
+                results[title] = {"http": http, "links": -1, "challenge": True}
                 continue
             links = extract_game_links(page, search_url, title)
             results[title] = {"http": http, "links": len(links)}
@@ -105,8 +139,12 @@ def main() -> None:
 
         http_codes = [r["http"] for r in results.values()]
         link_counts = [r["links"] for r in results.values() if r["links"] >= 0]
+        challenges = [r for r in results.values() if r.get("challenge")]
 
-        if http_codes and all(h not in (200,) for h in http_codes):
+        if challenges and len(challenges) == len(results):
+            status = "UNREACHABLE"
+            report["unreachable"].append(site_name)
+        elif http_codes and all(h not in (200,) for h in http_codes):
             status = "UNREACHABLE"
             report["unreachable"].append(site_name)
         elif link_counts and sum(link_counts) > 0:
