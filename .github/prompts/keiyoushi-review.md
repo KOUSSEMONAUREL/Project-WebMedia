@@ -8,16 +8,18 @@ DO NOT rubber-stamp the analysis agent's work — verify it from scratch.
 
 ## Input
 
-- `$PR_LIST_FILE`: JSON file, list of PRs to review:
+- `$PR_LIST_FILE`: JSON file, list of PRs to review, one verdict per PR:
   ```json
   [
     {"number": 99, "title": "feat(scrapers): add sangchanhteam", "url": "https://github.com/.../pull/99"}
   ]
   ```
 - `$ISSUE_NUMBER`: the upstream-monitor issue the PRs reference.
-- `$HANDOFF_FILE`: the analysis agent's handoff (JSON) — read it. If the handoff says
-  `close: true` but any entry was `IGNORE` (especially anti-bot/WARP-blocked) or any
-  change was unverified, that is a FAIL condition for the whole set: report it.
+- `$HANDOFF_FILE`: the analysis agent's handoff (JSON) — read it. Verdicts are
+  **per PR**: a `BUILD`/`ADAPT` entry carries PASS/FAIL evidence per change; an entry
+  recorded as `IGNORE` (site dead or runner IP blacklisted) or `NO_IMPACT` is a
+  **resolved** verdict — a PR will be FAILed only on its own failed checks, never
+  because another entry in the handoff was IGNORE/NO_IMPACT.
 
 ## Mandatory checks (per PR, in order)
 

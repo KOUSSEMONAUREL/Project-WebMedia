@@ -45,6 +45,8 @@ def safe_ext(ext: str) -> str:
     On normalise: slash -> tiret, on retire les caracteres a risque.
     """
     slug = re.sub(r"[^A-Za-z0-9_.-]", "-", ext).strip("/.-")
+    if "/" in ext:
+        slug = ext.split("/")[-1]
     return slug or "change"
 
 
@@ -86,6 +88,36 @@ def main() -> None:
                 print("ERROR:", msg)
                 sys.exit(1)
 
+        # Dedup: verifie si une PR existe deja pour cette branche (open OU merged,
+        # meme si la branche a ete supprimee apres merge).
+        existing_pr = run("gh", "pr", "list", "--head", branch, "--repo", REPO,
+                          "--state", "all", "--json", "state,url,number",
+                          "-q", ".[0] | \"\\(.state)||\\(.url)||\\(.number)\"",
+                          check=False)
+        if existing_pr:
+            state, _, rest = existing_pr.partition("||")
+            url, _, number = rest.partition("||")
+            if state == "MERGED":
+                print(f"PR #{number} (branch {branch}) deja MERGED, "
+                      "skip (deja soumise, rien a re-submit)")
+                continue
+            if state == "OPEN":
+                run("git", "branch", "-D", branch, check=False)
+                run("git", "stash", "push", "-u", "-m",
+                    f"keiyoushi-{ISSUE}-pending", check=False)
+                run("git", "switch", "-c", branch, "main", check=False)
+                run("git", "stash", "pop", check=False)
+                run("git", "add", "-A", "--", *paths)
+                run("git", "commit", "-m", change["commit_msg"], check=False)
+                run("git", "push", "origin", branch, check=False)
+                run("git", "switch", "main", check=False)
+                print(f"PR existante ouverte #{number} pour {ext}: {url} "
+                      "(push non-force: corrections humaines preservees)")
+                pr_urls.append(url)
+                continue
+            print(f"PR #{number} (branch {branch}) etat={state}, ignoree")
+            continue
+
         run("git", "stash", "push", "-u", "-m", f"keiyoushi-{ISSUE}-pending", check=False)
         run("git", "branch", "-D", branch, check=False)
         run("git", "switch", "-c", branch, "main")
@@ -95,19 +127,13 @@ def main() -> None:
         run("git", "commit", "-m", change["commit_msg"])
         run("git", "push", "-u", "--force", "origin", branch)
 
-        existing = run("gh", "pr", "view", branch, "--repo", REPO,
-                       "--json", "url", "-q", ".url", check=False)
-        if existing:
-            url = existing
-            print(f"PR existante pour {ext}: {url}")
-        else:
-            body_file = f"/tmp/keiyoushi_pr_body_{ext}.md"
-            os.makedirs(os.path.dirname(body_file) or ".", exist_ok=True)
-            with open(body_file, "w", encoding="utf-8") as f:
-                f.write(change.get("pr_body", ""))
-            url = run("gh", "pr", "create", "--repo", REPO,
-                      "--title", change["pr_title"], "--body-file", body_file)
-            print(f"PR creee pour {ext}: {url}")
+        body_file = f"/tmp/keiyoushi_pr_body_{ext}.md"
+        os.makedirs(os.path.dirname(body_file) or ".", exist_ok=True)
+        with open(body_file, "w", encoding="utf-8") as f:
+            f.write(change.get("pr_body", ""))
+        url = run("gh", "pr", "create", "--repo", REPO,
+                  "--title", change["pr_title"], "--body-file", body_file)
+        print(f"PR creee pour {ext}: {url}")
         pr_urls.append(url)
 
     pr_list = []

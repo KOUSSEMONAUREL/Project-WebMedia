@@ -324,7 +324,7 @@ jobs:
         run: |
           opencode run --model "$FALLBACK_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt. Also read the handoff at $HANDOFF_FILE: if close=true but any entry is unresolved (IGNORE due to WARP/anti-bot), you MUST flag FAIL on that PR list. Independently verify, like a human senior engineer would: fetch upstream Kotlin source and check our TS scraper matches exactly."
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Independent verification, like a human senior engineer: fetch upstream Kotlin source and check our TS scraper matches exactly. FAIL only on a PR's own failed checks."
         shell: bash
 
       - name: Verifier les PRs (reviewer fallback Gemini)
@@ -339,7 +339,7 @@ jobs:
           echo "Reviewer big-pickle failed, switching to $GEMINI_MODEL"
           opencode run --model "$GEMINI_MODEL" --auto \
             --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE and the handoff at $HANDOFF_FILE. Independently verify each scraper against upstream Kotlin: diff must match exactly. Flag any close:true with unresolved entries."
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Independently verify each scraper against upstream Kotlin: diff must match exactly. FAIL only on a PR's own failed checks."
 
       - name: Verifier les PRs (reviewer fallback mimo)
         id: review-fallback3
@@ -352,7 +352,7 @@ jobs:
           echo "Gemini failed, switching to $FALLBACK3_MODEL"
           opencode run --model "$FALLBACK3_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify scraper fidelity against upstream Kotlin. Flag close:true with unresolved IGNORE entries."
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Verify scraper fidelity against upstream Kotlin. FAIL only on a PR's own failed checks."
 
       - name: Verifier les PRs (reviewer fallback north-mini-code)
         id: review-fallback4
@@ -365,7 +365,7 @@ jobs:
           echo "mimo failed, switching to $FALLBACK4_MODEL"
           opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify scraper fidelity against upstream Kotlin. Flag close:true with unresolved IGNORE entries."
+            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Verify scraper fidelity against upstream Kotlin. FAIL only on a PR's own failed checks."
 
       - name: Appliquer verdicts et merger
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'

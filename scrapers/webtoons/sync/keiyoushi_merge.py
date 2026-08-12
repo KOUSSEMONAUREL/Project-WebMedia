@@ -35,6 +35,46 @@ def comment_issue(body: str) -> None:
     run("gh", "issue", "comment", str(ISSUE), "--repo", REPO, "--body-file", path)
 
 
+def comment_pr(number: int, body: str) -> None:
+    path = f"/tmp/keiyoushi_pr_comment_{number}.md"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(body)
+    run("gh", "pr", "comment", str(number), "--repo", REPO, "--body-file", path)
+
+
+def pr_state(url: str) -> str:
+    return run("gh", "pr", "view", url, "--repo", REPO,
+               "--json", "state", "-q", ".state", check=False) or "UNKNOWN"
+
+
+def merge_with_retry(url: str, number: int) -> bool:
+    """Squash-merge une PR en surmontant les checks UNSTABLE.
+
+    - update-branch d'abord (la PR peut etre derriere main suite a une
+      precedente fusion-merge).
+    - merge --auto: rendez-vous des que les checks recheckouts passent.
+    - On pollue l'etat jusqu'a 12 x 10s; si la PR est encore OPEN (checks
+      UNSTABLE qui n'aboutissent jamais), on arrete sans pseudo-echouer.
+    - 3 tentatives au total (update + merge + poll), 20s entre les deux.
+    """
+    for attempt in range(1, 4):
+        run("gh", "pr", "update-branch", url, "--repo", REPO, check=False)
+        run("gh", "pr", "merge", "--squash", "--auto", "--delete-branch",
+            url, "--repo", REPO, check=False)
+        for _ in range(12):
+            state = pr_state(url)
+            if state == "MERGED":
+                return True
+            if state == "CLOSED":
+                return False
+            import time
+            time.sleep(10)
+        if attempt < 3:
+            import time
+            time.sleep(20)
+    return False
+
+
 def summary_from_handoff() -> str:
     try:
         handoff = json.load(open(HANDOFF, encoding="utf-8"))
@@ -80,11 +120,7 @@ def main() -> None:
         url = pr["url"]
         v = verdicts.get(num)
         if v and v.get("verdict") == "PASS":
-            run("gh", "pr", "merge", "--squash", "--delete-branch",
-                url, "--repo", REPO, check=False)
-            merged_at = run("gh", "pr", "view", url, "--repo", REPO,
-                            "--json", "mergedAt", "-q", ".mergedAt", check=False)
-            if merged_at:
+            if merge_with_retry(url, num):
                 merged.append(f"- [x] PR #{num} ({pr['title']}) **merged** ({url})")
             else:
                 failed.append(
@@ -95,6 +131,11 @@ def main() -> None:
                 f"- [ ] PR #{num} ({pr['title']}) **FAIL** ({url})\n"
                 f"  Raison: {v.get('reason', '')}"
             )
+            comment_pr(num, (
+                f"Revue: **FAIL**\n\n"
+                f"Raison: {v.get('reason', '')}\n\n"
+                f"PR laissee ouverte pour revue humaine."
+            ))
         else:
             unreviewed.append(
                 f"- [ ] PR #{num} ({pr['title']}) ({url}) - pas de verdict de revue"

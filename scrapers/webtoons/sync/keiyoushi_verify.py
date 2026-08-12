@@ -106,10 +106,16 @@ def main() -> None:
                 f"{ISSUE} est restee ouverte (le merge aurait du la fermer)."
             )
 
+        all_pass = all(
+            verdicts.get(pr.get("number")) == "PASS" for pr in pr_list
+        )
         paths = [p for c in handoff.get("changes", []) for p in c.get("paths", [])]
-        missing = [p for p in paths if not os.path.exists(p)]
-        if missing:
-            problems.append(f"Fichiers annonces dans le handoff absents du disque: {missing}")
+        if all_pass:
+            missing = [p for p in paths if not os.path.exists(p)]
+            if missing:
+                problems.append(
+                    f"Fichiers annonces dans le handoff absents du disque: {missing}"
+                )
 
     if problems:
         body = (
