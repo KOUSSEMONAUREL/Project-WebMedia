@@ -92,7 +92,7 @@ def main() -> None:
         # meme si la branche a ete supprimee apres merge).
         existing_pr = run("gh", "pr", "list", "--head", branch, "--repo", REPO,
                           "--state", "all", "--json", "state,url,number",
-                          "-q", ".[0] | \"\\(.state)||\\(.url)||\\(.number)\"",
+                          "-q", "if length > 0 then .[0] | \"\\(.state)||\\(.url)||\\(.number)\" else \"\" end",
                           check=False)
         if existing_pr:
             state, _, rest = existing_pr.partition("||")
