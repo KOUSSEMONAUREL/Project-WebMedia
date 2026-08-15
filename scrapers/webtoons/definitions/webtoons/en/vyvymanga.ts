@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
@@ -45,18 +46,24 @@ export class VyvyMangaScraper extends BaseScraper {
     const $ = this.$(res.data);
     const chapters: Chapter[] = [];
     $('.list-group > a').each((_, el) => {
-      const name = $(el).find('span').first().text().trim();
-      const url = $(el).attr('href') ?? '';
+      const title = $(el).find('span').first().text().trim();
+      const href = $(el).attr('href') ?? '';
       const dateText = $(el).find('> p').first().text().trim();
-      if (name && url) {
-        chapters.push({ name, url: this.absUrl(url), dateUpload: this.parseChapterDate(dateText) });
+      if (title && href) {
+        const dateUpload = this.parseChapterDate(dateText);
+        const hash = createHash('md5')
+          .update(`${dateUpload ?? 0}:${title}`)
+          .digest('hex')
+          .slice(-10);
+        chapters.push({ name: title, url: `${hash}#${this.absUrl(href)}`, dateUpload });
       }
     });
     return chapters;
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(chapterUrl);
+    const url = chapterUrl.split('#')[1] ?? chapterUrl;
+    const res = await this.get(url);
     const $ = this.$(res.data);
     return $('img.d-block')
       .map((index, el) => ({ index, imageUrl: this.absUrl($(el).attr('data-src') || '') }))
