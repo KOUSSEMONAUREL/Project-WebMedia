@@ -1,4 +1,4 @@
-scrapling>=0.4.12
+scrapling>=0.4.14
 playwright>=1.62.0
 psycopg2-binary>=2.9.12
 requests==2.34.2
