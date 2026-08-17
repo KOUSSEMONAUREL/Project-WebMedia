@@ -2,6 +2,7 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const j = (d: any) => typeof d === 'string' ? JSON.parse(d) : d;
+const BROWSE_LIMIT = 40;
 
 export class AtsumaruScraper extends BaseScraper {
   readonly name = 'Atsumaru';
@@ -12,32 +13,35 @@ export class AtsumaruScraper extends BaseScraper {
     return '&adult=1';
   }
 
-  async getPopular(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/api/infinite/trending?page=${page - 1}&types=Manga,Manwha,Manhua,OEL${this.get18Mode()}`);
-    const data = j(res.data);
+  private browseImageUrl(path: string): string {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('//')) return `https:${path}`;
+    return `${this.baseUrl}/static/${path.replace(/^\/+/, '').replace(/^static\//, '')}`;
+  }
+
+  private mapBrowseItems(data: any): Manga[] {
     const mangaList = data.items || data.manga || [];
-    const mangas: Manga[] = mangaList.map((item: any) => ({
+    return mangaList.map((item: any) => ({
       title: item.title || item.name || "",
       url: item.slug || item.id?.toString() || item.url || "",
-      thumbnailUrl: this.absUrl(item.thumbnail || item.cover_url || item.cover || ""),
+      thumbnailUrl: this.browseImageUrl(item.image || item.poster || item.thumbnail || item.cover_url || item.cover || ""),
       lang: this.lang,
     }));
-    const hasNextPage = false;
-    return { mangas, hasNextPage };
+  }
+
+  async getPopular(page = 1): Promise<SearchResult> {
+    const offset = (page - 1) * BROWSE_LIMIT;
+    const res = await this.get(`${this.baseUrl}/api/home2/popular?offset=${offset}&limit=${BROWSE_LIMIT}&types=Manga,Manwha,Manhua,OEL&mediums=Comic&timeframe=daily${this.get18Mode()}`);
+    const data = j(res.data);
+    return { mangas: this.mapBrowseItems(data), hasNextPage: false };
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/api/infinite/recentlyUpdated?page=${page - 1}&types=Manga,Manwha,Manhua,OEL${this.get18Mode()}`);
+    const offset = (page - 1) * BROWSE_LIMIT;
+    const res = await this.get(`${this.baseUrl}/api/home2/recentlyUpdated?offset=${offset}&limit=${BROWSE_LIMIT}&types=Manga,Manwha,Manhua,OEL&mediums=Comic${this.get18Mode()}`);
     const data = j(res.data);
-    const mangaList = data.items || data.manga || [];
-    const mangas: Manga[] = mangaList.map((item: any) => ({
-      title: item.title || item.name || "",
-      url: item.slug || item.id?.toString() || item.url || "",
-      thumbnailUrl: this.absUrl(item.thumbnail || item.cover_url || item.cover || ""),
-      lang: this.lang,
-    }));
-    const hasNextPage = false;
-    return { mangas, hasNextPage };
+    return { mangas: this.mapBrowseItems(data), hasNextPage: false };
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
