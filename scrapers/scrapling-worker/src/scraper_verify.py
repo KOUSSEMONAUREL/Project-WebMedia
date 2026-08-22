@@ -41,7 +41,7 @@ GAME_SOURCES = [
     ("gamedrive.org", "https://gamedrive.org/?s="),
     ("elamigos.site", "https://elamigos.site/?q="),
     ("romspure.cc", "https://romspure.cc/?s="),
-    ("cfinder.xyz", "https://cfinder.xyz/jeux.php?q="),
+    ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),
     ("emulatorgamesx.net", "https://www.emulatorgamesx.net/?s="),
     ("romsfun.com", "https://romsfun.com/?s="),
     ("games4u.org", "https://games4u.org/?s="),
