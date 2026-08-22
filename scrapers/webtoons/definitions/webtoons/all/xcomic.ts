@@ -2,7 +2,14 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const BROWSE_PAGE_SIZE = 36;
-const CHAPTER_PAGE_SIZE = 100;
+const CHAPTER_PAGE_SIZE = 1000;
+const LATEST_API_PAGES_MAX = 10;
+
+const READ_DIRECTION_LABELS: [string, string][] = [
+  ['ttb', '⬇️ Top To Bottom'],
+  ['rtl', '⬅️ Right To Left'],
+  ['ltr', '➡️ Left To Right'],
+];
 
 const COMIC_ITEMS_QUERY = `
 query get_comic_browse_items($select: Comic_Browse_Select) {
@@ -87,6 +94,7 @@ query get_comicNode($id: ID!) {
             extraInfo {
                 text
             }
+            readDirection
             urlPath
             urlCover
         }
@@ -95,8 +103,8 @@ query get_comicNode($id: ID!) {
 `;
 
 const CHAPTER_LIST_QUERY = `
-query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
-    get_comic_chapterList_fullList(select: $select) {
+query get_comic_chapterList_uniqList($select: Select_Comic_ChapterList_UniqList) {
+    get_comic_chapterList_uniqList(select: $select) {
         paging {
             next
             total
@@ -118,6 +126,34 @@ query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
                     data {
                         name
                     }
+                }
+            }
+        }
+    }
+}
+`;
+
+const LATEST_UPLOADS_QUERY = `
+query get_comic_latestUploads($select: Comic_LatestUploads_Select) {
+    get_comic_latestUploads(select: $select) {
+        before
+        items {
+            comic {
+                id
+                data {
+                    id
+                    name
+                    urlPath
+                    urlCover
+                    translatedLanguage
+                    genres
+                }
+            }
+            chapters(amount: 1) {
+                id
+                data {
+                    id
+                    datePublic
                 }
             }
         }
@@ -197,6 +233,7 @@ interface ComicNode {
   chaps_normal?: number | null;
   summary?: { text?: string | null } | null;
   extraInfo?: { text?: string | null } | null;
+  readDirection?: string | null;
   urlPath?: string | null;
   urlCover?: string | null;
   trackingSites?: {
@@ -227,25 +264,14 @@ interface ChapterItem {
   data: ChapterData;
 }
 
-function toTitleCase(value: string): string {
-  return value
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map((word) => word.toLowerCase().replace(/^./, (c) => c.toUpperCase()))
-    .join(' ');
+interface LatestUploadsItem {
+  comic?: { id: string; data?: ComicNode | null } | null;
+  chapters?: { id: string; data?: ChapterData | null }[] | null;
 }
 
-function cleanAuthorSlug(slug: string): string {
-  const path = slug.substring(slug.lastIndexOf('/') + 1);
-  const match = /^[a-zA-Z0-9]{4,}-(.*)$/.exec(path);
-  if (match) {
-    return match[1]
-      .replace(/-/g, ' ')
-      .split(' ')
-      .map((word) => word.toLowerCase().replace(/^./, (c) => c.toUpperCase()))
-      .join(' ');
-  }
-  return slug;
+interface LatestUploadsData {
+  before?: number | null;
+  items: LatestUploadsItem[] | null;
 }
 
 function dateToString(date: { y?: number | null; m?: number | null; d?: number | null }): string {
@@ -254,6 +280,14 @@ function dateToString(date: { y?: number | null; m?: number | null; d?: number |
   if (date.m != null) out += `-${String(date.m).padStart(2, '0')}`;
   if (date.d != null) out += `-${String(date.d).padStart(2, '0')}`;
   return out;
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((word) => word.toLowerCase().replace(/^./, (c) => c.toUpperCase()))
+    .join(' ');
 }
 
 function languageLabel(code: string): string {
@@ -270,8 +304,49 @@ export class XCOMICScraper extends BaseScraper {
     return this.search('', page, 'field_score');
   }
 
+  private latestCursor: number | null = null;
+
   async getLatest(page = 1): Promise<SearchResult> {
-    return this.search('', page, 'field_update');
+    if (page === 1) this.latestCursor = null;
+
+    const accumulated: Manga[] = [];
+    const seenUrls = new Set<string>();
+    let hasNextPage = true;
+    let apiPageCount = 0;
+
+    while (accumulated.length === 0 && hasNextPage && apiPageCount < LATEST_API_PAGES_MAX) {
+      apiPageCount++;
+      const data = await this.graphql<{ get_comic_latestUploads: LatestUploadsData | null }>(
+        LATEST_UPLOADS_QUERY,
+        { select: { size: BROWSE_PAGE_SIZE, before: this.latestCursor } },
+      );
+      const result = data?.get_comic_latestUploads;
+      if (!result) throw new Error('XCOMIC: latest uploads not found');
+
+      for (const item of result.items ?? []) {
+        const node = item.comic?.data;
+        if (!node) continue;
+        const manga = this.latestItemToManga(node);
+        if (!seenUrls.has(manga.url)) {
+          seenUrls.add(manga.url);
+          accumulated.push(manga);
+        }
+      }
+
+      this.latestCursor = result.before ?? null;
+      hasNextPage = this.latestCursor !== null;
+    }
+
+    return { mangas: accumulated, hasNextPage };
+  }
+
+  private latestItemToManga(node: Pick<ComicNode, 'id' | 'name' | 'urlCover'>): Manga {
+    return {
+      title: node.name,
+      url: node.id,
+      thumbnailUrl: node.urlCover ? this.absUrl(node.urlCover) : '',
+      lang: this.lang,
+    };
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
@@ -347,8 +422,8 @@ export class XCOMICScraper extends BaseScraper {
       url: node.id,
       thumbnailUrl,
       lang: this.lang,
-      author: authorNames && authorNames.length > 0 ? authorNames.join(', ') : node.authors?.map(cleanAuthorSlug).join(', '),
-      artist: artistNames && artistNames.length > 0 ? artistNames.join(', ') : node.artists?.map(cleanAuthorSlug).join(', '),
+      author: authorNames && authorNames.length > 0 ? authorNames.join(', ') : undefined,
+      artist: artistNames && artistNames.length > 0 ? artistNames.join(', ') : undefined,
       genre: [...genreSet].join(', ') || undefined,
       status,
       description: this.buildDescription(node) || undefined,
@@ -380,6 +455,10 @@ export class XCOMICScraper extends BaseScraper {
       metadata.push(`**Publication**: ${dateToString(node.originalPubFrom)} - ${till}`);
     }
     if (node.originalPubZone) metadata.push(`**Region**: ${node.originalPubZone}`);
+    if (node.readDirection) {
+      const label = READ_DIRECTION_LABELS.find(([code]) => code === node.readDirection)?.[1] ?? node.readDirection;
+      metadata.push(`**Read Direction**: ${label}`);
+    }
     if (metadata.length > 0) {
       desc += metadata.join('\n');
       desc += '\n\n';
@@ -399,7 +478,7 @@ export class XCOMICScraper extends BaseScraper {
     if (metadata.length > 0) desc += '\n\n---\n\n';
 
     if (node.summary?.text) {
-      desc += this.htmlToMarkdown(node.summary.text);
+      desc += this.toMarkdownUrls(node.summary.text);
     }
 
     const links: string[] = [];
@@ -434,34 +513,14 @@ export class XCOMICScraper extends BaseScraper {
 
     if (node.extraInfo?.text) {
       if (desc.length > 0) desc += '\n\n**Extra Info**:\n';
-      desc += this.htmlToMarkdown(node.extraInfo.text);
+      desc += this.toMarkdownUrls(node.extraInfo.text);
     }
 
     return desc.trim();
   }
 
-  private htmlToMarkdown(html: string): string {
-    const $ = this.$(html);
-    $('a').each((_, el) => {
-      const text = $(el).text();
-      const href = $(el).attr('href') ?? '';
-      if (href.startsWith('http')) $(el).replaceWith(`[${text}](${href})`);
-      else $(el).replaceWith(text);
-    });
-    $('br').each((_, el) => {
-      $(el).replaceWith('\n');
-    });
-    $('p, div, li, blockquote, h1, h2, h3, h4, h5, h6').each((_, el) => {
-      $(el).after('\n');
-    });
-    return $.root()
-      .text()
-      .replace(/(?<!\[|\()https?:\/\/[^\s<"]+/g, (m) => `[${m}](${m})`)
-      .replace(/[ \t]+/g, ' ')
-      .replace(/ \n/g, '\n')
-      .replace(/\n /g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+  private toMarkdownUrls(text: string): string {
+    return text.replace(/(?<!\[|\()https?:\/\/[^\s<"]+/g, (m) => `[${m}](${m})`);
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
@@ -493,12 +552,12 @@ export class XCOMICScraper extends BaseScraper {
       },
     };
     const data = await this.graphql<{
-      get_comic_chapterList_fullList: {
+      get_comic_chapterList_uniqList: {
         paging: { next: number | null; total: number | null } | null;
         items: ChapterItem[] | null;
       } | null;
     }>(CHAPTER_LIST_QUERY, variables);
-    const response = data?.get_comic_chapterList_fullList;
+    const response = data?.get_comic_chapterList_uniqList;
     if (!response) throw new Error('XCOMIC: chapter list not found');
     const items: ChapterItem[] = response.items ?? [];
     const chapters = items.map((item) => this.chapterToChapter(item));
@@ -511,14 +570,13 @@ export class XCOMICScraper extends BaseScraper {
 
   private chapterToChapter(item: ChapterItem): Chapter {
     const d = item.data;
-    let name = '';
+    const displayName = d.dname ?? '';
+    const nameParts: string[] = [];
     const number = (d.chaNum ?? d.serial)?.toString().replace(/\.0$/, '');
-    if (number != null && !d.dname.includes(number)) name += `Chapter ${number}: `;
-    name += d.dname;
-    if (d.title) {
-      if (name.length > 0) name += ': ';
-      name += d.title;
-    }
+    if (number != null && !displayName.includes(number)) nameParts.push(`Chapter ${number}`);
+    if (displayName) nameParts.push(displayName);
+    if (d.title) nameParts.push(d.title);
+    const name = nameParts.join(': ');
 
     let scanlator: string | undefined;
     if (d.srcName && d.srcName.length > 0) {
