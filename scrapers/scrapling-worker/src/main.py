@@ -83,6 +83,20 @@ def extract_game_links(page, url, game_name=None):
         return found
 
     if "cfinder.xyz" in url or "directory.cfinder.xyz" in url:
+        # Le site est passe sous SvelteKit : la recherche est une API JSON
+        # (GET /api/cracks/search/<titre>) et les fiches jeux sont sur /jeux/<slug>.
+        try:
+            payload = getattr(page, 'body', None) or page.text
+            data = json.loads(payload)
+            for item in (data.get("data") or []):
+                slug = (item.get("slug") or "").strip()
+                if not slug:
+                    continue
+                add_link(f"https://cfinder.xyz/jeux/{slug}", "cfinder.xyz", "page_selection", True)
+            if found:
+                return found
+        except (ValueError, AttributeError):
+            pass
         game_links = page.css('div.card h2 a::attr(href), div.card__content a::attr(href)').getall()
         game_links = [l for l in game_links if "/jeux/" in (l or '').lower() or "/games/" in (l or '').lower()]
         game_links = list(set(game_links))
@@ -180,7 +194,7 @@ def process_jobs():
         ("gamedrive.org", "https://gamedrive.org/?s="),
         ("elamigos.site", "https://elamigos.site/?q="),
         ("romspure.cc", "https://romspure.cc/?s="),
-        ("cfinder.xyz", "https://cfinder.xyz/jeux.php?q="),
+        ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),
         ("emulatorgamesx.net", "https://www.emulatorgamesx.net/?s="),
         ("romsfun.com", "https://romsfun.com/?s="),
         ("games4u.org", "https://games4u.org/?s="),
@@ -306,7 +320,7 @@ def search_title_direct(game_name):
         ("gamedrive.org", "https://gamedrive.org/?s="),
         ("elamigos.site", "https://elamigos.site/?q="),
         ("romspure.cc", "https://romspure.cc/?s="),
-        ("cfinder.xyz", "https://cfinder.xyz/jeux.php?q="),
+        ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),
         ("emulatorgamesx.net", "https://www.emulatorgamesx.net/?s="),
         ("romsfun.com", "https://romsfun.com/?s="),
         ("games4u.org", "https://games4u.org/?s="),
