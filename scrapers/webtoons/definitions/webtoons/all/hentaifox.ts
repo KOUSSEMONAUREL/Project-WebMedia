@@ -11,6 +11,22 @@ export class HentaiFoxScraper extends BaseScraper {
   readonly pagesRequest = 'includes/thumbs_loader.php';
 
   private csrfToken: string | null = null;
+  // thumbs_loader.php requires the PHP session cookies issued with the gallery page
+  private cookies = new Map<string, string>();
+
+  private storeCookies(headers: unknown): void {
+    const raw = (headers as { 'set-cookie'?: string[] | string })['set-cookie'];
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    for (const c of list) {
+      const pair = c.split(';')[0];
+      const eq = pair.indexOf('=');
+      if (eq > 0) this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+    }
+  }
+
+  private cookieHeader(): string {
+    return [...this.cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  }
 
   async getPopular(page: number = 1): Promise<SearchResult> {
     const url = this.buildPageUrl('/', page);
@@ -33,22 +49,25 @@ export class HentaiFoxScraper extends BaseScraper {
 
   private buildPageUrl(base: string, page: number): string {
     if (page <= 1) return base;
-    if (base === '/') return `/page/${page}/`;
+    // Upstream quirk: root listing uses /page/2/ once then /pag/N/
+    if (base === '/') return page === 2 ? '/page/2/' : `/pag/${page}/`;
     if (base.includes('?')) return `${base}&page=${page}`;
-    return `/pag/${page}/`;
+    return `${base.replace(/\/$/, '')}/pag/${page}/`;
   }
 
   private parseListing(html: string): SearchResult {
     const $ = this.$(html);
+    // Upstream GalleryAdults: url/thumbnail from `.inner_thumb`, title from `.caption`
     const mangas: Manga[] = $('.galleries_box .gallery_item, .thumb').toArray().map(el => {
       const $el = $(el);
-      const a = $el.find('.gallery_item a, a').first();
+      const innerA = $el.find('.inner_thumb a').first();
+      const a = innerA.length > 0 ? innerA : $el.find('a[href*="/gallery/"]').first();
       const url = this.absUrl(a.attr('href') || '');
-      const img = $el.find('img').first();
+      const img = $el.find('.inner_thumb img').first();
       const thumbnailUrl = this.imgAttr(img);
-      const title = img.attr('alt') || a.attr('title') || a.text() || '';
+      const title = $el.find('.caption').first().text().trim() || img.attr('alt') || '';
       return { title, url, thumbnailUrl, lang: this.lang };
-    }).filter(m => m.url);
+    }).filter(m => m.url && m.title);
     const hasNextPage = $('.pagination li.active + li:not(.disabled)').length > 0;
     return { mangas, hasNextPage };
   }
@@ -59,14 +78,14 @@ export class HentaiFoxScraper extends BaseScraper {
     const title = $('h1').first().text();
     const thumbnailUrl = this.imgAttr($('.cover img').first());
     const genre = this.getInfo($, 'Tags');
-    const author = this.getInfo($, 'Artists');
+    const author = this.getInfo($, 'Artists') || this.getInfo($, 'Groups');
     const desc = this.getDescription($);
     return { title, url: mangaUrl, thumbnailUrl, lang: this.lang, author, description: desc, genre };
   }
 
   private getDescription($: ReturnType<typeof this.$>): string {
     const parts: string[] = [];
-    for (const tag of ['Parodies', 'Characters', 'Languages', 'Categories', 'Category']) {
+    for (const tag of ['Parodies', 'Characters', 'Groups', 'Languages', 'Categories', 'Category']) {
       const val = this.getInfo($, tag);
       if (val) parts.push(`${tag}: ${val}`);
     }
@@ -90,6 +109,7 @@ export class HentaiFoxScraper extends BaseScraper {
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
+    this.storeCookies(res.headers);
     const $ = this.$(res.data);
     this.csrfToken = $('[name=csrf-token]').attr('content') || null;
     const totalPages = this.inputIdValue($, 'load_pages');
@@ -117,6 +137,8 @@ export class HentaiFoxScraper extends BaseScraper {
         headers['X-Csrf-Token'] = this.csrfToken;
         headers['Referer'] = `${this.baseUrl}/`;
       }
+      const cookie = this.cookieHeader();
+      if (cookie) headers['Cookie'] = cookie;
       const moreRes = await this.post(`/${this.pagesRequest}`, form.toString(), { headers });
       const $$ = this.$(moreRes.data);
       const morePages = $$('a').toArray().map(el => {
