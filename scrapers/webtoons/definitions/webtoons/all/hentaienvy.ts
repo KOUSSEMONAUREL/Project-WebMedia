@@ -51,14 +51,14 @@ export class HentaiEnvyScraper extends BaseScraper {
     const title = $('h1').first().text();
     const thumbnailUrl = this.imgAttr($('.gt_left img').first());
     const genre = this.getInfo($, 'Tags');
-    const author = this.getInfo($, 'Artists');
+    const author = this.getInfo($, 'Artists') || this.getInfo($, 'Groups');
     const desc = this.getDescription($);
     return { title, url: mangaUrl, thumbnailUrl, lang: this.lang, author, description: desc, genre };
   }
 
   private getDescription($: ReturnType<typeof this.$>): string {
     const parts: string[] = [];
-    for (const tag of ['Parodies', 'Characters', 'Languages', 'Categories', 'Category']) {
+    for (const tag of ['Parodies', 'Characters', 'Groups', 'Languages', 'Categories', 'Category']) {
       const val = this.getInfo($, tag);
       if (val) parts.push(`${tag}: ${val}`);
     }
