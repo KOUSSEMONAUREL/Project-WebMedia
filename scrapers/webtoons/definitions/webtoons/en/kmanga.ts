@@ -133,9 +133,22 @@ export class KmangaScraper extends BaseScraper {
       headers: {
         'X-Kmanga-Platform': '3',
         'X-Kmanga-Hash': hash,
+        'x-kmanga-client-id': '0',
+        'x-kmanga-is-crawler': 'false',
       },
     } as any);
+    this.onError(res, url.pathname.includes('viewer'));
     return res.data;
+  }
+
+  private onError(res: any, isViewer: boolean): never | void {
+    if (res.status === 400) {
+      throw new Error(
+        isViewer
+          ? 'Log in via WebView and rent or purchase this chapter to read.'
+          : 'Open WebView and retry',
+      );
+    }
   }
 
   async getPopular(page = 1): Promise<SearchResult> {
@@ -255,9 +268,12 @@ export class KmangaScraper extends BaseScraper {
           'Content-Type': 'application/x-www-form-urlencoded',
           'X-Kmanga-Platform': '3',
           'X-Kmanga-Hash': hash,
+          'x-kmanga-client-id': '0',
+          'x-kmanga-is-crawler': 'false',
         },
       } as any,
     );
+    this.onError(res, false);
 
     const epData = res.data as EpisodeListResponse;
 
