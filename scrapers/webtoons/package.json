@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "cheerio": "^1.2.0",
     "postgres": "^3.4.5",
     "tsx": "^4.23.12"
@@ -9,7 +9,7 @@
     "check-lockfile": "npm ls --package-lock-only"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "typescript": "^7.0.2"
   }
 }
