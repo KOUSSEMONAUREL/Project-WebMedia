@@ -120,42 +120,22 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
         const hyperdrive = c.env?.HYPERDRIVE;
         const db = getNeonDb(connStr, hyperdrive) as any;
 
-        // Warm-up Hyperdrive : simple ping avant d'insérer pour réveiller la connexion
-        try {
-            await db.execute('SELECT 1');
-        } catch {
-            // Pas grave si le ping échoue, on tente quand même l'insert
-        }
-
-        // Retry 2x sur l'insert (cold start Hyperdrive)
-        let lastInsertError: any;
-        for (let attempt = 0; attempt <= 2; attempt++) {
-            try {
-                inserted = await db.insert(liens).values(
-                    safeLinks.map(link => ({
-                        sourceSite: link.source_site,
-                        playerHost: link.player_host,
-                        url: link.url,
-                        quality: link.qualite || null,
-                        language: link.langue || null,
-                        hasSubtitles: link.sous_titres ?? false,
-                        headers: link.headers || null,
-                        mediaId,
-                        episodeId: link.episode_id || link.episodeId || null,
-                        scrapedAt: new Date()
-                    }))
-                ).returning();
-                lastInsertError = null;
-                break; // succès
-            } catch (e: any) {
-                lastInsertError = e;
-                if (attempt < 2) {
-                    console.warn(`[IngestWorker] Insert échoué (tentative ${attempt + 1}/3), retry dans 400ms...`);
-                    await new Promise(r => setTimeout(r, 400));
-                }
-            }
-        }
-        if (lastInsertError) throw lastInsertError;
+        // Insert upsert : un lien déjà présent (idx_liens_media_url) est ignoré,
+        // pas d'erreur ni de retry nécessaire.
+        inserted = await db.insert(liens).values(
+            safeLinks.map(link => ({
+                sourceSite: link.source_site,
+                playerHost: link.player_host,
+                url: link.url,
+                quality: link.qualite || null,
+                language: link.langue || null,
+                hasSubtitles: link.sous_titres ?? false,
+                headers: link.headers || null,
+                mediaId,
+                episodeId: link.episode_id || link.episodeId || null,
+                scrapedAt: new Date()
+            }))
+        ).onConflictDoNothing().returning();
 
         // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément)
         let realCount = 0;
@@ -240,8 +220,13 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                 console.error('Rollback échoué:', rollbackError);
             }
         }
-        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId }, mongoUri(c));
-        console.error('Ingestion Error:', error.message);
+        const causeInfo = {
+            code: error?.code ?? null,
+            causeCode: (error as any)?.cause?.code ?? null,
+            causeMessage: (error as any)?.cause?.message ?? null,
+        };
+        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId, ...causeInfo }, mongoUri(c));
+        console.error('Ingestion Error:', error.message, causeInfo);
         return c.json({ success: false, error: 'Erreur insertion' }, 500);
     }
 });
