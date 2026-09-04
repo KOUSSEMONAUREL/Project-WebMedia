@@ -6,7 +6,7 @@ export abstract class MangaCatalogScraper extends BaseScraper {
   override readonly baseUrl: string;
   override readonly lang: string;
 
-  protected readonly sourceList: Array<{ name: string; url: string }>;
+  protected sourceList: Array<{ name: string; url: string }>;
 
   constructor(name: string, baseUrl: string, lang: string) {
     super();
@@ -16,8 +16,15 @@ export abstract class MangaCatalogScraper extends BaseScraper {
     this.sourceList = [{ name, url: this.baseUrl }];
   }
 
+  /** Sorted by name, deduplicated by url — mirrors the upstream MangaCatalog sourceList. */
+  private buildSourceList(): Array<{ name: string; url: string }> {
+    return [...this.sourceList]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter((entry, index, list) => list.findIndex(e => e.url === entry.url) === index);
+  }
+
   async getPopular(_page = 1): Promise<SearchResult> {
-    const mangas: Manga[] = this.sourceList.map(({ name, url }) => ({
+    const mangas: Manga[] = this.buildSourceList().map(({ name, url }) => ({
       title: name,
       url,
       thumbnailUrl: '',
@@ -32,7 +39,7 @@ export abstract class MangaCatalogScraper extends BaseScraper {
 
   async getSearch(query: string, _page = 1): Promise<SearchResult> {
     const lower = query.toLowerCase();
-    const mangas: Manga[] = this.sourceList
+    const mangas: Manga[] = this.buildSourceList()
       .filter(({ name }) => name.toLowerCase().includes(lower))
       .map(({ name, url }) => ({
         title: name,
