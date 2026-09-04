@@ -52,14 +52,15 @@ def merge_with_retry(url: str, number: int) -> bool:
 
     - update-branch d'abord (la PR peut etre derriere main suite a une
       precedente fusion-merge).
-    - merge --auto: rendez-vous des que les checks recheckouts passent.
+    - merge --squash direct (pas --auto: requiert une branch protection
+      sur main que le repo n'a pas).
     - On pollue l'etat jusqu'a 12 x 10s; si la PR est encore OPEN (checks
       UNSTABLE qui n'aboutissent jamais), on arrete sans pseudo-echouer.
     - 3 tentatives au total (update + merge + poll), 20s entre les deux.
     """
     for attempt in range(1, 4):
         run("gh", "pr", "update-branch", url, "--repo", REPO, check=False)
-        run("gh", "pr", "merge", "--squash", "--auto", "--delete-branch",
+        run("gh", "pr", "merge", "--squash", "--delete-branch",
             url, "--repo", REPO, check=False)
         for _ in range(12):
             state = pr_state(url)
