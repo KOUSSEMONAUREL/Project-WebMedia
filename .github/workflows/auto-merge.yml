@@ -1,6 +1,20 @@
 name: Dependabot Auto-Merge
 
-on: pull_request
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'scrapers/webtoons/package.json'
+      - 'scrapers/webtoons/package-lock.json'
+      - 'scrapers/novel-worker/package.json'
+      - 'scrapers/novel-worker/package-lock.json'
+      - 'scrapers/import-worker/package.json'
+      - 'scrapers/import-worker/package-lock.json'
+      - 'scrapers/scrapling-worker/requirements*.txt'
 
 permissions:
   contents: write
