@@ -11,6 +11,10 @@ const RETRY_ATTEMPTS = 3;
 const RETRY_BASE_MS = 500;
 const SYNC_KEY = 'turso_last_sync_ms';
 
+// Types toujours syncés vers Turso même sans lien actif (book: pas de liens requis,
+// film/serie/anime: les liens passent par des embedders, pas par la table liens).
+const ALWAYS_SYNCED_TYPES = ['book', 'film', 'serie', 'anime'];
+
 type Logger = ReturnType<typeof createLog>;
 type MediaRow = typeof medias.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
@@ -18,6 +22,16 @@ type LienRow = typeof liens.$inferSelect;
 
 function errMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+}
+
+// Un média est conforme (mérite d'être dans Turso) s'il est d'un type toujours
+// syncé ou s'il possède au moins un lien actif. COUNT réel sur la table liens,
+// pas le compteur active_links_count (non fiable pour book/novel).
+function conformesFilter(
+    m: typeof medias | typeof tursoMedias,
+    l: typeof liens | typeof tursoLiens,
+) {
+    return sql`(${m.type} IN (${sql.join(ALWAYS_SYNCED_TYPES.map(t => sql`${t}`), sql`, `)}) OR EXISTS (SELECT 1 FROM ${l} WHERE ${l.mediaId} = ${m.id} AND ${l.isActive} = true))`;
 }
 
 async function retry<T>(label: string, log: Logger, fn: () => Promise<T>): Promise<T> {
@@ -124,7 +138,12 @@ function lienUpsert() {
     };
 }
 
-export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoToken: string) {
+export async function syncNeonToTurso(
+    neonUrl: string,
+    tursoUrl: string,
+    tursoToken: string,
+    opts?: { forceFullSync?: boolean },
+) {
     const log = createLog('Sync Turso', 'sync');
 
     if (!tursoUrl || !tursoToken) {
@@ -142,21 +161,30 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             .from(importOffsets)
             .where(eq(importOffsets.key, SYNC_KEY));
 
-        const lastSyncMs = offset?.value ?? 0;
-        const hasOffset = !!offset;
+        const lastSyncMs = opts?.forceFullSync ? 0 : (offset?.value ?? 0);
+        const hasOffset = !opts?.forceFullSync && !!offset;
 
         if (lastSyncMs === 0) {
             log.info('Aucun offset trouve: full sync pour etablir la baseline');
         }
 
         const startedAtMs = Date.now();
-        const filterSince = lastSyncMs > 0
-            ? sql`updated_at > ${new Date(lastSyncMs).toISOString()}`
+        const sinceIso = lastSyncMs > 0 ? new Date(lastSyncMs).toISOString() : null;
+
+        // Médias: modifiés depuis l'offset, ou dont un lien a été modifié depuis
+        // l'offset (un média qui reçoit ses premiers liens n'a pas son updated_at
+        // bumpé: l'ingest ne met à jour que active_links_count).
+        const mediaSince = sinceIso
+            ? sql`(${medias.updatedAt} > ${sinceIso} OR EXISTS (SELECT 1 FROM ${liens} WHERE ${liens.mediaId} = ${medias.id} AND ${liens.updatedAt} > ${sinceIso}))`
             : sql`1=1`;
+        const episodeSince = sinceIso ? sql`${episodes.updatedAt} > ${sinceIso}` : sql`1=1`;
+        const lienSince = sinceIso ? sql`${liens.updatedAt} > ${sinceIso}` : sql`1=1`;
 
         const changedMedias = await fetchAllPages<MediaRow>(
             (lastId, pageSize) => neon.select().from(medias)
-                .where(lastId === undefined ? filterSince : sql`(${filterSince}) AND id > ${lastId}`)
+                .where(lastId === undefined
+                    ? sql`${mediaSince} AND ${conformesFilter(medias, liens)}`
+                    : sql`${mediaSince} AND ${conformesFilter(medias, liens)} AND id > ${lastId}`)
                 .orderBy(sql`id`)
                 .limit(pageSize),
             'medias',
@@ -203,7 +231,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
 
         const changedEpisodes = await fetchAllPages<EpisodeRow>(
             (lastId, pageSize) => neon.select().from(episodes)
-                .where(lastId === undefined ? filterSince : sql`(${filterSince}) AND id > ${lastId}`)
+                .where(lastId === undefined ? episodeSince : sql`${episodeSince} AND id > ${lastId}`)
                 .orderBy(sql`id`)
                 .limit(pageSize),
             'episodes',
@@ -232,7 +260,7 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
 
         const changedLiens = await fetchAllPages<LienRow>(
             (lastId, pageSize) => neon.select().from(liens)
-                .where(lastId === undefined ? filterSince : sql`(${filterSince}) AND id > ${lastId}`)
+                .where(lastId === undefined ? lienSince : sql`${lienSince} AND id > ${lastId}`)
                 .orderBy(sql`id`)
                 .limit(pageSize),
             'liens',
@@ -263,24 +291,50 @@ export async function syncNeonToTurso(neonUrl: string, tursoUrl: string, tursoTo
             }
         }
 
-        if (lastSyncMs === 0 && changedMedias.length > 0) {
-            const allIds = changedMedias.map(m => m.id);
-            const deleted = await retry('purge medias obsoletes', log, () =>
-                turso.delete(tursoMedias).where(
-                    sql`id NOT IN (${sql.join(allIds.map(id => sql`${id}`), sql`, `)})`
-                ),
+        // Purge quotidienne: un média sans lien actif (hors types toujours syncés)
+        // n'a rien de consommable dans Turso. DELETE direct par subquery (pas de fetch
+        // d'IDs en mémoire). Le WHERE NOT conformes est évalué par SQLite server-side.
+        const tursoConformes = conformesFilter(tursoMedias, tursoLiens);
+        const staleSub = sql`(SELECT id FROM ${tursoMedias} WHERE NOT ${tursoConformes})`;
+        const staleCount = await retry('count medias a purger', log, () =>
+            turso.select({ n: sql<number>`count(*)` }).from(tursoMedias).where(sql`NOT ${tursoConformes}`),
+        );
+        if ((staleCount[0]?.n ?? 0) > 0) {
+            log.start(`Purge: ${staleCount[0].n} medias sans lien actif a retirer de Turso`);
+            await retry('purge liens des medias obsoletes', log, () =>
+                turso.delete(tursoLiens).where(sql`${tursoLiens.mediaId} IN ${staleSub}`),
             );
-            if (deleted.rowsAffected > 0) log.info(`${deleted.rowsAffected} medias obsoletes nettoyes de Turso`);
+            await retry('purge episodes des medias obsoletes', log, () =>
+                turso.delete(tursoEpisodes).where(sql`${tursoEpisodes.mediaId} IN ${staleSub}`),
+            );
+            const deleted = await retry('purge medias obsoletes', log, () =>
+                turso.delete(tursoMedias).where(sql`NOT ${tursoConformes}`),
+            );
+            log.info(`${deleted.rowsAffected} medias sans lien actif purges de Turso`);
         }
 
-        const nowMs = startedAtMs;
-        if (hasOffset) {
-            await neon.update(importOffsets)
-                .set({ value: nowMs, updatedAt: new Date() })
-                .where(eq(importOffsets.key, SYNC_KEY));
-        } else {
-            await neon.insert(importOffsets)
-                .values({ key: SYNC_KEY, value: nowMs });
+        // Nettoyage des orphelins (liens/episodes dont le média n'existe plus en Turso):
+        // couvre les médias supprimés de Neon et les purges précédentes sans cascade.
+        const orphanLiens = await retry('purge liens orphelins', log, () =>
+            turso.delete(tursoLiens).where(sql`${tursoLiens.mediaId} NOT IN (SELECT id FROM ${tursoMedias})`),
+        );
+        const orphanEpisodes = await retry('purge episodes orphelins', log, () =>
+            turso.delete(tursoEpisodes).where(sql`${tursoEpisodes.mediaId} NOT IN (SELECT id FROM ${tursoMedias})`),
+        );
+        if (orphanLiens.rowsAffected > 0 || orphanEpisodes.rowsAffected > 0) {
+            log.info(`${orphanLiens.rowsAffected} liens et ${orphanEpisodes.rowsAffected} episodes orphelins purges de Turso`);
+        }
+
+        if (!opts?.forceFullSync) {
+            const nowMs = startedAtMs;
+            if (hasOffset) {
+                await neon.update(importOffsets)
+                    .set({ value: nowMs, updatedAt: new Date() })
+                    .where(eq(importOffsets.key, SYNC_KEY));
+            } else {
+                await neon.insert(importOffsets)
+                    .values({ key: SYNC_KEY, value: nowMs });
+            }
         }
 
         log.success(`Sync: ${changedMedias.length} medias, ${changedEpisodes.length} episodes, ${changedLiens.length} liens`);
