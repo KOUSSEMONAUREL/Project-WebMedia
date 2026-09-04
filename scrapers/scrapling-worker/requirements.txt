@@ -1,4 +1,5 @@
 scrapling>=0.4.15
+patchright>=1.62.1
 playwright>=1.62.0
 psycopg2-binary>=2.9.12
 requests==2.34.2

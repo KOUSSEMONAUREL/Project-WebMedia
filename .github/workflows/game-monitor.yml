@@ -105,11 +105,7 @@ jobs:
     if: needs.check-scrapers.outputs.broken_sites == 'true' || github.event.inputs.force_agent == 'true' || needs.check-scrapers.outputs.open_issue == 'true'
     runs-on: ubuntu-latest
     env:
-      PRIMARY_MODEL: opencode/deepseek-v4-flash-free
-      FALLBACK_MODEL: opencode/big-pickle
       GEMINI_MODEL: google/gemini-flash-latest
-      FALLBACK3_MODEL: opencode/mimo-v2.5-free
-      FALLBACK4_MODEL: opencode/north-mini-code-free
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/game-monitor-analysis.md
       REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/game-monitor-review.md
       HANDOFF_FILE: /tmp/scraper_handoff.json
@@ -149,7 +145,15 @@ jobs:
           fi
           echo "issue_number=$ISSUE" >> "$GITHUB_OUTPUT"
 
-      - name: Lancer l'agent (primary deepseek-v4-flash)
+      - name: Resoudre les modeles vivants (zero dur)
+        id: models
+        if: steps.issue.outputs.issue_number != ''
+        timeout-minutes: 10
+        run: |
+          export PATH="$HOME/.opencode/bin:$PATH"
+          python3 .github/scripts/resolve-models.py
+
+      - name: Lancer l'agent (primary)
         id: primary
         if: steps.issue.outputs.issue_number != ''
         continue-on-error: true
@@ -161,7 +165,7 @@ jobs:
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
 
-      - name: Lancer l'agent (fallback big-pickle)
+      - name: Lancer l'agent (fallback 1)
         id: fallback
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure'
         continue-on-error: true
@@ -174,7 +178,7 @@ jobs:
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
 
-      - name: Lancer l'agent (fallback Gemini)
+      - name: Lancer l'agent (fallback 2)
         id: fallback2
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure'
         continue-on-error: true
@@ -183,12 +187,12 @@ jobs:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "big-pickle failed, switching to $GEMINI_MODEL"
+          echo "fallback 1 failed, switching to $GEMINI_MODEL"
           opencode run --model "$GEMINI_MODEL" --auto \
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
 
-      - name: Lancer l'agent (fallback mimo)
+      - name: Lancer l'agent (fallback 3)
         id: fallback3
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure'
         continue-on-error: true
@@ -196,12 +200,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "Gemini failed, switching to $FALLBACK3_MODEL"
+          echo "fallback 2 failed, switching to $FALLBACK3_MODEL"
           opencode run --model "$FALLBACK3_MODEL" --variant max --thinking --auto \
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
 
-      - name: Lancer l'agent (fallback north-mini-code)
+      - name: Lancer l'agent (fallback 4)
         id: fallback4
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure' && steps.fallback3.outcome == 'failure'
         continue-on-error: true
@@ -209,7 +213,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "mimo failed, switching to $FALLBACK4_MODEL"
+          echo "fallback 3 failed, switching to $FALLBACK4_MODEL"
           opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
             --file "$PROMPT_FILE" \
             -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
@@ -239,7 +243,7 @@ jobs:
         run: |
           python3 "$SUBMIT_SCRIPT"
 
-      - name: Verifier les PRs (reviewer big-pickle)
+      - name: Verifier les PRs (reviewer)
         id: review
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
         continue-on-error: true
@@ -252,7 +256,7 @@ jobs:
             -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt. Also read the handoff at $HANDOFF_FILE: if close=true but any entry is unresolved (IGNORE due to dead site/anti-bot), you MUST flag FAIL on that PR list. Independently verify, like a human senior engineer would: fetch the site HTML and check the new selectors extract real links."
         shell: bash
 
-      - name: Verifier les PRs (reviewer fallback Gemini)
+      - name: Verifier les PRs (reviewer fallback 2)
         id: review-fallback2
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure'
         continue-on-error: true
@@ -261,12 +265,12 @@ jobs:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "Reviewer big-pickle failed, switching to $GEMINI_MODEL"
+          echo "Reviewer model failed, switching to $GEMINI_MODEL"
           opencode run --model "$GEMINI_MODEL" --auto \
             --file "$REVIEW_PROMPT_FILE" \
             -- "Review the PRs listed in $PR_LIST_FILE and the handoff at $HANDOFF_FILE. Independently verify each selector against the live site HTML. Flag any close:true with unresolved entries."
 
-      - name: Verifier les PRs (reviewer fallback mimo)
+      - name: Verifier les PRs (reviewer fallback 3)
         id: review-fallback3
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure'
         continue-on-error: true
@@ -274,12 +278,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "Gemini failed, switching to $FALLBACK3_MODEL"
+          echo "fallback 2 failed, switching to $FALLBACK3_MODEL"
           opencode run --model "$FALLBACK3_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
             -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify selectors against live site HTML. Flag close:true with unresolved IGNORE entries."
 
-      - name: Verifier les PRs (reviewer fallback north-mini-code)
+      - name: Verifier les PRs (reviewer fallback 4)
         id: review-fallback4
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure' && steps.review-fallback3.outcome == 'failure'
         continue-on-error: true
@@ -287,7 +291,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          echo "mimo failed, switching to $FALLBACK4_MODEL"
+          echo "fallback 3 failed, switching to $FALLBACK4_MODEL"
           opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
             --file "$REVIEW_PROMPT_FILE" \
             -- "Review the PRs listed in $PR_LIST_FILE and handoff at $HANDOFF_FILE following the reviewer prompt. Verify selectors against live site HTML. Flag close:true with unresolved IGNORE entries."

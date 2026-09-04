@@ -26,6 +26,7 @@ jobs:
           cd scrapers/scrapling-worker
           pip install -r requirements.txt
           playwright install chromium
+          patchright install chromium
         
       - name: Run Scraper
         env:
