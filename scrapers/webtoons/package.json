@@ -3,13 +3,13 @@
     "axios": "^1.20.0",
     "cheerio": "^1.2.0",
     "postgres": "^3.4.5",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.13"
   },
   "scripts": {
     "check-lockfile": "npm ls --package-lock-only"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "typescript": "^7.0.2"
   }
 }
