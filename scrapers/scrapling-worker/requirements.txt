@@ -1,9 +1,9 @@
 scrapling>=0.4.15
-patchright>=1.62.1
+patchright>=1.62.3
 playwright>=1.62.0
 psycopg2-binary>=2.9.12
 requests==2.34.2
 python-dotenv==1.2.3
 flask>=3.1.3
-curl-cffi==0.16.2
+curl-cffi==0.16.3
 browserforge==1.2.4
