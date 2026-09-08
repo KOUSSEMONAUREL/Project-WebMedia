@@ -77,16 +77,44 @@ export class HentaikunScraper extends BaseScraper {
       const row = $el.closest('tr');
       const dateText = row.find('td:last-child h6').text();
       const dateUpload = dateText ? new Date(dateText).getTime() || undefined : undefined;
-      return { name, url, dateUpload };
+      const chapterNumber = name.match(/(\d+(?:\.\d+)?)/)?.[1] ? parseFloat(name.match(/(\d+(?:\.\d+)?)/)![1]) : 1;
+      return { name, url, dateUpload, chapterNumber };
     });
   }
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(chapterUrl);
+    // Upstream 6ca40f6: force "All page" mode via cookie "$chapterKey=2"
+    // https://hentaikun.com/manga/<category>/<slug>/<chapter> -> chapterKey = "slug/chapter"
+    let cookieHeader = '';
+    try {
+      const u = new URL(this.absUrl(chapterUrl));
+      const segs = u.pathname.split('/').filter(Boolean);
+      // segs: ["manga", "<category>", "<slug>", "<chapter>", ...]
+      if (segs[0] === 'manga' && segs.length >= 4) {
+        const chapterKey = `${segs[2]}/${segs[3]}`;
+        cookieHeader = `${chapterKey}=2`;
+      }
+    } catch { /* ignore */ }
+
+    const res = await this.get(chapterUrl, cookieHeader ? { headers: { Cookie: cookieHeader } } : undefined);
     const $ = this.$(res.data);
+
+    // Preferred: upstream now embeds var jsondata=[...]
+    const scriptData = $('script').toArray().map(el => $(el).html() || '').join('\n');
+    const jsonMatch = scriptData.match(/var\s+jsondata\s*=\s*(\[.*?\]);/s);
+    if (jsonMatch) {
+      try {
+        const urls = JSON.parse(jsonMatch[1]) as string[];
+        if (Array.isArray(urls) && urls.length > 0) {
+          return urls.map((imageUrl, index) => ({ index, imageUrl: this.absUrl(imageUrl) }));
+        }
+      } catch { /* fall through to legacy */ }
+    }
+
+    // Legacy fallback: single image_rin + page count reconstruction
     const firstImageUrl = $('img.image_rin').attr('src')?.trim();
     if (!firstImageUrl) throw new Error('Could not find any images for this chapter.');
     const totalPages = $('label:contains(Page) + select option').length || $('select[onchange]').last().find('option').length || 0;
-    if (totalPages === 0) return [{ index: 0, imageUrl: firstImageUrl }];
+    if (totalPages === 0) return [{ index: 0, imageUrl: this.absUrl(firstImageUrl) }];
     const basePath = firstImageUrl.replace(/\/[^/]*$/, '') + '/';
     const fileName = firstImageUrl.split('/').pop()?.replace(/\.[^.]+$/, '') || '';
     const ext = firstImageUrl.split('.').pop() || '';
