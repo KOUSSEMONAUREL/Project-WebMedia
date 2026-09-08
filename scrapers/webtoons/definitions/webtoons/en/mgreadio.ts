@@ -216,9 +216,16 @@ export class MgreadioScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(this.absUrl(chapterUrl));
     const $ = this.$(res.data);
-    return $('#chapter-content img[data-original-src]').toArray().map((el, index) => ({
-      index,
-      imageUrl: this.absUrl($(el).attr('data-original-src') || ''),
-    }));
+    const seen = new Set<string>();
+    const pages: Page[] = [];
+    $('#chapter-content img[data-original-src], #chapter-content img[src]').each((_, el) => {
+      const $el = $(el);
+      const src = $el.attr('data-original-src')?.trim() || $el.attr('src')?.trim() || '';
+      const imageUrl = this.absUrl(src);
+      if (!imageUrl || seen.has(imageUrl)) return;
+      seen.add(imageUrl);
+      pages.push({ index: pages.length, imageUrl });
+    });
+    return pages;
   }
 }
