@@ -14,15 +14,11 @@ export class MiauScanScraper extends BaseScraper {
     this.lang = lang;
   }
 
-  private get portugueseGenreParam(): string {
-    return this.lang === 'pt-BR' ? PORTUGUESE_GENRE_ID : `-${PORTUGUESE_GENRE_ID}`;
-  }
-
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const url = new URL(`${this.baseUrl}/manga`);
     url.searchParams.set('title', query);
     url.searchParams.set('page', String(page));
-    url.searchParams.append('genre[]', this.portugueseGenreParam);
+    if (this.lang === 'pt-BR') url.searchParams.append('genre[]', PORTUGUESE_GENRE_ID);
     const res = await this.get(url.toString());
     return this._parseSearchResult(res.data);
   }
@@ -31,7 +27,7 @@ export class MiauScanScraper extends BaseScraper {
     const url = new URL(`${this.baseUrl}/manga`);
     url.searchParams.set('page', String(page));
     url.searchParams.set('order', 'popular');
-    url.searchParams.append('genre[]', this.portugueseGenreParam);
+    if (this.lang === 'pt-BR') url.searchParams.append('genre[]', PORTUGUESE_GENRE_ID);
     const res = await this.get(url.toString());
     return this._parseSearchResult(res.data);
   }
@@ -40,7 +36,7 @@ export class MiauScanScraper extends BaseScraper {
     const url = new URL(`${this.baseUrl}/manga`);
     url.searchParams.set('page', String(page));
     url.searchParams.set('order', 'update');
-    url.searchParams.append('genre[]', this.portugueseGenreParam);
+    if (this.lang === 'pt-BR') url.searchParams.append('genre[]', PORTUGUESE_GENRE_ID);
     const res = await this.get(url.toString());
     return this._parseSearchResult(res.data);
   }
