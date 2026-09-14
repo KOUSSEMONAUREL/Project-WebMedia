@@ -1,7 +1,7 @@
 scrapling>=0.4.15
 patchright>=1.62.3
 playwright>=1.62.0
-psycopg2-binary>=2.9.12
+psycopg2-binary>=2.9.13
 requests==2.34.2
 python-dotenv==1.2.3
 flask>=3.1.3
