@@ -176,7 +176,7 @@ const ID_QUERY_REGEX = /^id\s*:?\s*([a-zA-Z0-9-_]+)\s*$/i;
 
 const LANGUAGES: [string, string][] = [
   ['English', 'en'], ['French', 'fr'], ['Portuguese', 'pt'], ['Korean', 'ko'],
-  ['Japanese', 'ja'], ['Indonesian', 'id'], ['Chinese', 'zh'], ['Abkhazian', 'ab'],
+  ['Japanese', 'ja'], ['Indonesian', 'id'], ['Chinese', 'zh'], ['Chinese (Traditional)', 'zh_hk'], ['Abkhazian', 'ab'],
   ['Afrikaans', 'af'], ['Armenian', 'hy'], ['Arabic', 'ar'], ['Albanian', 'sq'],
   ['Azerbaijani', 'az'], ['Belarusian', 'be'], ['Bengali', 'bn'], ['Burmese', 'my'],
   ['Bulgarian', 'bg'], ['Bosnian', 'bs'], ['Cambodian', 'km'], ['Catalan', 'ca'],
@@ -304,49 +304,8 @@ export class XCOMICScraper extends BaseScraper {
     return this.search('', page, 'field_score');
   }
 
-  private latestCursor: number | null = null;
-
   async getLatest(page = 1): Promise<SearchResult> {
-    if (page === 1) this.latestCursor = null;
-
-    const accumulated: Manga[] = [];
-    const seenUrls = new Set<string>();
-    let hasNextPage = true;
-    let apiPageCount = 0;
-
-    while (accumulated.length === 0 && hasNextPage && apiPageCount < LATEST_API_PAGES_MAX) {
-      apiPageCount++;
-      const data = await this.graphql<{ get_comic_latestUploads: LatestUploadsData | null }>(
-        LATEST_UPLOADS_QUERY,
-        { select: { size: BROWSE_PAGE_SIZE, before: this.latestCursor } },
-      );
-      const result = data?.get_comic_latestUploads;
-      if (!result) throw new Error('XCOMIC: latest uploads not found');
-
-      for (const item of result.items ?? []) {
-        const node = item.comic?.data;
-        if (!node) continue;
-        const manga = this.latestItemToManga(node);
-        if (!seenUrls.has(manga.url)) {
-          seenUrls.add(manga.url);
-          accumulated.push(manga);
-        }
-      }
-
-      this.latestCursor = result.before ?? null;
-      hasNextPage = this.latestCursor !== null;
-    }
-
-    return { mangas: accumulated, hasNextPage };
-  }
-
-  private latestItemToManga(node: Pick<ComicNode, 'id' | 'name' | 'urlCover'>): Manga {
-    return {
-      title: node.name,
-      url: node.id,
-      thumbnailUrl: node.urlCover ? this.absUrl(node.urlCover) : '',
-      lang: this.lang,
-    };
+    return this.search('', page, 'field_update');
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
