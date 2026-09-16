@@ -1,8 +1,9 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
-const j = (d: any) => typeof d === 'string' ? JSON.parse(d) : d;
+const j = (d: unknown) => typeof d === 'string' ? JSON.parse(d as string) as unknown : d;
 const BROWSE_LIMIT = 40;
+const PROTOCOL_REGEX = /^https?:?\/\//;
 
 export class AtsumaruScraper extends BaseScraper {
   readonly name = 'Atsumaru';
@@ -50,36 +51,48 @@ export class AtsumaruScraper extends BaseScraper {
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(mangaUrl);
-    const data = j(res.data);
+    const raw = j(res.data) as Record<string, unknown>;
     return {
-      title: data?.name || data?.title || data?.postTitle || "",
+      title: (raw['name'] as string) || (raw['title'] as string) || (raw['postTitle'] as string) || "",
       url: mangaUrl,
-      thumbnailUrl: this.absUrl(data?.cover || data?.cover_url || data?.thumbnail_url || data?.featuredImage || ""),
-      description: (data?.summary || data?.description || data?.postContent || "").replace(/<[^>]*>/g, "").trim() || undefined,
-      author: data?.author || undefined,
+      thumbnailUrl: this.absUrl((raw['cover'] as string) || (raw['cover_url'] as string) || (raw['thumbnail_url'] as string) || (raw['featuredImage'] as string) || ""),
+      description: (((raw['summary'] as string) || (raw['description'] as string) || (raw['postContent'] as string) || "").replace(/<[^>]*>/g, "").trim() || undefined),
+      author: raw['author'] as string | undefined,
       lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const res = await this.get(mangaUrl);
-    const data = j(res.data);
-    const chapters = data?.chapters || data?.data || [];
-    return (Array.isArray(chapters) ? chapters : []).map((ch: any) => ({
-      name: ch.name || ch.title || `Chapter ${ch.chapter_number || ch.number || ""}`,
-      url: ch.url || ch.id?.toString() || ch.slug || "",
-      chapterNumber: ch.chapter_number || ch.number || undefined,
-      dateUpload: ch.created_at || ch.published || ch.date_upload ? new Date(ch.created_at || ch.published || ch.date_upload).getTime() : undefined,
-    }));
+    const raw = j(res.data) as Record<string, unknown>;
+    const chapters = (raw['chapters'] as unknown[]) ?? (raw['data'] as unknown[]) ?? [];
+    return (Array.isArray(chapters) ? chapters : []).map((ch: unknown) => {
+      const c = ch as Record<string, unknown>;
+      return {
+        name: (c['name'] as string) || (c['title'] as string) || `Chapter ${c['chapter_number'] ?? c['number'] ?? ""}`,
+        url: (c['url'] as string) || (c['id']?.toString() ?? "") || (c['slug'] as string) || "",
+        chapterNumber: (c['chapter_number'] as number | undefined) ?? (c['number'] as number | undefined),
+        dateUpload: (c['created_at'] as string) || (c['published'] as string) || (c['date_upload'] as string) ? new Date((c['created_at'] as string) || (c['published'] as string) || (c['date_upload'] as string)).getTime() : undefined,
+      };
+    });
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
-    const data = j(res.data);
-    const pages = data?.pages || data?.data || [];
-    return (Array.isArray(pages) ? pages : []).map((item: any, index: number) => ({
-      index,
-      imageUrl: this.absUrl(typeof item === "string" ? item : item.url || item.imageUrl || ""),
-    }));
+    const data = j(res.data) as Record<string, unknown>;
+    const pages = (data?.pages as unknown[]) ?? (data?.data as unknown[]) ?? [];
+    return (Array.isArray(pages) ? pages : []).map((item: unknown, index: number) => {
+      const raw = typeof item === "string" ? item : ((item as Record<string, unknown>)?.url as string) ?? ((item as Record<string, unknown>)?.imageUrl as string) ?? ((item as Record<string, unknown>)?.image as string) ?? "";
+      let imageUrl = this.absUrl(raw);
+      if (raw) {
+        if (raw.startsWith("//")) {
+          imageUrl = `https:${raw}`;
+        } else if (raw.startsWith("/")) {
+          imageUrl = `${this.baseUrl}/static/${raw.replace(/^\/+/, '').replace(/^static\//, '')}`;
+        }
+        imageUrl = imageUrl.replace(PROTOCOL_REGEX, "https://cdn.");
+      }
+      return { index, imageUrl };
+    });
   }
 }
