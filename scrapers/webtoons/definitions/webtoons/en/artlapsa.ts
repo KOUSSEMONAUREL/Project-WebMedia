@@ -51,18 +51,28 @@ export class ArtlapsaScraper extends KeyoappScraper {
   }
 
   protected override pageListParse($: CheerioAPI): Page[] {
-    const jsonLd = $('script[type="application/ld+json"]').first().html();
-    if (!jsonLd) return [];
+    const xData = $('[x-data^=immersiveReader]').first().attr('x-data') ?? '';
+    const startMarker = "JSON.parse('";
+    const startIdx = xData.indexOf(startMarker);
+    if (startIdx === -1) return [];
+    const afterStart = xData.slice(startIdx + startMarker.length);
+    const endIdx = afterStart.indexOf("')");
+    if (endIdx === -1) return [];
+    const pagesJs = afterStart.slice(0, endIdx);
+    if (pagesJs.length === 0) {
+      throw new Error('Log in via WebView and purchase this chapter to read.');
+    }
+    let pagesJson: string;
     try {
-      const data = JSON.parse(jsonLd);
-      const chapterId = data.url.substring(data.url.lastIndexOf('/') + 1);
-      const seriesId = data.isPartOf.url.substring(data.isPartOf.url.lastIndexOf('/') + 1);
-      return Array.from({ length: data.numberOfPages }, (_, i) => ({
-        index: i,
-        imageUrl: `${this.baseUrl}/storage/series/webtoon/${seriesId}/chapters/${chapterId}/${String(i + 1).padStart(3, '0')}.jpg`,
-      }));
+      pagesJson = JSON.parse(`"${pagesJs}"`);
+    } catch {
+      pagesJson = pagesJs;
+    }
+    try {
+      const pages = JSON.parse(pagesJson) as Array<{ path: string }>;
+      return pages.map((p, i) => ({ index: i, imageUrl: p.path }));
     } catch (err) {
-      console.error(`Failed to parse JSON-LD for page list on ${this.name}: ${err instanceof Error ? err.message : err}`);
+      console.error(`Failed to parse immersiveReader pages on ${this.name}: ${err instanceof Error ? err.message : err}`);
       return [];
     }
   }
