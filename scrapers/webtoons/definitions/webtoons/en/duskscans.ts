@@ -256,12 +256,41 @@ export class DuskscansScraper extends BaseScraper {
     const slug = mangaUrl.split('/series/')[1] ?? mangaUrl.split('/').pop() ?? '';
     const series = await this.getSeriesPage(slug);
     if (!series) return [];
-    return series.initialChapters.map(ch => ({
-      name: ch.title || `Chapter ${ch.number}`,
-      url: ch.id,
-      chapterNumber: ch.number,
-      dateUpload: parseChapterDate(ch.releaseDate),
-    }));
+    return series.initialChapters.map(ch => {
+      const numberStr = ch.number.toString().replace(/\.0$/, '');
+      const cleanTitle = (ch.title ?? '').trim();
+      let chapterName: string;
+      if (!cleanTitle || cleanTitle.toLowerCase() === numberStr.toLowerCase()) {
+        chapterName = `Chapter ${numberStr}`;
+      } else if (
+        cleanTitle.toLowerCase().startsWith('chapter') ||
+        cleanTitle.toLowerCase().startsWith('episode') ||
+        cleanTitle.toLowerCase().startsWith('ch.')
+      ) {
+        chapterName = cleanTitle;
+      } else {
+        chapterName = `Chapter ${numberStr} - ${cleanTitle}`;
+      }
+      const isLocked = (ch as unknown as { price?: number; requiresLogin?: boolean; freeDate?: string | null }).price !== undefined
+        ? (() => {
+            const price = (ch as unknown as { price?: number }).price ?? 0;
+            const requiresLogin = (ch as unknown as { requiresLogin?: boolean }).requiresLogin ?? false;
+            const freeDate = (ch as unknown as { freeDate?: string | null }).freeDate ?? null;
+            if (requiresLogin) return true;
+            if (price <= 0) return false;
+            if (!freeDate) return true;
+            const freeAt = new Date(freeDate).getTime();
+            return isNaN(freeAt) || freeAt > Date.now();
+          })()
+        : false;
+      const name = isLocked ? `🔒 ${chapterName}` : chapterName;
+      return {
+        name,
+        url: ch.id,
+        chapterNumber: ch.number,
+        dateUpload: parseChapterDate(ch.releaseDate),
+      };
+    });
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
