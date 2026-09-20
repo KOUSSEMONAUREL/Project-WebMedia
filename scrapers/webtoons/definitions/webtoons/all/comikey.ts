@@ -219,21 +219,35 @@ export class ComikeyScraper extends BaseScraper {
     }
 
     const webtoon = manifest.metadata?.readingProgression === 'ttb';
-    const manifestBase = new URL(manifestUrl);
+    const manifestUrlObj = new URL(manifestUrl);
+    const actFromUrl = manifestUrlObj.searchParams.get('act');
+    const extraAct = (initData as unknown as { act?: string }).act;
 
-    return manifest.readingOrder.map((item: ComikeyPage, i: number) => {
-      let path = item.href;
-      if (item.alternate?.length) {
-        const alt =
-          item.height === 2048 && item.type === 'image/jpeg'
-            ? item.alternate.find((a: ComikeyAlternatePage) => {
-                const dimension = webtoon ? a.width : a.height;
-                return dimension <= 1536 && a.type === 'image/webp';
-              })
-            : item.alternate.find((a: ComikeyAlternatePage) => a.type === 'image/webp');
-        path = alt?.href || item.href;
+    return manifest.readingOrder.map((page: ComikeyPage, i: number) => {
+      const variants: ComikeyAlternatePage[] = [
+        { href: page.href, type: page.type, height: page.height, width: page.width },
+        ...(page.alternate ?? []),
+      ];
+      const webpVariants = variants.filter(v => v.type === 'image/webp');
+      const pool = webpVariants.length > 0 ? webpVariants : variants;
+      let best = pool[0];
+      let bestDim = webtoon ? best.width : best.height;
+      for (const v of pool) {
+        const dim = webtoon ? v.width : v.height;
+        if (dim > bestDim) {
+          best = v;
+          bestDim = dim;
+        }
       }
-      return { index: i, imageUrl: new URL(path, manifestBase).toString() };
+      const imageHref = best.href;
+      const urlObj = new URL(imageHref, manifestUrlObj);
+      urlObj.search = manifestUrlObj.search;
+      if (actFromUrl) {
+        urlObj.searchParams.set('act', actFromUrl);
+      } else if (extraAct && !urlObj.searchParams.has('act')) {
+        urlObj.searchParams.set('act', extraAct);
+      }
+      return { index: i, imageUrl: urlObj.toString() };
     });
   }
 
