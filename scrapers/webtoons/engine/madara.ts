@@ -35,7 +35,7 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly popularMangaSelectorStr = "div.page-item-detail:not(:has(a[href*='bilibilicomics.com'])) , .manga__item";
   protected readonly popularMangaUrlSelector = 'div.post-title a';
   protected readonly popularMangaUrlSelectorImg = 'img';
-  protected readonly searchMangaSelectorStr = "div.c-tabs-item__content , .manga__item";
+  protected readonly searchMangaSelectorStr: string = "div.c-tabs-item__content , .manga__item";
   protected readonly searchMangaUrlSelector = 'div.post-title a';
 
   protected readonly mangaDetailsSelectorTitle = "div.post-title h3, div.post-title h1, #manga-title > h1";
