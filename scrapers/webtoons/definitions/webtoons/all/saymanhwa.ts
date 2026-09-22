@@ -26,7 +26,9 @@ export class SaymanhwaScraper extends BaseScraper {
     const lang = this.lang as string;
     switch (lang) {
       case 'pt': return 'pt-br';
-      case 'zh': return 'zh-cn';
+      case 'zh':
+      case 'zh-Hans': return 'zh-cn';
+      case 'zh-Hant': return 'zh-tw';
       default: return 'en';
     }
   }
