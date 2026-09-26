@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "KOUSSEMONAUREL/Project-WebMedia")
 ISSUE = os.environ["ISSUE_NUMBER"]
@@ -20,8 +21,12 @@ PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
 
 
+def run_raw(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True)
+
+
 def run(*args: str, check: bool = True) -> str:
-    result = subprocess.run(args, capture_output=True, text=True)
+    result = run_raw(*args)
     if check and result.returncode != 0:
         print(f"ERROR: {' '.join(args)}\n{result.stdout}\n{result.stderr}")
         sys.exit(1)
@@ -47,33 +52,52 @@ def pr_state(url: str) -> str:
                "--json", "state", "-q", ".state", check=False) or "UNKNOWN"
 
 
-def merge_with_retry(url: str, number: int) -> bool:
-    """Squash-merge une PR en surmontant les checks UNSTABLE.
+def pr_mergeable(url: str) -> str:
+    return run("gh", "pr", "view", url, "--repo", REPO,
+               "--json", "mergeable", "-q", ".mergeable",
+               check=False) or "UNKNOWN"
 
-    - update-branch d'abord (la PR peut etre derriere main suite a une
-      precedente fusion-merge).
-    - merge --squash direct (pas --auto: requiert une branch protection
-      sur main que le repo n'a pas).
-    - On pollue l'etat jusqu'a 12 x 10s; si la PR est encore OPEN (checks
-      UNSTABLE qui n'aboutissent jamais), on arrete sans pseudo-echouer.
-    - 3 tentatives au total (update + merge + poll), 20s entre les deux.
+
+def merge_with_retry(url: str, number: int) -> tuple[bool, str]:
+    """Squash-merge une PR et renvoie (ok, diagnostic).
+
+    Un merge refuse par GitHub est echoue, pas "en cours": sans merge queue
+    le squash est synchrone, donc attendre ne sert a rien -- c'est ce poll
+    de 7 minutes qui masquait le refus. On remonte desormais le message de
+    GitHub tel quel, et on ne retente que si l'echec parait transitoire
+    (mergeable encore en cours de calcul juste apres un update-branch).
     """
+    last_error = "raison inconnue"
     for attempt in range(1, 4):
-        run("gh", "pr", "update-branch", url, "--repo", REPO, check=False)
-        run("gh", "pr", "merge", "--squash", "--delete-branch",
-            url, "--repo", REPO, check=False)
-        for _ in range(12):
-            state = pr_state(url)
-            if state == "MERGED":
-                return True
-            if state == "CLOSED":
-                return False
-            import time
-            time.sleep(10)
-        if attempt < 3:
-            import time
-            time.sleep(20)
-    return False
+        run_raw("gh", "pr", "update-branch", url, "--repo", REPO)
+        result = run_raw("gh", "pr", "merge", "--squash", "--delete-branch",
+                         url, "--repo", REPO)
+
+        if result.returncode == 0:
+            for _ in range(6):
+                state = pr_state(url)
+                if state == "MERGED":
+                    return True, ""
+                if state == "CLOSED":
+                    return False, "PR fermee sans etre mergee"
+                time.sleep(5)
+            last_error = ("merge accepte par gh mais la PR n'est pas "
+                          "passee a MERGED apres 30s")
+        else:
+            last_error = ((result.stderr or result.stdout).strip()
+                          or "refus sans message")
+            if pr_mergeable(url) == "UNKNOWN":
+                for _ in range(6):
+                    time.sleep(10)
+                    if pr_mergeable(url) != "UNKNOWN":
+                        break
+            elif attempt < 3:
+                time.sleep(20)
+
+    if pr_mergeable(url) == "UNKNOWN":
+        last_error += (" | GitHub rapporte mergeable=UNKNOWN: la tete de la PR "
+                       "est desynchronisee de sa branche")
+    return False, last_error
 
 
 def summary_from_handoff() -> str:
@@ -121,11 +145,13 @@ def main() -> None:
         url = pr["url"]
         v = verdicts.get(num)
         if v and v.get("verdict") == "PASS":
-            if merge_with_retry(url, num):
+            ok, reason = merge_with_retry(url, num)
+            if ok:
                 merged.append(f"- [x] PR #{num} ({pr['title']}) **merged** ({url})")
             else:
                 failed.append(
-                    f"- [ ] PR #{num} ({pr['title']}) **merge echoue** ({url})"
+                    f"- [ ] PR #{num} ({pr['title']}) **merge echoue** ({url})\n"
+                    f"  Raison: {reason}"
                 )
         elif v and v.get("verdict") == "FAIL":
             failed.append(
