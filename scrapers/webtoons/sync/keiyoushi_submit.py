@@ -102,17 +102,36 @@ def main() -> None:
                       "skip (deja soumise, rien a re-submit)")
                 continue
             if state == "OPEN":
+                # La branche distante appartient au pipeline : on la
+                # reconstruit depuis main, ce qui la desynchronise de
+                # l'existant. Un push simple echoue donc toujours en
+                # non-fast-forward; il faut --force-with-lease, qui refuse
+                # si quelqu'un a pousse entre-temps. Sans ce lease (et sans
+                # check), le push echouait en silence et la PR gardait ses
+                # anciens commits -- le symptome "correction absente de la PR".
+                run("git", "fetch", "--quiet", "origin", branch, check=False)
+                lease = run("git", "rev-parse", "--verify", "--quiet",
+                            f"origin/{branch}", check=False)
                 run("git", "branch", "-D", branch, check=False)
                 run("git", "stash", "push", "-u", "-m",
                     f"keiyoushi-{ISSUE}-pending", check=False)
                 run("git", "switch", "-c", branch, "main", check=False)
-                run("git", "stash", "pop", check=False)
+                run("git", "stash", "pop")
                 run("git", "add", "-A", "--", *paths)
-                run("git", "commit", "-m", change["commit_msg"], check=False)
-                run("git", "push", "origin", branch, check=False)
+                if run("git", "diff", "--cached", "--quiet", check=False):
+                    print(f"PR #{number} ({ext}): rien de nouveau a pousser, "
+                          "la branche est deja a jour")
+                else:
+                    run("git", "commit", "-m", change["commit_msg"])
+                    if lease:
+                        run("git", "push", "--force-with-lease="
+                            f"{branch}:{lease}", "origin", f"HEAD:{branch}")
+                    else:
+                        # pas de branche distante connue: push simple,-creation
+                        run("git", "push", "-u", "origin", f"HEAD:{branch}")
                 run("git", "switch", "main", check=False)
                 print(f"PR existante ouverte #{number} pour {ext}: {url} "
-                      "(push non-force: corrections humaines preservees)")
+                      "(branche reconstruite depuis main, force-with-lease)")
                 pr_urls.append(url)
                 continue
             print(f"PR #{number} (branch {branch}) etat={state}, ignoree")

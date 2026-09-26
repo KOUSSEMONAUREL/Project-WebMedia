@@ -42,7 +42,7 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly mangaDetailsSelectorAuthor = "div.author-content > a, div.manga-authors > a";
   protected readonly mangaDetailsSelectorArtist = "div.artist-content > a";
   protected readonly mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:contains(Status) + div";
-  protected readonly mangaDetailsSelectorDescription = "div.description-summary div.summary__content, div.summary_content div.post-content_item > h5 + div, div.summary_content div.manga-excerpt";
+  protected readonly mangaDetailsSelectorDescription: string = "div.description-summary div.summary__content, div.summary_content div.post-content_item > h5 + div, div.summary_content div.manga-excerpt";
   protected readonly mangaDetailsSelectorThumbnail = "div.summary_image img";
   protected readonly mangaDetailsSelectorGenre = "div.genres-content a";
   protected readonly mangaDetailsSelectorTag = "div.tags-content a";
@@ -204,12 +204,23 @@ export abstract class MadaraScraper extends BaseScraper {
   }
 
   protected imageFromElement(el: ReturnType<CheerioAPI>): string | null {
-    if (el.attr('data-src')) return this.absUrl(el.attr('data-src')!);
-    if (el.attr('data-lazy-src')) return this.absUrl(el.attr('data-lazy-src')!);
-    if (el.attr('srcset')) return this.getSrcSetImage(el.attr('srcset')!);
-    if (el.attr('data-cfsrc')) return this.absUrl(el.attr('data-cfsrc')!);
-    if (el.attr('data-manga-src')) return this.absUrl(el.attr('data-manga-src')!);
-    if (el.attr('src')) return this.absUrl(el.attr('src')!);
+    // Certains themes WP-Manga emettent src=" <url> " avec une espace en
+    // tete: non trimmee, absUrl produit une URL "//site/ https://site/..."
+    // qui ne charge aucune image.
+    const attr = (name: string): string => (el.attr(name) || '').trim();
+
+    const dataSrc = attr('data-src');
+    if (dataSrc) return this.absUrl(dataSrc);
+    const lazySrc = attr('data-lazy-src');
+    if (lazySrc) return this.absUrl(lazySrc);
+    const srcset = attr('srcset');
+    if (srcset) return this.getSrcSetImage(srcset);
+    const cfsrc = attr('data-cfsrc');
+    if (cfsrc) return this.absUrl(cfsrc);
+    const mangaSrc = attr('data-manga-src');
+    if (mangaSrc) return this.absUrl(mangaSrc);
+    const src = attr('src');
+    if (src) return this.absUrl(src);
     return null;
   }
 
@@ -420,6 +431,7 @@ export abstract class MadaraScraper extends BaseScraper {
       url: mangaUrl,
       thumbnailUrl,
       lang: this.lang,
+      genre: [...new Set(genres.filter(Boolean))].join(', ') || undefined,
     };
 
     if (author) manga.author = author;

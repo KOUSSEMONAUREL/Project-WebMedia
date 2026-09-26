@@ -283,6 +283,7 @@ export abstract class MangaThemesiaScraper extends BaseScraper {
       url: mangaUrl,
       thumbnailUrl,
       lang: this.lang,
+      genre: [...new Set(genres)].join(', ') || undefined,
     };
     if (author) manga.author = author;
     if (description) manga.description = description;
