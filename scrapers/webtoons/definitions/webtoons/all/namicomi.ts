@@ -30,7 +30,7 @@ export class NamiComiScraper extends BaseScraper {
 
   private coverQuality = '';
   private useDataSaver = false;
-  private showLockedChapters = true;
+  private showLockedChapters = false;
 
   async getPopular(page: number): Promise<SearchResult> {
     return this.sortedManga(page, 'views');
@@ -64,6 +64,7 @@ export class NamiComiScraper extends BaseScraper {
       const url = this.buildUrl(`${API_SEARCH_URL}`)
         .addQueryParameter('ids[]', mangaId)
         .addCommonIncludeParameters()
+        .addCommonTypeParameters()
         .build();
       const data = await this.get(url.toString());
       const result = typeof data === 'string' ? JSON.parse(data) : data;
@@ -74,7 +75,8 @@ export class NamiComiScraper extends BaseScraper {
     const tempUrl = this.buildUrl(API_SEARCH_URL)
       .addQueryParameter('limit', MANGA_LIMIT.toString())
       .addQueryParameter('offset', this.getMangaListOffset(pageNum))
-      .addCommonIncludeParameters();
+      .addCommonIncludeParameters()
+      .addCommonTypeParameters();
 
     const actualQuery = query.replace(/\s/g, ' ').trim();
     if (actualQuery) {
@@ -153,6 +155,7 @@ export class NamiComiScraper extends BaseScraper {
       .addQueryParameter('limit', MANGA_LIMIT.toString())
       .addQueryParameter('offset', this.getMangaListOffset(page))
       .addCommonIncludeParameters()
+      .addCommonTypeParameters()
       .build();
     const data = await this.get(url.toString());
     return this.mangaListParse(data);
@@ -196,7 +199,8 @@ export class NamiComiScraper extends BaseScraper {
 
   private createManga(dto: any, lang: string): Manga {
     const attr = dto.attributes;
-    const title = attr.title[lang] || Object.values(attr.title)[0] as string;
+    const titleMap = attr.title as Record<string, string>;
+    const title = titleMap[lang] || titleMap.en || Object.values(titleMap)[0] as string;
 
     const organizations = (dto.relationships || [])
       .filter((r: any) => r.type === ORGANIZATION)
@@ -209,7 +213,7 @@ export class NamiComiScraper extends BaseScraper {
 
     const nonGenres: string[] = [];
     if (attr.contentRating && attr.contentRating !== 'safe') {
-      nonGenres.push(`Content: ${attr.contentRating}`);
+      nonGenres.push(`Content Rating: ${attr.contentRating}`);
     }
     if (attr.originalLanguage) {
       try {
@@ -227,7 +231,9 @@ export class NamiComiScraper extends BaseScraper {
     for (const t of tags) {
       const group = t.attributes?.group || 'genre';
       if (!tagMap[group]) tagMap[group] = [];
-      tagMap[group].push(t.id);
+      const names = t.attributes?.name as Record<string, string> | undefined;
+      const label = names?.[lang] || names?.en || t.id;
+      if (label) tagMap[group].push(label);
     }
 
     const genreList = tagGroupsOrder.flatMap(g => tagMap[g] || []);
@@ -295,6 +301,14 @@ export class NamiComiScraper extends BaseScraper {
         url.searchParams.append('includes[]', SECONDARY_TAG);
         return builder;
       },
+      addCommonTypeParameters: () => {
+        // Mirrors upstream NamiComi.addCommonTypeParameters (keeps the 'manwha' spelling).
+        url.searchParams.append('types[]', 'manhua');
+        url.searchParams.append('types[]', 'manwha');
+        url.searchParams.append('types[]', 'manga');
+        url.searchParams.append('types[]', 'comic');
+        return builder;
+      },
       build: () => url,
     };
     return builder;
@@ -316,5 +330,6 @@ export class NamiComiScraper extends BaseScraper {
 interface URLBuilder {
   addQueryParameter(key: string, value: string): URLBuilder;
   addCommonIncludeParameters(): URLBuilder;
+  addCommonTypeParameters(): URLBuilder;
   build(): URL;
 }
