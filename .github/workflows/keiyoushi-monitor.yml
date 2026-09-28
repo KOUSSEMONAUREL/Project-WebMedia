@@ -311,6 +311,11 @@ jobs:
           fi
 
       - name: Soumettre (branches, commits, PRs)
+        # Non bloquant: une soumission partielle ne doit pas stopper la revue
+        # et le merge de tourner sur ce qui a ete soumis. C'est
+        # keiyoushi_verify.py (if: always) qui reste la porte unique et
+        # transforme un cycle incomplet en echec bruyant et precis.
+        continue-on-error: true
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
         env:
           GH_TOKEN: ${{ github.token }}

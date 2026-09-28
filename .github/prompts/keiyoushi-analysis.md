@@ -167,7 +167,7 @@ everything the execution step needs:
   "summary_md": "<full markdown synthesis: the verdict table PLUS the list of PRs opened>",
   "changes": [
     {
-      "ext": "<extension id, WITHOUT the lang/ prefix: 'mangamoins', never 'fr/mangamoins'>",
+      "ext": "<extension id, WITHOUT the lang/prefix: 'mangamoins', never 'fr/mangamoins'>",
       "type": "ADAPT|BUILD|REMOVE",
       "paths": ["scrapers/webtoons/definitions/webtoons/<lang>/<ext>.ts"],
       "commit_msg": "fix(scrapers): adapt <ext> to upstream changes (#<issue>)",
@@ -192,14 +192,42 @@ Rules for the handoff:
   can do, so `close: true`. `false` only when a BUILD/ADAPT change was attempted but not
   completed (verify failed twice): then explain what is missing in `summary_md`.
 
+### A shared engine is ONE change item
+
+Several extensions usually share one engine (one `scrapers/webtoons/engine/<name>.ts`
+transpiled from a single upstream theme, plus N thin subclasses). **Those extensions go in
+a SINGLE `changes` item**, whose `paths` list the engine file *and* every subclass file:
+
+```json
+{
+  "ext": "monochromescans",
+  "type": "BUILD",
+  "paths": [
+    "scrapers/webtoons/engine/monochrome.ts",
+    "scrapers/webtoons/definitions/webtoons/en/monochromescans.ts",
+    "scrapers/webtoons/definitions/webtoons/en/monochromecustom.ts"
+  ]
+}
+```
+
+Why: each item becomes a self-contained PR whose branch is cut from `main`. If the engine
+is listed on several items, only the first PR can carry it and the others fail with
+`fatal: pathspec ... did not match any files`, which aborts the whole cycle. `ext` is then
+the first extension of the group, purely as a label.
+
+The execution script also groups items that share an engine, so a violation degrades
+gracefully instead of failing — but do it right: one item per engine, so the PR body and
+the review stay per-site.
+
 ## STRICT GUARDRAILS
 
 1. **Never push to `main`.** The remote is a separate concern; you only touch the working tree and the handoff.
 2. **Never run git/gh mutating commands**: `git commit`, `git push`, `git checkout -b`,
    `gh pr create`, `gh issue comment`, `gh issue close`, `gh repo delete`, …
    For anyone close → put the intent in the handoff.
-3. **Only modify files related to the issue** (the `<ext>.ts` files and their direct
-   registration if any) and `$HANDOFF_FILE`. Never refactor unrelated code.
+3. **Only modify files related to the issue** (the `<ext>.ts` files, the engine file they
+   share if a new one is needed, and their direct registration if any) and `$HANDOFF_FILE`.
+   Never refactor unrelated code.
 4. **No destructive commands** (`git reset --hard`, force-push, deleting files outside scope).
 5. **TypeScript strict** : no `any`, no dead code, no commented-out blocks.
 6. Do not touch `package.json`/`package-lock.json` unless a new dependency is genuinely
