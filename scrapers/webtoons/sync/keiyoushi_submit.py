@@ -33,6 +33,7 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "KOUSSEMONAUREL/Project-WebMedia")
 ISSUE = os.environ["ISSUE_NUMBER"]
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
 PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
+SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
 
 COMMITTER_NAME = "github-actions[bot]"
 COMMITTER_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
@@ -71,6 +72,26 @@ def main() -> None:
     run("git", "config", "user.name", COMMITTER_NAME)
     run("git", "config", "user.email", COMMITTER_EMAIL)
 
+    # Validation prealable de TOUS les handoffs, avant toute creation de
+    # branche. Un chemin absent doit etre signale ici: decouvert plus tard,
+    # au moment du `git add`, le script meurt au milieu de la boucle, la
+    # liste des PRs n'est jamais ecrite, et tout le cycle est perdu alors
+    # que les PRs deja creees etaient valides. On ecarte le changement
+    # fautif et on continue, plutot que d'abandonner les autres.
+    skipped: list[str] = []
+    for change in changes:
+        ext = safe_ext(change.get("ext", ""))
+        kind = change.get("type")
+        if kind not in ("BUILD", "ADAPT", "REMOVE"):
+            reason = f"type inconnu {kind!r} (attendu BUILD, ADAPT ou REMOVE)"
+        else:
+            missing = [p for p in change.get("paths", []) if not os.path.exists(p)]
+            if not missing:
+                continue
+            reason = f"fichiers absents du disque: {', '.join(missing)}"
+        skipped.append(f"`{ext}` ({reason})")
+        print(f"SKIP: {ext} ecarte du cycle, {reason}")
+
     pr_urls: list[str] = []
     for i, change in enumerate(changes):
         ext = safe_ext(change.get("ext", ""))
@@ -78,15 +99,8 @@ def main() -> None:
         branch = f"fix/keiyoushi-{ISSUE}-{ext}"
         paths = change.get("paths", [])
 
-        if kind in ("BUILD", "ADAPT"):
-            missing = [p for p in paths if not os.path.exists(p)]
-            if missing:
-                msg = (
-                    f"Handoff invalide: fichiers manquants pour `{ext}`: {missing}. "
-                    "L'agent n'a pas ecrit les fichiers attendus. Issue laissee ouverte."
-                )
-                print("ERROR:", msg)
-                sys.exit(1)
+        if any(s.startswith(f"`{ext}`") for s in skipped):
+            continue
 
         # Dedup: verifie si une PR existe deja pour cette branche (open OU merged,
         # meme si la branche a ete supprimee apres merge).
@@ -164,10 +178,16 @@ def main() -> None:
     with open(PR_LIST_FILE, "w", encoding="utf-8") as f:
         json.dump(pr_list, f, indent=2)
 
+    # Marqueur de cycle incomplet: merge et verify le lisent pour ne pas
+    # fermer l'issue alors que des extensions n'ont pas ete soumises.
+    with open(SKIPPED_FILE, "w", encoding="utf-8") as f:
+        json.dump({"skipped": skipped}, f, indent=2)
+
     print(json.dumps({
-        "ok": True,
+        "ok": not skipped,
         "pr_urls": pr_urls,
         "pr_list_written": PR_LIST_FILE,
+        "skipped": skipped,
     }, indent=2))
 
 
