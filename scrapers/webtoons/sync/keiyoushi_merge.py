@@ -19,6 +19,15 @@ ISSUE = os.environ["ISSUE_NUMBER"]
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
 PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
+SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
+
+
+def skipped_changes() -> list[str]:
+    try:
+        with open(SKIPPED_FILE, encoding="utf-8") as f:
+            return list(json.load(f).get("skipped", []))
+    except (OSError, ValueError):
+        return []
 
 
 def run_raw(*args: str) -> subprocess.CompletedProcess:
@@ -183,6 +192,12 @@ def main() -> None:
         parts.append("")
 
     all_merged = len(merged) == len(pr_list)
+    skipped = skipped_changes()
+    if skipped:
+        parts.append("## Extensions ecartees du cycle (handoff invalide)")
+        parts.extend(f"- [ ] {s}" for s in skipped)
+        parts.append("")
+
     parts.append(
         "**Revue effectuee**: live probes (WARP), tsc, batch_test cible, "
         "lecture du diff par un modele (reviewer)."
@@ -193,7 +208,10 @@ def main() -> None:
     if body:
         comment_issue(body + "\n\n" + summary_from_handoff())
 
-    if close and all_merged:
+    # L'issue ne se ferme que si le cycle est complet: toutes les PRs
+    # soumises sont mergees ET aucune extension n'a ete ecartee.
+    cycle_complete = all_merged and not skipped
+    if close and cycle_complete:
         run("gh", "issue", "close", str(ISSUE), "--repo", REPO,
             "--comment", "Issue traitee: toutes les PRs mergees (verification + revue modele OK).")
 
@@ -202,7 +220,8 @@ def main() -> None:
         "merged": len(merged),
         "failed": len(failed),
         "unreviewed": len(unreviewed),
-        "issue_closed": bool(close and all_merged),
+        "skipped": len(skipped),
+        "issue_closed": bool(close and cycle_complete),
     }, indent=2))
 
 

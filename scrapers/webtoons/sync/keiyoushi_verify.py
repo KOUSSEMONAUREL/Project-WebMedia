@@ -21,6 +21,15 @@ ISSUE = os.environ.get("ISSUE_NUMBER", "")
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
 PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
+SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
+
+
+def skipped_changes() -> list[str]:
+    try:
+        with open(SKIPPED_FILE, encoding="utf-8") as f:
+            return list(json.load(f).get("skipped", []))
+    except (OSError, ValueError):
+        return []
 
 
 def gh(*args: str) -> subprocess.CompletedProcess:
@@ -77,45 +86,53 @@ def main() -> None:
         )
     elif handoff is not None and close:
         pr_list = load_json(PR_LIST_FILE) or []
+        skipped = skipped_changes()
+        if skipped:
+            problems.append(
+                f"{len(skipped)} extension(s) ecartee(s) car le handoff "
+                "listait des fichiers absents du disque: "
+                + "; ".join(skipped)
+            )
+
         if not pr_list:
             problems.append(
                 "close=true dans le handoff mais aucune PR listee: "
                 "rien n'a ete soumis."
             )
+        else:
+            review = load_json(REVIEW_FILE) or {"prs": []}
+            verdicts = {v.get("number"): v.get("verdict") for v in review.get("prs", [])}
 
-        review = load_json(REVIEW_FILE) or {"prs": []}
-        verdicts = {v.get("number"): v.get("verdict") for v in review.get("prs", [])}
+            all_merged = True
+            for pr in pr_list:
+                num = pr.get("number")
+                pr_view = gh("pr", "view", str(num), "--json", "state", "-q", ".state")
+                pr_state = pr_view.stdout.strip() if pr_view.returncode == 0 else "?"
+                if pr_state != "MERGED":
+                    all_merged = False
+                    verdict = verdicts.get(num, "?")
+                    if verdict != "FAIL":
+                        problems.append(
+                            f"close=true mais PR #{num} non mergee "
+                            f"(etat={pr_state}, verdict={verdict})."
+                        )
 
-        all_merged = True
-        for pr in pr_list:
-            num = pr.get("number")
-            pr_view = gh("pr", "view", str(num), "--json", "state", "-q", ".state")
-            pr_state = pr_view.stdout.strip() if pr_view.returncode == 0 else "?"
-            if pr_state != "MERGED":
-                all_merged = False
-                verdict = verdicts.get(num, "?")
-                if verdict != "FAIL":
-                    problems.append(
-                        f"close=true mais PR #{num} non mergee "
-                        f"(etat={pr_state}, verdict={verdict})."
-                    )
-
-        if all_merged and state != "CLOSED":
-            problems.append(
-                "Toutes les PRs sont mergees mais l'issue #"
-                f"{ISSUE} est restee ouverte (le merge aurait du la fermer)."
-            )
-
-        all_pass = all(
-            verdicts.get(pr.get("number")) == "PASS" for pr in pr_list
-        )
-        paths = [p for c in handoff.get("changes", []) for p in c.get("paths", [])]
-        if all_pass:
-            missing = [p for p in paths if not os.path.exists(p)]
-            if missing:
+            if all_merged and not skipped and state != "CLOSED":
                 problems.append(
-                    f"Fichiers annonces dans le handoff absents du disque: {missing}"
+                    "Toutes les PRs sont mergees mais l'issue #"
+                    f"{ISSUE} est restee ouverte (le merge aurait du la fermer)."
                 )
+
+            all_pass = all(
+                verdicts.get(pr.get("number")) == "PASS" for pr in pr_list
+            )
+            paths = [p for c in handoff.get("changes", []) for p in c.get("paths", [])]
+            if all_pass:
+                missing = [p for p in paths if not os.path.exists(p)]
+                if missing:
+                    problems.append(
+                        f"Fichiers annonces dans le handoff absents du disque: {missing}"
+                    )
 
     if problems:
         body = (
