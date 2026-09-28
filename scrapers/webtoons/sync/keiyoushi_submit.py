@@ -251,8 +251,21 @@ def main() -> None:
                       "(branche reconstruite depuis main, force-with-lease)")
                 pr_urls.append(url)
                 continue
-            print(f"PR #{number} (branch {branch}) etat={state}, ignoree")
-            continue
+            # PR fermee: elle n'empeche une nouvelle soumission que si la
+            # branche occupee existe encore. Branche fermee ET supprimee =
+            # cycle propre, on repart sur une PR neuve (c'etait le cas de
+            # #334 et #317, ignorees en silence au run #155).
+            run("git", "fetch", "--quiet", "origin", branch, check=False)
+            if run("git", "rev-parse", "--verify", "--quiet",
+                   f"origin/{branch}", check=False):
+                print(f"PR #{number} fermee et branche {branch} encore "
+                      "presente: ecarte")
+                skipped.append(
+                    f"`{label}` (PR #{number} fermee sur {branch}, branche "
+                    "encore presente: la supprimer pour re-soumettre)")
+                continue
+            print(f"PR #{number} fermee et branche {branch} supprimee: "
+                  "nouvelle soumission")
 
         run("git", "stash", "push", "-u", "-m", f"keiyoushi-{ISSUE}-pending", check=False)
         run("git", "branch", "-D", branch, check=False)
