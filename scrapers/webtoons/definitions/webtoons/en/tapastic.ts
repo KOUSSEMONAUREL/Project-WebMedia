@@ -26,6 +26,13 @@ export class TapasticScraper extends BaseScraper {
   readonly lang = 'en';
   private readonly apiUrl = 'https://story-api.tapas.io';
 
+  constructor() {
+    super();
+    // Upstream Tapastic.kt: age-gate bypass cookies required since v2.
+    this.client.defaults.headers.common.Cookie =
+      'birthDate=1990-01-01; adjustedBirthDate=1990-01-01';
+  }
+
   private mangaFromRankingItem(item: TapasRankingItem): Manga {
     const id = item.seriesId.toString();
     const thumbnailUrl =
