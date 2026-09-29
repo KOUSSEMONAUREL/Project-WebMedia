@@ -12,7 +12,19 @@ const COMPLETED_STATUS = [
 ];
 
 const POSTER_SUFFIX = /(jpg)-poster(.*)\d+?$/;
-const PAID_CHECK_BREAKPOINTS = [5, 10, 15, 20];
+
+// Upstream: the page only renders a few episodes; the full list (with paid
+// flags) is embedded as JSON in `data = JSON.parse('...');`
+const EPISODES_LINE_REGEX = /data = JSON\.parse\('(.*)'\);/;
+const JS_ESCAPE_REGEX = /\\(['"])/g;
+
+interface EpisodeDto {
+  id: number;
+  title: string;
+  weight: number;
+  open_at?: string | null;
+  is_fee?: boolean;
+}
 
 export class MangaToonScraper extends BaseScraper {
   readonly name = 'MangaToon (Limited)';
@@ -35,14 +47,18 @@ export class MangaToonScraper extends BaseScraper {
   async getSearch(query: string, page?: number): Promise<SearchResult> {
     const res = await this.get(`${this.baseUrl}/en/search?word=${encodeURIComponent(query)}`);
     const $ = this.$(res.data);
-    const mangas: Manga[] = $('div.comics-result div.recommend-item:has(a[abs\\:href^="' + this.baseUrl + '"])').map((_: any, el: any) => {
+    // Upstream filters items whose resolved link starts with baseUrl
+    // (Jsoup `a[abs:href^=...]`; transcribed since cheerio has no abs:href).
+    const mangas: Manga[] = $('div.comics-result div.recommend-item').map((_: any, el: any) => {
       const $el = $(el);
+      const href = $el.find('a').first().attr('href') || '';
+      if (!this.absUrl(href).startsWith(this.baseUrl)) return null;
       return {
         title: $el.find('div.recommend-comics-title').text(),
         thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))), lang: this.lang,
-        url: $el.find('a').first().attr('abs:href') || '',
+        url: this.absUrl(href),
       };
-    }).get();
+    }).get().filter(Boolean) as Manga[];
     const hasNextPage = $('span.next').length > 0;
     return { mangas, hasNextPage };
   }
@@ -52,7 +68,7 @@ export class MangaToonScraper extends BaseScraper {
     const $ = this.$(res.data);
     const locale = 'en';
     const manga: Manga = {
-      title: $('div.detail-title h1').text() || $('h1.entry-title').text() || '',
+      title: $('h1.detail-title').text() || $('div.detail-title h1').text() || $('h1.entry-title').text() || '',
       url: mangaUrl,
       thumbnailUrl: '',
       lang: this.lang,
@@ -73,31 +89,42 @@ export class MangaToonScraper extends BaseScraper {
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const res = await this.get(mangaUrl + '/episodes');
+    // Upstream fetches the manga details page: chapters come from the embedded
+    // episodes JSON (with paid flags), not from the rendered anchors.
+    const res = await this.get(mangaUrl);
     const $ = this.$(res.data);
-    const chapterList: Chapter[] = $('a.episode-item-new').map((_: any, el: any) => {
-      const $el = $(el);
-      return {
-        name: $el.find('div.episode-title-new:last-child').text(),
-        chapterNumber: parseFloat($el.find('div.episode-number').text()) || -1,
-        dateUpload: this.parseDate($el.find('div.episode-date span.open-date').text()),
-        url: $el.attr('abs:href') || '',
-      };
-    }).get();
-
-    const firstPaid = PAID_CHECK_BREAKPOINTS.find((breakpoint: number) => {
-      if (breakpoint > chapterList.length) return false;
-      try {
-        const pages = this.getPageList(chapterList[breakpoint - 1].url);
-        return false;
-      } catch (err) {
-        console.error(`Failed to get page list for chapter: ${err instanceof Error ? err.message : err}`);
-        return true;
+    const firstHref = $('a.episode-item-new').first().attr('href') || '';
+    const watchPath = firstHref.substring(0, firstHref.lastIndexOf('/'));
+    if (!watchPath) return [];
+    let episodes: EpisodeDto[] = [];
+    // Upstream takes the FIRST script block containing the episodes JSON.
+    $('script').each((_: any, el: any) => {
+      if (episodes.length > 0) return false;
+      const data = $(el).html() || '';
+      for (const line of data.split('\n')) {
+        const m = EPISODES_LINE_REGEX.exec(line);
+        if (m && m[1]) {
+          try {
+            const parsed = JSON.parse(m[1].replace(JS_ESCAPE_REGEX, '$1')) as EpisodeDto[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              episodes = parsed;
+              break;
+            }
+          } catch {
+            // keep scanning other script lines
+          }
+        }
       }
     });
-
-    const result = firstPaid != null ? chapterList.slice(0, firstPaid - 1) : chapterList;
-    return result.reverse();
+    return episodes
+      .filter(e => !e.is_fee)
+      .map(e => ({
+        name: e.title,
+        chapterNumber: e.weight,
+        dateUpload: this.parseDate(e.open_at || ''),
+        url: `${watchPath}/${e.id}`,
+      }))
+      .reverse();
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
@@ -117,14 +144,16 @@ export class MangaToonScraper extends BaseScraper {
     return {
       title: $el.find('div.content-title').text(),
       thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))),
-      url: $el.attr('abs:href') || '',
+      url: this.absUrl($el.attr('href') || ''),
       lang: this.lang,
     };
   }
 
+  // Upstream Jsoup: data-src else abs:src. Cheerio has no abs:* attributes,
+  // so resolve to absolute URLs explicitly.
   private imgAttr($el: any): string {
-    const attr = $el.attr('data-src');
-    return attr ? $el.attr('abs:data-src') : $el.attr('abs:src');
+    const dataSrc: string | undefined = $el.attr('data-src');
+    return this.absUrl(dataSrc || $el.attr('src') || '');
   }
 
   private normalPosterUrl(url: string | undefined): string {
