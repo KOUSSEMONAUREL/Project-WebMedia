@@ -29,11 +29,11 @@ export function listScrapers(): ScraperInfo[] {
   for (const filePath of files) {
     const content = fs.readFileSync(filePath, 'utf-8');
     const classMatch = content.match(/export\s+class\s+(\w+)\s+extends\s+(\w+)/);
-    const nameMatch = content.match(/readonly\s+name\s*=\s*'([^']+)'/);
+    const nameMatch = content.match(/readonly\s+name\s*=\s*(["'])(.*?)\1/);
     const langMatch = content.match(/readonly\s+lang\s*=\s*'([^']+)'/);
     if (classMatch) {
       infos.push({
-        name: nameMatch?.[1] || classMatch[1],
+         name: nameMatch?.[2] || classMatch[1],
         className: classMatch[1],
         filePath,
         lang: langMatch?.[1] || 'unknown',
