@@ -3,7 +3,7 @@ import type { CheerioAPI } from 'cheerio';
 
 export class VioletScansScraper extends MangaThemesiaScraper {
   constructor() {
-    super('Violet Scans', 'https://violetscans.org', 'en', '/comics');
+    super('Violet Scans', 'https://violetmanga.com', 'en', '/comics');
   }
 
   protected override searchMangaSelector(): string {
