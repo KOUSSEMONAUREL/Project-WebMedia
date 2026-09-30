@@ -145,10 +145,11 @@ function PlayerModal({ channel, onClose }: {
                 aria-label="Selectionner le flux"
                 value={streamIndex}
                 onChange={e => setStreamIndex(Number(e.target.value))}
-                className="text-xs bg-muted border border-border rounded-lg px-2 py-1"
+                className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer outline-none"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}
               >
                 {channel.streams.map((s, i) => (
-                  <option key={s.url} value={i}>{s.quality || `Flux ${i + 1}`}</option>
+                  <option key={s.url} value={i} style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>{s.quality || `Flux ${i + 1}`}</option>
                 ))}
               </select>
             )}

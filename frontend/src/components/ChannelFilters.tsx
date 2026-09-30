@@ -46,32 +46,35 @@ export function ChannelFilters({
         <select
           aria-label="Pays"
           value={country} onChange={e => onCountryChange(e.target.value)}
-          className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          className="flex-1 min-w-[140px] px-3 py-2 rounded-xl text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}
         >
-          <option value="">Tous les pays</option>
+          <option value="" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Tous les pays</option>
           {countries.map(c => (
-            <option key={c} value={c}>{flagEmoji(c)} {c}</option>
+            <option key={c} value={c} style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>{flagEmoji(c)} {c}</option>
           ))}
         </select>
         <select
           aria-label="Categorie"
           value={category} onChange={e => onCategoryChange(e.target.value)}
-          className="flex-1 min-w-[140px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          className="flex-1 min-w-[140px] px-3 py-2 rounded-xl text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}
         >
-          <option value="">Toutes les categories</option>
+          <option value="" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Toutes les categories</option>
           {categories.map(c => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c} style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>{c}</option>
           ))}
         </select>
 
         <select
           aria-label="Trier par"
           value={sortBy} onChange={e => onSortChange(e.target.value)}
-          className="min-w-[120px] px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          className="min-w-[120px] px-3 py-2 rounded-xl text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}
         >
-          <option value="name">Nom A-Z</option>
-          <option value="name-desc">Nom Z-A</option>
-          <option value="streams">Plus de sources</option>
+          <option value="name" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Nom A-Z</option>
+          <option value="name-desc" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Nom Z-A</option>
+          <option value="streams" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Plus de sources</option>
         </select>
         <button
           type="button"
