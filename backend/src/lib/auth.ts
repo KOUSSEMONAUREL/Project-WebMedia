@@ -73,15 +73,10 @@ export function getAuth(dbUrl?: string) {
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
             },
         },
-        user: {
-            additionalFields: {
-                username: {
-                    type: 'string',
-                    required: false,
-                    input: true,
-                },
-            },
-        },
+        // No user.additionalFields: the physical `user` table (Supabase) has
+        // name/email/image only. Declaring a field the table does not have
+        // makes the drizzle adapter throw a schema mismatch at runtime and
+        // every /api/auth/* call returns 500.
         plugins: [
             bearer(),
             captcha({

@@ -185,13 +185,20 @@ function cardHtml(m: Media): string {
       var u = m.posterUrl;
       if (/image\.tmdb\.org/.test(u)) u = u.replace(/\/t\/p\/\w+\//, '/t/p/original/');
       if (/books\.google\.com/.test(u)) u = u.replace(/zoom=\d+/, 'zoom=6');
+      // Must mirror bypassProxy() in lib/image.ts: wsrv.nl answers 400 for
+      // these hosts while the origin serves them fine. This is a classic
+      // inline script, so it cannot import the shared helper.
+      var bypass = /anilist\.co|uploads\.mangadex\.org|image\.tmdb\.org|comicvine\.gamespot\.com/.test(u);
       var enc = encodeURIComponent(u);
       var ws = 'https://wsrv.nl/';
-      var src = ws + '?url=' + enc + '&output=webp';
-      var sizes = [342,500,780,1200];
-      var ss = ' srcset="';
-      for (var si=0; si<4; si++) ss += ws + '?url=' + enc + '&output=webp&w=' + sizes[si] + ' ' + sizes[si] + 'w' + (si<3?',':'');
-      ss += '"';
+      var src = bypass ? u : ws + '?url=' + enc + '&output=webp';
+      var ss = '';
+      if (!bypass) {
+        var sizes = [342,500,780,1200];
+        ss = ' srcset="';
+        for (var si=0; si<4; si++) ss += ws + '?url=' + enc + '&output=webp&w=' + sizes[si] + ' ' + sizes[si] + 'w' + (si<3?',':'');
+        ss += '"';
+      }
       img = '<img src="' + src + '"' + ss + ' sizes="(max-width:640px) 160px, (max-width:1024px) 200px, 320px" alt="" class="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.08]" loading="lazy" onerror="this.style.display=\'none\'"/>';
     }
     var h = m.slug || m.id;

@@ -2,6 +2,9 @@ const ANILIST_RE = /anilist\.co/;
 const MANGADEX_RE = /uploads\.mangadex\.org/;
 const TMDB_RE = /image\.tmdb\.org\/t\/p\/\w+\//;
 const GOOGLE_BOOKS_RE = /books\.google\.com/;
+// wsrv.nl answers 400 "Domain or TLD blocked by policy" for this host, while
+// the origin serves it fine, so comics must bypass the proxy too.
+const COMICVINE_RE = /comicvine\.gamespot\.com/;
 const WSRV_BASE = 'https://wsrv.nl/';
 
 function sourceUrl(url: string): string {
@@ -15,7 +18,12 @@ function sourceUrl(url: string): string {
 }
 
 function bypassProxy(url: string): boolean {
-  return ANILIST_RE.test(url) || MANGADEX_RE.test(url) || TMDB_RE.test(url);
+    return (
+        ANILIST_RE.test(url) ||
+        MANGADEX_RE.test(url) ||
+        TMDB_RE.test(url) ||
+        COMICVINE_RE.test(url)
+    );
 }
 
 function w(url: string): string {
