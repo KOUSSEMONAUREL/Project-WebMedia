@@ -61,7 +61,9 @@ interface ChapterListResponse {
 interface ChapterDto {
   id: string;
   name?: string | null;
-  number: number;
+  // Upstream made `number` nullable (keiyoushi #368): chapters without a
+  // number must not crash parsing nor produce a bogus chapter_number.
+  number?: number | null;
   volume?: number;
   lang: string;
   group?: GroupDto | null;
@@ -230,20 +232,23 @@ export class MangaBallScraper extends BaseScraper {
 
   private toChapter(dto: ChapterDto): Chapter | null {
     const chapterName = (dto.name ?? '').trim();
-    const numberStr = trimFloat(dto.number);
+    const number = typeof dto.number === 'number' ? dto.number : null;
+    const numberStr = number !== null ? trimFloat(number) : '';
     const volume = dto.volume ?? 0;
     let name = '';
     if (volume > 0) name += `Vol. ${trimFloat(volume)} `;
-    if (chapterName.includes(numberStr)) {
+    if (number !== null && chapterName.includes(numberStr)) {
       name += chapterName;
-    } else {
+    } else if (number !== null) {
       name += `Ch. ${numberStr}`;
       if (chapterName) name += ` ${chapterName}`;
+    } else {
+      name += chapterName || 'Chapter';
     }
     return {
       url: dto.id,
       name,
-      chapterNumber: dto.number,
+      chapterNumber: number ?? undefined,
       scanlator: dto.group?.name,
       dateUpload: parseUtcDateTime(dto.created_at),
     };
