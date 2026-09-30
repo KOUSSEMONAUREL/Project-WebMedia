@@ -35,6 +35,32 @@ def clean_search_title(game_name):
     return title.strip() or game_name.strip()
 
 
+# --- Requete site: source unique de verite -------------------------------
+# Le worker et le moniteur (src/scraper_verify.py) doivent interroger les
+# sites de facon identique. Ils divergeaient: le moniteur forcait
+# impersonate="chrome" + stealthy_headers + verify=False sur les 10 sites, la
+# production un simple en-tete User-Agent avec verify=False seulement pour
+# steamunlocked.org. Un site pouvait donc etre vert au moniteur et casse en
+# production, et un certificat invalide passerait au moniteur alors que la
+# production le refuse.
+DEFAULT_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+FETCH_TIMEOUT = 30
+# Certificat invalide connu: on desactive la verification pour ce seul site.
+SKIP_TLS_VERIFY = {"steamunlocked.org"}
+
+
+def fetch_site_page(site_name: str, url: str):
+    """Interroge un site avec exactement la configuration du worker."""
+    kwargs = {
+        "headers": {"User-Agent": DEFAULT_UA},
+        "timeout": FETCH_TIMEOUT,
+    }
+    if site_name in SKIP_TLS_VERIFY:
+        kwargs["verify"] = False
+    return Fetcher.get(url, **kwargs)
+
+
 def extract_game_links(page, url, game_name=None):
     found = []
 
@@ -254,13 +280,7 @@ def process_jobs():
                 for site_name, base_url in GAME_SOURCES:
                     try:
                         search_url = base_url + search_name.replace(" ", "+")
-                        headers = {
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                        }
-                        kwargs = {"headers": headers}
-                        if site_name == "steamunlocked.org":
-                            kwargs["verify"] = False
-                        page = Fetcher.get(search_url, **kwargs)
+                        page = fetch_site_page(site_name, search_url)
 
                         if getattr(page, 'status', 200) == 200:
                             site_links = extract_game_links(page, search_url, search_name)
@@ -331,8 +351,7 @@ def search_title_direct(game_name):
     for site_name, base_url in GAME_SOURCES:
         try:
             search_url = base_url + search_name.replace(" ", "+")
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            page = Fetcher.get(search_url, headers=headers)
+            page = fetch_site_page(site_name, search_url)
             if getattr(page, 'status', 200) == 200:
                 site_links = extract_game_links(page, search_url, search_name)
                 if site_links:

@@ -18,14 +18,63 @@ ISSUE = os.environ["ISSUE_NUMBER"]
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/scraper_handoff.json")
 PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/scraper_prs.json")
 REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/scraper_review.json")
+SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/scraper_skipped.json")
+
+
+def run_raw(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True)
 
 
 def run(*args: str, check: bool = True) -> str:
-    result = subprocess.run(args, capture_output=True, text=True)
+    result = run_raw(*args)
     if check and result.returncode != 0:
         print(f"ERROR: {' '.join(args)}\n{result.stdout}\n{result.stderr}")
         sys.exit(1)
     return result.stdout.strip()
+
+
+def pr_state(url: str) -> str:
+    return run("gh", "pr", "view", url, "--repo", REPO,
+               "--json", "state", "-q", ".state", check=False) or "UNKNOWN"
+
+
+def pr_mergeable(url: str) -> str:
+    return run("gh", "pr", "view", url, "--repo", REPO,
+               "--json", "mergeable", "-q", ".mergeable",
+               check=False) or "UNKNOWN"
+
+
+def merge_one(url: str) -> tuple[bool, str]:
+    """Squash-merge une PR et renvoie (ok, diagnostic).
+
+    Le refus de GitHub etait recupere puis jete: la PR etait simplement
+    comptee en "merge echoue", sans la raison, ce qui rendait tout diagnostic
+    impossible depuis le log. On remonte desormais le message tel quel, et on
+    diagnostique le cas recurrent mergeable=UNKNOWN, ou la tete de branche a
+    bouge hors de la PR et GitHub ne resout plus la fusion.
+    """
+    result = run_raw("gh", "pr", "merge", "--squash", "--delete-branch",
+                     url, "--repo", REPO)
+    if result.returncode == 0:
+        # Le squash est synchrone: une seule verification suffit, pas de poll.
+        state = pr_state(url)
+        if state == "MERGED":
+            return True, ""
+        return False, f"merge accepte par gh mais etat={state}"
+
+    reason = (result.stderr or result.stdout).strip() or "refus sans message"
+    if pr_mergeable(url) == "UNKNOWN":
+        reason += (" | GitHub rapporte mergeable=UNKNOWN: la tete de la PR est "
+                   "desynchronisee de sa branche")
+    return False, reason
+
+
+def skipped_changes() -> list[str]:
+    try:
+        with open(SKIPPED_FILE, encoding="utf-8") as f:
+            return list(json.load(f).get("skipped", []))
+    except (OSError, ValueError):
+        return []
 
 
 def comment_issue(body: str) -> None:
@@ -80,15 +129,13 @@ def main() -> None:
         url = pr["url"]
         v = verdicts.get(num)
         if v and v.get("verdict") == "PASS":
-            run("gh", "pr", "merge", "--squash", "--delete-branch",
-                url, "--repo", REPO, check=False)
-            merged_at = run("gh", "pr", "view", url, "--repo", REPO,
-                            "--json", "mergedAt", "-q", ".mergedAt", check=False)
-            if merged_at:
+            ok, reason = merge_one(url)
+            if ok:
                 merged.append(f"- [x] PR #{num} ({pr['title']}) **merged** ({url})")
             else:
                 failed.append(
-                    f"- [ ] PR #{num} ({pr['title']}) **merge echoue** ({url})"
+                    f"- [ ] PR #{num} ({pr['title']}) **merge echoue** ({url})\n"
+                    f"  Raison: {reason}"
                 )
         elif v and v.get("verdict") == "FAIL":
             failed.append(
@@ -115,6 +162,12 @@ def main() -> None:
         parts.append("")
 
     all_merged = len(merged) == len(pr_list)
+    skipped = skipped_changes()
+    if skipped:
+        parts.append("## Sites ecartes du cycle (handoff invalide)")
+        parts.extend(f"- [ ] {s}" for s in skipped)
+        parts.append("")
+
     parts.append(
         "**Revue effectuee**: scraper_verify.py (10 sites), test live du/des "
         "site(s) corrige(s), lecture du diff par un modele (reviewer)."
@@ -125,7 +178,10 @@ def main() -> None:
     if body:
         comment_issue(body + "\n\n" + summary_from_handoff())
 
-    if close and all_merged:
+    # L'issue ne se ferme que si le cycle est complet: toutes les PRs
+    # soumises sont mergees ET aucun site n'a ete ecarte.
+    cycle_complete = all_merged and not skipped
+    if close and cycle_complete:
         run("gh", "issue", "close", str(ISSUE), "--repo", REPO,
             "--comment", "Issue traitee: toutes les PRs mergees (verification + revue modele OK).")
 
@@ -134,7 +190,8 @@ def main() -> None:
         "merged": len(merged),
         "failed": len(failed),
         "unreviewed": len(unreviewed),
-        "issue_closed": bool(close and all_merged),
+        "skipped": len(skipped),
+        "issue_closed": bool(close and cycle_complete),
     }, indent=2))
 
 
