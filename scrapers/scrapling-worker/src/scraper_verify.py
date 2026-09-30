@@ -29,8 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import logging
 logging.basicConfig(level=logging.CRITICAL)
 
-from scrapling import Fetcher
-from main import extract_game_links, clean_search_title
+from main import extract_game_links, clean_search_title, fetch_site_page
 
 REPORT_FILE = os.environ.get("SCRAPER_REPORT_FILE", "/tmp/scraper_report.json")
 ISSUE_BODY_FILE = os.environ.get("SCRAPER_ISSUE_BODY_FILE", "/tmp/scraper_issue_body.md")
@@ -101,13 +100,9 @@ def check_site(site_name: str, base_url: str, canaries: list[str]) -> dict:
     for title in canaries:
         try:
             search_url = base_url + clean_search_title(title).replace(" ", "+")
-            kwargs = {
-                "impersonate": "chrome",
-                "stealthy_headers": True,
-                "timeout": 30,
-                "verify": False,
-            }
-            page = Fetcher.get(search_url, **kwargs)
+            # Meme appel que le worker: si le moniteur diverge, un OK ici ne
+            # garantit plus rien pour la production.
+            page = fetch_site_page(site_name, search_url)
             http = getattr(page, "status", 200)
             statuses.append(http)
             if http != 200:
@@ -165,6 +160,17 @@ def main() -> None:
     print(f"[SCRAPER VERIFY] {time.strftime('%Y-%m-%d %H:%M:%S')} | "
           f"{len(report['ok'])} OK | {len(report['broken'])} BROKEN | "
           f"{len(report['unreachable'])} UNREACHABLE")
+    if report["unreachable"]:
+        # Un site UNREACHABLE ne declenche aucune alerte et le run reste vert:
+        # c'est voulu, pour ne pas crier sur un blip transitoire (vu le
+        # 23/09 sur steamunlocked.org). Mais un site durablement injoignable
+        # devient silencieusement inutile, donc on le signale en warning du
+        # job, ce qui est visible sur la page du run sans le faire echouer.
+        print(f"::warning title=Site(s) injoignable(s)::{', '.join(report['unreachable'])} "
+              f"injoignable(s) (anti-bot, 403/429 ou reseau). Le scraper rend "
+              f"rien pour ces sites tant que ce n'est pas corrige. Si la "
+              f"situation dure, le(selecteur) n'est pas la cause: c'est "
+              f"l'acces au site.")
     for site, data in report["sites"].items():
         detail = " ".join(
             f"{t}={r['links']}" for t, r in data["canaries"].items()
