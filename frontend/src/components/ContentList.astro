@@ -53,7 +53,7 @@ const payloadEpisodes = episodes.map((ep) => {
     </div>
 
     <label class="flex items-center gap-2 cursor-pointer select-none">
-      <input type="checkbox" id="season-filter" checked class="sr-only peer" />
+      <input type="checkbox" id="season-filter" class="sr-only peer" />
       <span
         class="relative inline-block w-9 h-5 rounded-full transition-colors duration-200"
         style="background: rgba(255,255,255,0.1);"
@@ -257,7 +257,7 @@ const payloadEpisodes = episodes.map((ep) => {
       const wanted = select.value;
 
       const seasonEps = episodes.filter((ep) => String(ep.season) === wanted);
-      const on = filterBox ? filterBox.checked : true;
+      const on = filterBox ? filterBox.checked : false;
 
       if (!tmdbId) {
         container.innerHTML =
