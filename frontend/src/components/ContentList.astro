@@ -14,79 +14,66 @@ for (const ep of episodes) {
   if (!seasons.has(s)) seasons.set(s, []);
   seasons.get(s)!.push(ep);
 }
-const seasonNums = [...seasons.keys()].sort();
+const seasonNums = [...seasons.keys()].sort((a, b) => a - b);
+
+// Episodes are shipped as JSON and rendered client-side: a show like CBS News
+// Sunday Morning has 2000+ episodes, and rendering every season's cards up
+// front means a huge DOM for a season the user cannot even see yet.
+const payloadEpisodes = episodes.map((ep) => {
+    const num = ep.episode_number ?? ep.episodeNumber;
+    const thumb = ep.thumbnail_url || ep.thumbnailUrl;
+    return {
+        id: ep.id,
+        num,
+        season: ep.season_number ?? ep.seasonNumber ?? 1,
+        title: ep.title || `Épisode ${num}`,
+        duration: ep.duration ?? null,
+        synopsis: ep.synopsis || '',
+        airDate: ep.air_date ?? ep.airDate ?? null,
+        thumb: thumb ? proxyImage(thumb) : null,
+    };
+});
 ---
 
 {hasEpisodes && (
 <div class="space-y-6 max-w-5xl mx-auto" data-tmdb-id={media.tmdbId || ''}>
-  {/* Season Tabs Selector */}
-  <div class="flex flex-wrap gap-2 pb-1.5 overflow-x-auto scrollbar-hide border-b border-white/5">
-    {seasonNums.map((sn) => (
-      <button
-        class="season-tab px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer border"
-        style="background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);"
-        data-season={sn}
+  {/* Season selector + filter toggle */}
+  <div class="flex flex-wrap items-center gap-3 pb-3 border-b border-white/5">
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">Saison</span>
+      <select
+        id="season-select"
+        class="px-3 py-2 rounded-xl text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+        style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);"
       >
-        Saison {sn}
-      </button>
-    ))}
+        {seasonNums.map((sn) => (
+          <option value={sn}>Saison {sn} ({seasons.get(sn)!.length})</option>
+        ))}
+      </select>
+    </div>
+
+    <label class="flex items-center gap-2 cursor-pointer select-none">
+      <input type="checkbox" id="season-filter" checked class="sr-only peer" />
+      <span
+        class="relative inline-block w-9 h-5 rounded-full transition-colors duration-200"
+        style="background: rgba(255,255,255,0.1);"
+        data-track
+      >
+        <span
+          class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200"
+          data-thumb
+        ></span>
+      </span>
+      <span class="text-xs font-medium" style="color: rgba(255,255,255,0.5);">Toutes les saisons</span>
+    </label>
+
+    <span id="episode-count" class="ml-auto text-xs font-mono" style="color: rgba(255,255,255,0.25);"></span>
   </div>
 
-  {/* Episodes Grids by Season */}
-  <div class="season-groups">
-    {seasonNums.map((sn) => {
-      const eps = seasons.get(sn)!;
-      return (
-        <div class="season-group" data-season={sn} style="display: none;">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {eps.map(ep => {
-              const num = ep.episode_number ?? ep.episodeNumber;
-              const title = ep.title || `Épisode ${num}`;
-              const dur = ep.duration;
-              const synopsis = ep.synopsis;
+  {/* Episodes grid, filled client-side */}
+  <div id="episodes-container"></div>
 
-              return (
-                <div
-                  class="episode-card rounded-xl p-3 flex gap-3 transition-all cursor-pointer border active:scale-[0.99] select-none"
-                  style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);"
-                  data-episode-id={ep.id}
-                  data-season={sn}
-                  data-episode-data={JSON.stringify({
-                    id: ep.id,
-                    num: num,
-                    season: ep.season_number ?? ep.seasonNumber ?? 1,
-                    title: title,
-                    duration: dur,
-                    synopsis: synopsis || '',
-                    airDate: ep.air_date ?? ep.airDate ?? null,
-                  })}
-                >
-                  <div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center relative overflow-hidden"
-                       style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
-                    {(ep.thumbnail_url || ep.thumbnailUrl) ? (
-                      <img src={proxyImage(ep.thumbnail_url || ep.thumbnailUrl)} alt={title} class="w-full h-full object-cover rounded-lg" loading="lazy" />
-                    ) : (
-                      <span class="text-xl font-bold font-mono" style="color: rgba(255,255,255,0.08);">{String(num).padStart(2, '0')}</span>
-                    )}
-                  </div>
-                  <div class="flex-1 min-w-0 flex flex-col justify-center">
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs font-mono font-bold shrink-0" style="color: rgba(255,255,255,0.25);">E{String(num).padStart(2, '0')}</span>
-                      <h4 class="text-sm font-semibold truncate leading-none" style="color: rgba(255,255,255,0.8);">{title}</h4>
-                      {dur && <span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">{dur}m</span>}
-                    </div>
-                    {synopsis && (
-                      <p class="text-xs mt-1.5 line-clamp-1 leading-relaxed" style="color: rgba(255,255,255,0.35);">{synopsis}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    })}
-  </div>
+  <script type="application/json" id="episodes-data" set:html={JSON.stringify(payloadEpisodes).replace(/</g, '\u003c')} />
 
   {/* Drawer / Detail Panel (Placed below the grid) */}
   <div id="episode-detail-panel" class="hidden rounded-xl p-5 border transition-all duration-300"
@@ -119,9 +106,13 @@ const seasonNums = [...seasons.keys()].sort();
 
 <script>
   function init() {
-    const tabs = document.querySelectorAll('.season-tab');
-    const groups = document.querySelectorAll('.season-group');
-    const cards = document.querySelectorAll('.episode-card');
+    const select = document.getElementById('season-select') as HTMLSelectElement | null;
+    const filterBox = document.getElementById('season-filter') as HTMLInputElement | null;
+    const track = document.querySelector('[data-track]') as HTMLElement | null;
+    const thumb = document.querySelector('[data-thumb]') as HTMLElement | null;
+    const container = document.getElementById('episodes-container');
+    const countEl = document.getElementById('episode-count');
+    const dataEl = document.getElementById('episodes-data');
     const panel = document.getElementById('episode-detail-panel');
     const closeBtn = document.getElementById('ep-detail-close');
 
@@ -134,42 +125,126 @@ const seasonNums = [...seasons.keys()].sort();
     const sourceBtns = document.getElementById('ep-source-btns');
     const noLinks = document.getElementById('ep-no-links');
 
-    if (tabs.length === 0) return;
+    if (!container || !dataEl || !select) return;
+
+    let episodes: any[] = [];
+    try {
+      episodes = JSON.parse(dataEl.textContent || '[]');
+    } catch {
+      episodes = [];
+    }
 
     let activeEpisodeId: string | null = null;
-    let activeSeasonNum: string | null = null;
 
-    // Activate Season Tab
-    function setActiveSeason(sn: string) {
-      activeSeasonNum = sn;
-      tabs.forEach(t => {
-        const el = t as HTMLElement;
-        if (el.dataset.season === sn) {
-          el.style.background = 'rgba(5b,131,246,0.12)';
-          el.style.borderColor = 'rgba(96,165,250,0.25)';
-          el.style.color = '#60A5FA';
-        } else {
-          el.style.background = 'rgba(255,255,255,0.04)';
-          el.style.borderColor = 'rgba(255,255,255,0.06)';
-          el.style.color = 'rgba(255,255,255,0.5)';
-        }
-      });
+    const esc = (s: any) =>
+      String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-      groups.forEach(g => {
-        const el = g as HTMLElement;
-        if (el.dataset.season === sn) {
-          el.style.display = 'block';
-        } else {
-          el.style.display = 'none';
+    function cardHtml(ep: any) {
+      const num = String(ep.num);
+      const visual = ep.thumb
+        ? '<img src="' + esc(ep.thumb) + '" alt="' + esc(ep.title) + '" class="w-full h-full object-cover rounded-lg" loading="lazy" />'
+        : '<span class="text-xl font-bold font-mono" style="color: rgba(255,255,255,0.08);">' + num.padStart(2, '0') + '</span>';
+      return (
+        '<div class="episode-card rounded-xl p-3 flex gap-3 transition-all cursor-pointer border active:scale-[0.99] select-none"' +
+        ' style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);"' +
+        ' data-episode-id="' + esc(ep.id) + '" data-season="' + esc(ep.season) + '"' +
+        ' data-episode-data="' + esc(JSON.stringify(ep)) + '">' +
+        '<div class="w-20 sm:w-28 shrink-0 aspect-video rounded-lg flex items-center justify-center relative overflow-hidden"' +
+        ' style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">' + visual + '</div>' +
+        '<div class="flex-1 min-w-0 flex flex-col justify-center">' +
+        '<div class="flex items-center gap-2">' +
+        '<span class="text-xs font-mono font-bold shrink-0" style="color: rgba(255,255,255,0.25);">E' + num.padStart(2, '0') + '</span>' +
+        '<h4 class="text-sm font-semibold truncate leading-none" style="color: rgba(255,255,255,0.8);">' + esc(ep.title) + '</h4>' +
+        (ep.duration ? '<span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">' + esc(ep.duration) + 'm</span>' : '') +
+        '</div>' +
+        (ep.synopsis ? '<p class="text-xs mt-1.5 line-clamp-1 leading-relaxed" style="color: rgba(255,255,255,0.35);">' + esc(ep.synopsis) + '</p>' : '') +
+        '</div></div>'
+      );
+    }
+
+    const GRID = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3';
+
+    function render() {
+      const showAll = filterBox ? !filterBox.checked : true;
+      const wanted = select.value;
+
+      if (showAll) {
+        const bySeason = new Map<string, any[]>();
+        episodes.forEach((ep) => {
+          const k = String(ep.season);
+          if (!bySeason.has(k)) bySeason.set(k, []);
+          bySeason.get(k)!.push(ep);
+        });
+        container.innerHTML = [...bySeason.keys()]
+          .sort((a, b) => Number(a) - Number(b))
+          .map(
+            (sn) =>
+              '<div class="season-group" data-season="' + sn + '"><div class="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.3);">Saison ' +
+              sn +
+              '</div><div class="' +
+              GRID +
+              '">' +
+              bySeason.get(sn)!.map(cardHtml).join('') +
+              '</div></div>'
+          )
+          .join('');
+        if (countEl) countEl.textContent = episodes.length + ' épisodes';
+      } else {
+        const list = episodes.filter((ep) => String(ep.season) === wanted);
+        container.innerHTML =
+          '<div class="season-group" data-season="' + esc(wanted) + '"><div class="' + GRID + '">' +
+          list.map(cardHtml).join('') +
+          '</div></div>';
+        if (countEl) {
+          const total = episodes.filter((ep) => String(ep.season) === wanted).length;
+          countEl.textContent = total + (total > 1 ? ' épisodes' : ' épisode');
         }
+      }
+
+      bindCards();
+    }
+
+    function bindCards() {
+      container.querySelectorAll<HTMLElement>('.episode-card').forEach((el) => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.episodeId;
+          if (id) selectEpisode(id);
+        });
       });
     }
 
+    function syncToggle() {
+      if (!filterBox || !track || !thumb) return;
+      const on = !filterBox.checked;
+      track.style.background = on ? 'rgba(5,99,241,0.6)' : 'rgba(255,255,255,0.1)';
+      thumb.style.transform = on ? 'translateX(16px)' : 'translateX(0)';
+    }
+
+    select.addEventListener('change', render);
+    filterBox?.addEventListener('change', () => {
+      syncToggle();
+      render();
+    });
+
+    render();
+    syncToggle();
+
     // Open Episode Detail
     function selectEpisode(id: string, updateHash = true) {
+      // The card may not be in the DOM yet (it belongs to another season than
+      // the one currently rendered), so switch the season first, then look it up.
+      const known = episodes.find((e) => e.id === id);
+      if (known) {
+        const target = String(known.season);
+        const showAll = filterBox ? !filterBox.checked : true;
+        if (!showAll && select.value !== target) {
+          select.value = target;
+          render();
+        }
+      }
+
       let selectedCard: HTMLElement | null = null;
-      cards.forEach(c => {
-        const el = c as HTMLElement;
+      container.querySelectorAll<HTMLElement>('.episode-card').forEach((el) => {
         if (el.dataset.episodeId === id) {
           selectedCard = el;
           el.style.borderColor = 'rgba(96,165,250,0.35)';
@@ -184,12 +259,6 @@ const seasonNums = [...seasons.keys()].sort();
 
       activeEpisodeId = id;
       const epData = JSON.parse(selectedCard.dataset.episodeData || '{}');
-
-      // Automatically switch season tab if the selected episode belongs to another season
-      const epSeason = selectedCard.dataset.season;
-      if (epSeason && epSeason !== activeSeasonNum) {
-        setActiveSeason(epSeason);
-      }
 
       // Populate panel content
       if (titleEl) titleEl.textContent = `Épisode ${epData.num} — ${epData.title}`;
@@ -267,8 +336,7 @@ const seasonNums = [...seasons.keys()].sort();
     // Close Panel
     function closePanel() {
       activeEpisodeId = null;
-      cards.forEach(c => {
-        const el = c as HTMLElement;
+      container.querySelectorAll<HTMLElement>('.episode-card').forEach((el) => {
         el.style.borderColor = 'rgba(255,255,255,0.05)';
         el.style.background = 'rgba(255,255,255,0.02)';
       });
@@ -281,30 +349,11 @@ const seasonNums = [...seasons.keys()].sort();
       history.replaceState(null, '', window.location.pathname);
     }
 
-    // Init event listeners
-    tabs.forEach(t => {
-      t.addEventListener('click', (e) => {
-        const btn = e.currentTarget as HTMLElement;
-        const sn = btn.dataset.season;
-        if (sn) setActiveSeason(sn);
-      });
-    });
-
-    cards.forEach(c => {
-      c.addEventListener('click', (e) => {
-        const el = e.currentTarget as HTMLElement;
-        const id = el.dataset.episodeId;
-        if (id) selectEpisode(id);
-      });
-    });
-
+    // Card listeners are re-attached on every render() by bindCards().
     closeBtn?.addEventListener('click', closePanel);
 
-    // Initial routing: default view first season
-    const firstTab = tabs[0] as HTMLElement | undefined;
-    if (firstTab && firstTab.dataset.season) {
-      setActiveSeason(firstTab.dataset.season);
-    }
+    // Default view is already rendered: the select holds the first season and
+    // the filter is checked, so only that season's episodes are in the DOM.
 
     // Route hash on load
     if (window.location.hash.startsWith('#episode-')) {
