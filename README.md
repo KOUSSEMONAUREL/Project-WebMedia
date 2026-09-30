@@ -111,15 +111,119 @@ Exécuté quotidiennement (GitHub Actions `import-metadata.yml`). Importe via AP
 
 ## Webtoon Scrapers
 
-188+ définitions de scrapers organisées par langue :
+247 définitions de scrapers organisées par langue (compteur via `listScrapers`) :
 
 | Locale | Count | Examples |
 | :--- | :--- | :--- |
-| **en/** | 110 | Mangadex, AsuraScans, MangaBuddy, VizShonenJump, Webtoons |
-| **fr/** | 16 | ScantradUnion, PhenixScans, PoseidonScans, AnimesSama |
-| **all/** | 62 | e-hentai (multi-lang), Komga, XKCD, Cubari |
+| **en/** | — | Mangadex, AsuraScans, MangaBuddy, VizShonenJump, Webtoons, Kodansha |
+| **fr/** | — | ScantradUnion, PhenixScans, PoseidonScans, AnimesSama |
+| **all/** | — | e-hentai (multi-lang), Komga, XKCD, Cubari |
+
+Répartition exacte : `cd scrapers/webtoons && npx tsx -e "import {listScrapers} from './src/runner'; console.log(listScrapers().length)"`.
 
 **Engines** : `Madara`, `MangaThemesia`, `MangaHub`, `MangaCatalog`, `KeyoApp`, `Iken` — templates de scraping paramétrables.
+
+## Fonctionnement du site — webtoons et comics, de A à Z
+
+Cette section décrit le chemin complet d'une donnée, du site source jusqu'à l'écran.
+Elle existe parce que ce chemin est **non évident** et qu'une mauvaise lecture conduit
+à des correctifs inutiles. La lire avant de modifier un scraper webtoon.
+
+### Le site est un agrégateur de liens, pas un lecteur
+
+C'est le point le plus important, et le plus souvent mal compris. **Le projet
+n'héberge ni ne proxie les images de pages de chapitres.** Il récolte des
+métadonnées, les persiste, et renvoie l'utilisateur vers le site source.
+
+### Chemin d'une fiche, étape par étape
+
+| # | Étape | Code | Effet |
+| --- | :--- | :--- | :--- |
+| 1 | Découverte | `definitions/webtoons/<lang>/<site>.ts` | `getPopular`, `getLatest`, `getSearch` |
+| 2 | Détails | idem | `getMangaDetails` : titre, description, tags, couverture |
+| 3 | Chapitres | idem | `getChapterList` : la **liste des URL**, pas des images |
+| 4 | Pages | idem | `getPageList` → URLs d'images, **jamais utilisées** (voir plus bas) |
+| 5 | Import | `scrapers/webtoons/src/pipeline.ts` | insère la fiche en base |
+| 6 | Liens | `scrapers/webtoons/src/worker.ts` | `/ingest/liens` : URL du site source |
+| 7 | API | `backend/src/routes/media.ts` | `/api/media` renvoie `links` + `episodes` |
+| 8 | Affichage | `frontend/src/pages/[type]/[slug].astro` | `LinkFooter.astro` rend des `<a target="_blank">` |
+
+### Ce qui est réellement persistant
+
+Le worker ne traite pas tous les types de médias de la même façon
+(`scrapers/webtoons/src/worker.ts`) :
+
+| Type en base | Ce qui est enregistré | Ce qui est visible |
+| :--- | :--- | :--- |
+| `comic` | une URL de chapitre par entrée dans `liens` | liens de chapitres, groupés par site |
+| `webtoon`, `manga` | **une seule URL racine** (`rootUrl`) | la fiche et ses liens |
+
+### Pourquoi `getPageList` n'est pas utilisé
+
+`pipeline.ts` (l. 122-131) appelle bien `getPageList()` sur le premier chapitre
+et place le résultat dans `pages`. Le tableau est renvoyé par `scrapeMedia`,
+mais **`worker.ts` ne lit jamais `result.pages`** — il ne consomme que
+`rootUrl`, `chapters` et `chaptersSaved`. **Le tableau `pages` est donc
+calculé à chaque run puis jeté.**
+
+Il existe **aucun lecteur de chapitres webtoon** :
+
+- `frontend/src/pages/[type]/[slug].astro` n'affiche des épisodes que si
+  `type` vaut `serie` ou `anime` ; jamais pour un webtoon ou une BD ;
+- `backend/src/routes/webtoon.ts` (`/:source/pages`) **n'est pas monté** dans
+  `backend/src/index.ts` — c'est un résidu, pas une fonctionnalité ;
+- `/api/media` ne renvoie ni chapitres ni pages.
+
+Conséquence : **si une source sert des images de pages obfusquées ou chiffrées,
+cela n'a aucun effet ici**, puisque personne ne télécharge ces octets. Il ne
+faut donc pas ajouter de décodeur, ni de route image, « pour corriger » un
+scraper : il n'y a rien à corriger côté affichage.
+
+### Les couvertures, en revanche, sont bien affichées
+
+Les couvertures voyagent par la table `medias` et s'affichent dans
+`CategoryGrid` via `/api/media` :
+
+- `frontend/src/pages/webtoons.astro` appelle `getMediaByType('webtoon')`
+  depuis `frontend/src/lib/api` — c'est un appel API, mais **pas** un `fetch`
+  direct, d'où la confusion possible en relisant le code ;
+- une couverture illisible est donc un vrai bug visible.
+
+### Sources à images obfusquées : le piège de Kodansha
+
+Kodansha (backend Azuki) sert ses images depuis **deux hôtes distincts** :
+
+| Hôte | Contenu | Octets |
+| :--- | :--- | :--- |
+| `production.image.azuki.co` | **couvertures** | WebP normal (`52 49 46 46` = `RIFF`) |
+| `production.image-content.azuki.co` | **pages de chapitre** | obfusqués, `byte ^ 174` |
+
+Vérifié : les octets bruts d'une page commencent par `fce7e8e8…` et donnent
+`52494646…` (`RIFF`, WebP valide) après application de `byte ^ 174`.
+
+Le nom des hôtes est la seule chose qui les distingue. Si une source de ce type
+est ajoutée **et qu'un lecteur est un jour construit**, le décodeur devra être
+appliqué au moment du téléchargement des pages — dans le lecteur, pas dans le
+scraper. Le scraper, lui, ne renvoie que des URL.
+
+### Ajouter ou corriger un scraper : la checklist
+
+1. Le nom est résolu par `listScrapers` via `readonly name`, l'argument de
+   `super(...)`, ou une affectation `this.name =` — les trois formes sont
+   reconnues depuis la restauration de la découverte.
+2. `getMangaDetails` doit accepter aussi bien `/series/<slug>` que
+   `/reader/series/<slug>`, et une URL de lecteur complète
+   (`/episode/<n>`) ne doit pas être lue comme un slug.
+3. Un chapitre à numéro non numérique (`4b`, `9b`, `18b`) doit produire
+   `chapterNumber: -1`, pas `undefined`, pour rester fidèle au
+   `toFloatOrNull() ?: -1f` de la source Kotlin.
+4. Ne pas neutraliser `validateStatus` : un 404 sur `getPageList` doit lever,
+   sinon il se transforme silencieusement en liste de pages vide.
+5. Ne pas ajouter de décodeur d'images : rien dans le projet ne télécharge les
+   pages de chapitres (voir plus haut).
+6. Vérifier en direct avant de merger, pas seulement `tsc` :
+   `npx tsx` avec `getScraper('<nom>')`, puis `getPopular`, `getSearch`,
+   `getMangaDetails`, `getChapterList`, `getPageList`.
 
 ## Frontend (Astro + React)
 
