@@ -37,18 +37,19 @@ export async function loadLivetvCache(key: string) {
 }
 
 const CHECK_TTL = 30 * 60 * 1000;
+const CHECK_NS = 'v3:';
 
 export async function saveStreamCheck(url: string, alive: boolean) {
   try {
     const db = await getDb();
-    await db.put('stream-checks', { url, alive, ts: Date.now() });
+    await db.put('stream-checks', { url: CHECK_NS + url, alive, ts: Date.now() });
   } catch {}
 }
 
 export async function loadStreamCheck(url: string): Promise<{ alive: boolean } | null> {
   try {
     const db = await getDb();
-    const entry = await db.get('stream-checks', url);
+    const entry = await db.get('stream-checks', CHECK_NS + url);
     if (!entry) return null;
     if (Date.now() - entry.ts > CHECK_TTL) return null;
     return { alive: entry.alive };
@@ -61,7 +62,7 @@ export async function loadStreamChecksBatch(urls: string[]): Promise<Map<string,
   const results = new Map<string, boolean>();
   try {
     const db = await getDb();
-    const entries = await Promise.all(urls.map(url => db.get('stream-checks', url)));
+    const entries = await Promise.all(urls.map(url => db.get('stream-checks', CHECK_NS + url)));
     for (let i = 0; i < urls.length; i++) {
       const entry = entries[i];
       if (entry && Date.now() - entry.ts <= CHECK_TTL) {

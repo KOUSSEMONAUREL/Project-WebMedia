@@ -25,6 +25,10 @@ interface LiveChannel {
 const checkQueue: { url: string; resolve: (alive: boolean) => void }[] = [];
 let runningChecks = 0;
 
+function proxyUrl(url: string): string {
+  return `${window.location.origin}/live-tv-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function pumpQueue() {
   while (runningChecks < MAX_CONCURRENT_CHECKS && checkQueue.length > 0) {
     const item = checkQueue.shift()!;
@@ -42,7 +46,7 @@ async function doCheck(url: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT);
-    const res = await fetch(url, {
+    const res = await fetch(proxyUrl(url), {
       signal: controller.signal,
       headers: { Range: 'bytes=0-511' },
     });
@@ -94,7 +98,7 @@ function PlayerModal({ channel, onClose }: {
 
     const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
     hlsRef.current = hls;
-    hls.loadSource(streamUrl);
+    hls.loadSource(proxyUrl(streamUrl));
     hls.attachMedia(video);
 
     const onReady = () => {

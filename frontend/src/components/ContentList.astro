@@ -44,10 +44,10 @@ const payloadEpisodes = episodes.map((ep) => {
       <select
         id="season-select"
         class="px-3 py-2 rounded-xl text-sm font-medium cursor-pointer outline-none transition-all duration-200"
-        style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);"
+        style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); color-scheme: dark;"
       >
         {seasonNums.map((sn) => (
-          <option value={sn}>Saison {sn} ({seasons.get(sn)!.length})</option>
+          <option value={sn} style="background: #101016; color: rgba(255,255,255,0.85);">Saison {sn} ({seasons.get(sn)!.length})</option>
         ))}
       </select>
     </div>
@@ -64,7 +64,7 @@ const payloadEpisodes = episodes.map((ep) => {
           data-thumb
         ></span>
       </span>
-      <span class="text-xs font-medium" style="color: rgba(255,255,255,0.5);">Toutes les saisons</span>
+      <span class="text-xs font-medium" style="color: rgba(255,255,255,0.5);">Épisodes avec flux</span>
     </label>
 
     <span id="episode-count" class="ml-auto text-xs font-mono" style="color: rgba(255,255,255,0.25);"></span>
@@ -134,10 +134,98 @@ const payloadEpisodes = episodes.map((ep) => {
       episodes = [];
     }
 
+    const root = document.querySelector('[data-tmdb-id]');
+    const tmdbId = root ? root.getAttribute('data-tmdb-id') || '' : '';
+
     let activeEpisodeId: string | null = null;
+
+    // Flux check state. The vidsrc family shares one backend, so a single HEAD
+    // against data.vidsrc.sh tells us whether every vidsrc-source works. 2embed
+    // cannot be verified client-side (no CORS) and is reported as "non vérifié".
+    const MAX_FLUX_CHECKS = 4;
+    const FLUX_TTL = 12 * 60 * 60 * 1000;
+    const fluxState = new Map<string, 'ok' | 'fail'>();
+    const forcedCheck = new Map<string, string>();
+    let fluxQueue: { season: number; num: number }[] = [];
+    let runningFluxChecks = 0;
+
+    const fluxKey = (s: number, n: number) => s + ':' + n;
+    const persistKey = (s: number, n: number) => 'emberchk:' + tmdbId + ':' + s + ':' + n;
+
+    function readPersisted(s: number, n: number): boolean | null {
+      try {
+        const raw = localStorage.getItem(persistKey(s, n));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (Date.now() - parsed.ts > FLUX_TTL) return null;
+        return parsed.ok;
+      } catch {
+        return null;
+      }
+    }
+
+    function writePersisted(s: number, n: number, ok: boolean) {
+      try {
+        localStorage.setItem(persistKey(s, n), JSON.stringify({ ok, ts: Date.now() }));
+      } catch {}
+    }
+
+    async function doFluxCheck(s: number, n: number): Promise<boolean> {
+      const cached = readPersisted(s, n);
+      if (cached !== null) return cached;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(
+          'https://data.vidsrc.sh/api.php?type=tv&tmdb=' + encodeURIComponent(tmdbId) +
+          '&season=' + s + '&episode=' + n,
+          { signal: controller.signal }
+        );
+        clearTimeout(timer);
+        if (!res.ok) return false;
+        const j: any = await res.json();
+        const ok = j && String(j.status_code) === '200' && !!(j.data && j.data.file_name);
+        writePersisted(s, n, ok);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+
+    function pumpFlux() {
+      while (runningFluxChecks < MAX_FLUX_CHECKS && fluxQueue.length > 0) {
+        const job = fluxQueue.shift()!;
+        runningFluxChecks++;
+        doFluxCheck(job.season, job.num).then((ok) => {
+          fluxState.set(fluxKey(job.season, job.num), ok ? 'ok' : 'fail');
+          runningFluxChecks--;
+          render();
+          pumpFlux();
+        });
+      }
+    }
 
     const esc = (s: any) =>
       String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    function statusBadge(ep: any) {
+      const st = fluxState.get(fluxKey(ep.season, ep.num));
+      const force = forcedCheck.get(fluxKey(ep.season, ep.num));
+      if (st === 'ok') {
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium mt-1.5" style="color:#3fdf7f;">' +
+          '<span class="w-1.5 h-1.5 rounded-full" style="background:#3fdf7f;"></span>' +
+          'vsembed.ru · vidsrcme.ru — flux OK</span>';
+      }
+      if (st === 'fail') {
+        return '<span class="inline-flex items-center gap-1.5 text-xs mt-1.5" style="color:rgba(255,255,255,0.3);">' +
+          'aucun flux vidsrc · 2embed non vérifié</span>';
+      }
+      if (force === 'error') {
+        return '<span class="inline-flex items-center gap-1.5 text-xs mt-1.5" style="color:#f87171;">' +
+          'vérification impossible · 2embed non vérifié</span>';
+      }
+      return '';
+    }
 
     function cardHtml(ep: any) {
       const num = String(ep.num);
@@ -158,6 +246,7 @@ const payloadEpisodes = episodes.map((ep) => {
         (ep.duration ? '<span class="text-xs shrink-0 ml-auto" style="color: rgba(255,255,255,0.25);">' + esc(ep.duration) + 'm</span>' : '') +
         '</div>' +
         (ep.synopsis ? '<p class="text-xs mt-1.5 line-clamp-1 leading-relaxed" style="color: rgba(255,255,255,0.35);">' + esc(ep.synopsis) + '</p>' : '') +
+        statusBadge(ep) +
         '</div></div>'
       );
     }
@@ -165,40 +254,65 @@ const payloadEpisodes = episodes.map((ep) => {
     const GRID = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3';
 
     function render() {
-      const showAll = filterBox ? !filterBox.checked : true;
       const wanted = select.value;
 
-      if (showAll) {
-        const bySeason = new Map<string, any[]>();
-        episodes.forEach((ep) => {
-          const k = String(ep.season);
-          if (!bySeason.has(k)) bySeason.set(k, []);
-          bySeason.get(k)!.push(ep);
-        });
-        container.innerHTML = [...bySeason.keys()]
-          .sort((a, b) => Number(a) - Number(b))
-          .map(
-            (sn) =>
-              '<div class="season-group" data-season="' + sn + '"><div class="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.3);">Saison ' +
-              sn +
-              '</div><div class="' +
-              GRID +
-              '">' +
-              bySeason.get(sn)!.map(cardHtml).join('') +
-              '</div></div>'
-          )
-          .join('');
-        if (countEl) countEl.textContent = episodes.length + ' épisodes';
-      } else {
-        const list = episodes.filter((ep) => String(ep.season) === wanted);
+      const seasonEps = episodes.filter((ep) => String(ep.season) === wanted);
+      const on = filterBox ? filterBox.checked : true;
+
+      if (!tmdbId) {
         container.innerHTML =
           '<div class="season-group" data-season="' + esc(wanted) + '"><div class="' + GRID + '">' +
-          list.map(cardHtml).join('') +
+          seasonEps.map(cardHtml).join('') +
           '</div></div>';
         if (countEl) {
-          const total = episodes.filter((ep) => String(ep.season) === wanted).length;
-          countEl.textContent = total + (total > 1 ? ' épisodes' : ' épisode');
+          countEl.textContent = seasonEps.length + (seasonEps.length > 1 ? ' épisodes' : ' épisode');
         }
+        bindCards();
+        return;
+      }
+
+      if (!on) {
+        container.innerHTML =
+          '<div class="season-group" data-season="' + esc(wanted) + '"><div class="' + GRID + '">' +
+          seasonEps.map(cardHtml).join('') +
+          '</div></div>';
+        if (countEl) {
+          countEl.textContent = seasonEps.length + (seasonEps.length > 1 ? ' épisodes' : ' épisode');
+        }
+        bindCards();
+        return;
+      }
+
+      // Enqueue checks for unresolved episodes of the selected season.
+      for (const ep of seasonEps) {
+        const k = fluxKey(ep.season, ep.num);
+        if (fluxState.has(k)) continue;
+        const cached = readPersisted(ep.season, ep.num);
+        if (cached !== null) {
+          fluxState.set(k, cached ? 'ok' : 'fail');
+        } else if (!fluxQueue.some((j) => j.season === ep.season && j.num === ep.num)) {
+          fluxQueue.push({ season: ep.season, num: ep.num });
+        }
+      }
+      pumpFlux();
+
+      const shown = seasonEps.filter((ep) => {
+        const st = fluxState.get(fluxKey(ep.season, ep.num));
+        return st === 'ok';
+      });
+
+      container.innerHTML =
+        '<div class="season-group" data-season="' + esc(wanted) + '"><div class="' + GRID + '">' +
+        shown.map(cardHtml).join('') +
+        '</div></div>';
+
+      if (countEl) {
+        const total = seasonEps.length;
+        const okCount = seasonEps.filter((ep) => fluxState.get(fluxKey(ep.season, ep.num)) === 'ok').length;
+        const stillChecking = fluxQueue.length > 0 || runningFluxChecks > 0;
+        countEl.textContent = stillChecking
+          ? okCount + '/' + total + ' avec flux · vérification…'
+          : okCount + ' épisode' + (okCount > 1 ? 's' : '') + ' avec flux / ' + total;
       }
 
       bindCards();
@@ -215,7 +329,7 @@ const payloadEpisodes = episodes.map((ep) => {
 
     function syncToggle() {
       if (!filterBox || !track || !thumb) return;
-      const on = !filterBox.checked;
+      const on = filterBox.checked;
       track.style.background = on ? 'rgba(5,99,241,0.6)' : 'rgba(255,255,255,0.1)';
       thumb.style.transform = on ? 'translateX(16px)' : 'translateX(0)';
     }
@@ -236,8 +350,7 @@ const payloadEpisodes = episodes.map((ep) => {
       const known = episodes.find((e) => e.id === id);
       if (known) {
         const target = String(known.season);
-        const showAll = filterBox ? !filterBox.checked : true;
-        if (!showAll && select.value !== target) {
+        if (select.value !== target) {
           select.value = target;
           render();
         }
@@ -282,18 +395,17 @@ const payloadEpisodes = episodes.map((ep) => {
         }
       }
 
-      const tmdbId = document.querySelector('[data-tmdb-id]')?.getAttribute('data-tmdb-id');
-      if (tmdbId && epData.num && epIframe && sourceBtns && playerWrapper && noLinks) {
+      const tmdb = Number(tmdbId);
+      if (tmdb && epData.num && epIframe && sourceBtns && playerWrapper && noLinks) {
         const season = epData.season || 1;
         const SOURCES = [
-          { name: 'vsembed.ru', url: (tmdb: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-          { name: 'vsembed.su', url: (tmdb: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-          { name: 'vidsrcme.ru', url: (tmdb: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${tmdb}&season=${s}&episode=${e}` },
-          { name: 'vidsrc.to', url: (tmdb: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` },
-          { name: '2embed.cc', url: (tmdb: number, s: number, e: number) => `https://www.2embed.cc/embed/${tmdb}${s}${e}` },
+          { name: 'vsembed.ru', url: (t: number, s: number, e: number) => `https://vsembed.ru/embed/tv?tmdb=${t}&season=${s}&episode=${e}` },
+          { name: 'vsembed.su', url: (t: number, s: number, e: number) => `https://vsembed.su/embed/tv?tmdb=${t}&season=${s}&episode=${e}` },
+          { name: 'vidsrcme.ru', url: (t: number, s: number, e: number) => `https://vidsrcme.ru/embed/tv?tmdb=${t}&season=${s}&episode=${e}` },
+          { name: 'vidsrc.to', url: (t: number, s: number, e: number) => `https://vidsrc.to/embed/tv/${t}/${s}/${e}` },
+          { name: '2embed.cc', url: (t: number, s: number, e: number) => `https://www.2embed.cc/embed/${t}${s}${e}` },
         ];
-        const num = Number(tmdbId);
-        epIframe.src = SOURCES[0].url(num, season, epData.num);
+        epIframe.src = SOURCES[0].url(tmdb, season, epData.num);
         playerWrapper.style.display = 'block';
         sourceBtns.innerHTML = '';
         sourceBtns.style.display = 'flex';
@@ -301,7 +413,7 @@ const payloadEpisodes = episodes.map((ep) => {
         SOURCES.forEach((src, i) => {
           const btn = document.createElement('button');
           btn.textContent = src.name;
-          btn.dataset.url = src.url(num, season, epData.num);
+          btn.dataset.url = src.url(tmdb, season, epData.num);
           btn.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02] cursor-pointer';
           btn.style.cssText = i === 0
             ? 'background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25); color: #60A5FA;'
@@ -351,9 +463,6 @@ const payloadEpisodes = episodes.map((ep) => {
 
     // Card listeners are re-attached on every render() by bindCards().
     closeBtn?.addEventListener('click', closePanel);
-
-    // Default view is already rendered: the select holds the first season and
-    // the filter is checked, so only that season's episodes are in the DOM.
 
     // Route hash on load
     if (window.location.hash.startsWith('#episode-')) {
