@@ -30,10 +30,18 @@ export function listScrapers(): ScraperInfo[] {
     const content = fs.readFileSync(filePath, 'utf-8');
     const classMatch = content.match(/export\s+class\s+(\w+)\s+extends\s+(\w+)/);
     const nameMatch = content.match(/readonly\s+name\s*=\s*(["'])(.*?)\1/);
+    // Le nom est cherche dans trois formes, de la plus explicite a la moins:
+    // un champ `readonly name`, puis l'argument du `super(...)` -- c'est le
+    // cas des scrapers herites d'un moteur, qui ne redeclarent pas le champ
+    // -- puis une affectation dans le constructeur. Sans les deux dernieres,
+    // 96 scrapers sur 246 etaient publies sous leur nom de classe et donc
+    // introuvables par leur vrai nom.
+    const ctorMatch = content.match(/super\(\s*(["'])(.*?)\1/);
+    const assignMatch = content.match(/this\.name\s*=\s*(["'])(.*?)\1/);
     const langMatch = content.match(/readonly\s+lang\s*=\s*'([^']+)'/);
     if (classMatch) {
       infos.push({
-         name: nameMatch?.[2] || classMatch[1],
+         name: nameMatch?.[2] || ctorMatch?.[2] || assignMatch?.[2] || classMatch[1],
         className: classMatch[1],
         filePath,
         lang: langMatch?.[1] || 'unknown',
