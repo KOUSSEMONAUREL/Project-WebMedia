@@ -168,9 +168,10 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
           <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-xl bg-secondary/20 border border-white/[0.04]">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filtrer</span>
             <select aria-label="Genre" value={genre} onChange={(e) => { setGenre(e.target.value); setPage(0); }}
-              className="bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40">
-              <option value="">Genre</option>
-              {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}>
+              <option value="" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Genre</option>
+              {GENRES.map((g) => <option key={g} value={g} style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>{g}</option>)}
             </select>
             <input type="number" placeholder="Annee min" value={yearMin} onChange={(e) => setYearMin(e.target.value)} onBlur={applyFilter}
               className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
