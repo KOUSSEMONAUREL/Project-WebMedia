@@ -5,11 +5,11 @@ import { extractNextJsHtml, extractNextJsRsc, isJsonObject } from '../../../engi
 import type { Json, JsonObject, NextJsPredicate } from '../../../engine/nextjs';
 
 // Transcompilation of keiyoushi src/en/templescan (TempleScan.kt + Dto.kt +
-// RscKeys.kt). The site's RSC payload renames fields to deterministic short
-// keys derived from a rotating salt (FNV-1a 32-bit of "<salt>:<name>:<i>").
-// Committed key literals go stale on every salt rotation, so this scraper
-// derives the keys at runtime (RscKeys port below), remaps payloads to
-// logical names before decoding, and re-reads the salt from the site's
+// RscKeys.kt). The site's RSC payload renames fields to short keys shipped
+// in its own client bundle (module `14834`) as a positional pair of lists.
+// Committed key literals go stale on every rebuild, so this scraper reads
+// the table at runtime (RscKeys port below), remaps payloads to logical
+// names before decoding, and re-reads the table from the site's
 // `_next/static/chunks/` bundle when the payload stops matching.
 
 interface BrowseSeries {
@@ -63,56 +63,57 @@ function pickString(o: JsonObject, ...keys: string[]): string | null {
 }
 
 // ------------------------------------------------------------
-// RscKeys port (upstream RscKeys.kt): the site derives its short
-// field keys from a salt found in its own client bundle.
+// RscKeys port (upstream RscKeys.kt, module `14834`): the site ships its
+// short field-key table in its own client bundle. Live bundle format
+// (observed 01/10/2026 — upstream's `.split(",")` regex matches nothing):
+//   ["Chapter","images",...],r="g212lcoaq2k8u9...(112 chars)";
+//   s=1+r.charCodeAt(0)%15; key(names[t])=r.slice(((t+s)%16)*7,+7).
+// Both the packed format and upstream's comma-separated format are read.
 // ------------------------------------------------------------
 
-const RSC_FIELDS = [
-  'series_slug',
-  'Season',
-  'Chapter',
-  'price',
-  'title',
-  'chapter_name',
-  'chapter_slug',
-  'images',
-] as const;
+type RscField = string;
 
-type RscField = (typeof RSC_FIELDS)[number];
-
-const RSC_DEFAULT_SALT = 'd5c68d61d4c2';
 const RSC_CHUNK_PATH = '/_next/static/chunks/';
-const RSC_FIELD_LIST_LITERAL = RSC_FIELDS.map(f => `"${f}"`).join(',');
-const RSC_SALT_REGEX = /["']([0-9a-f]{8,32})["']\s*,\s*["']:["']/;
+const RSC_PACKED_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\]\s*,\s*[A-Za-z_$][\w$]*\s*=\s*"([A-Za-z0-9]{70,})"/;
+const RSC_SPLIT_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\],\s*[^=;]{1,32}=\s*"([^"]*)"\.split\(",\)/;
+const RSC_NAME_REGEX = /"([A-Za-z0-9_]+)"/g;
 
-function fnv1a32(value: string): number {
-  let hash = 0x811c9dc5 | 0;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash | 0;
+function rscNames(raw: string): string[] {
+  const names: string[] = [];
+  const nameRe = new RegExp(RSC_NAME_REGEX);
+  let m: RegExpExecArray | null;
+  while ((m = nameRe.exec(raw)) !== null) names.push(m[1]);
+  return names;
 }
 
-function encodeRscKey(hash: number): string {
-  const unsigned = hash >>> 0;
-  return `${String.fromCharCode(97 + (unsigned % 26))}${(unsigned >>> 5).toString(36)}`;
-}
-
-function deriveRscKeys(salt: string): Map<string, string> {
-  const used = new Set<string>();
+// Live packed-string derivation (module 14834): 16 slots of 7 chars.
+function derivePackedKeys(names: string[], packed: string): Map<string, string> | null {
+  if (names.length === 0 || names.length > 16) return null;
+  if (packed.length !== 112) return null;
+  const s = 1 + (packed.charCodeAt(0) % 15);
   const out = new Map<string, string>();
-  for (const field of RSC_FIELDS) {
-    let collision = 0;
-    let key = '';
-    do {
-      key = encodeRscKey(fnv1a32(`${salt}:${field}:${collision}`));
-      collision++;
-    } while (used.has(key));
-    used.add(key);
-    out.set(field, key);
-  }
+  names.forEach((n, t) => out.set(n, packed.slice(((t + s) % 16) * 7, ((t + s) % 16) * 7 + 7)));
   return out;
+}
+
+function findRscTable(chunkSource: string): Map<string, string> | null {
+  const packed = RSC_PACKED_REGEX.exec(chunkSource);
+  if (packed) {
+    const table = derivePackedKeys(rscNames(packed[1]), packed[2]);
+    if (table && table.size > 0) return table;
+  }
+  const split = RSC_SPLIT_REGEX.exec(chunkSource);
+  if (split) {
+    const names = rscNames(split[1]);
+    const keys = split[2].split(',');
+    // The bundle itself throws when it cannot name every field; treat that as "not this chunk".
+    if (keys.length >= names.length && names.length > 0) {
+      const out = new Map<string, string>();
+      names.forEach((n, i) => out.set(n, keys[i]));
+      return out;
+    }
+  }
+  return null;
 }
 
 function remapRscKeys(value: Json, keys: Map<string, string>): Json {
@@ -146,13 +147,6 @@ function rscPayloadPredicate(fields: RscField[], keys: Map<string, string>, isLi
     if (!isJsonObject(value)) return false;
     return [...required].every(k => k in value);
   };
-}
-
-function findRscSalt(chunkSource: string): string | null {
-  const fieldsAt = chunkSource.indexOf(RSC_FIELD_LIST_LITERAL);
-  if (fieldsAt === -1) return null;
-  const match = RSC_SALT_REGEX.exec(chunkSource.slice(fieldsAt));
-  return match?.[1] ?? null;
 }
 
 const CATALOG_FIELDS: RscField[] = ['title', 'series_slug'];
@@ -323,15 +317,15 @@ export class TemplescanScraper extends BaseScraper {
   readonly baseUrl = 'https://templetoons.com';
   readonly lang = 'en';
 
-  private rscSalt: string | null = null;
+  private rscTable: Map<string, string> | null = null;
 
-  private rscKeys(): Map<string, string> {
-    return deriveRscKeys(this.rscSalt ?? RSC_DEFAULT_SALT);
+  private cachedRscKeys(): Map<string, string> | null {
+    return this.rscTable && this.rscTable.size > 0 ? this.rscTable : null;
   }
 
   // Upstream TempleScan.mappedPayload: extract the RSC node holding `fields`
-  // with the current salt's keys, remap short keys to logical names, and —
-  // when nothing matches — re-read the salt from the client bundle once.
+  // with the current table's keys, remap short keys to logical names, and —
+  // when nothing matches — re-read the table from the client bundle once.
   private async fetchMapped(url: string, fields: RscField[], isList: boolean): Promise<Json | null> {
     // Upstream no longer sends the `rsc: 1` header (the CDN now 403s it);
     // plain browser-fingerprinted GET + flight extraction instead.
@@ -342,11 +336,13 @@ export class TemplescanScraper extends BaseScraper {
     const extract = (predicate: NextJsPredicate): Json | null =>
       isHtml ? extractNextJsHtml(body, predicate) : extractNextJsRsc(body, predicate);
 
-    const keys = this.rscKeys();
-    const direct = extract(rscPayloadPredicate(fields, keys, isList));
-    if (direct !== null) return remapRscKeys(direct, keys);
+    const keys = this.cachedRscKeys() ?? await this.refreshRscKeys(body);
+    if (keys) {
+      const direct = extract(rscPayloadPredicate(fields, keys, isList));
+      if (direct !== null) return remapRscKeys(direct, keys);
+    }
 
-    // Legacy-shape fallback (previous-salt short keys / legacy layout).
+    // Legacy-shape fallback (previous short keys / legacy layout).
     const legacyPredicate = isList
       ? BROWSE_PREDICATE
       : fields === PAGES_FIELDS ? PAGES_PREDICATE : DETAILS_PREDICATE;
@@ -354,7 +350,7 @@ export class TemplescanScraper extends BaseScraper {
     if (legacy !== null) return legacy;
 
     if (isHtml) {
-      const refreshed = await this.refreshRscSalt(body);
+      const refreshed = await this.refreshRscKeys(body);
       if (refreshed !== null) {
         const retry = extract(rscPayloadPredicate(fields, refreshed, isList));
         if (retry !== null) return remapRscKeys(retry, refreshed);
@@ -363,9 +359,9 @@ export class TemplescanScraper extends BaseScraper {
     return null;
   }
 
-  // Re-reads the field-key salt from the site's client bundle (module 14834
+  // Re-reads the field rename table from the site's client bundle (module 14834
   // chunk) and caches it for later runs.
-  private async refreshRscSalt(html: string): Promise<Map<string, string> | null> {
+  private async refreshRscKeys(html: string): Promise<Map<string, string> | null> {
     const $ = this.$(html);
     const sources = $('script[src]')
       .toArray()
@@ -382,10 +378,10 @@ export class TemplescanScraper extends BaseScraper {
     for (const src of [...new Set(sources)]) {
       try {
         const res = await this.get(src, { headers: { ...BROWSER_HEADERS } });
-        const salt = findRscSalt(String(res.data));
-        if (salt) {
-          this.rscSalt = salt;
-          return deriveRscKeys(salt);
+        const table = findRscTable(String(res.data));
+        if (table && table.size > 0) {
+          this.rscTable = table;
+          return table;
         }
       } catch {
         // Try the next chunk.
