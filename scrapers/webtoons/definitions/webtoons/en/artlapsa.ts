@@ -6,24 +6,42 @@ export class ArtlapsaScraper extends KeyoappScraper {
   constructor() { super('Art Lapsa', 'https://artlapsa.com', 'en'); }
 
   protected override readonly descriptionSelector: string = '#expand_content';
-  protected override readonly statusSelector: string = '[alt=Status]';
-  protected override readonly typeSelector: string = '[alt=Type]';
+  protected override readonly statusSelector: string = 'a[aria-label=Status]';
+  protected override readonly typeSelector: string = 'a[aria-label=Type]';
+  protected override readonly genreSelector: string = "div:has(>h1) a[href*='/genres/']";
+  protected override readonly authorSelector: string = 'dt:contains(Author) + dd';
+  protected override readonly artistSelector: string = 'dt:contains(Artist) + dd';
+  protected override readonly paidChapterSelector: string = 'img[alt~=Coin], img[src*=star-circle]';
 
-  async getPopular(_page = 1): Promise<SearchResult> {
-    const res = await super.getPopular(_page);
-    const seen = new Set<string>();
-    res.mangas = res.mangas.filter(m => {
-      const key = m.url;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    res.hasNextPage = false;
-    return res;
+  readonly altNameSelector = 'details[data-testid=series-other-names] li.select-all';
+
+  // The home page only renders a fixed top-20 carousel, so use the paginated
+  // search listing sorted by popularity instead (upstream ArtLapsa.kt).
+  async getPopular(page = 1): Promise<SearchResult> {
+    const url = `${this.baseUrl}/search?sort=popular&page=${page}`;
+    const res = await this.get(url);
+    const $ = this.$(res.data);
+    const mangas = $(`main#main-content [wire\\:key*='serie']`).toArray()
+      .map(el => this.searchMangaFromElement($(el)));
+    return { mangas, hasNextPage: mangas.length >= 20 };
   }
 
-  async getSearch(query: string, _page = 1): Promise<SearchResult> {
-    const url = `${this.baseUrl}/search?title=${encodeURIComponent(query)}`;
+  // The next page link is only rendered while more chapters exist (upstream).
+  async getLatest(page = 1): Promise<SearchResult> {
+    const res = await this.get(`${this.baseUrl}/latest?page=${page}`);
+    const $ = this.$(res.data);
+    const mangas = $('div.grid > div.group').toArray()
+      .map(el => this.popularMangaFromElement($(el)));
+    const hasNextPage = $(`a[href*='?page=']`).length > 0;
+    return { mangas, hasNextPage };
+  }
+
+  async getSearch(query: string, page = 1): Promise<SearchResult> {
+    const params = new URLSearchParams();
+    if (page > 1) params.set('page', String(page));
+    if (query.trim()) params.set('title', query.trim());
+    const qs = params.toString();
+    const url = qs ? `${this.baseUrl}/search?${qs}` : `${this.baseUrl}/search`;
     const res = await this.get(url);
     const $ = this.$(res.data);
     const mangas = $(`main#main-content [wire\\:key*='serie']`).toArray()
@@ -34,20 +52,40 @@ export class ArtlapsaScraper extends KeyoappScraper {
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const res = await this.get(mangaUrl);
     const $ = this.$(res.data);
-    const selector = this.showPaidChapters
-      ? '#chapters > div:not(:has(.text-sm span:matches(Upcoming)))'
-      : '#chapters > div:not(:has(.text-sm span:matches(Upcoming))):not(:has(img[alt=Coin], img[src*=star-circle]))';
-    return $(selector).toArray()
+    return $('#chapters > a, #chapters > div').toArray()
       .map(el => $(el))
+      .filter($el => {
+        if ($el.find('.text-sm span:contains(Upcoming)').length > 0) return false;
+        if ($el.text().includes('Upcoming')) {
+          const marker = $el.find('.text-sm span').first().text().trim();
+          if (marker.includes('Upcoming')) return false;
+        }
+        if (!this.showPaidChapters && $el.find(this.paidChapterSelector).length > 0) return false;
+        return true;
+      })
       .map($el => this.chapterFromElement($el));
   }
 
   protected override chapterFromElement($el: ReturnType<CheerioAPI>): Chapter {
     const ch = super.chapterFromElement($el);
-    if ($el.find('img[alt=Coin], img[src*=star-circle]').length > 0 && !ch.name.startsWith('\uD83D\uDD12')) {
-      ch.name = `\uD83D\uDD12 ${ch.name}`;
+    if ($el.find('img[alt=Coin], img[src*=star-circle]').length > 0 && !ch.name.startsWith('🔒')) {
+      ch.name = `🔒 ${ch.name}`;
     }
     return ch;
+  }
+
+  // Covers are plain <img> tags since the site redesign (upstream).
+  protected override getImageUrl($el: ReturnType<CheerioAPI>, _selector: string): string {
+    const direct = $el.is('img') ? $el : $el.find(`img[alt$=' cover']`).first();
+    const src = (direct.attr('src') || direct.attr('data-src') || '').trim();
+    if (src) return this.absUrl(src);
+    const fallback = $el.find('img').first();
+    const fsrc = (fallback.attr('src') || fallback.attr('data-src') || '').trim();
+    return fsrc ? this.absUrl(fsrc) : '';
+  }
+
+  protected override searchMangaFromElement($el: ReturnType<CheerioAPI>): Manga {
+    return this.popularMangaFromElement($el);
   }
 
   protected override pageListParse($: CheerioAPI): Page[] {
