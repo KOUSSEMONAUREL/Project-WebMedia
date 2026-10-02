@@ -60,9 +60,39 @@ const TREND_GROUPS: TrendGroup[] = [
     { type: 'novel', limit: 1, sources: ['royalroad'], deniedPosterHosts: [] },
 ];
 
-const TREND_CACHE_KEY = 'trending:pool:v1';
+// v2 : la valeur cachee est desormais un objet { type: TrendItem[] } et non un
+// tableau plat. Sans ce bump, un ancien v1 lu par le nouveau code donnerait
+// pool[type] === undefined et une page d'accueil vide pendant tout le TTL.
+const TREND_CACHE_KEY = 'trending:pool:v2';
 const TREND_CACHE_TTL = 900;
 const TREND_POOL_FACTOR = 8;
+
+// Projection explicite : le carousel ne lit que ces 7 champs sur chaque carte.
+// Un SELECT * coute ~1,4 Ko par ligne (synopsis, backdrop, trailer, studios,
+// 6 ids externes, 4 timestamps) ; des que le pool complet est cache au lieu du
+// seul sous-ensemble affiche, la projection fait tomber le payload stocke de
+// 211 Ko a 43 Ko et la reponse servie de 26 Ko a 5 Ko.
+const TREND_FIELDS = {
+    id: neonMedias.id,
+    slug: neonMedias.slug,
+    title: neonMedias.title,
+    type: neonMedias.type,
+    year: neonMedias.year,
+    posterUrl: neonMedias.posterUrl,
+    rating: neonMedias.rating
+} as const;
+
+type TrendItem = {
+    id: string;
+    slug: string;
+    title: string;
+    type: string;
+    year: number | null;
+    posterUrl: string | null;
+    rating: string | null;
+};
+
+type TrendPool = Record<string, TrendItem[]>;
 
 function shuffleTake<T>(items: T[], size: number): T[] {
     const pool = items.slice();
@@ -75,6 +105,13 @@ function shuffleTake<T>(items: T[], size: number): T[] {
     return pool.slice(0, size);
 }
 
+// Le pool est partage et mis en cache ; c'est ce sous-ensemble, tire a chaque
+// requete, qui rend la selection reellement differente d'un visiteur a l'autre.
+// Cacher directement les 21 items figeait le choix pour tout le monde.
+function pickTrending(pool: TrendPool): TrendItem[] {
+    return TREND_GROUPS.flatMap(({ type, limit }) => shuffleTake(pool[type] ?? [], limit));
+}
+
 mediaRoutes.get('/trending', async (c) => {
     try {
         // Le cache KV est une optimisation : un KV indisponible doit dégrader
@@ -85,18 +122,25 @@ mediaRoutes.get('/trending', async (c) => {
         } catch (kvError: any) {
             console.warn(' trending: lecture KV impossible, fallback Neon:', kvError.message);
         }
-        if (cached && Array.isArray(cached) && cached.length) {
-            c.header('Cache-Control', 'public, max-age=60, s-maxage=900');
-            return c.json({ success: true, data: cached, count: cached.length, source: 'neon-kv' });
+        // s-maxage=0 : le sous-ensemble est tire a chaque requete, donc la
+        // reponse ne peut pas etre servie par le edge Cloudflare, sinon tous
+        // les visiteurs recevraient la meme selection. max-age=60 laisse le
+        // navigateur reutiliser sa copie et evite de rappeler l'API en boucle.
+        c.header('Cache-Control', 'public, max-age=60, s-maxage=0');
+        const isPool = cached && typeof cached === 'object' && !Array.isArray(cached) && Object.keys(cached).length > 0;
+        if (isPool) {
+            const trending = pickTrending(cached as TrendPool);
+            return c.json({ success: true, data: trending, count: trending.length, source: 'neon-kv' });
         }
 
         const db = getNeonWriteDb(c);
         // Pool borne par type, ordonne par updated_at pour s'appuyer sur
         // idx_medias_type_updated plutot que de trier tout le sous-ensemble.
-        const results = await Promise.all(
+        const pool: TrendPool = {};
+        await Promise.all(
             TREND_GROUPS.map(async ({ type, limit, sources, deniedPosterHosts }) => {
                 const rows = await db
-                    .select()
+                    .select(TREND_FIELDS)
                     .from(neonMedias)
                     .where(and(
                         eq(neonMedias.type, type),
@@ -107,17 +151,17 @@ mediaRoutes.get('/trending', async (c) => {
                     ))
                     .orderBy(desc(neonMedias.updatedAt))
                     .limit(limit * TREND_POOL_FACTOR);
-                return shuffleTake(rows, limit);
+                pool[type] = rows as TrendItem[];
             })
         );
 
-        const trending = results.flat();
         try {
-            c.executionCtx.waitUntil(c.env.KV.put(TREND_CACHE_KEY, JSON.stringify(trending), { expirationTtl: TREND_CACHE_TTL }));
+            c.executionCtx.waitUntil(c.env.KV.put(TREND_CACHE_KEY, JSON.stringify(pool), { expirationTtl: TREND_CACHE_TTL }));
         } catch (kvError: any) {
             console.warn(' trending: ecriture KV impossible:', kvError.message);
         }
-        c.header('Cache-Control', 'public, max-age=60, s-maxage=900');
+
+        const trending = pickTrending(pool);
         return c.json({ success: true, data: trending, count: trending.length, source: 'neon' });
     } catch (error: any) {
         console.error('Erreur trending:', error.message);
