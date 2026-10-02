@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { getOverride } from './translate-overrides';
 
 export const SUPPORTED_LANGS = [
   { id: 'french', label: 'Francais' },
@@ -141,6 +142,8 @@ async function viaMyMemory(text: string, lang: LangId): Promise<string | null> {
 }
 
 async function fetchTranslate(text: string, lang: LangId): Promise<string> {
+  const fixed = getOverride(lang, text)
+  if (fixed) return fixed
   const k = `${lang}:${text}`
   if (memo.has(k)) return memo.get(k)!
   try {
@@ -171,11 +174,16 @@ async function fetchTranslate(text: string, lang: LangId): Promise<string> {
 
 export function useT(text: string): string {
   const lang = useLang()
-  const [out, setOut] = useState(text)
+  const fixed = lang === 'french' ? undefined : getOverride(lang, text)
+  const [out, setOut] = useState(() => fixed ?? text)
   useEffect(() => {
     let alive = true
     if (lang === 'french') {
       setOut(text)
+      return
+    }
+    if (fixed) {
+      setOut(fixed)
       return
     }
     fetchTranslate(text, lang).then((v) => {
@@ -184,8 +192,8 @@ export function useT(text: string): string {
     return () => {
       alive = false
     }
-  }, [text, lang])
-  return out
+  }, [text, lang, fixed])
+  return fixed ?? out
 }
 
 export async function setLanguage(lang: LangId): Promise<void> {
