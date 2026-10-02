@@ -1,4 +1,5 @@
 import { listScrapers, ScraperInfo } from '../src/runner';
+import { describeProbe, probeOrigin } from './origin_diagnose';
 
 const TIMEOUT_MS = 10_000;
 
@@ -23,7 +24,16 @@ async function testScraper(info: ScraperInfo): Promise<{ status: string; count: 
     }
     const mangas = result.mangas;
     if (mangas.length === 0) {
-      return { status: 'EMPTY', count: 0 };
+      // Zéro résultat : la seule question utile est « le site existe encore ? ».
+      // La sonde sépare le port cassé du site mort, donc plus besoin de
+      // re-diagnostiquer chaque site vide à la main.
+      const probe = await probeOrigin(instance.baseUrl);
+      // `EMPTY_DEAD` : le site a disparu, le port ne peut plus rien produire et
+      // doit partir au registre. `EMPTY` : le site répond, le sélecteur ne
+      // matche plus et le port est à corriger. Confondre les deux fait soit
+      // garder un fichier mort, soit effacer un port récupérable.
+      const status = probe.verdict === 'DEAD' ? 'EMPTY_DEAD' : 'EMPTY';
+      return { status, count: 0, error: describeProbe(probe) };
     }
     return { status: 'OK', count: mangas.length };
   } catch (err: any) {
@@ -41,9 +51,16 @@ async function testScraper(info: ScraperInfo): Promise<{ status: string; count: 
 }
 
 async function main() {
-  const scrapers = listScrapers();
+  // Filtre optionnel : `tsx tests/batch_test.ts manga comics` pour rejouer
+  // uniquement les scrapers qui matchent. Sans lui, on re-teste les 60+ à chaque
+  // fois qu'on cherche à comprendre un seul port vide.
+  const filters = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+  const all = listScrapers();
+  const scrapers = filters.length
+    ? all.filter((s) => filters.some((f) => s.name.includes(f) || s.filePath.includes(f)))
+    : all;
   const total = scrapers.length;
-  console.log(`Total scrapers found: ${total}\n`);
+  console.log(`Total scrapers found: ${total}${filters.length ? ` (filtre: ${filters.join(', ')})` : ''}\n`);
 
   const results: Record<string, { info: ScraperInfo; status: string; count: number; error?: string }> = {};
   const CONCURRENCY = 20;
@@ -75,16 +92,34 @@ async function main() {
   console.log('\n' + '='.repeat(60));
   for (const [status, items] of Object.entries(grouped).sort()) {
     console.log(`\n${status} (${items.length}):`);
-    if (status === 'EMPTY') {
-      for (const item of items) console.log(`  ${item.name}`);
-    } else if (status === 'OK') {
+    if (status === 'OK') {
       console.log(`  ${items.length} scrapers OK`);
-    } else {
-      for (const item of items) {
-        const r = results[item.name];
-        console.log(`  ${item.name.padEnd(30)} ${r.error ? '— ' + r.error : ''}`);
-      }
+      continue;
     }
+    for (const item of items) {
+      const r = results[item.name];
+      const count = r.count ? ` (${r.count})` : '';
+      console.log(`  ${item.name.padEnd(30)}${count} — ${r.error ?? ''}`);
+    }
+  }
+
+  // Récap : les ports vides ne sont plus interchangeables. « site mort » et
+  // « site bloqué » se corrigent dans SOURCES_NON_SCRAPPABLES.md ; « port à
+  // corriger » est le seul cas qui demande du travail de parsing.
+  const empties = Object.values(results)
+    .filter((r) => r.status === 'EMPTY' || r.status === 'EMPTY_DEAD');
+  // Le statut `EMPTY_DEAD` est authoritaire ; le préfixe du message sert de
+  // filet pour les verdicts non-DEAD (UNKNOWN resteUNKNOWN, pas mort).
+  const dead = empties.filter((r) => r.status === 'EMPTY_DEAD');
+  const blocked = empties.filter((r) => r.error?.startsWith('site bloqué'));
+  const broken = empties.filter((r) => r.status === 'EMPTY' &&
+    r.error?.startsWith('site vivant'));
+  if (empties.length) {
+    console.log(`\nDiagnostic EMPTY (${empties.length}):`);
+    console.log(`  ${dead.length} site mort (port inutile)    : ${dead.map((r) => r.info.name).join(', ') || '-'}`);
+    console.log(`  ${blocked.length} site bloqué (port inutile): ${blocked.map((r) => r.info.name).join(', ') || '-'}`);
+    console.log(`  ${broken.length} port à corriger           : ${broken.map((r) => r.info.name).join(', ') || '-'}`);
+    console.log('  Cf scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md pour les sites morts/bloqués.');
   }
 }
 

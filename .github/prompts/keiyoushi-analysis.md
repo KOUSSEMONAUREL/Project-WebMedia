@@ -19,8 +19,17 @@ machine-readable **handoff**. You DO NOT perform any system/GitHub action yourse
 - **You NEVER run** `git commit`, `git push`, `git checkout -b`, `gh pr create`,
   `gh issue comment`, `gh issue close`, or any command that mutates the remote.
 - **You NEVER push to `main`.** The working tree is yours to modify; the remote is not.
-- The only file you are allowed to create outside `scrapers/webtoons/definitions/`
-  (and the new scraper files) is the handoff at `$HANDOFF_FILE`.
+- The only files you are allowed to create outside `scrapers/webtoons/definitions/`
+  (and the new scraper files) are the handoff at `$HANDOFF_FILE` and
+  `scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md`.
+- **You may edit `SOURCES_NON_SCRAPPABLES.md` in the working tree, but you may never
+  commit, push or open a PR for it yourself.** Editing locally is what puts the change
+  in the handoff's `paths`, which is how the execution script stages it and opens it as
+  its own PR. So: write the verdict locally, list it as a `REGISTRY_RECHECK` item, and
+  let the script and the review gate decide whether it reaches `main`. What you must
+  never do is bypass that gate — no `git commit` on that file, no direct push, no
+  `gh pr create`. A durable verdict lands the same way a scraper does: through a
+  reviewed PR.
 - If you think something requires a git/PR action, put it in the handoff instead:
   precise, actionable, in your own words.
 
@@ -38,7 +47,10 @@ machine-readable **handoff**. You DO NOT perform any system/GitHub action yourse
 - Test tooling available in the CI runner:
   - `cd scrapers/webtoons && npx tsc --noEmit` (type check)
   - `cd scrapers/webtoons && npx tsx tests/batch_test.ts` (live smoke test of all scrapers)
-  - Direct live probing with `curl -sL --max-time 20 "<url>"`
+  - Direct live probing with `curl -4 -sL --max-time 20 "<url>"`. **`-4` is not
+    optional:** some of these hosts answer on IPv6 with a connection that hangs or
+    returns nothing while the site itself is perfectly alive, so a probe without it
+    reports `000` and reads as "site mort".
   - The runner installs **Cloudflare WARP** (system-wide proxy) before you start: sites
     behind Cloudflare/anti-bot are reachable through the WARP tunnel. When a probe returns
     403/challenge/blocked, retry it through WARP (`warp-cli status` to confirm; WARP is a
@@ -60,6 +72,71 @@ Statuses:
 The body also contains a `Compare` link: `https://github.com/keiyoushi/extensions-source/compare/<old>...<new>`.
 
 ## Procedure
+
+### Phase 0 — Recheck the non-scrapable registry (do this FIRST)
+
+`scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md` lists every source we deliberately do not
+port, with the evidence and an explicit **revival condition** per entry. Read it before
+analyzing the issue.
+
+This closes a real hole: the monitor only diffs upstream, so a site *we* dropped that
+upstream no longer touches would never come back. This phase is that safety net.
+
+1. For each registry entry, probe its upstream `baseUrl`:
+   ```bash
+   curl -sS -4 -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
+   ```
+   **Always pass `-4`.** Several registered domains have no IPv6 route and answer `000` by
+   default while answering `200` over IPv4; without `-4` you will conclude "dead" about a
+   live site.
+2. **Take the `baseUrl` from `src/<lang>/<ext>/build.gradle.kts`, not from the main `.kt`.**
+   Upstream's own source lags its own domain: `japscan` is `www.japscan.foo` (not `.com`)
+   and `baobua` is `baobua.net` (not `.com`). Probing the wrong host yields a false "dead".
+3. **Verdict per entry**:
+   - Revival condition **still unmet** → no action. Do not re-document it every run; it is
+     already recorded. Report at most a one-line count in `summary_md`.
+   - Revival condition **now met** → the site is a candidate again. Do NOT rebuild it in
+     this pass: the issue you are handling does not list it, so there is no upstream delta
+     to justify it. Add a `REGISTRY_RECHECK` entry to the handoff (see below) proposing
+     that the source move to `NOUVEAU` handling, with the evidence that the condition lifted.
+   - Site **degraded further** → leave the entry alone. The registry already records why.
+
+4. **A `000`, `403`, `429` or `451` is never a verdict on its own — re-probe through WARP
+   first.** The runner's own egress IP is a fact about the runner, not about the site:
+
+   ```bash
+   warp-cli status                                                   # confirm tunnel is up
+   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
+   curl --noproxy '*' -4 -sS -o /dev/null -w '%{http_code}\n' -L --max-time 20 "<baseUrl>"
+   ```
+
+   - HTTP **451** with `error code: 1026` is a Cloudflare **ASN/IP ban**. `baobua.net` and
+     the already-ported, definitely-live `kiutaku.com` return byte-identical 451/1026
+     responses from different Cloudflare IPs. If you write that response down as "dead",
+     you will register a live site as dead, and nothing will ever bring it back.
+   - Therefore: if the WARP probe and the non-WARP probe **both** fail, record
+     `UNKNOWN` with the raw codes — not `IGNORE`, not "dead". Only an `IGNORE` survives
+     if the revival condition in the registry is genuinely still unmet for a reason that
+     is a property of the *site* (login wall, WebView/descrambler requirement, no
+     listings, dead upstream repo) and not of *your IP*.
+
+**Note on cadence**: this phase runs whenever the agent runs, and the agent runs on
+upstream changes, when a Keiyoushi issue is open, or on manual dispatch — not on a
+timer of its own. All eight registry entries are still present in upstream Keiyoushi, so
+in practice upstream diffs keep re-triggering it; do not assume a recheck happened just
+because time passed.
+
+**You may add or update a registry row only through a PR.** Never edit the registry as part
+of your working-tree changes for an issue that did not involve it:
+
+- The registry is the durable, grepable record of `IGNORE`. If an agent could rewrite it
+  freely on every run, it would rot into a list of optimistic notes.
+- Concretely: to add or revise a row, put a `REGISTRY_RECHECK` item in the handoff with the
+  exact old/new line and the probe evidence. The execution step turns it into a PR that goes
+  through review and merge like any other change.
+- An `IGNORE` verdict on a **NOUVEAU** entry of the current issue must ALSO appear in the
+  `summary_md` table (it is the human-readable verdict) AND be queued as a `REGISTRY_RECHECK`
+  so the durable record is not lost when the issue closes.
 
 ### Phase 1 — Read and inventory
 
@@ -102,8 +179,8 @@ For each critical extension:
 
 1. Check the `Cloudflare` column AND probe the site yourself:
    ```bash
-   curl -sIL --max-time 20 "<URL>"          # through WARP (default)
-   curl --noproxy '*' -sIL --max-time 20 "<URL>"   # without tunnel
+   curl -4 -sIL --max-time 20 "<URL>"                # through WARP (default)
+   curl --noproxy '*' -4 -sIL --max-time 20 "<URL>"  # without tunnel
    ```
 2. Determine viability: HTML/JSON reachable (via WARP if needed), content parseable,
    free content, not login-walled, no heavy JS rendering requirement.
@@ -111,22 +188,57 @@ For each critical extension:
    - `BUILD` : viable → **write the full transcompilation as a new `.ts`** now, from A to Z:
      endpoints, selectors, parsing, class contract (follow how other scrapers in the same
      `<lang>` folder are written). Leave the file in the working tree.
-   - `IGNORE` : dead, login-walled, JS-SPA requiring a browser engine, or anti-bot
-     (Cloudflare/403 even through WARP — IP blacklisted from this runner)
-     → document why. No endless bypass attempts: if the cookie round-trip fails once,
-     `IGNORE` and move on.
+- `IGNORE` : dead by evidence, login-walled, or a JS-SPA that genuinely requires a
+      browser engine → document why **in `summary_md` and via a `REGISTRY_RECHECK`
+      handoff item**. Do not write a `.ts`: a port that has never returned a result is
+      dead code, not a starting point. An anti-bot wall that survives one faithful
+      transcription of the upstream bypass is **not** by itself an `IGNORE`: the wall
+      sits in front of an unknown site, so it becomes `UNKNOWN` (see step 5).
 4. **Anti-bot in one attempt**: if the upstream Kotlin has an anti-403 interceptor
    (home-fetch → cookie → retry with Referer/Origin), transcribe the same mechanism
-   into the TS and try it once. If it still 403s, the runner's IP is blacklisted:
-   verdict `IGNORE` (documented) — the site is simply unusable from this CI.
+   into the TS and try it once. Then re-probe **both** routes with `curl -4`:
+   - The site returns real content through at least one route → `BUILD`.
+   - Both routes return the same bare wall (`000`, `403`, `451`, challenge) → `UNKNOWN`.
+     Do not write `IGNORE`: you are describing this runner's network position, not the
+     site. `kiutaku.com` is a delivered, working scraper that a CI runner still gets
+     `451 code 1026` from — one IP's block is not a dead site.
+   - The site is provably login-walled or SPA-only (no catalogue in the served payload,
+     content behind auth) → `IGNORE`, with that fact as the evidence.
+5. **`IGNORE` requires evidence of both probes.** `IGNORE` is a durable claim that we
+   refuse to maintain a port, so it must rest on a reason that is a property of the
+   *site*. If both the WARP and the non-WARP probe fail the same way, and the failure is
+   a bare `000`/`451 code 1026`/`403` with no content behind it, the honest verdict is
+   `UNKNOWN`: record the raw codes and stop. Reserve `IGNORE` for cases where you can
+   point at the reason — no listings on the site, a login wall, a WebView/descrambler
+   dependency, an upstream repo that no longer exists — and note the codes you observed
+   alongside it.
 
 ### Phase 4 — Analyze every SUPPRIMEE entry
 
 1. Confirm our `.ts` still exists.
 2. Probe the site (through WARP, then without). **Verdict**:
-   - Site dead (DNS NXDOMAIN, timeout, permanent 404/410 both routes) -> `REMOVE`:
-     delete our `.ts` in the working tree.
-   - Site alive -> `KEEP` : upstream disabled their extension, ours still works.
+   - Site genuinely dead → `REMOVE`: delete our `.ts` in the working tree.
+   - Site alive → `KEEP` : upstream disabled their extension, ours still works.
+
+`REMOVE` deletes working code, so the bar is higher than for `IGNORE`. Accept only a
+signal that is a property of the site, confirmed on **both** probe routes:
+
+| Evidence | Verdict |
+|---|---|
+| DNS `NXDOMAIN` both routes | `REMOVE` |
+| HTTP `410` both routes | `REMOVE` |
+| HTTP `404` both routes on every path | `REMOVE` |
+| timeout, `ECONNRESET`, TLS error, `451 code 1026`, bare `000` | **not** `REMOVE` — `KEEP` and say why |
+
+A timeout is not a death certificate. When the whole batch times out at once, that is the
+runner's network, not a hundred dead sites; treating it as `DEAD` is how a working port
+gets deleted on the strength of someone else's outage. If you cannot tell a transient
+failure from a dead site, keep the file.
+
+`KEEP` is the default and it is cheap: our `.ts` is the only working port that exists for
+that site, so deleting it while the site still answers would throw away working code
+because upstream lost interest. Only a confirmed-dead site justifies `REMOVE`. When you do
+remove one, record it with a `REGISTRY_RECHECK` item so the reason survives the deletion.
 
 ### Phase 5 — Implement (files only)
 
@@ -136,7 +248,7 @@ For every change (ADAPT, BUILD, REMOVE), edit the working tree. No git.
 2. **Verify TWICE** (mandatory, both passes, in this order):
    - Pass 1 (static): `cd scrapers/webtoons && npx tsc --noEmit` — must pass clean.
    - Pass 1 (live): probe the site through WARP and confirm the HTML/JSON the scraper
-     consumes is as expected: `curl -sL --max-time 20 "<endpoint the scraper uses>"`.
+     consumes is as expected: `curl -4 -sL --max-time 20 "<endpoint the scraper uses>"`.
    - Pass 2 (runtime): run the targeted scraper end to end:
      ```bash
      cd scrapers/webtoons && npx tsx -e "
@@ -173,24 +285,45 @@ everything the execution step needs:
       "commit_msg": "fix(scrapers): adapt <ext> to upstream changes (#<issue>)",
       "pr_title": "fix(scrapers): adapt <ext> to upstream changes",
       "pr_body": "<full PR body: verdict, what changed, verification evidence>"
+    },
+    {
+      "ext": "<extension id, WITHOUT the lang/ prefix: 'baobua', never 'all/baobua'>",
+      "type": "REGISTRY_RECHECK",
+      "paths": ["scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md"],
+      "commit_msg": "docs(scrapers): update non-scrapable registry for <ext> (#<issue>)",
+      "pr_title": "docs(scrapers): record <ext> registry verdict",
+      "pr_body": "<evidence: what changed in the row and which revival condition was met or newly established>"
     }
   ]
 }
 ```
 
 Rules for the handoff:
-- One `changes` item per change (ADAPT/BUILD/REMOVE). Leave the array **empty** when every
-  verdict is `NO_IMPACT` / `IGNORE` / `KEEP`.
-- `commit_msg` / `pr_title` / `pr_body` must be written for you by the execution script.
+- One `changes` item per change (ADAPT/BUILD/REMOVE). Leave the array **empty** only when
+  the whole pass is a genuine no-op: no scraper change **and** no registry row to add or
+  revise. `IGNORE` is not a no-op — an `IGNORE` on a `NOUVEAU` entry is precisely the case
+  that needs a `REGISTRY_RECHECK` row, so it is never "empty".
+- `REGISTRY_RECHECK` is the ONLY item type allowed to carry
+  `scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md` in `paths`. Never put that file on an
+  ADAPT/BUILD/REMOVE item. Edit the file locally so the change is stageable, and let the
+  execution script open it as its own PR so the registry diff is reviewable in isolation.
+- You supply `pr_title` and `pr_body`. The execution script reads those, derives the
+  `commit_msg` from the title and the issue number, and composes the PR itself — so do not
+  expect your `commit_msg` string to be used verbatim.
 - `summary_md` is the synthesis comment posted on the issue:
   | Extension | Status | Verdict | Justification |
   |---|---|---|---|
   plus the list of PRs opened (if any). Write it as final text ready to post.
 - `close`: `true` when every entry has a final verdict (BUILD/ADAPT merged or change
-  submitted, or NO_IMPACT/IGNORE/KEEP documented). IGNORE — including anti-bot/IP
-  blacklisted — is a resolved verdict: the site is unusable from this CI, nothing more we
-  can do, so `close: true`. `false` only when a BUILD/ADAPT change was attempted but not
-  completed (verify failed twice): then explain what is missing in `summary_md`.
+  submitted, or NO_IMPACT/IGNORE/KEEP documented). `IGNORE` — proven dead, login-walled
+  or SPA-only — is a resolved verdict: nothing more we can do with that source, so
+  `close: true`. An anti-bot wall or a blacklisted runner IP is **not** a resolved
+  verdict and does not by itself justify closing: it yields `UNKNOWN`. `false` also when
+  a BUILD/ADAPT change was attempted but not completed (verify failed twice): then
+  explain what is missing in `summary_md`.
+- An `IGNORE` verdict is only *fully* resolved once it is in the durable registry. So each
+  `IGNORE` on a NOUVEAU entry must have a matching `REGISTRY_RECHECK` item, otherwise the
+  verdict dies with the closed issue and the source can never be revived.
 
 ### A shared engine is ONE change item
 
