@@ -93,6 +93,16 @@ function decodeEntities(input: string): string {
   return input.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => ENTITIES[m] ?? m)
 }
 
+function sanitize(input: string): string {
+  return decodeEntities(
+    input
+      .replace(/<[^>]*>/g, '')
+      .replace(/&[a-z]+;|&#\d+;/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
+}
+
 async function viaGoogle(text: string, lang: LangId): Promise<string | null> {
   const code = GOOGLE_CODE[lang] || 'en'
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=fr&tl=${encodeURIComponent(code)}&dt=t&q=${encodeURIComponent(text)}`
@@ -100,8 +110,8 @@ async function viaGoogle(text: string, lang: LangId): Promise<string | null> {
   if (!r.ok) throw new Error(`google ${r.status}`)
   const j: any = await r.json()
   if (!Array.isArray(j?.[0])) throw new Error('google payload')
-  const out = j[0].map((x: any) => x?.[0] ?? '').join('')
-  if (!out.trim()) throw new Error('google empty')
+  const out = sanitize(j[0].map((x: any) => x?.[0] ?? '').join(''))
+  if (!out) throw new Error('google empty')
   return out
 }
 
@@ -112,7 +122,9 @@ async function viaBackend(text: string, lang: LangId): Promise<string | null> {
   if (!r.ok) throw new Error(`backend ${r.status}`)
   const j: any = await r.json()
   if (typeof j?.translated !== 'string' || !j.translated.trim()) throw new Error('backend payload')
-  return j.translated
+  const out = sanitize(j.translated)
+  if (!out) throw new Error('backend empty')
+  return out
 }
 
 async function viaMyMemory(text: string, lang: LangId): Promise<string | null> {
@@ -121,9 +133,11 @@ async function viaMyMemory(text: string, lang: LangId): Promise<string | null> {
   const r = await fetch(url)
   if (!r.ok) throw new Error(`mymemory ${r.status}`)
   const j: any = await r.json()
-  const out = j?.responseData?.translatedText
-  if (typeof out !== 'string' || !out.trim()) throw new Error('mymemory payload')
-  return decodeEntities(out)
+  const raw = j?.responseData?.translatedText
+  if (typeof raw !== 'string' || !raw.trim()) throw new Error('mymemory payload')
+  const out = sanitize(raw)
+  if (!out) throw new Error('mymemory empty')
+  return out
 }
 
 async function fetchTranslate(text: string, lang: LangId): Promise<string> {

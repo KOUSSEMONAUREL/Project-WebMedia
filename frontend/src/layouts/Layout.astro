@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { Navbar } from '../components/Navbar';
 import { CookieBanner } from '../components/CookieBanner';
+import { Footer } from '../components/Footer';
 import { VerificationBanner } from '../components/VerificationBanner';
 import { ToastInit } from '../components/ToastInit';
 import ClientRouter from 'astro/components/ClientRouter.astro';
@@ -73,46 +74,7 @@ const {
         <main class="flex-1 pt-[74px]">
             <slot />
         </main>
-        <footer class="border-t border-border/30 mt-16">
-            <div class="max-w-7xl mx-auto px-4 py-12">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-                    <div class="md:col-span-2">
-                        <h4 class="text-sm font-semibold mb-3 text-foreground">Qui sommes-nous</h4>
-                        <p class="text-xs text-muted-foreground leading-relaxed max-w-md">
-                            WebMediia est un annuaire de streaming gratuit référençant des films, séries, animes, mangas, webtoons, jeux, livres et light novels.
-                        </p>
-                        <p class="text-[11px] text-muted-foreground/50 mt-3 leading-relaxed max-w-md">
-                            WebMediia n'héberge pas les contenus. Pour toute réclamation, veuillez contacter la plateforme d'hébergement concernée.
-                        </p>
-                    </div>
-                    <div>
-                        <h4 class="text-sm font-semibold mb-3 text-foreground">Liens utiles</h4>
-                        <ul class="space-y-2">
-                            <li><a href="/" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Accueil</a></li>
-                            <li><a href="/about" class="text-xs text-muted-foreground hover:text-foreground transition-colors">À propos</a></li>
-                            <li><a href="/legal" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Mentions légales</a></li>
-                            <li><a href="/contact" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Contact</a></li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 class="text-sm font-semibold mb-3 text-foreground">Catégories</h4>
-                        <ul class="space-y-2">
-                            <li><a href="/type/film" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Films</a></li>
-                            <li><a href="/type/serie" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Séries</a></li>
-                            <li><a href="/type/anime" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Animes</a></li>
-                            <li><a href="/type/jeu" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Jeux</a></li>
-                            <li><a href="/type/book" class="text-xs text-muted-foreground hover:text-foreground transition-colors">Livres & Light Novels</a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            <div class="border-t border-border/20 px-4 py-5">
-                <div class="max-w-7xl mx-auto flex items-center justify-center gap-2">
-                    <span class="text-sm font-semibold text-foreground">WebMediia</span>
-                    <span class="text-xs text-muted-foreground">© 2026 Tous droits réservés</span>
-                </div>
-            </div>
-        </footer>
+        <Footer client:load />
     </body>
     <CookieBanner client:visible />
     <ToastInit client:only="react" />
