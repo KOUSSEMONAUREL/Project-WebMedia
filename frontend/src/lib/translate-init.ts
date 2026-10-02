@@ -1,3 +1,5 @@
+import { useEffect, useState, useSyncExternalStore } from 'react';
+
 export const SUPPORTED_LANGS = [
   { id: 'french', label: 'Francais' },
   { id: 'english', label: 'English' },
@@ -19,45 +21,33 @@ export const SUPPORTED_LANGS = [
 type LangId = (typeof SUPPORTED_LANGS)[number]['id']
 
 const STORAGE_KEY = 'webmedia_lang'
-const CACHE_KEY = 'webmedia_trans_page'
-const CDN = 'https://res.zvo.cn/translate/translate.js'
 
-const BROWSER_LANG_MAP: Record<string, LangId> = {
-  'en': 'english',
-  'fr': 'french',
-  'es': 'spanish',
-  'de': 'german',
-  'it': 'italian',
-  'pt': 'portuguese',
-  'ja': 'japanese',
-  'ko': 'korean',
-  'zh': 'chinese_simplified',
-  'ru': 'russian',
-  'ar': 'arabic',
-  'nl': 'dutch',
-  'pl': 'polish',
-  'tr': 'turkish',
-  'sv': 'swedish',
+const listeners = new Set<() => void>()
+function emitLang() {
+  listeners.forEach((l) => l())
 }
 
-let loaded = false
-let loading: Promise<void> | null = null
-let configured = false
-let lastHash = ''
-let lastLang = ''
+function subscribeLang(cb: () => void) {
+  listeners.add(cb)
+  return () => {
+    listeners.delete(cb)
+  }
+}
+
+function getLangSnapshot(): LangId {
+  return getStoredLang()
+}
+
+function getLangServerSnapshot(): LangId {
+  return 'french'
+}
+
+export function useLang(): LangId {
+  return useSyncExternalStore(subscribeLang, getLangSnapshot, getLangServerSnapshot)
+}
 
 function hasStoredLang(): boolean {
   return localStorage.getItem(STORAGE_KEY) !== null
-}
-
-function detectBrowserLang(): LangId | null {
-  try {
-    const raw = navigator.language || (navigator as any).languages?.[0] || ''
-    const code = raw.split('-')[0].toLowerCase()
-    return BROWSER_LANG_MAP[code] || null
-  } catch {
-    return null
-  }
 }
 
 export function getStoredLang(): LangId {
@@ -69,95 +59,55 @@ export function getCurrentLang(): LangId {
   return getStoredLang()
 }
 
-function pageHash(): string {
-  const main = document.querySelector('main')
-  if (!main) return location.pathname
-  const text = main.textContent || ''
-  const len = text.length
-  const start = text.slice(0, 100)
-  const end = text.slice(Math.max(0, len - 100))
-  const mid = text.slice(Math.floor(len / 2) - 50, Math.floor(len / 2) + 50)
-  let h = 0
-  for (const c of start + mid + end + len.toString()) {
-    h = ((h << 5) - h + c.charCodeAt(0)) | 0
-  }
-  return location.pathname + ':' + h
-}
+const memo = new Map<string, string>()
 
-function getCache(): Record<string, string> {
+async function fetchTranslate(text: string, lang: LangId): Promise<string> {
+  const k = `${lang}:${text}`
+  if (memo.has(k)) return memo.get(k)!
   try {
-    return JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
-
-function setCache(url: string, hash: string): void {
-  try {
-    const c = getCache()
-    c[url] = hash
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(c))
+    const ls = localStorage.getItem(`wmt:${k}`)
+    if (ls) {
+      memo.set(k, ls)
+      return ls
+    }
   } catch {}
+  const base = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
+  const url = `${base}/api/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
+  let out = text
+  try {
+    const r = await fetch(url)
+    const j: any = await r.json()
+    if (j?.translated) out = j.translated
+  } catch {}
+  memo.set(k, out)
+  try {
+    localStorage.setItem(`wmt:${k}`, out)
+  } catch {}
+  return out
 }
 
-function isCached(url: string, hash: string): boolean {
-  return getCache()[url] === hash
-}
-
-function loadScript(): Promise<void> {
-  if (loading) return loading
-  loading = new Promise((resolve) => {
-    if (window.translate?.version) {
-      loaded = true
-      resolve()
+export function useT(text: string): string {
+  const lang = useLang()
+  const [out, setOut] = useState(text)
+  useEffect(() => {
+    let alive = true
+    if (lang === 'french') {
+      setOut(text)
       return
     }
-    ;(window as any).translateAutoExecute = false
-    ;(window as any).translateSelectLanguage = 'french'
-    const s = document.createElement('script')
-    s.src = CDN
-    s.async = true
-    s.onload = () => { loaded = true; resolve() }
-    s.onerror = () => { console.warn('[translate] CDN failed'); resolve() }
-    document.head.appendChild(s)
-  })
-  return loading
-}
-
-function execute(lang: string, delay: number): void {
-  const before = pageHash()
-  if (lang === lastLang && before === lastHash) return
-  if (isCached(location.pathname, before)) return
-  lastLang = lang
-  lastHash = before
-  setTimeout(() => {
-    configureOnce()
-    const t = window.translate
-    if (!t) return
-    t.to = lang
-    t.execute()
-    setCache(location.pathname, pageHash())
-  }, delay)
+    fetchTranslate(text, lang).then((v) => {
+      if (alive) setOut(v)
+    })
+    return () => {
+      alive = false
+    }
+  }, [text, lang])
+  return out
 }
 
 export async function setLanguage(lang: LangId): Promise<void> {
-  if (lang === 'french') {
-    localStorage.setItem(STORAGE_KEY, 'french')
-    location.reload()
-    return
-  }
   localStorage.setItem(STORAGE_KEY, lang)
-  if (!loaded) await loadScript()
-  execute(lang, loaded ? 50 : 400)
-}
-
-function configureOnce(): void {
-  if (configured || !window.translate) return
-  const t = window.translate
-  t.language.setLocal('french')
-  t.selectLanguageTag.show = false
-  t.service.use('client.edge')
-  configured = true
+  emitLang()
 }
 
 let bootstrapped = false
@@ -165,39 +115,10 @@ let bootstrapped = false
 export function bootstrapTranslate(): void {
   if (bootstrapped) return
   bootstrapped = true
+  try {
+    sessionStorage.removeItem('webmedia_trans_page')
+  } catch {}
   if (!hasStoredLang()) {
     localStorage.setItem(STORAGE_KEY, 'french')
   }
-  const stored = getStoredLang()
-  if (stored !== 'french') {
-    loadScript().then(() => {
-      setTimeout(() => execute(stored, 600), 500)
-    })
-  }
-  window.addEventListener('pageshow', (e) => {
-    lastHash = ''
-    lastLang = ''
-    if (e.persisted) {
-      const lang = getStoredLang()
-      if (lang !== 'french') {
-        loadScript().then(() => execute(lang, 400))
-      }
-    }
-  })
-  document.addEventListener('astro:after-swap', () => {
-    lastHash = ''
-    lastLang = ''
-    sessionStorage.removeItem(CACHE_KEY)
-    if (window.translate) {
-      window.translate.nodeHistory = {}
-      window.translate.nodeQueue = {}
-    }
-    const lang = getStoredLang()
-    if (lang === 'french') return
-    if (!loaded) {
-      loadScript().then(() => execute(lang, 100))
-    } else {
-      execute(lang, 100)
-    }
-  })
 }

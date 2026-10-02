@@ -1,6 +1,7 @@
 import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
 import { ChevronRight } from 'lucide-react';
+import { useT } from '@/lib/translate-init';
 
 interface MediaGridProps {
   title: string;
@@ -13,19 +14,21 @@ interface MediaGridProps {
 export function MediaGrid({ title, items, viewAllHref, minCards, size = 'normal' }: MediaGridProps) {
   const placeholders = minCards ? Math.max(0, minCards - items.length) : 0;
   const isLarge = size === 'large';
+  const titleText = useT(title);
+  const seeAll = useT('Voir tout');
 
   return (
     <section className="py-6 sm:py-8 lg:py-10">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-[16px] md:text-[18px] font-display font-bold text-foreground tracking-tight">
-          {title}
+          {titleText}
         </h2>
         {viewAllHref && (
           <a
             href={viewAllHref}
             className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-primary transition-colors group"
           >
-            Voir tout
+            {seeAll}
             <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
           </a>
         )}

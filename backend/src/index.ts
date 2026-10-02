@@ -14,6 +14,7 @@ import reviewRoutes from './routes/reviews';
 import staticRoutes from './routes/static';
 import internalRoutes from './routes/internal';
 import adminRoutes from './routes/admin';
+import translateRoutes from './routes/translate';
 
 // Types pour les bindings Cloudflare
 type Bindings = {
@@ -170,6 +171,7 @@ app.route('/api/reviews', reviewRoutes);
 app.route('/api/static', staticRoutes);
 app.route('/api/internal', internalRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/translate', translateRoutes);
 
 // Health check (redirect if Accept is text/html, e.g. OAuth fallback)
 app.get('/', (c) => {

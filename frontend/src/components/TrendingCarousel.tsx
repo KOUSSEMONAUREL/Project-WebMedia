@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
+import { useT } from '@/lib/translate-init';
 
 const TYPE_ORDER = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel'] as const;
 
@@ -44,6 +45,7 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
   const doubled = useMemo(() => [...ordered, ...ordered], [ordered]);
   const containerRef = useRef<HTMLUListElement>(null);
   const [paused, setPaused] = useState(false);
+  const reco = useT('Recommandations');
   const isDraggingRef = useRef(false);
   const dragStartX = useRef(0);
   const dragScrollX = useRef(0);
@@ -79,14 +81,14 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
     <section className="py-6 sm:py-8 lg:py-10 overflow-hidden" style={{ maskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-2">
         <h2 className="text-[16px] md:text-[18px] font-display font-bold text-foreground tracking-tight">
-          Recommandations
+          {reco}
         </h2>
       </div>
 
       <ul
         ref={containerRef}
         role="list"
-        aria-label="Recommandations"
+        aria-label={reco}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}

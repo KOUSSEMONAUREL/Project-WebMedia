@@ -10,6 +10,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { bootstrapTranslate } from '@/lib/translate-init';
 import { NavbarSearch } from './NavbarSearch';
 import { MobileMenu } from './MobileMenu';
+import { T } from './T';
 
 const PAGE_URL = typeof window !== 'undefined' ? window.location.href : '(ssr)';
 
@@ -269,7 +270,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                       textShadow: pathname === link.href ? '0 0 12px rgba(59,130,246,0.35)' : 'none',
                     }}
                   >
-                    {link.label}
+                    <T>{link.label}</T>
                   </span>
                 </a>
               ))}

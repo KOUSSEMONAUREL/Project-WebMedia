@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { Media } from '@/lib/api';
 import { optimizePosterUrl, posterSrcSet } from '@/lib/image';
 import { isFavorite, addFavorite, removeFavorite, isInWatchlist, addToWatchlist, removeFromWatchlist } from '../lib/indexeddb';
+import { useT } from '@/lib/translate-init';
 
 const typeLabel: Record<string, string> = {
   film:    'Film',
@@ -117,6 +118,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
 
   const [isFav, setIsFav] = useState(false);
   const [isWl, setIsWl] = useState(false);
+  const details = useT('Détails');
 
   useEffect(() => {
     let active = true;
@@ -278,7 +280,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
             style={{ background: 'linear-gradient(135deg, #60a5fa, #3b82f6)' }}
           >
             <Play className="h-3 w-3 fill-current" />
-            Détails
+            {details}
           </button>
           <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
             <button
