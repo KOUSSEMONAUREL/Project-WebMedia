@@ -2,14 +2,27 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 /**
- * Transcompilation of keiyoushi `all/jjcos` (JJCOS.kt + Dto.kt).
+ * Transcompilation de keiyoushi `all/jjcos` (JJCOS.kt).
  *
- * Cosplay gallery source. The catalogue is the JSON index at
- * `/api/index.html?page=N` (`{ posts: [{ title, link, feature, content }] }`);
- * pagination is applied client-side with PAGE_SIZE 20 and search filters
- * title/content client-side. Each post is a single "Gallery" chapter whose
- * pages are `#post-content img` (+ article variants).
+ * L'index est un dump JSON (`/api/index.html?page=N&query=...`) renvoyant tous
+ * les posts ; la pagination (`PAGE_SIZE = 20`) et le filtrage par `query` sont
+ * appliqués côté client, comme dans le Kt. `supportsLatest = false` :
+ * getLatest lève une exception.
+ *
+ * Divergences volontaires par rapport à l'extension Kt originale :
+ * - `getMangaByUrl` (entrée par URL hors catalogue) n'existe pas dans le
+ *   moteur TS : la normalisation d'URL est conservée dans le port (même
+ *   `linkToEncodedPath` / `normalizePath`), la garde d'hôte est retirée.
+ * - Les filtres de recherche (aucun dans cette source) sont retirés.
+ * - La date de chapitre ne peut pas être zéro (Kt `date_upload = 0L` quand
+ *   non parsable) : `undefined` est utilisé.
  */
+
+const PAGE_SIZE = 20;
+
+interface IndexDto {
+  posts: PostDto[];
+}
 
 interface PostDto {
   title: string;
@@ -19,13 +32,19 @@ interface PostDto {
   dateFormat?: string | null;
 }
 
-interface IndexDto {
-  posts: PostDto[];
+function isIndexDto(value: unknown): value is IndexDto {
+  if (typeof value !== 'object' || value === null) return false;
+  const posts = (value as Record<string, unknown>).posts;
+  return Array.isArray(posts) && posts.every(isPostDto);
 }
 
-const PAGE_SIZE = 20;
+function isPostDto(value: unknown): value is PostDto {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.title === 'string' && typeof v.link === 'string';
+}
 
-export class JjcosScraper extends BaseScraper {
+export class JJCOSScraper extends BaseScraper {
   readonly name = 'JJCOS';
   readonly baseUrl = 'https://jjcos.com';
   readonly lang = 'all';
@@ -35,154 +54,170 @@ export class JjcosScraper extends BaseScraper {
     return this.toMangasPage(posts, page);
   }
 
-  async getLatest(): Promise<SearchResult> {
-    throw new Error('getLatest is not supported by JJCOS');
+  async getLatest(_page: number = 1): Promise<SearchResult> {
+    throw new Error(`${this.name}: getLatest() not supported`);
   }
 
   async getSearch(query: string, page: number = 1): Promise<SearchResult> {
-    const posts = await this.fetchIndex(page, query.trim() || undefined);
-    const term = query.trim().toLowerCase();
-    if (!term) return this.toMangasPage(posts, page);
-    const filtered = posts.filter(
-      p =>
-        p.title.toLowerCase().includes(term) ||
-        (p.content ?? '').toLowerCase().includes(term),
-    );
-    return this.toMangasPage(filtered, page);
+    const posts = await this.fetchIndex(page, query);
+    const trimmedQuery = query.trim();
+    const filteredPosts = trimmedQuery.length === 0
+      ? posts
+      : posts.filter(post =>
+          post.title.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
+          (post.content?.toLowerCase().includes(trimmedQuery.toLowerCase()) ?? false),
+        );
+    return this.toMangasPage(filteredPosts, page);
   }
 
   private async fetchIndex(page: number, query?: string): Promise<PostDto[]> {
-    const params = new URLSearchParams({ page: String(page) });
-    if (query) params.set('query', query);
-    const res = await this.get(`${this.baseUrl}/api/index.html?${params.toString()}`);
-    const data = res.data as IndexDto;
-    return Array.isArray(data?.posts) ? data.posts : [];
+    const url = new URL(`${this.baseUrl}/api/index.html`);
+    url.searchParams.set('page', String(page));
+    if (query !== undefined && query.trim().length > 0) {
+      url.searchParams.set('query', query);
+    }
+    const res = await this.get(url.toString());
+    if (!isIndexDto(res.data)) {
+      throw new Error(`${this.name}: unexpected index payload`);
+    }
+    return res.data.posts;
   }
 
   private toMangasPage(posts: PostDto[], page: number): SearchResult {
-    const start = (Math.max(1, page) - 1) * PAGE_SIZE;
-    if (start >= posts.length) return { mangas: [], hasNextPage: false };
-    const end = Math.min(posts.length, start + PAGE_SIZE);
-    const mangas: Manga[] = posts.slice(start, end).map(p => ({
-      title: p.title.trim(),
-      url: this.linkToPath(p.link),
-      thumbnailUrl: p.feature ?? '',
-      lang: this.lang,
+    const startIndex = (Math.max(page, 1) - 1) * PAGE_SIZE;
+    if (startIndex >= posts.length) {
+      return { mangas: [], hasNextPage: false };
+    }
+    const endIndexExclusive = Math.min(posts.length, startIndex + PAGE_SIZE);
+    const mangas = posts.slice(startIndex, endIndexExclusive).map(post =>
+      this.toSManga(post, this.linkToEncodedPath(post.link)),
+    );
+    return { mangas, hasNextPage: endIndexExclusive < posts.length };
+  }
+
+  private toSManga(post: PostDto, encodedPath: string): Manga {
+    return {
+      title: post.title.trim(),
+      url: encodedPath,
+      thumbnailUrl: post.feature ?? '',
       status: 0,
-    }));
-    return { mangas, hasNextPage: end < posts.length };
+      lang: this.lang,
+    };
+  }
+
+  private linkToEncodedPath(link: string): string {
+    const sanitized = link.trim().split('?')[0].split('#')[0];
+    const absolute = sanitized.startsWith('http://') || sanitized.startsWith('https://')
+      ? sanitized
+      : sanitized.replace(/\s/g, '%20');
+    const parsed = new URL(absolute.startsWith('/') ? `${this.baseUrl}${absolute}` : absolute);
+    return this.normalizePath(parsed.pathname);
+  }
+
+  private normalizePath(path: string): string {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    const parsed = new URL(`${this.baseUrl}${normalized}`);
+    return parsed.pathname;
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const res = await this.get(this.absUrl(mangaUrl));
-    const $ = this.$(res.data as string);
-    const rawTitle = $('h1.fh5co-article-title').first().text().trim();
-    const title = rawTitle.replace(/ - JJCOS$/, '').trim();
-    const thumbnailUrl =
-      $('#post-content img, article img').first().attr('src') ??
-      $('#post-content img, article img').first().attr('data-src') ??
-      '';
+    const abs = this.absUrl(mangaUrl);
+    const res = await this.get(abs);
+    const postPath = this.finalPathname(res, abs);
+    const $ = this.$(res.data);
+
+    const rawTitle = $('h1.fh5co-article-title')
+      .first()
+      .text()
+      .replace(/ - JJCOS$/, '')
+      .trim();
+
+    const thumbnail = $('#post-content img, article img').first().attr('src');
+
     const genre = $('.tag-container a.tag')
-      .toArray()
-      .map(a => $(a).text().replace(/^#/, '').trim())
-      .filter(Boolean)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .map((_i, el) => $(el).text().replace(/^#/, '').trim())
+      .get()
+      .filter((t) => t.length > 0)
+      .filter((t, i, arr) => arr.indexOf(t) === i)
       .join(', ');
+
     return {
-      title: title || undefined,
-      url: this.normalizePath(mangaUrl),
-      thumbnailUrl: thumbnailUrl ? this.absUrl(thumbnailUrl) : '',
-      lang: this.lang,
-      genre: genre || undefined,
+      title: rawTitle.length > 0 ? rawTitle : undefined,
+      url: postPath,
+      thumbnailUrl: thumbnail ? this.absUrl(thumbnail) : undefined,
+      genre: genre.length > 0 ? genre : undefined,
       status: 0,
+      lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const res = await this.get(this.absUrl(mangaUrl));
-    const finalPath = this.responsePath(res, mangaUrl);
-    const $ = this.$(res.data as string);
-    const rawDate =
-      $('meta[property="article:published_time"]').first().attr('content') ??
-      $('.breadcrumb-item.date-overlay').first().text().trim() ??
-      '';
-    return [
-      {
-        name: 'Gallery',
-        url: this.normalizePath(finalPath),
-        ...(this.parseDate(rawDate) !== undefined ? { dateUpload: this.parseDate(rawDate) as number } : {}),
-      },
-    ];
+    const abs = this.absUrl(mangaUrl);
+    const res = await this.get(abs);
+    const postPath = this.finalPathname(res, abs);
+    const $ = this.$(res.data);
+
+    const dateText =
+      $('meta[property="article:published_time"]').attr('content') ??
+      $('.breadcrumb-item.date-overlay').first().text();
+
+    const chapter: Chapter = {
+      url: this.normalizePath(postPath),
+      name: 'Gallery',
+    };
+    const dateUpload = this.parseDate(dateText);
+    if (dateUpload !== undefined) chapter.dateUpload = dateUpload;
+    return [chapter];
+  }
+
+  private finalPathname(res: unknown, fallback: string): string {
+    const url = (res as { request?: { responseURL?: string } }).request?.responseURL;
+    if (url) {
+      try {
+        return new URL(url).pathname;
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      return new URL(fallback).pathname;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private parseDate(rawDate: string | undefined): number | undefined {
+    if (!rawDate) return undefined;
+    const value = rawDate.trim();
+    const dateTime = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
+    if (dateTime) {
+      const [_, y, mo, d, h, mi, s] = dateTime.map(Number);
+      const ms = new Date(Date.UTC(y, mo - 1, d, h, mi, s)).getTime();
+      return Number.isNaN(ms) ? undefined : ms;
+    }
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (dateOnly) {
+      const [_, y, mo, d] = dateOnly.map(Number);
+      const ms = new Date(Date.UTC(y, mo - 1, d)).getTime();
+      return Number.isNaN(ms) ? undefined : ms;
+    }
+    return undefined;
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(this.absUrl(chapterUrl));
-    const $ = this.$(res.data as string);
-    const seen = new Set<string>();
-    const pages: Page[] = [];
-    $('#post-content img, article #post-content img, article p img').each((_, el) => {
+    const $ = this.$(res.data);
+    const imageUrls = new Set<string>();
+    $('#post-content img, article #post-content img, article p img').each((_i, el) => {
       const $img = $(el);
-      const src = ($img.attr('src') || $img.attr('data-src') || '').trim();
-      if (!src || seen.has(this.absUrl(src))) return;
-      seen.add(this.absUrl(src));
-      pages.push({ index: pages.length, imageUrl: this.absUrl(src) });
+      const raw = $img.attr('src') ?? $img.attr('data-src') ?? '';
+      const url = this.absUrl(raw).trim();
+      if (url.length > 0) imageUrls.add(url);
+    });
+    const pages: Page[] = [];
+    imageUrls.forEach((imageUrl) => {
+      pages.push({ index: pages.length, imageUrl });
     });
     return pages;
-  }
-
-  private linkToPath(link: string): string {
-    const sanitized = link.trim().split('?')[0]?.split('#')[0] ?? link;
-    const absolute = /^https?:\/\//i.test(sanitized)
-      ? sanitized
-      : sanitized.startsWith('/')
-        ? `${this.baseUrl}${sanitized}`
-        : `${this.baseUrl}/${sanitized}`;
-    return this.normalizePath(absolute.replace(/ /g, '%20'));
-  }
-
-  private normalizePath(path: string): string {
-    try {
-      const u = new URL(path, this.baseUrl);
-      return u.pathname;
-    } catch {
-      return path.startsWith('/') ? path : `/${path}`;
-    }
-  }
-
-  private responsePath(res: { request?: unknown }, fallback: string): string {
-    try {
-      const req = res.request as {
-        responseURL?: string;
-        res?: { responseUrl?: string };
-        path?: string;
-      };
-      const finalUrl = req?.responseURL ?? req?.res?.responseUrl;
-      if (finalUrl) return new URL(finalUrl).pathname;
-    } catch {
-      // fall through to fallback
-    }
-    return this.normalizePath(fallback);
-  }
-
-  private parseDate(raw: string | undefined): number | undefined {
-    if (!raw) return undefined;
-    const trimmed = raw.trim();
-    if (!trimmed) return undefined;
-    // Upstream tries "yyyy-MM-dd HH:mm:ss" then "yyyy-MM-dd".
-    const dt = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(trimmed);
-    if (dt) {
-      const time = Date.UTC(
-        Number(dt[1]), Number(dt[2]) - 1, Number(dt[3]),
-        Number(dt[4]), Number(dt[5]), Number(dt[6]),
-      );
-      return Number.isNaN(time) ? undefined : time;
-    }
-    const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
-    if (d) {
-      const time = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]));
-      return Number.isNaN(time) ? undefined : time;
-    }
-    const fallback = Date.parse(trimmed);
-    return Number.isNaN(fallback) ? undefined : fallback;
   }
 }
