@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@t
 import { MediaCard } from './MediaCard';
 import { getMediaByType, type Media, type MediaType } from '../lib/api';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from 'lucide-react';
+import { useT } from '@/lib/translate-init';
 
 const PER_PAGE = 20;
 type SortKey = 'created_at' | 'title' | 'rating' | 'year';
@@ -128,12 +129,23 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
 
   const applyFilter = () => setPage(0);
 
+  const titleText = useT(title);
+  const sortBy = useT('Trier');
+  const filterBy = useT('Filtrer');
+  const sortLabels = {
+    created_at: useT('Par defaut'),
+    title: useT('Titre'),
+    rating: useT('Note'),
+    year: useT('Annee'),
+  };
+  const loadError = useT('Erreur de chargement');
+
   const sortLabel = (key: SortKey) => {
-    const labels: Record<SortKey, string> = { created_at: 'Par defaut', title: 'Titre', rating: 'Note', year: 'Annee' };
-    let label = labels[key];
-    if (key === sortKey) label += sortDir === 'asc' ? ' \u2191' : ' \u2193';
+    let label = sortLabels[key];
+    if (key === sortKey) label += sortDir === 'asc' ? ' ↑' : ' ↓';
     return label;
   };
+
 
   const hasActiveFilters = genre || yearMin || yearMax || ratingMin;
   const clearFilters = () => { setGenre(''); setYearMin(''); setYearMax(''); setRatingMin(''); setPage(0); };
@@ -143,20 +155,20 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
       <header className="mb-8">
         <h1 className="text-2xl md:text-3xl font-display font-bold mb-2"
           style={{ background: 'linear-gradient(135deg,#93c5fd,#60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          {title}
+          {titleText}
         </h1>
       </header>
 
       {isError && (
         <div className="glass rounded-2xl p-8 text-center mb-8">
-          <p className="text-destructive font-medium">Erreur de chargement</p>
+          <p className="text-destructive font-medium">{loadError}</p>
         </div>
       )}
 
       {!isPending && items.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-4">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Trier</span>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{sortBy}</span>
             {(['created_at', 'title', 'rating', 'year'] as SortKey[]).map((key) => (
               <button key={key} type="button" onClick={() => handleSort(key)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-transparent ${sortKey === key ? 'bg-primary/12 text-primary border-primary/25' : 'bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.05]'}`}>
@@ -166,7 +178,7 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-xl bg-secondary/20 border border-white/[0.04]">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filtrer</span>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{filterBy}</span>
             <select aria-label="Genre" value={genre} onChange={(e) => { setGenre(e.target.value); setPage(0); }}
               className="rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer outline-none transition-all duration-200"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}>

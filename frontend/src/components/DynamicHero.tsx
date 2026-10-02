@@ -2,8 +2,10 @@ import { ChevronRight } from 'lucide-react';
 import { useT } from '@/lib/translate-init';
 
 export function DynamicHero() {
-  const heroA = useT('Tout le divertissement,');
-  const heroB = useT('un seul endroit.');
+  const full = useT('Tout le divertissement, un seul endroit.');
+  const cut = full.indexOf(',');
+  const heroA = cut > 0 ? full.slice(0, cut + 1) : full;
+  const heroB = cut > 0 ? full.slice(cut + 1).trim() : '';
   return (
     <section className="relative overflow-hidden pt-8 pb-2 sm:pt-12 md:pt-16 md:pb-2 w-full">
       <div

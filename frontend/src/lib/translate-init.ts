@@ -93,6 +93,18 @@ function decodeEntities(input: string): string {
   return input.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => ENTITIES[m] ?? m)
 }
 
+async function viaGoogle(text: string, lang: LangId): Promise<string | null> {
+  const code = GOOGLE_CODE[lang] || 'en'
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=fr&tl=${encodeURIComponent(code)}&dt=t&q=${encodeURIComponent(text)}`
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`google ${r.status}`)
+  const j: any = await r.json()
+  if (!Array.isArray(j?.[0])) throw new Error('google payload')
+  const out = j[0].map((x: any) => x?.[0] ?? '').join('')
+  if (!out.trim()) throw new Error('google empty')
+  return out
+}
+
 async function viaBackend(text: string, lang: LangId): Promise<string | null> {
   const base = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
   const url = `${base}/api/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
@@ -125,12 +137,15 @@ async function fetchTranslate(text: string, lang: LangId): Promise<string> {
     }
   } catch {}
 
+  const engines = [viaGoogle, viaBackend, viaMyMemory]
   let out = text
-  try {
-    out = (await viaBackend(text, lang)) ?? text
-  } catch {
+  for (const engine of engines) {
     try {
-      out = (await viaMyMemory(text, lang)) ?? text
+      const got = await engine(text, lang)
+      if (got && got.trim()) {
+        out = got
+        break
+      }
     } catch {}
   }
   memo.set(k, out)
