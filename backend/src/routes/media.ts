@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton';
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
-import { eq, desc, asc, and, or, like, gte, lte, sql, ne } from 'drizzle-orm';
+import { eq, desc, asc, and, or, like, gte, lte, sql, ne, inArray, isNotNull, notLike } from 'drizzle-orm';
 
 type Bindings = {
     KV: KVNamespace;
@@ -38,31 +38,87 @@ const getNeonWriteDb = (c: any) => {
 };
 
 // ========== GET /api/media/trending ==========
+type TrendGroup = {
+    type: string;
+    limit: number;
+    sources: string[];
+    deniedPosterHosts: string[];
+};
+
+// Une image n'est retenue que si elle vient de la source native du type.
+// Les faux matches cross-sources sont exclus : les 343 webtoons indexes par
+// ComicVine pointent vers des comics occidentaux (souvent le generique
+// wwww.jpg), et Gutenberg n'expose pas de couverture reelle.
+const TREND_GROUPS: TrendGroup[] = [
+    { type: 'film', limit: 4, sources: ['tmdb'], deniedPosterHosts: [] },
+    { type: 'serie', limit: 4, sources: ['tmdb'], deniedPosterHosts: [] },
+    { type: 'anime', limit: 3, sources: ['anilist', 'tmdb'], deniedPosterHosts: [] },
+    { type: 'jeu', limit: 3, sources: ['igdb'], deniedPosterHosts: [] },
+    { type: 'webtoon', limit: 2, sources: ['mangadex'], deniedPosterHosts: ['comicvine'] },
+    { type: 'comic', limit: 2, sources: ['comicvine'], deniedPosterHosts: [] },
+    { type: 'book', limit: 2, sources: ['noslivres', 'openlibrary', 'google-books'], deniedPosterHosts: ['gutenberg'] },
+    { type: 'novel', limit: 1, sources: ['royalroad'], deniedPosterHosts: [] },
+];
+
+const TREND_CACHE_KEY = 'trending:pool:v1';
+const TREND_CACHE_TTL = 900;
+const TREND_POOL_FACTOR = 8;
+
+function shuffleTake<T>(items: T[], size: number): T[] {
+    const pool = items.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = pool[i];
+        pool[i] = pool[j];
+        pool[j] = tmp;
+    }
+    return pool.slice(0, size);
+}
+
 mediaRoutes.get('/trending', async (c) => {
     try {
-        const db = getTursoDb(c);
-        const typeGroups: { type: string; limit: number }[] = [
-            { type: 'movie', limit: 4 },
-            { type: 'serie', limit: 4 },
-            { type: 'anime', limit: 3 },
-            { type: 'jeu', limit: 3 },
-            { type: 'webtoon', limit: 2 },
-            { type: 'comic', limit: 2 },
-            { type: 'book', limit: 2 },
-            { type: 'novel', limit: 1 },
-        ];
+        // Le cache KV est une optimisation : un KV indisponible doit dégrader
+        // vers Neon, jamais casser la page d'accueil.
+        let cached: unknown = null;
+        try {
+            cached = await c.env.KV.get(TREND_CACHE_KEY, 'json');
+        } catch (kvError: any) {
+            console.warn(' trending: lecture KV impossible, fallback Neon:', kvError.message);
+        }
+        if (cached && Array.isArray(cached) && cached.length) {
+            c.header('Cache-Control', 'public, max-age=60, s-maxage=900');
+            return c.json({ success: true, data: cached, count: cached.length, source: 'neon-kv' });
+        }
+
+        const db = getNeonWriteDb(c);
+        // Pool borne par type, ordonne par updated_at pour s'appuyer sur
+        // idx_medias_type_updated plutot que de trier tout le sous-ensemble.
         const results = await Promise.all(
-            typeGroups.map(({ type, limit }) =>
-                db.select()
-                    .from(medias)
-                    .where(eq(medias.type, type))
-                    .orderBy(desc(medias.rating), desc(medias.createdAt))
-                    .limit(limit)
-            )
+            TREND_GROUPS.map(async ({ type, limit, sources, deniedPosterHosts }) => {
+                const rows = await db
+                    .select()
+                    .from(neonMedias)
+                    .where(and(
+                        eq(neonMedias.type, type),
+                        inArray(neonMedias.metadataSource, sources),
+                        isNotNull(neonMedias.posterUrl),
+                        sql`length(btrim(${neonMedias.posterUrl})) > 0`,
+                        ...deniedPosterHosts.map((host) => notLike(neonMedias.posterUrl, `%${host}%`))
+                    ))
+                    .orderBy(desc(neonMedias.updatedAt))
+                    .limit(limit * TREND_POOL_FACTOR);
+                return shuffleTake(rows, limit);
+            })
         );
+
         const trending = results.flat();
-        c.header('Cache-Control', 'public, max-age=60');
-        return c.json({ success: true, data: trending, count: trending.length, source: 'turso' });
+        try {
+            c.executionCtx.waitUntil(c.env.KV.put(TREND_CACHE_KEY, JSON.stringify(trending), { expirationTtl: TREND_CACHE_TTL }));
+        } catch (kvError: any) {
+            console.warn(' trending: ecriture KV impossible:', kvError.message);
+        }
+        c.header('Cache-Control', 'public, max-age=60, s-maxage=900');
+        return c.json({ success: true, data: trending, count: trending.length, source: 'neon' });
     } catch (error: any) {
         console.error('Erreur trending:', error.message);
         return c.json({ success: false, error: 'Erreur lors de la recuperation des tendances' }, 500);
