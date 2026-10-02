@@ -39,7 +39,11 @@ COMMITTER_NAME = "github-actions[bot]"
 COMMITTER_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 
 ENGINE_DIR = "scrapers/webtoons/engine/"
-VALID_TYPES = ("BUILD", "ADAPT", "REMOVE")
+REGISTRY_FILE = "scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md"
+# REGISTRY_RECHECK porte la mise a jour de SOURCES_NON_SCRAPPABLES.md dans son
+# propre groupe (et donc sa propre PR) : un verdict de site engage une decision
+# durable, il ne doit jamais etre commite avec un scraper dans le meme commit.
+VALID_TYPES = ("BUILD", "ADAPT", "REMOVE", "REGISTRY_RECHECK")
 
 
 def safe_ext(ext: str) -> str:
@@ -113,9 +117,60 @@ def group_slug(group: list[dict]) -> str:
 def group_title(group: list[dict]) -> str:
     if len(group) == 1:
         return group[0]["pr_title"]
+    if is_registry_group(group):
+        # Un groupe registre ne porte que SOURCES_NON_SCRAPPABLES.md : le titrer
+        # « fix(scrapers): adapt ... » ment sur la portee et la rattache aux PR
+        # de code, donc un relecteur ne sait pas qu'il doit juger des preuves.
+        exts = ", ".join(safe_ext(c.get("ext", "")) for c in group if c.get("ext"))
+        scope = f" for {exts}" if exts else ""
+        return f"docs(scrapers): update non-scrapable registry{scope}"
     exts = ", ".join(safe_ext(c.get("ext", "")) for c in group)
     verb = "add" if group[0].get("type") == "BUILD" else "adapt"
     return f"{'feat' if verb == 'add' else 'fix'}(scrapers): {verb} {exts}"
+
+
+def is_registry_group(group: list[dict]) -> bool:
+    return any(c.get("type") == "REGISTRY_RECHECK" for c in group)
+
+
+def registry_label(group: list[dict]) -> str:
+    """Etiquette de PR du registre.
+
+    On resume les extensions concernees plutot que d'afficher le chemin du
+    fichier : une PR « docs(sources) » qui nomme `all/baobua, fr/ono` est
+    reviewable en une ligne, la ou un nom de fichier ne dit rien de la portee.
+    """
+    if not is_registry_group(group):
+        # Sans ce garde-fou, un appel sur un groupe de scrapers produirait une
+        # etiquette « SOURCES_NON_SCRAPPABLES » sur une PR de scraping: l'erreur
+        # serait invisible dans la PR, ou pire, elle masquerait une vraie PR de
+        # registre derriere une etiquette de scraper.
+        raise ValueError("registry_label() appele sur un groupe qui n'est pas "
+                         "REGISTRY_RECHECK")
+    exts = [safe_ext(c.get("ext", "")) for c in group if c.get("ext")]
+    if not exts:
+        return "SOURCES_NON_SCRAPPABLES"
+    return f"SOURCES_NON_SCRAPPABLES ({', '.join(exts)})"
+
+
+def split_registry_changes(changes: list[dict]) -> list[list[dict]]:
+    """Isole les changements de registre de ceux des scrapers.
+
+    `group_changes` ne regroupe que par moteur partage, donc un REGISTRY_RECHECK
+    sans chemin moteur tombe deja dans son propre groupe. Mais si l'agent lui
+    donne par erreur un chemin `engine/`, il se retrouve fusionne avec le
+    scraper qui partage ce moteur — et comme un groupe est indivisible, le
+    refus de validation ecarterait aussi le scraper, qui est lui parfaitement
+    valide. On separerait donc les deux plutot que de jetter du travail correct.
+    """
+    registry = [c for c in changes if c.get("type") == "REGISTRY_RECHECK"]
+    others = [c for c in changes if c.get("type") != "REGISTRY_RECHECK"]
+    groups: list[list[dict]] = []
+    if others:
+        groups.extend(group_changes(others))
+    if registry:
+        groups.append(registry)
+    return groups
 
 
 def group_body(group: list[dict]) -> str:
@@ -136,6 +191,61 @@ def group_paths(group: list[dict]) -> list[str]:
             if path not in seen:
                 seen.append(path)
     return seen
+
+
+def validate_group(group: list[dict]) -> list[tuple[str, str]]:
+    """Rend les motifs de rejet d'un groupe indivisible.
+
+    Le registre est un artefact de decision durable, pas du code : il doit
+    voyager seul. La fonction est pure (elle touche le disque uniquement via
+    `os.path.exists`) pour rester testable sans handoff ni branche.
+    """
+    exts = [safe_ext(c.get("ext", "")) for c in group]
+    reasons: list[tuple[str, str]] = []
+    for change in group:
+        ext = safe_ext(change.get("ext", ""))
+        kind = change.get("type")
+        if kind not in VALID_TYPES:
+            reasons.append((ext, f"type inconnu {kind!r} "
+                                 f"(attendu {', '.join(VALID_TYPES)})"))
+            continue
+        paths = change.get("paths") or []
+        missing = [p for p in paths if not os.path.exists(p)]
+        if missing:
+            reasons.append((ext, f"fichiers absents du disque: "
+                                 f"{', '.join(missing)}"))
+        if not paths:
+            reasons.append((ext, "aucun fichier liste"))
+        # Regle symetrique du prompt : REGISTRY_RECHECK est le seul type
+        # autorise a porter le registre, et le registre le seul fichier
+        # qu'il peut porter. Sans ce controle, un chemin `engine/` glisse dans
+        # l'item ferait passer du code .ts dans une PR « registre », et le
+        # verdict de site serait relu comme du code.
+        if kind == "REGISTRY_RECHECK":
+            off_registry = [p for p in paths if p != REGISTRY_FILE]
+            if off_registry:
+                reasons.append((
+                    ext,
+                    f"REGISTRY_RECHECK ne peut porter que {REGISTRY_FILE} "
+                    f"(recu: {', '.join(off_registry)})",
+                ))
+        elif REGISTRY_FILE in paths:
+            reasons.append((
+                ext,
+                f"{kind} ne peut pas porter {REGISTRY_FILE} "
+                f"(seul REGISTRY_RECHECK le peut)",
+            ))
+    # Un verdict de site engage une decision durable: il ne doit jamais
+    # partager une PR avec un scraper, sinon une relecture superficielle du
+    # diff de scraper valide le verdict sans le voir.
+    if is_registry_group(group) and any(
+            c.get("type") != "REGISTRY_RECHECK" for c in group):
+        reasons.append((
+            ", ".join(exts),
+            "REGISTRY_RECHECK ne peut pas etre groupe avec un autre "
+            "type de changement",
+        ))
+    return reasons
 
 
 def run(*args: str, check: bool = True) -> str:
@@ -165,24 +275,12 @@ def main() -> None:
     # liste des PRs n'est jamais ecrite, et tout le cycle est perdu alors
     # que les PRs deja creees etaient valides. On ecarte le changement
     # fautif et on continue, plutot que d'abandonner les autres.
-    groups = group_changes(changes)
+    groups = split_registry_changes(changes)
     skipped: list[str] = []
     usable: list[list[dict]] = []
     for group in groups:
         exts = [safe_ext(c.get("ext", "")) for c in group]
-        reasons: list[tuple[str, str]] = []
-        for change in group:
-            ext = safe_ext(change.get("ext", ""))
-            kind = change.get("type")
-            if kind not in VALID_TYPES:
-                reasons.append((ext, f"type inconnu {kind!r} "
-                                     f"(attendu {', '.join(VALID_TYPES)})"))
-                continue
-            missing = [p for p in change.get("paths", [])
-                       if not os.path.exists(p)]
-            if missing:
-                reasons.append((ext, f"fichiers absents du disque: "
-                                     f"{', '.join(missing)}"))
+        reasons = validate_group(group)
         if reasons:
             # Un groupe est indivisible: si un de ses membres est invalide,
             # toute la PR est ecartee, car une PR autonome ne peut pas
@@ -201,7 +299,8 @@ def main() -> None:
         branch = f"fix/keiyoushi-{ISSUE}-{slug}"
         paths = group_paths(group)
         exts = [safe_ext(c.get("ext", "")) for c in group]
-        label = exts[0] if len(exts) == 1 else f"{exts[0]} (+{len(exts) - 1})"
+        label = registry_label(group) if is_registry_group(group) else (
+            exts[0] if len(exts) == 1 else f"{exts[0]} (+{len(exts) - 1})")
         title = group_title(group)
         commit_msg = f"{title} (#{ISSUE})"
 
