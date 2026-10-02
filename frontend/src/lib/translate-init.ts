@@ -22,6 +22,24 @@ type LangId = (typeof SUPPORTED_LANGS)[number]['id']
 
 const STORAGE_KEY = 'webmedia_lang'
 
+const GOOGLE_CODE: Record<LangId, string> = {
+  french: 'fr',
+  english: 'en',
+  spanish: 'es',
+  german: 'de',
+  italian: 'it',
+  portuguese: 'pt',
+  japanese: 'ja',
+  korean: 'ko',
+  chinese_simplified: 'zh-CN',
+  russian: 'ru',
+  arabic: 'ar',
+  dutch: 'nl',
+  polish: 'pl',
+  turkish: 'tr',
+  swedish: 'sv',
+}
+
 const listeners = new Set<() => void>()
 function emitLang() {
   listeners.forEach((l) => l())
@@ -61,6 +79,41 @@ export function getCurrentLang(): LangId {
 
 const memo = new Map<string, string>()
 
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+  '&nbsp;': ' ',
+}
+
+function decodeEntities(input: string): string {
+  return input.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => ENTITIES[m] ?? m)
+}
+
+async function viaBackend(text: string, lang: LangId): Promise<string | null> {
+  const base = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
+  const url = `${base}/api/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`backend ${r.status}`)
+  const j: any = await r.json()
+  if (typeof j?.translated !== 'string' || !j.translated.trim()) throw new Error('backend payload')
+  return j.translated
+}
+
+async function viaMyMemory(text: string, lang: LangId): Promise<string | null> {
+  const code = GOOGLE_CODE[lang] || 'en'
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(`fr|${code}`)}`
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`mymemory ${r.status}`)
+  const j: any = await r.json()
+  const out = j?.responseData?.translatedText
+  if (typeof out !== 'string' || !out.trim()) throw new Error('mymemory payload')
+  return decodeEntities(out)
+}
+
 async function fetchTranslate(text: string, lang: LangId): Promise<string> {
   const k = `${lang}:${text}`
   if (memo.has(k)) return memo.get(k)!
@@ -71,14 +124,15 @@ async function fetchTranslate(text: string, lang: LangId): Promise<string> {
       return ls
     }
   } catch {}
-  const base = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
-  const url = `${base}/api/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
+
   let out = text
   try {
-    const r = await fetch(url)
-    const j: any = await r.json()
-    if (j?.translated) out = j.translated
-  } catch {}
+    out = (await viaBackend(text, lang)) ?? text
+  } catch {
+    try {
+      out = (await viaMyMemory(text, lang)) ?? text
+    } catch {}
+  }
   memo.set(k, out)
   try {
     localStorage.setItem(`wmt:${k}`, out)
