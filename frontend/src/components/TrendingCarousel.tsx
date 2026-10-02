@@ -1,8 +1,19 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { MediaCard } from './MediaCard';
 import type { Media } from '@/lib/api';
 
 const TYPE_ORDER = ['film', 'serie', 'anime', 'jeu', 'webtoon', 'comic', 'book', 'novel'] as const;
+
+function shuffle<T>(items: T[]): T[] {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+}
 
 function interleave(items: Media[]): Media[] {
   const buckets = new Map<string, Media[]>();
@@ -27,8 +38,10 @@ function interleave(items: Media[]): Media[] {
 }
 
 export function TrendingCarousel({ items }: { items: Media[] }) {
-  const ordered = interleave(items);
-  const doubled = [...ordered, ...ordered];
+  // Memos pour que le melange ne soit pas recalcule sur les renders de
+  // pause/drag, qui rejoueraient la liste pendant l'interaction.
+  const ordered = useMemo(() => interleave(shuffle(items)), [items]);
+  const doubled = useMemo(() => [...ordered, ...ordered], [ordered]);
   const containerRef = useRef<HTMLUListElement>(null);
   const [paused, setPaused] = useState(false);
   const isDraggingRef = useRef(false);
