@@ -338,6 +338,10 @@ def process_jobs():
                             # Filtre AVANT de limiter: avant on prenait les 5
                             # premiers liens de la page sans verifier, donc on
                             # attachait au jeu demande des liens d'autres jeux.
+                            # pick() lit entry["title"] : on aligne sur la
+                            # clé que add_link ecrit, sinon tout est rejecte.
+                            for entry in site_links:
+                                entry.setdefault("title", entry.get("link_title"))
                             valid = pick(site_links, game_name, aliases, per_source=2)
                             if valid:
                                 collected.extend(valid)
