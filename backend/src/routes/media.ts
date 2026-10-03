@@ -498,4 +498,54 @@ mediaRoutes.post('/', async (c, next) => {
     }
 });
 
+// ========== GET /api/media/stats ==========
+// Compteurs par type pour l'accueil. Un seul GROUP BY (les medias sont lus sur
+// Turso comme le reste du catalogue), et un cache KV long : le free est a
+// 100 000 lectures/jour, donc la reponse est aussi mise en cache edge via
+// s-maxage pour que le KV ne soit lu qu'une fois par fenetre et non une fois
+// par affichage de page.
+const STATS_KV_KEY = 'media:stats:v1';
+const STATS_TTL_S = 7 * 24 * 60 * 60; // 7 jours
+
+const STATS_TYPES = ['film', 'serie', 'anime', 'jeu', 'book', 'novel', 'comic', 'webtoon'] as const;
+
+// Les compteurs changent une fois par semaine : on laisse le cache edge servir
+// 1 jour. C'est ce qui evite d'epuiser les 100 000 lectures KV/jour du free,
+// chaque affichage de page passant par l'edge au lieu de toucher le KV.
+const withEdgeCache = <T>(c: any, body: T) => {
+    c.header('Cache-Control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800');
+    return c.json(body);
+};
+
+mediaRoutes.get('/stats', async (c) => {
+    try {
+        const cached = await c.env.KV.get(STATS_KV_KEY, 'json');
+        if (cached && typeof cached === 'object' && typeof (cached as any).total === 'number') {
+            return withEdgeCache(c, cached);
+        }
+
+        const db = getTursoDb(c);
+        const rows = await db
+            .select({ type: medias.type, count: sql<number>`count(*)` })
+            .from(medias)
+            .groupBy(medias.type);
+
+        const byType: Record<string, number> = {};
+        for (const t of STATS_TYPES) byType[t] = 0;
+        let total = 0;
+        for (const r of rows) {
+            const n = Number(r.count) || 0;
+            byType[r.type] = (byType[r.type] || 0) + n;
+            total += n;
+        }
+
+        const payload = { success: true, total, byType, types: STATS_TYPES.length, computedAt: new Date().toISOString() };
+        c.executionCtx.waitUntil(c.env.KV.put(STATS_KV_KEY, JSON.stringify(payload), { expirationTtl: STATS_TTL_S }));
+        return withEdgeCache(c, payload);
+    } catch (error: any) {
+        console.error('Erreur media stats:', error?.message);
+        return c.json({ success: false, error: 'Erreur lors du calcul des statistiques' }, 500);
+    }
+});
+
 export default mediaRoutes;

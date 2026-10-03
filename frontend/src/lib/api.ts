@@ -63,6 +63,26 @@ function mapMedias(items: any[]): Media[] {
   return items.map(mapMedia);
 }
 
+export interface MediaStats {
+  total: number;
+  byType: Record<string, number>;
+  types: number;
+  computedAt?: string;
+}
+
+export async function getMediaStats(): Promise<MediaStats | null> {
+  const ck = cacheKey('/media/stats');
+  const cached = await cacheGet<MediaStats>(ck, TTL.LIST);
+  if (cached) return cached;
+  try {
+    const res = await apiClient<any>('/media/stats');
+    if (!res?.success || typeof res.total !== 'number') return null;
+    const out: MediaStats = { total: res.total, byType: res.byType || {}, types: res.types ?? 8, computedAt: res.computedAt };
+    cacheSet(ck, out);
+    return out;
+  } catch { console.warn('[api] getMediaStats failed'); return null; }
+}
+
 export async function getTrending(): Promise<ApiResponse<Media[]>> {
   const ck = cacheKey('/media/trending');
   const cached = await cacheGet<ApiResponse<Media[]>>(ck, TTL.LIST);
