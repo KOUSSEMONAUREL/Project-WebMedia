@@ -87,7 +87,7 @@ export class OrchestratorService {
         }
 
         // 3. Recupere title/slug : priorite D1 (stocke a l'ingest), fallback Neon avec retry
-        const mediaInfoMap = new Map<string, { id: string; title: string; slug: string }>();
+        const mediaInfoMap = new Map<string, { id: string; title: string; slug: string; parentGameName?: string | null }>();
 
         // 3a. D'abord, récupérer ceux qui ont déjà title/slug dans D1
         for (const m of readyMedia) {
@@ -128,12 +128,13 @@ export class OrchestratorService {
                     const mediaInfos = await this.neon.select({
                         id: medias.id,
                         title: medias.title,
-                        slug: medias.slug
+                        slug: medias.slug,
+                        parentGameName: medias.parentGameName
                     })
                         .from(medias)
                         .where(inArray(medias.id, missingIds));
                     for (const m of mediaInfos as any[]) {
-                        mediaInfoMap.set(m.id, { id: m.id, title: m.title, slug: m.slug });
+                        mediaInfoMap.set(m.id, { id: m.id, title: m.title, slug: m.slug, parentGameName: m.parentGameName });
                     }
                     neonSuccess = true;
                     break;
@@ -182,6 +183,7 @@ export class OrchestratorService {
                 worker_type: workerType,
                 title: mediaInfo.title,
                 slug: mediaInfo.slug,
+                parent_game_name: mediaInfo.parentGameName || null,
                 status: 'pending',
                 priority: 1
             });

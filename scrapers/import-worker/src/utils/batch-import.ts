@@ -40,7 +40,7 @@ export async function notifyBrain(
 }
 
 export async function notifyBrainBatch(
-  items: { id: string; type: string; title?: string; slug?: string }[],
+  items: { id: string; type: string; title?: string; slug?: string; parentGameName?: string }[],
   internalApiUrl: string,
   internalApiKey: string
 ): Promise<void> {
@@ -48,7 +48,7 @@ export async function notifyBrainBatch(
   try {
     const { default: axios } = await import('axios');
     await axios.post(`${internalApiUrl}/ingest/media/batch`, {
-      items: items.map(i => ({ id: i.id, type: i.type, metadata_ok: 1, title: i.title, slug: i.slug }))
+      items: items.map(i => ({ id: i.id, type: i.type, metadata_ok: 1, title: i.title, slug: i.slug, parentGameName: i.parentGameName }))
     }, {
       headers: { 'X-Internal-API-Key': internalApiKey },
       timeout: 30000,

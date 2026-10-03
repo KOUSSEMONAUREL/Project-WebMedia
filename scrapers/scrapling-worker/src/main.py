@@ -305,7 +305,7 @@ def process_jobs():
                     LIMIT 1 
                     FOR UPDATE SKIP LOCKED
                 )
-                RETURNING id, media_id, media_type, title, slug, attempts
+                RETURNING id, media_id, media_type, title, slug, parent_game_name, attempts
             """)
             row = cur.fetchone()
             conn.commit()
@@ -314,7 +314,7 @@ def process_jobs():
                 log.skip("No more playwright jobs")
                 break
 
-            job_id, media_id, media_type, game_name, slug, attempts = row
+            job_id, media_id, media_type, game_name, slug, parent_game_name, attempts = row
             game_name = game_name or slug or "Unknown"
             log.start(f"Processing", type=media_type, game=game_name)
 
@@ -322,10 +322,13 @@ def process_jobs():
 
             if media_type in ["game", "jeu"]:
                 collected = []
-                # Alias explicites: un mod ou un heritage dont la fiche porte
-                # le nom du jeu de base. Cle = slug, verifie unique en base
-                # (562 slugs distincts sur 562 jeux).
-                aliases = GAME_ALIASES.get(str(slug or game_name or ""), [])
+                # Alias fourni par IGDB via parent_game: c'est la source de
+                # verite pour "ce jeu est l'extension de tel autre". Une table
+                # devinee ici serait fragile et incompletement remplie.
+                aliases = []
+                if parent_game_name and parent_game_name.strip():
+                    aliases.append(parent_game_name.strip())
+                aliases += GAME_ALIASES.get(str(slug or game_name or ""), [])
                 query = search_query(game_name)
 
                 for site_name, base_url in GAME_SOURCES:
