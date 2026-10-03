@@ -68,7 +68,11 @@ export class ChaostradScraper extends BaseScraper {
     const $sub = this.$(sub.data as string);
     if (finalPath.startsWith('/search/')) {
       $sub('a.comic-link[href]').each((_i, el) => {
-        const colHref = this.absUrl($sub(el).attr('href') ?? '').replace(this.baseUrl, '');
+        // Le site live emits des hrefs bordes par des espaces
+        // (href=" /comics/... "), et absUrl ne rogne pas comme le fait
+        // Jsoup en amont : sans trim, startsWith('/comics/') echoue et la
+        // serie est silencieusement perdue.
+        const colHref = this.absUrl($sub(el).attr('href')?.trim() ?? '').replace(this.baseUrl, '');
         let seriesPath: string | undefined;
         if (colHref.startsWith('/comics/')) {
           const slug = colHref.split('/')[2];
@@ -170,7 +174,6 @@ export class ChaostradScraper extends BaseScraper {
 
   private formatChapterName(n: number): string {
     if (n >= 0 && Number.isInteger(n)) return `#${n}`;
-    if (n >= 0) return `#${n}`;
     return '#?';
   }
 
