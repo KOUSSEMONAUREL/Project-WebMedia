@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from scrapling import Fetcher
 from logger import Log
+from title_match import match_title, pick, search_query, strip_edition
 
 load_dotenv()
 
@@ -22,6 +23,13 @@ def health():
 
 def run_health_server():
     app.run(host='0.0.0.0', port=8080)
+
+# Mods et heritages dont la fiche sur la source porte le nom du jeu de base.
+# Cle = slug du media. Le lien sera accepte en "alias" et affiché comme tel.
+GAME_ALIASES = {
+    # "terraria-calamity-mod": ["Terraria"],
+}
+
 
 def clean_search_title(game_name):
     """Normalise le titre pour la recherche.
@@ -68,7 +76,9 @@ def extract_game_links(page, url, game_name=None):
     page_title = page_title_match.group(1).strip() if page_title_match else ""
     final_page_url = getattr(page, 'url', url)
 
-    def add_link(u, source, ltype, valid_button=False):
+    def add_link(u, source, ltype, valid_button=False, title=None):
+        """`title` est le titre de la fiche liee. Sans lui le lien ne peut pas etre
+        rattache au jeu demande, donc il est marque pour elimination plus bas."""
         found.append({
             "url": u,
             "final_url": u if u.startswith('http') or u.startswith('magnet:') else final_page_url,
@@ -76,17 +86,38 @@ def extract_game_links(page, url, game_name=None):
             "player_host": ltype,
             "link_type": ltype,
             "page_title": page_title,
+            "link_title": title,
             "http_status": getattr(page, 'status', 200),
             "valid_download_button": valid_button,
             "scraped_at": int(time.time())
         })
 
+    def collect_nodes(selectors):
+        """Recupere (href, titre) pour chaque ancre. Le titre est indispensable:
+        sans lui on ne peut pas verifier que le lien correspond au jeu cherche,
+        et c'est exactement ce qui faisait attacher des liens d'autres jeux."""
+        pairs = []
+        for sel in selectors:
+            try:
+                for a in page.css(sel):
+                    href = a.attrib.get('href')
+                    if not href:
+                        continue
+                    title = (a.text or '').strip() or (a.attrib.get('title') or '').strip()
+                    pairs.append((href, title))
+            except Exception:
+                continue
+        return pairs
+
     if "fitgirl-repacks.site" in url:
-        game_links = page.css('article h1.entry-title a::attr(href)').getall()
-        game_links = [l for l in game_links if l and l.endswith('/') and "updates-digest" not in l and "updates-list" not in l and "category" not in l and "#respond" not in l]
-        game_links = list(set(game_links))
-        for l in game_links:
-            add_link(l, "fitgirl-repacks.site", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['article h1.entry-title a']):
+            if not href.endswith('/') or "updates-digest" in href or "updates-list" in href or "category" in href or "#respond" in href:
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            add_link(href, "fitgirl-repacks.site", "page_selection", True, title)
         return found
 
     if "steamunlocked.org" in url:
@@ -118,17 +149,21 @@ def extract_game_links(page, url, game_name=None):
                 slug = (item.get("slug") or "").strip()
                 if not slug:
                     continue
-                add_link(f"https://cfinder.xyz/jeux/{slug}", "cfinder.xyz", "page_selection", True)
+                add_link(f"https://cfinder.xyz/jeux/{slug}", "cfinder.xyz", "page_selection", True,
+                         item.get("title") or "")
             if found:
                 return found
         except (ValueError, AttributeError):
             pass
-        game_links = page.css('div.card h2 a::attr(href), div.card__content a::attr(href)').getall()
-        game_links = [l for l in game_links if "/jeux/" in (l or '').lower() or "/games/" in (l or '').lower()]
-        game_links = list(set(game_links))
-        for l in game_links:
-            full_url = l if l.startswith('http') else f"https://cfinder.xyz{l}"
-            add_link(full_url, "cfinder.xyz", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['div.card h2 a', 'div.card__content a']):
+            if "/jeux/" not in (href or '').lower() and "/games/" not in (href or '').lower():
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            full_url = href if href.startswith('http') else f"https://cfinder.xyz{href}"
+            add_link(full_url, "cfinder.xyz", "page_selection", True, title)
         return found
 
     if "elamigos.site" in url:
@@ -142,53 +177,64 @@ def extract_game_links(page, url, game_name=None):
                 clean = re.sub(r'[^a-z0-9_]', '', l.lower().replace(' ', '_'))
                 if slug_underscored in clean:
                     filtered.append(l)
-            game_links = filtered[:10]
+            pairs = [(l, None) for l in filtered[:10]]
         else:
-            game_links = list(set(game_links))[:5]
-        for l in game_links:
+            pairs = [(l, None) for l in list(set(game_links))[:5]]
+        for l, t in pairs:
             full_url = l if l.startswith('http') else f"https://elamigos.site/{l}"
-            add_link(full_url, "elamigos.site", "page_selection", True)
+            add_link(full_url, "elamigos.site", "page_selection", True, t)
         return found
 
     if "romspure.cc" in url:
-        game_links = page.css('article a::attr(href)').getall()
-        game_links = [l for l in game_links if ("/roms/" in (l or '').lower() or "/hacks/" in (l or '').lower())]
-        game_links = list(set(game_links))
-        for l in game_links:
-            add_link(l, "romspure.cc", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['article a']):
+            low = (href or '').lower()
+            if "/roms/" not in low and "/hacks/" not in low:
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            add_link(href, "romspure.cc", "page_selection", True, title)
         return found
 
     if "emulatorgamesx.net" in url:
-        game_links = page.css('article a::attr(href)').getall()
-        game_links = [l for l in game_links if "/roms/" in (l or '').lower()]
-        game_links = list(set(game_links))
-        for l in game_links:
-            add_link(l, "emulatorgamesx.net", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['article a']):
+            if "/roms/" not in (href or '').lower() or href in seen:
+                continue
+            seen.add(href)
+            add_link(href, "emulatorgamesx.net", "page_selection", True, title)
         return found
 
     if "romsfun.com" in url:
-        all_links = page.css('a::attr(href)').getall()
-        game_links = [l for l in all_links if "/roms/" in (l or '').lower() and ".html" in (l or '').lower()]
-        game_links = list(set(game_links))
-        for l in game_links:
-            add_link(l, "romsfun.com", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['a']):
+            low = (href or '').lower()
+            if "/roms/" not in low or ".html" not in low or href in seen:
+                continue
+            seen.add(href)
+            add_link(href, "romsfun.com", "page_selection", True, title)
         return found
 
     if "games4u.org" in url:
-        game_links = page.css('div.blog-content a::attr(href)').getall()
-        game_links = [l for l in game_links if "?" not in l and "#" not in l and l.count('/') >= 3 and "/category/" not in l and "/author/" not in l and "/tag/" not in l and "/wp-" not in l]
-        game_links = list(set(game_links))
-        for l in game_links:
-            add_link(l, "games4u.org", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['div.blog-content a']):
+            low = (href or '').lower()
+            if "?" in href or "#" in href or href.count('/') < 3:
+                continue
+            if any(b in low for b in ("/category/", "/author/", "/tag/", "/wp-")) or href in seen:
+                continue
+            seen.add(href)
+            add_link(href, "games4u.org", "page_selection", True, title)
         return found
 
     if "steamrip.com" in url:
-        game_links = page.css('div#masonry-grid h2.thumb-title a::attr(href), div#masonry-grid a::attr(href)').getall()
-        game_links = [l for l in game_links if l and not l.startswith('#') and not l.startswith('http') and not l.startswith('javascript')]
-        game_links = list(set(game_links))
-        for l in game_links:
-            full_url = f"https://steamrip.com/{l}" if not l.startswith('http') else l
-            add_link(full_url, "steamrip.com", "page_selection", True)
+        seen = set()
+        for href, title in collect_nodes(['div#masonry-grid h2.thumb-title a', 'div#masonry-grid a']):
+            if not href or href.startswith(('#', 'http', 'javascript', '/')) or href in seen:
+                continue
+            seen.add(href)
+            add_link(f"https://steamrip.com/{href}", "steamrip.com", "page_selection", True, title)
         return found
 
     return found
@@ -240,6 +286,7 @@ def process_jobs():
 
     jobs_processed = 0
     errors = 0
+    no_match_jobs = 0
     max_jobs = 30
     start_time = time.time()
     max_duration = 15 * 60
@@ -275,20 +322,35 @@ def process_jobs():
 
             if media_type in ["game", "jeu"]:
                 collected = []
-                search_name = clean_search_title(game_name)
+                # Alias explicites: un mod ou un heritage dont la fiche porte
+                # le nom du jeu de base. Cle = slug, verifie unique en base
+                # (562 slugs distincts sur 562 jeux).
+                aliases = GAME_ALIASES.get(str(slug or game_name or ""), [])
+                query = search_query(game_name)
 
                 for site_name, base_url in GAME_SOURCES:
                     try:
-                        search_url = base_url + search_name.replace(" ", "+")
+                        search_url = base_url + query.replace(" ", "+")
                         page = fetch_site_page(site_name, search_url)
 
                         if getattr(page, 'status', 200) == 200:
-                            site_links = extract_game_links(page, search_url, search_name)
-                            if site_links:
-                                collected.extend(site_links[:5])
+                            site_links = extract_game_links(page, search_url, game_name)
+                            # Filtre AVANT de limiter: avant on prenait les 5
+                            # premiers liens de la page sans verifier, donc on
+                            # attachait au jeu demande des liens d'autres jeux.
+                            valid = pick(site_links, game_name, aliases, per_source=2)
+                            if valid:
+                                collected.extend(valid)
+                            elif site_links:
+                                # La page a repondu mais aucun titre ne correspond.
+                                log.warning("no match", type=media_type,
+                                            game=game_name, source=site_name,
+                                            candidats=len(site_links))
                     except Exception as e:
+                        log.warning("source failed", type=media_type, game=game_name,
+                                    source=site_name, error=str(e)[:120])
                         continue
-                all_links = collected
+                all_links = collected[:6]
             else:
                 log.skip(f"Unsupported type: {media_type}")
                 cur.execute("UPDATE scraping_jobs SET status = 'skipped', updated_at = NOW() WHERE id = %s", (job_id,))
@@ -307,12 +369,18 @@ def process_jobs():
                 jobs_processed += 1
                 log.success(f"Ingested {len(all_links)} links", game=game_name)
             else:
-                if attempts >= 3:
-                    cur.execute("UPDATE scraping_jobs SET status = 'failed', last_error = 'No links found after 3 attempts', updated_at = NOW() WHERE id = %s", (job_id,))
-                    log.error(f"Failed after 3 attempts: {game_name}")
+                # Aucun lien valide apres filtrage. distinct de "failed": le job a
+                # bien ete traite, le jeu n'est simplement pas sur les sources, ou
+                # pas sous ce nom. On le note pour leger sans le relancer en boucle.
+                if attempts >= 2:
+                    cur.execute(
+                        "UPDATE scraping_jobs SET status = 'no_match', last_error = %s, updated_at = NOW() WHERE id = %s",
+                        ("Aucun lien verifie pour ce titre apres filtrage", job_id))
+                    log.warning(f"no_match (aucun lien verifie): {game_name}")
+                    no_match_jobs += 1
                 else:
                     cur.execute("UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = %s", (job_id,))
-                    log.retry(f"No links: {game_name}", attempts, 3)
+                    log.retry(f"No verified link: {game_name}", attempts, 2)
                 conn.commit()
 
         except Exception as e:
