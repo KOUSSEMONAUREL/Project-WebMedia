@@ -101,16 +101,18 @@ async function main() {
             log.info(`Limite atteinte (${LIMIT}), arret propre`);
             break;
         }
+        // Pagination sur igdb_id (entier, indexe) et non sur id (uuid):
+        // `id > 0` sur un uuid fait echouer la requete.
         const rows = await neon.select({
             id: medias.id,
             igdbId: medias.igdbId,
             title: medias.title,
         })
             .from(medias)
-            .where(sql`${NEEDED} AND id > ${lastId} ORDER BY id ASC LIMIT ${PAGE}`);
+            .where(sql`${NEEDED} AND igdb_id > ${lastId} ORDER BY igdb_id ASC LIMIT ${PAGE}`);
 
         if (rows.length === 0) break;
-        lastId = rows[rows.length - 1].id as any;
+        lastId = rows[rows.length - 1].igdbId as any;
         scanned += rows.length;
         page++;
         log.info(`Page ${page}: ${rows.length} jeux a traiter (total scanne ${scanned})`);
