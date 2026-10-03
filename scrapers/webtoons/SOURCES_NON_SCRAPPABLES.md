@@ -58,7 +58,6 @@ positifs (« domaine mort »), pas des déductions de commit.
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `all/hdoujin` | `hdoujin.org` | IGNORE | HTTP 200 mais **4 000 o** d'interstitiel contenant un cookie `cf-` ; l'API exige un token `clearance` obtenu via WebView | L'API répond sans token `clearance` |
-| `all/niadd` | `<sub>.niadd.com` (`www`, `br`, `es`, `fr`, `ru`, `it`, `de`) | IGNORE | Tous les sous-domaines renvoient un transport HTTP 200 avec un **corps de 173 o** = page Apache « 404 Not Found ». Dernier snapshot Wayback du `/list/Hot-Manga.html` : 2026-01-23 | Le site ressert du vrai HTML sur `/list/*.html` (le site a existé, il peut revenir) |
 | `all/voyceme` | `voyceme.com` | IGNORE | HTTP 200 mais page **« voyceme.com for sale \| Spaceship.com »** (17 516 o) : le domaine est en vente, plus de contenu | Le domaine est racheté et ressert un vrai catalogue |
 | `en/coffeemanga` | `coffeemanga.com` | IGNORE | `301` puis `coffeemanga.ink` qui répond **404 « Not Found »** (1 249 o) : l'ancien domaine ne redirige plus vers rien | `/` ressert un catalogue lisible |
 | `en/firescans` | `firescans.com` | IGNORE | `302` puis `hugedomains.com/domain_profile.cfm?d=firescans.com` → **« FireScans.com is for sale »** (200, 54 319 o) | Le domaine est racheté et ressert un vrai catalogue |
@@ -165,6 +164,18 @@ le `403` est un bannissement de ce runner. Aucun manga n'est lisible depuis cett
 c'est une propriété de **notre position réseau**, pas du site — un `IGNORE` serait donc
 faux au sens de ce registre. Elle reste candidate `BUILD` dès qu'une route lisible existe
 (WARP), et ne doit réapparaître ici que sur une preuve propriété au site.
+
+**Suivi 2026-10-03 :** la route lisible existe désormais — `https://hentailoop.com`
+répond 200 (86 505 o, vrai catalogue) à la fois via WARP et en `--noproxy '*'`. Le
+catalogue, la recherche AJAX (`nativeSearch`), la fiche, la page `/read/` et la sonde
+`addview` ont été transcrits dans `definitions/webtoons/all/hentailoop.ts` (verdict
+`BUILD`, issue #391). `hentailoop` n'a plus sa place dans la catégorie « bloqué ».
+
+**`all/niadd` (`<sub>.niadd.com`) — retirée le 2026-10-03 : condition de revivification
+levée.** Les huit sous-domaines répondent 200 avec un vrai catalogue (~77–86 ko), et
+`https://www.niadd.com/list/Hot-Manga.html` renvoie 200, 289 713 o avec un vrai HTML de
+liste. La ligne `IGNORE` est supprimée du tableau ; la source redevient candidate
+`NOUVEAU`/`BUILD`.
 
 ## Trois pièges de diagnostic à connaître
 
