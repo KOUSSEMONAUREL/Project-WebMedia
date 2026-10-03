@@ -1,7 +1,7 @@
 {
   "name": "import-worker",
   "version": "1.0.0",
-  "description": "Worker pour l'import de donn\u00e9es TMDB et synchronisation Turso",
+  "description": "Worker pour l'import de données TMDB et synchronisation Turso",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "dev": "tsx src/index.ts",
     "migrate:turso": "node dist/migrate-turso-identity.js",
     "backfill:igdb": "node dist/backfill-igdb-identity.js",
-    "probe:igdb": "node dist/probe-igdb.js"
+    "probe:igdb": "node dist/probe-igdb.js",
+    "propagate:parents": "node dist/propagate-job-parents.js"
   },
   "dependencies": {
     "@fsoc/royalroadl-api": "^0.16.3",
