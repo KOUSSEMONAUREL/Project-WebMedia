@@ -72,9 +72,28 @@ def tokenize(text: str) -> list:
     return tokens
 
 
+COLLECTION_RE = re.compile(r"^(collection|partie|part|volume|vol|tome)\d*$")
+
+
 def significant(tokens: list) -> list:
-    """Jette les mots grammaticaux et le bruit, des deux cotes."""
-    return [t for t in tokens if t not in TAIL_NOISE]
+    """Jette les mots grammaticaux et le bruit, des deux cotes.
+
+    "Collection 1" disparait completement: le mot ET son numero, sinon le "1"
+    serait compare aux numeros du titre et ferait echouer la correspondance.
+    """
+    out = []
+    skip_next_number = False
+    for t in tokens:
+        if COLLECTION_RE.match(t):
+            skip_next_number = True
+            continue
+        if skip_next_number and (VERSION_RE.match(t) or t.isdigit()):
+            skip_next_number = False
+            continue
+        skip_next_number = False
+        if t not in TAIL_NOISE:
+            out.append(t)
+    return out
 
 
 def strip_edition(name: str) -> str:
@@ -86,6 +105,13 @@ def strip_edition(name: str) -> str:
     if not name:
         return ""
     parts = [p.strip() for p in DASH_SPLIT.split(name.strip()) if p.strip()]
+    # "Collection 1", "Partie 2", "Volume 3": un numero de collection n'est pas
+    # un numero de jeu. Il ne doit ni rester dans le titre, ni被视为 comme un
+    # numero lors de la comparaison, sinon "Call of Duty: Modern Warfare 3 -
+    # Collection 1" ne matche pas son propre nom.
+    if len(parts) > 1 and re.match(rf"^(collection|partie|part|volume|vol|vol\.|tome|chapitre)\s*\d+$",
+                                   parts[-1], re.IGNORECASE):
+        parts.pop()
     while len(parts) > 1 and re.search(rf"\b{EDITION_WORDS}\b", parts[-1], re.IGNORECASE):
         parts.pop()
     base = " ".join(parts).strip()

@@ -180,6 +180,17 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
                 const neonDb = getNeonDb(connStr, hyperdrive) as any;
                 const [mediaRow] = await neonDb.select().from(medias).where(eq(medias.id, mediaId));
                 const mediaExists = await turso.execute('SELECT id FROM medias WHERE id = ?', [mediaId]);
+                // Le compteur doit etre mis a jour meme si le media existe deja:
+                // Turso est la base de LECTURE du site, et l'insertion n'a lieu
+                // qu'au premier passage. Sans cet UPDATE, active_links_count
+                // restait a 0 pour tout media deja connu, alors que la page
+                // affichait bien des liens.
+                if (mediaRow) {
+                    await turso.execute({
+                        sql: 'UPDATE medias SET active_links_count = ?, updated_at = ? WHERE id = ?',
+                        args: [realCount, new Date().toISOString(), mediaRow.id]
+                    });
+                }
                 if (mediaRow && mediaExists.rows.length === 0) {
                     await turso.execute({
                         sql: 'INSERT OR REPLACE INTO medias (id, external_id, type, title, original_title, slug, synopsis, year, poster_url, backdrop_url, rating, vote_count, status, tmdb_id, imdb_id, anilist_id, mal_id, kitsu_id, igdb_id, anidb_id, metadata_source, metadata_fresh_at, links_last_scraped_at, active_links_count, created_at, updated_at, author, episode_count, genres, trailer_url, duration, tagline, studios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
