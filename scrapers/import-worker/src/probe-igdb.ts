@@ -36,17 +36,28 @@ async function main() {
     const ids = rows.map((r: any) => r.igdbId);
     console.log(`ids demandes : ${ids.length}`);
 
+    // Teste plusieurs tailles de lot: IGDB plafonne le nombre d'ids acceptes
+    // dans une clause "where id = (...)".
+    for (const size of [40, 20, 10, 5]) {
+        const slice = ids.slice(0, size);
+        const body = `${FIELDS}; where id = (${slice.join(',')});`;
+        const r = await axios.post('https://api.igdb.com/v4/games', body, {
+            headers: { 'Client-ID': process.env.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}` },
+            timeout: 25000,
+        });
+        const data = r.data || [];
+        console.log(`lot de ${String(size).padStart(2)} : ${data.length} reponse(s)`);
+    }
+
     const body = `${FIELDS}; where id = (${ids.join(',')});`;
     const r = await axios.post('https://api.igdb.com/v4/games', body, {
         headers: { 'Client-ID': process.env.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}` },
         timeout: 25000,
     });
     const data = r.data || [];
-    console.log(`reponses      : ${data.length}`);
-
     const returned = new Set(data.map((g: any) => g.id));
     const missing = ids.filter((i: number) => !returned.has(i));
-    console.log(`manquants     : ${missing.length}`);
+    console.log(`reponses (lot 40) : ${data.length} | manquants : ${missing.length}`);
 
     if (missing.length > 0) {
         const byId = new Map(rows.map((x: any) => [x.igdbId, x.title]));
