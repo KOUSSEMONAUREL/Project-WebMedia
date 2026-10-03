@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 3 * * *' # Tous les jours à 03h UTC
   workflow_dispatch:
+    inputs:
+      backfill_identity:
+        description: 'Remplir game_type / parent_game_name / official_url des jeux existants'
+        type: boolean
+        default: false
 
 jobs:
   import:
@@ -34,6 +39,18 @@ jobs:
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           GUTENBERG_API_KEY: ${{ secrets.GUTENBERG_API_KEY }}
         run: cd scrapers/import-worker && npm start
+
+      # L'import normal ne fait que de la fraicheur: les jeux deja presents
+      # n'ont donc pas game_type / parent_game_name. Ce backfill les comble.
+      - name: Backfill IGDB game identity
+        if: github.event.inputs.backfill_identity == 'true'
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+        run: cd scrapers/import-worker && node dist/backfill-igdb-identity.js
 
       - name: Reconcile D1 (backfill missing entries)
         env:
