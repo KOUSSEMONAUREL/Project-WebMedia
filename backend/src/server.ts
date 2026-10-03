@@ -151,6 +151,18 @@ app.onError((err, c) => {
 
 // ========== DÉMARRAGE ==========
 const port = parseInt(process.env.PORT || '3000', 10);
-serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
-    console.log(`WebMediia Backend demarre sur le port ${info.port} (0.0.0.0)`);
-});
+
+// Les routes lisent leurs variables via c.env (API Cloudflare). Sur le serveur
+// Node, c.env est undefined: sans ce pont, /ingest/liens ne trouve ni Neon ni
+// Turso et le scraper local n'ecrit rien. process.env joue le role du binding.
+serve(
+    {
+        fetch: (request, _env, executionCtx) =>
+            app.fetch(request, process.env as unknown as Record<string, unknown>, executionCtx),
+        port,
+        hostname: '0.0.0.0',
+    },
+    (info) => {
+        console.log(`WebMediia Backend demarre sur le port ${info.port} (0.0.0.0)`);
+    }
+);

@@ -287,9 +287,12 @@ def process_jobs():
     jobs_processed = 0
     errors = 0
     no_match_jobs = 0
-    max_jobs = 30
+    # Par defaut 30 jeux / 15 min, comme en production. En local on peut
+    # monter la cadence: les 585 jeux en attente demanderaient sinon 20
+    # executions successives.
+    max_jobs = int(os.environ.get("SCRAPER_MAX_JOBS", "30"))
     start_time = time.time()
-    max_duration = 15 * 60
+    max_duration = int(os.environ.get("SCRAPER_MAX_SECONDS", "900"))
 
     while (time.time() - start_time) < max_duration and jobs_processed < max_jobs:
         job_id = None
@@ -325,10 +328,14 @@ def process_jobs():
                 # Alias fourni par IGDB via parent_game: c'est la source de
                 # verite pour "ce jeu est l'extension de tel autre". Une table
                 # devinee ici serait fragile et incompletement remplie.
-                aliases = []
+                # parent_game_name designe le jeu de base d'une extension.
+                # Ce n'est pas un alias: il sert a REJETER les liens du jeu de
+                # base, pas a les accepter. Les alias restent les autres noms
+                # du meme jeu, declares explicitement.
+                parents = []
                 if parent_game_name and parent_game_name.strip():
-                    aliases.append(parent_game_name.strip())
-                aliases += GAME_ALIASES.get(str(slug or game_name or ""), [])
+                    parents.append(parent_game_name.strip())
+                aliases = list(GAME_ALIASES.get(str(slug or game_name or ""), []))
                 query = search_query(game_name)
 
                 for site_name, base_url in GAME_SOURCES:
@@ -345,7 +352,7 @@ def process_jobs():
                             # clé que add_link ecrit, sinon tout est rejecte.
                             for entry in site_links:
                                 entry.setdefault("title", entry.get("link_title"))
-                            valid = pick(site_links, game_name, aliases, per_source=2)
+                            valid = pick(site_links, game_name, aliases, per_source=2, parent=parents)
                             if valid:
                                 collected.extend(valid)
                             elif site_links:

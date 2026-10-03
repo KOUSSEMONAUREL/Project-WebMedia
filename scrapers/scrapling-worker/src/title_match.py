@@ -75,6 +75,13 @@ def tokenize(text: str) -> list:
 
 
 COLLECTION_RE = re.compile(r"^(collection|partie|part|volume|vol|tome)\d*$")
+COLLECTION_SEGMENT_RE = re.compile(
+    r"^(collection|partie|part|volume|vol|vol\.|tome|chapitre)\s*\d+$", re.IGNORECASE
+)
+# Suffixe d'edition en fin de segment: "Deluxe Edition", "Game of the Year
+# Edition". Aucun mot ne doit etre consomme AVANT le suffixe, sinon
+# "Shadow of the Erdtree Edition" perdrait "Erdtree": c'est le sous-titre du jeu.
+EDITION_TAIL_RE = re.compile(rf"\s*(?:{EDITION_WORDS})\s*$", re.IGNORECASE)
 
 
 def significant(tokens: list) -> list:
@@ -99,26 +106,87 @@ def significant(tokens: list) -> list:
 
 
 def strip_edition(name: str) -> str:
-    """'Baldur's Gate 3: Digital Deluxe Edition' -> 'Baldur's Gate 3'.
+    """'Baldur\'s Gate 3: Digital Deluxe Edition' -> 'Baldur\'s Gate 3'.
 
-    Retire les segments finaux qui sont des suffixes d'edition, et un éventuel
-    suffixe colle sans separateur ("Foo Definitive Edition").
+    On retire les suffixes d'edition, mais UNIQUEMENT le suffixe lui-meme.
+    L'ancien code popping en tres entier un segment des que celui-ci contenait
+    un mot d'edition, ce qui tronquait les sous-titres:
+
+        "Elden Ring: Shadow of the Erdtree Edition"
+            -> segment "Shadow of the Erdtree Edition".pop()
+            -> "Elden Ring"
+
+    Le jeu etait alors recherche sous le nom du jeu de base, et ses propres
+    liens de base remonteient en face de l'extension.
     """
     if not name:
         return ""
     parts = [p.strip() for p in DASH_SPLIT.split(name.strip()) if p.strip()]
+
     # "Collection 1", "Partie 2", "Volume 3": un numero de collection n'est pas
-    # un numero de jeu. Il ne doit ni rester dans le titre, ni被视为 comme un
-    # numero lors de la comparaison, sinon "Call of Duty: Modern Warfare 3 -
-    # Collection 1" ne matche pas son propre nom.
-    if len(parts) > 1 and re.match(rf"^(collection|partie|part|volume|vol|vol\.|tome|chapitre)\s*\d+$",
-                                   parts[-1], re.IGNORECASE):
+    # un numero de jeu. Il ne doit ni rester dans le titre, ni etre compare aux
+    # numeros du titre, sinon "Modern Warfare 3 - Collection 1" ne matche pas.
+    if len(parts) > 1 and COLLECTION_SEGMENT_RE.match(parts[-1]):
         parts.pop()
+
+    # On rogne le suffixe d'edition en fin de segment, sans toucher au reste.
+    # "Shadow of the Erdtree Edition" -> "Shadow of the Erdtree",
+    # "Arkham Collection" -> "Arkham", "Deluxe Edition" -> "" (segment gone).
+    while True:
+        if not parts:
+            break
+        last = parts[-1]
+        trimmed = EDITION_TAIL_RE.sub("", last).strip()
+        if trimmed != last:
+            parts[-1] = trimmed
+            continue
+        if parts and COLLECTION_SEGMENT_RE.match(last):
+            parts.pop()
+            continue
+        if len(parts) > 1 and re.search(rf"\b{EDITION_WORDS}\b", last, re.IGNORECASE):
+            # Le segment ne se termine pas par un suffixe mais en contient un
+            # ("Shadow of the Erdtree Edition Complete"): on le garde, le bruit
+            # sera de toute facon jete par significant() plus bas.
+            break
+        break
+
+    while parts and not parts[-1]:
+        parts.pop()
+    return " ".join(parts).strip() or name.strip()
+
+
+def title_forms(wanted: str) -> list:
+    """Formes acceptees du titre, de la plus longue a la plus courte.
+
+    Toutes les formes sont retirees d'abord de leur suffixe d'edition, puis on
+    retirees le dernier segment, encore et encore:
+
+        "Elden Ring: Shadow of the Erdtree Edition"
+            -> "Elden Ring Shadow of the Erdtree", puis "Elden Ring"
+        "Devil May Cry 5: Devil Hunter Edition"
+            -> "Devil May Cry 5 Devil Hunter", puis "Devil May Cry 5"
+
+    Le segment manquant est parfois un vrai sous-titre (Shadow of the Erdtree)
+    et parfois le nom de l'edition (Devil Hunter). Les deux formes sont donc
+    essaiees, de la plus longue a la plus courte: c'est la plus longue qui
+    matche qui l'emporte, donc un titre partiel ne peut pas "voler" un match a
+    une forme longue qui aurait du matcher.
+    """
+    if not wanted:
+        return []
+    parts = [p.strip() for p in DASH_SPLIT.split(wanted.strip()) if p.strip()]
+    forms = [strip_edition(" ".join(parts))]
+    # On n'ampute le DERNIER segment que s'il ressemble a un qualificatif
+    # d'edition ("Devil Hunter Edition", "Arkham Collection"): la, ce n'est
+    # qu'un habillage. Un segment comme "Calamity Mod" ou "Shadow of the
+    # Erdtree" nomme une oeuvre differente, et l'amputer ferait accepter le jeu
+    # de base pour son extension ou son mod.
     while len(parts) > 1 and re.search(rf"\b{EDITION_WORDS}\b", parts[-1], re.IGNORECASE):
         parts.pop()
-    base = " ".join(parts).strip()
-    trimmed = re.sub(rf"\s+(\w+\s+)??{EDITION_WORDS}$", "", base, flags=re.IGNORECASE).strip()
-    return trimmed or base
+        form = strip_edition(" ".join(parts))
+        if form and form not in forms:
+            forms.append(form)
+    return [f for f in forms if f]
 
 
 def search_query(game_name: str) -> str:
@@ -139,8 +207,14 @@ def _numbers(tokens: list) -> set:
     return {t for t in tokens if any(ch.isdigit() for ch in t)}
 
 
-def match_title(wanted: str, candidate: str, aliases=None):
-    """Retourne 'exact', 'alias' ou None (jamais 'fuzzy': trop permissif)."""
+def match_title(wanted: str, candidate: str, aliases=None, parent=None):
+    """Retourne 'exact', 'alias' ou None (jamais 'fuzzy': trop permissif).
+
+    `parent` est le jeu de base d'IGDB, dans le cas d'une extension. Ce n'est
+    PAS un alias: "Elden Ring: Shadow of the Erdtree" a pour parent "Elden
+    Ring", mais les liens du jeu de base ne sont pas ceux de l'extension. Un
+    candidat qui ne correspond qu'au parent est donc rejete explicitement.
+    """
     if candidate is None:
         return None
     low = _strip_accents(html.unescape(candidate)).lower().strip()
@@ -156,13 +230,14 @@ def match_title(wanted: str, candidate: str, aliases=None):
         if not want:
             return None
         # 1. Les chiffres doivent etre identiques. C'est la regle qui bloque
-        #    "Baldur's Gate" pour "Baldur's Gate 3" et "Ben 10" pour "Gwent".
+        #    "Baldur's Gate" pour "Baldur's Gate 3" et "Elden Ring (2022)" pour
+        #    "Shadow of the Erdtree".
         if _numbers(want) != _numbers(cand):
             return None
         # 2. Le candidat ne doit pas AJOUTER de mots significatifs absents du
         #    titre voulu. Sans cette regle, "Doom" (wanted) acceptait "Doom
-        #    Eternal" et "Doom The Dark Ages", qui sont d'autres jeux. Le bruit
-        #    est deja retire par significant(), donc ce qui reste porte du sens.
+        #    Eternal" et "Elden Ring" acceptait "Elden Ring Nightreign", qui
+        #    sont d'autres jeux. Le bruit est deja retire par significant().
         cand_set = set(cand)
         want_set = set(want)
         extra = [t for t in cand if t not in want_set]
@@ -178,15 +253,23 @@ def match_title(wanted: str, candidate: str, aliases=None):
                 return None
         return True
 
-    if compare(wanted):
-        return "exact"
+    # Extension (parent connu): seule la forme COMPLETE est acceptable. Les
+    # formes amputees tombent sur le jeu de base, dont les liens sont ceux
+    # d'un autre jeu. Un jeu sans parent, lui, accepte toutes les formes.
+    parents = [p.strip() for p in (parent or []) if p and p.strip()]
+    forms = title_forms(wanted)
+    if parents:
+        forms = forms[:1]
+    for form in forms:
+        if compare(form):
+            return "exact"
     for alias in aliases or []:
         if compare(alias):
             return "alias"
     return None
 
 
-def pick(entries: list, wanted: str, aliases=None, per_source: int = 2) -> list:
+def pick(entries: list, wanted: str, aliases=None, per_source: int = 2, parent=None) -> list:
     """Filtre les entrees, trie exact > alias, puis limite.
 
     Filtrer avant de limiter: c'est l'inverse du comportement d'origine, qui
@@ -194,7 +277,7 @@ def pick(entries: list, wanted: str, aliases=None, per_source: int = 2) -> list:
     """
     scored = []
     for entry in entries:
-        kind = match_title(wanted, entry.get("title"), aliases)
+        kind = match_title(wanted, entry.get("title"), aliases, parent)
         if kind:
             scored.append({**entry, "match_type": kind})
     order = {"exact": 0, "alias": 1}
