@@ -33,6 +33,8 @@ TAIL_NOISE = {
     "free", "download", "pc", "repack", "full", "game", "edition", "deluxe",
     "definitive", "ultimate", "complete", "gold", "premium", "standard",
     "special", "collectors", "collector", "enhanced", "digital", "goty",
+    "remastered", "remaster", "remake", "anniversary", "infernal",
+    "ultimate", "turbocharged", "definitive", "deluxe", "extended",
     "dlc", "dlcs", "update", "bonus", "content", "soundtrack", "crack",
     "fitgirl", "dodi", "plaza", "elamigos", "tenfile", "multi", "gog",
     "of", "year", "the", "and", "all", "new", "a", "an",
@@ -157,12 +159,20 @@ def match_title(wanted: str, candidate: str, aliases=None):
         #    "Baldur's Gate" pour "Baldur's Gate 3" et "Ben 10" pour "Gwent".
         if _numbers(want) != _numbers(cand):
             return None
-        # 2. Tous les mots significatifs du titre voulu doivent etre presents.
+        # 2. Le candidat ne doit pas AJOUTER de mots significatifs absents du
+        #    titre voulu. Sans cette regle, "Doom" (wanted) acceptait "Doom
+        #    Eternal" et "Doom The Dark Ages", qui sont d'autres jeux. Le bruit
+        #    est deja retire par significant(), donc ce qui reste porte du sens.
         cand_set = set(cand)
+        want_set = set(want)
+        extra = [t for t in cand if t not in want_set]
+        if extra:
+            return None
+        # 3. Tous les mots du titre voulu doivent etre presents.
         missing = [t for t in want if t not in cand_set]
         if missing:
-            # Tolerance sur les variante courtes: un mot absent du candidat
-            # est tolere si le reste colle vraiment (>=0.9 de similarite).
+            # Tolerance sur une variante courte: un mot absent du candidat est
+            # tolere si le reste colle vraiment (>=0.9 de similarite).
             ratio = SequenceMatcher(None, " ".join(want), " ".join(cand)).ratio()
             if ratio < 0.9 or len(missing) > 1:
                 return None
