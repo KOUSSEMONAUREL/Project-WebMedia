@@ -7,7 +7,7 @@ export function DynamicHero() {
   const heroA = cut > 0 ? full.slice(0, cut + 1) : full;
   const heroB = cut > 0 ? full.slice(cut + 1).trim() : '';
   return (
-    <section className="relative overflow-hidden pt-8 pb-2 sm:pt-12 md:pt-16 md:pb-2 w-full">
+    <section className="relative overflow-hidden pt-5 pb-1 sm:pt-7 md:pt-9 md:pb-1 w-full">
       <div
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"

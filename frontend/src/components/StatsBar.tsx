@@ -1,27 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { getMediaStats, type MediaStats } from '@/lib/api';
-import type { MediaType } from '@/lib/api';
 
-const CATEGORIES: { type: MediaType; label: string; icon: 'monitor' | 'grid' | 'star' | 'gamepad' | 'book' | 'sparkles' | 'layers' }[] = [
-  { type: 'film', label: 'Films', icon: 'monitor' },
-  { type: 'serie', label: 'Series', icon: 'grid' },
-  { type: 'anime', label: 'Animes', icon: 'star' },
-  { type: 'jeu', label: 'Games', icon: 'gamepad' },
-  { type: 'book', label: 'Books', icon: 'book' },
-  { type: 'novel', label: 'Light Novels', icon: 'sparkles' },
-  { type: 'comic', label: 'Comics', icon: 'layers' },
-  { type: 'webtoon', label: 'Webtoons', icon: 'layers' },
+const CATEGORIES: { type: string; label: string; href: string }[] = [
+  { type: 'film', label: 'Films', href: '/films' },
+  { type: 'serie', label: 'Series', href: '/series' },
+  { type: 'anime', label: 'Animes', href: '/animes' },
+  { type: 'jeu', label: 'Games', href: '/games' },
+  { type: 'book', label: 'Books', href: '/books' },
+  { type: 'novel', label: 'Light Novels', href: '/novels' },
+  { type: 'comic', label: 'Comics', href: '/comics' },
+  { type: 'webtoon', label: 'Webtoons', href: '/webtoons' },
 ];
 
-const ICONS: Record<string, string> = {
-  monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
-  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
-  star: '<path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16l-6 4.8L8 14l-6-4.8h7.6z"/>',
-  gamepad: '<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><rect x="2" y="6" width="20" height="12" rx="2"/>',
-  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-  sparkles: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
-  layers: '<path d="M12 2L2 7l10 5 10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
-};
+const GRADIENT = 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)';
+
+function format(n: number): string {
+  return n.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
+}
 
 function useCountUp(target: number, active: boolean): number {
   const [value, setValue] = useState(0);
@@ -36,8 +31,7 @@ function useCountUp(target: number, active: boolean): number {
     const start = performance.now();
     const tick = (now: number) => {
       const p = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))));
       if (p < 1) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -47,14 +41,6 @@ function useCountUp(target: number, active: boolean): number {
   }, [target, active]);
 
   return value;
-}
-
-function format(n: number): string {
-  return n.toLocaleString('fr-FR').replace(/\u202f/g, ' ');
-}
-
-function Counter({ value, className }: { value: number; className?: string }) {
-  return <span className={className}>{format(value)}</span>;
 }
 
 export function StatsBar() {
@@ -75,43 +61,68 @@ export function StatsBar() {
 
   const ready = !!stats;
   const total = useCountUp(stats?.total ?? 0, ready);
+  const hasBreakdown = ready && CATEGORIES.some((c) => (stats?.byType?.[c.type] ?? 0) > 0);
 
   if (failed) return null;
 
   return (
-    <div className="flex flex-col items-center gap-8">
-      <div className="flex flex-col items-center gap-1.5">
-        <span className="text-4xl sm:text-5xl font-display font-bold tabular-nums" style={{ background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          <Counter value={total} />+
+    <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-5 sm:gap-x-12 sm:gap-y-6 text-center">
+      <div className="group relative flex flex-col items-center gap-1">
+        <span
+          className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold tabular-nums leading-none"
+          style={{ background: GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+        >
+          {format(total)}+
         </span>
         <span className="text-[11px] sm:text-[12px] text-muted-foreground font-medium tracking-wide uppercase">Titres</span>
+
+        {hasBreakdown && (
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute left-1/2 top-[calc(100%+0.75rem)] z-30 hidden -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:block"
+          >
+            <div className="w-[290px] rounded-xl border border-border/50 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+              <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Par categorie</div>
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {CATEGORIES.map(({ type, label, href }) => {
+                  const n = stats.byType?.[type] ?? 0;
+                  return (
+                    <li key={type}>
+                      <a
+                        href={href}
+                        className="pointer-events-auto flex items-baseline justify-between gap-2 rounded-md px-1.5 py-1 text-[12px] transition-colors hover:bg-foreground/[0.06]"
+                      >
+                        <span className="text-muted-foreground truncate">{label}</span>
+                        <span className="font-semibold tabular-nums text-foreground">{format(n)}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-8 w-full max-w-4xl">
-        {CATEGORIES.map(({ type, label, icon }) => (
-          <CategoryCounter key={type} label={label} icon={icon} value={stats?.byType?.[type] ?? 0} active={ready} />
-        ))}
+      <div className="flex flex-col items-center gap-1">
+        <span
+          className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold tabular-nums leading-none"
+          style={{ background: GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+        >
+          {CATEGORIES.length}
+        </span>
+        <span className="text-[11px] sm:text-[12px] text-muted-foreground font-medium tracking-wide uppercase">Categories</span>
       </div>
 
-      <div className="flex flex-col items-center gap-1.5">
-        <span className="text-4xl sm:text-5xl font-display font-bold" style={{ background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+      <div className="flex flex-col items-center gap-1">
+        <span
+          className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold leading-none"
+          style={{ background: GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+        >
           Gratuit
         </span>
         <span className="text-[11px] sm:text-[12px] text-muted-foreground font-medium tracking-wide uppercase">Acces</span>
       </div>
     </div>
-  );
-}
-
-function CategoryCounter({ label, icon, value, active }: { label: string; icon: string; value: number; active: boolean }) {
-  const shown = useCountUp(value, active);
-  return (
-    <a href={`/${label === 'Series' ? 'series' : label.toLowerCase().replace(/\s+/g, '-')}`} className="group flex flex-col items-center gap-1.5">
-      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-primary/70 group-hover:text-primary transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: ICONS[icon] || '' }} />
-      <span className="text-xl sm:text-2xl sm:text-3xl font-display font-bold tabular-nums" style={{ background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-        <Counter value={shown} />
-      </span>
-      <span className="text-[11px] sm:text-[12px] text-muted-foreground font-medium tracking-wide uppercase">{label}</span>
-    </a>
   );
 }

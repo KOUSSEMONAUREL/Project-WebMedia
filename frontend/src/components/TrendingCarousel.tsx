@@ -78,7 +78,7 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
   };
 
   return (
-    <section className="py-6 sm:py-8 lg:py-10 overflow-hidden" style={{ maskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)' }}>
+    <section className="py-4 sm:py-5 lg:py-6 overflow-hidden" style={{ maskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-2">
         <h2 className="text-[16px] md:text-[18px] font-display font-bold text-foreground tracking-tight">
           {reco}

@@ -46,10 +46,10 @@ Astro.response.headers.set(
 <Layout title="Accueil" canonicalUrl="https://www.webmediia.cfd/">
     <DynamicHero client:load />
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12 xl:pb-24">
         <TrendingCarousel items={trending} client:load />
 
-        <div class="flex flex-col items-center text-center pt-4 pb-12">
+        <div class="flex flex-col items-center text-center pt-3 pb-8 sm:pb-10">
           <div class="flex items-center gap-3 flex-wrap justify-center">
             <a
               href="/trending"
@@ -67,7 +67,7 @@ Astro.response.headers.set(
             </a>
           </div>
 
-          <div class="mt-8 w-full">
+          <div class="mt-6 sm:mt-7 w-full">
             <StatsBar client:load />
           </div>
         </div>
