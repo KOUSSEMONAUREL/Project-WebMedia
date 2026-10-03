@@ -90,12 +90,17 @@ async function main() {
     // Pagination par id pour tenir en memoire: 3930 lignes, on evite le skip.
     let lastId = 0;
     const PAGE = 500;
+    const LIMIT = parseInt(process.env.BACKFILL_LIMIT || '0', 10) || 0;
     let scanned = 0;
     let updated = 0;
     let missing = 0;
     let page = 0;
 
     while (true) {
+        if (LIMIT > 0 && scanned >= LIMIT) {
+            log.info(`Limite atteinte (${LIMIT}), arret propre`);
+            break;
+        }
         const rows = await neon.select({
             id: medias.id,
             igdbId: medias.igdbId,
