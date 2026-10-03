@@ -32,10 +32,14 @@ export const GET: APIRoute = async () => {
     console.error('[sitemap] getAllMedia error:', e);
   }
 
+  // Segments au singulier : ce sont les routes reelles de [type]/[slug].astro
+  // (/film, /serie, /anime, /jeu, /book, /novel, /comic, /webtoon). Les pluriels
+  // (/films, /animes...) ne sont reserves qu'aux pages de categorie et
+  // repondaient 200 avec un soft 404, donc aucune page media n'etait indexee.
   const typeSlug: Record<string, string> = {
-    film: 'films', serie: 'series', anime: 'animes',
-    jeu: 'games', webtoon: 'webtoons', comic: 'comics',
-    book: 'books', novel: 'novels',
+    film: 'film', serie: 'serie', anime: 'anime',
+    jeu: 'jeu', webtoon: 'webtoon', comic: 'comic',
+    book: 'book', novel: 'novel',
   };
 
   const urls = [
