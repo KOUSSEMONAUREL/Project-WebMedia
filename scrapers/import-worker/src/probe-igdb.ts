@@ -38,7 +38,7 @@ async function main() {
 
     // Teste plusieurs tailles de lot: IGDB plafonne le nombre d'ids acceptes
     // dans une clause "where id = (...)".
-    for (const size of [40, 20, 10, 5]) {
+    for (const size of [40, 20, 10]) {
         const slice = ids.slice(0, size);
         const body = `${FIELDS}; where id = (${slice.join(',')});`;
         const r = await axios.post('https://api.igdb.com/v4/games', body, {

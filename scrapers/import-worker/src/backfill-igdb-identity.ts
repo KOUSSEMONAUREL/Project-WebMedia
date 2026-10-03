@@ -21,7 +21,10 @@ import { createLog } from './utils/log.js';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
 const FIELDS = 'fields id,name,game_type,parent_game.name,version_parent.name,websites.url,websites.category';
-const ID_BATCH = 40;        // corps de requete maintenu court
+// IGDB plafonne la clause "where id = (...)" a 10 ids par requete:
+// verifie (20 demandes -> 10 recus). Au-dela, les ids sont SILENCIEUSEMENT
+// abandonnes, ce qui faisait passer 370 jeux pour "introuvables".
+const ID_BATCH = 10;
 const RATE_DELAY_MS = 350;   // ~3 requetes/s, sous la limite de 4/s
 
 const log = createLog('Backfill IGDB', 'backfill');
