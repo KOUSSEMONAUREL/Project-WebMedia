@@ -343,12 +343,9 @@ def process_jobs():
                                 collected.extend(valid)
                             elif site_links:
                                 # La page a repondu mais aucun titre ne correspond.
-                                log.warning("no match", type=media_type,
-                                            game=game_name, source=site_name,
-                                            candidats=len(site_links))
+                                log.warn(f"no match sur {site_name} ({len(site_links)} resultats, aucun titre valide): {game_name}")
                     except Exception as e:
-                        log.warning("source failed", type=media_type, game=game_name,
-                                    source=site_name, error=str(e)[:120])
+                        log.warn(f"source {site_name} en echec pour {game_name}: {str(e)[:100]}")
                         continue
                 all_links = collected[:6]
             else:
@@ -376,7 +373,7 @@ def process_jobs():
                     cur.execute(
                         "UPDATE scraping_jobs SET status = 'no_match', last_error = %s, updated_at = NOW() WHERE id = %s",
                         ("Aucun lien verifie pour ce titre apres filtrage", job_id))
-                    log.warning(f"no_match (aucun lien verifie): {game_name}")
+                    log.warn(f"no_match (aucun lien verifie): {game_name}")
                     no_match_jobs += 1
                 else:
                     cur.execute("UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = %s", (job_id,))
