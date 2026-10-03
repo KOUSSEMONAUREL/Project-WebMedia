@@ -67,7 +67,7 @@ export function StatsBar() {
 
   return (
     <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-5 sm:gap-x-12 sm:gap-y-6 text-center">
-      <div className="group relative flex flex-col items-center gap-1">
+      <div className="group relative flex flex-col items-center gap-1 rounded-lg px-3 py-1 -mx-3 transition-colors hover:bg-foreground/[0.04]">
         <span
           className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold tabular-nums leading-none"
           style={{ background: GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
@@ -81,19 +81,19 @@ export function StatsBar() {
             role="tooltip"
             className="pointer-events-none absolute left-1/2 top-[calc(100%+0.75rem)] z-30 hidden -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:block"
           >
-            <div className="w-[290px] rounded-xl border border-border/50 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+            <div className="w-[460px] max-w-[92vw] rounded-xl border border-border/50 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
               <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Par categorie</div>
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <ul className="grid grid-cols-4 gap-x-3 gap-y-1">
                 {CATEGORIES.map(({ type, label, href }) => {
                   const n = stats.byType?.[type] ?? 0;
                   return (
                     <li key={type}>
                       <a
                         href={href}
-                        className="pointer-events-auto flex items-baseline justify-between gap-2 rounded-md px-1.5 py-1 text-[12px] transition-colors hover:bg-foreground/[0.06]"
+                        className="pointer-events-auto flex flex-col gap-0.5 rounded-md px-1.5 py-1 transition-colors hover:bg-foreground/[0.06]"
                       >
-                        <span className="text-muted-foreground truncate">{label}</span>
-                        <span className="font-semibold tabular-nums text-foreground">{format(n)}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{label}</span>
+                        <span className="text-[13px] font-semibold tabular-nums text-foreground leading-none">{format(n)}</span>
                       </a>
                     </li>
                   );

@@ -44,9 +44,10 @@ Astro.response.headers.set(
 ---
 
 <Layout title="Accueil" canonicalUrl="https://www.webmediia.cfd/">
-    <DynamicHero client:load />
+    <div class="flex flex-col justify-center" style="min-height: calc(100vh - 74px)">
+      <DynamicHero client:load />
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12 xl:pb-24">
+      <div class="max-w-7xl mx-auto w-full px-4 sm:px-6">
         <TrendingCarousel items={trending} client:load />
 
         <div class="flex flex-col items-center text-center pt-3 pb-8 sm:pb-10">
@@ -67,11 +68,14 @@ Astro.response.headers.set(
             </a>
           </div>
 
-          <div class="mt-6 sm:mt-7 w-full">
+          <div class="mt-5 sm:mt-6 w-full">
             <StatsBar client:load />
           </div>
         </div>
+      </div>
+    </div>
 
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-12 xl:pb-24">
         <MediaGrid title="Films" items={popularFilms.slice(0, 10)} viewAllHref="/films" client:visible />
         <MediaGrid title="Séries" items={topSeries.slice(0, 10)} viewAllHref="/series" client:visible />
         <MediaGrid title="Animés" items={bestAnimes.slice(0, 10)} viewAllHref="/animes" client:visible />
