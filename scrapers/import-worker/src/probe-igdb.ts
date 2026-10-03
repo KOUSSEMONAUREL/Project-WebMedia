@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
 import { createNeonClient } from './db/client.js';
 import { medias } from './db/neon/schema.js';
 
-const FIELDS = 'fields id,name,game_type,parent_game.name,version_parent.name,websites.url,websites.category';
+const FIELDS = 'fields id,name,game_type,parent_game.name,version_parent.name,websites.url,websites.type';
 
 async function main() {
     const N = parseInt(process.argv[2] || '40', 10);

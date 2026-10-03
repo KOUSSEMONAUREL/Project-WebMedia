@@ -20,12 +20,38 @@ import { medias as tursoMedias } from './db/turso/schema.js';
 import { createLog } from './utils/log.js';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
-const FIELDS = 'fields id,name,game_type,parent_game.name,version_parent.name,websites.url,websites.category';
+const FIELDS = 'fields id,name,game_type,parent_game.name,version_parent.name,websites.url,websites.type';
 // IGDB plafonne la clause "where id = (...)" a 10 ids par requete:
 // verifie (20 demandes -> 10 recus). Au-dela, les ids sont SILENCIEUSEMENT
 // abandonnes, ce qui faisait passer 370 jeux pour "introuvables".
 const ID_BATCH = 10;
-const RATE_DELAY_MS = 350;   // ~3 requetes/s, sous la limite de 4/s
+const STORE_TYPES = new Set([13, 16, 17, 22, 23, 24]);
+const RATE_DELAY_MS = 250;   // ~3 requetes/s, sous la limite de 4/s
+// Le plafond de 10 ids est PAR REQUETE: on peut donc envoyer plusieurs
+// requetes en meme temps. 12 en vol reste sous le plafond de 4/s sur
+// une fenetre glissante et gagne un facteur 10 sur le temps IGDB.
+const HTTP_CONCURRENCY = 6;
+const DB_CONCURRENCY = 24;
+
+/** Lance fn sur chaque element, au plus `limit` en vol simultanes. */
+let igdbNextSlot = 0;
+async function igdbSlot(): Promise<void> {
+    const now = Date.now();
+    const start = Math.max(now, igdbNextSlot);
+    igdbNextSlot = start + RATE_DELAY_MS;
+    if (start > now) await sleep(start - now);
+}
+
+async function pool<T>(items: T[], limit: number, fn: (item: T, i: number) => Promise<void>): Promise<void> {
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (cursor < items.length) {
+            const i = cursor++;
+            await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+}
 
 const log = createLog('Backfill IGDB', 'backfill');
 
@@ -46,23 +72,32 @@ async function getToken(clientId: string, clientSecret: string): Promise<string>
 }
 
 async function fetchBatch(token: string, ids: number[]): Promise<any[]> {
-    const body = `${FIELDS}; where id = (${ids.join(',')});`;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+        await igdbSlot();
         try {
-            const r = await axios.post(IGDB_URL, body, {
-                headers: { 'Client-ID': process.env.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}` },
-                timeout: 25000,
-            });
+            const r = await axios.post(
+                IGDB_URL,
+                `${FIELDS}; where id = (${ids.join(',')});`,
+                {
+                    headers: {
+                        'Client-ID': process.env.TWITCH_CLIENT_ID || '',
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
             return r.data || [];
         } catch (e: any) {
             const status = e?.response?.status;
             if (status === 429 || status >= 500) {
-                await sleep(1200 * (attempt + 1));
+                // On garde la place dans la file: un 429 ici n'est pas une
+                // absence de jeu, c'est trop de monde.
+                await sleep(1500 * (attempt + 1));
                 continue;
             }
             throw e;
         }
     }
+    log.warn(`IGDB: ${ids.length} ids abandonnes apres 4 tentatives (rate limit)`);
     return [];
 }
 
@@ -129,52 +164,55 @@ async function main() {
             }
         }
 
-        for (let i = 0; i < ids.length; i += ID_BATCH) {
-            const slice = ids.slice(i, i + ID_BATCH);
-            const data = await fetchBatch(token, slice);
-            if (i > 0) await sleep(RATE_DELAY_MS);
+        const slices: number[][] = [];
+        for (let i = 0; i < ids.length; i += ID_BATCH) slices.push(ids.slice(i, i + ID_BATCH));
 
+        // Les requetes IGDB partent en parallele: le plafond de 10 ids est par
+        // requete, pas par seconde.
+        const fetchedData = new Map<number, any[]>();
+        const writes: Array<() => Promise<void>> = [];
+        await pool(slices, HTTP_CONCURRENCY, async (slice) => {
+            fetchedData.set(slice[0], await fetchBatch(token, slice));
+        });
+
+        for (let bi = 0; bi < slices.length; bi++) {
+            const slice = slices[bi];
+            const data = fetchedData.get(slice[0]) || [];
             for (const g of data) {
+
                 const row = byIgdb.get(g.id);
                 if (!row) continue;
-                const official = (g.websites || []).find((w: any) => w?.category === 1 && w?.url);
-                const store = (g.websites || []).find((w: any) => w?.category === 2 && w?.url);
-
-                await neon.update(medias)
-                    .set({
-                        gameType: typeof g.game_type === 'number' ? g.game_type : null,
-                        parentGameName: g.parent_game?.name || null,
-                        versionParentName: g.version_parent?.name || null,
-                        officialUrl: official?.url || null,
-                        storeUrl: store?.url || null,
-                        metadataFreshAt: new Date(),
-                    })
-                    .where(eq(medias.id, row.id));
-
-                if (turso) {
-                    // Turso n'a que les lignes deja presentes; on insere/actualise
-                    // par id plutot que UPDATE, pour ne pas creer de ligne absente.
-                    try {
-                        const existing = await turso.select({ id: tursoMedias.id })
-                            .from(tursoMedias).where(eq(tursoMedias.id, row.id)).limit(1);
-                        if (existing.length > 0) {
-                            await turso.update(tursoMedias).set({
-                                gameType: typeof g.game_type === 'number' ? g.game_type : null,
-                                parentGameName: g.parent_game?.name || null,
-                                versionParentName: g.version_parent?.name || null,
-                                officialUrl: official?.url || null,
-                                storeUrl: store?.url || null,
-                            }).where(eq(tursoMedias.id, row.id));
+                // Types IGDB: 1 = site officiel, 2 = wiki, 8 = Instagram,
+                // 13 = Steam, 16 = Epic, 17 = GOG, 22 = Xbox, 23 = PlayStation,
+                // 24 = Nintendo. Les deux derniers groupes sont les boutiques.
+                const sites = (g.websites || []) as any[];
+                const patch = {
+                    gameType: typeof g.game_type === 'number' ? g.game_type : null,
+                    parentGameName: g.parent_game?.name || null,
+                    versionParentName: g.version_parent?.name || null,
+                    officialUrl: sites.find((w: any) => w?.type === 1 && w?.url)?.url || null,
+                    storeUrl: sites.find((w: any) => STORE_TYPES.has(w?.type) && w?.url)?.url || null,
+                };
+                writes.push(async () => {
+                    await neon.update(medias).set({ ...patch, metadataFreshAt: new Date() })
+                        .where(eq(medias.id, row.id));
+                    // Turso n'a que les lignes deja presentes: un UPDATE sur un id
+                    // absent ne cree rien, donc pas besoin du SELECT prealable.
+                    if (turso) {
+                        try {
+                            await turso.update(tursoMedias).set(patch).where(eq(tursoMedias.id, row.id));
+                        } catch (e: any) {
+                            const cause = (e as any)?.cause?.message || e?.message || String(e);
+                            log.warn(`Turso update echoue pour ${row.title}: ${cause}`.slice(0, 300));
                         }
-                    } catch (e: any) {
-                        // Le message doit rester lisible: c'est lui qui permet de
-                        // voir "no such column" si la migration Turso est absente.
-                        const cause = (e as any)?.cause?.message || e?.message || String(e);
-                        log.warn(`Turso update echoue pour ${row.title}: ${cause}`.slice(0, 300));
                     }
-                }
-                updated++;
+                    updated++;
+                });
             }
+
+            // 24 ecritures en vol: le goulot etait le round-trip sequentiel,
+            // pas la bande passante. Neon et Turso sont sur deux bases distinctes.
+            await pool(writes.splice(0), DB_CONCURRENCY, async (fn) => { await fn(); });
 
             // un igdb_id present en base mais absent de l'IGDB repond
             const answered = new Set(data.map((g: any) => g.id));
@@ -183,6 +221,7 @@ async function main() {
             }
         }
         log.info(`Cumul: ${updated} mis a jour, ${missing} introuvables dans IGDB`);
+        // secoucage optionnel du pool entre deux pages
     }
 
     log.success(`Backfill termine: ${scanned} scannes, ${updated} mis a jour, ${missing} introuvables`);

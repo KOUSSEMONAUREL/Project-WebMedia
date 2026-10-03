@@ -15,6 +15,9 @@ const KEY = 'igdb';
 // On ne cree une fiche que pour les vrais jeux (0/1) : les DLC, packs, mods et
 // remakes ont une page de liens propre, mais ne doivent pas melanger le catalogue.
 const IGDB_MAIN_GAME_TYPES = new Set([0, 1]);
+// Types de sites marchands IGDB: 13 Steam, 16 Epic, 17 GOG, 22 Xbox,
+// 23 PlayStation, 24 Nintendo. Le 2 est un wiki, pas une boutique.
+const IGDB_STORE_TYPES = new Set([13, 16, 17, 22, 23, 24]);
 // game_type / parent_game / version_parent : c'est IGDB qui connait
 // l'identite reelle d'un jeu (jeu principal, remake, DLC) et son jeu de
 // base. Sans ces champs on devine, et on rattache des liens au mauvais jeu.
@@ -63,8 +66,11 @@ function buildMediaRow(item: any) {
     // websites.* etait demande depuis le debut mais jamais lu. category 1 =
     // site officiel: c'est le lien qui permet de verifier a l'utilisateur que
     // le jeu est bien le bon.
-    const officialSite = (item.websites || []).find((w: any) => w?.category === 1 && w?.url);
-    const storeSite = (item.websites || []).find((w: any) => w?.category === 2 && w?.url);
+    // Le sous-champ est "type" et non "category": en demandant "category" IGDB
+    // renvoyait les URLs sans le type, donc rien n'etait jamais retenu.
+    const sites = (item.websites || []) as any[];
+    const officialSite = sites.find((w: any) => w?.type === 1 && w?.url);
+    const storeSite = sites.find((w: any) => IGDB_STORE_TYPES.has(w?.type) && w?.url);
 
     return {
         type: 'jeu' as const, title: item.name,
