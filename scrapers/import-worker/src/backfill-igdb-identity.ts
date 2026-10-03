@@ -164,7 +164,10 @@ async function main() {
                             }).where(eq(tursoMedias.id, row.id));
                         }
                     } catch (e: any) {
-                        log.warn(`Turso update echoue pour ${row.title}: ${String(e.message).slice(0, 80)}`);
+                        // Le message doit rester lisible: c'est lui qui permet de
+                        // voir "no such column" si la migration Turso est absente.
+                        const cause = (e as any)?.cause?.message || e?.message || String(e);
+                        log.warn(`Turso update echoue pour ${row.title}: ${cause}`.slice(0, 300));
                     }
                 }
                 updated++;

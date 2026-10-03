@@ -33,6 +33,14 @@ jobs:
       - name: Build
         run: cd scrapers/import-worker && npm run build
 
+      # Turso est la base de lecture du site: ses colonnes doivent exister
+      # avant le backfill, sinon chaque UPDATE echoue silencieusement.
+      - name: Migrate Turso (game identity columns)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: cd scrapers/import-worker && node dist/migrate-turso-identity.js
+
       - name: Backfill identity (Neon + Turso)
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
