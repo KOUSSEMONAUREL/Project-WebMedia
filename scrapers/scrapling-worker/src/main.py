@@ -92,6 +92,22 @@ def extract_game_links(page, url, game_name=None):
             "scraped_at": int(time.time())
         })
 
+    def title_from_href(href):
+        """Deduit un titre du slug d'URL.
+
+        Sur la moitie des sources, le titre est rendu en JavaScript: l'ancre a
+        bien un href mais aucun texte. Sans titre, le lien ne peut pas etre
+        rattache au jeu demande et partait en no_match alors que le jeu etait
+        la. Le slug porte le nom du jeu ("grand-theft-auto-v-2015"), ce qui
+        suffit au comparateur de titres.
+        """
+        if not href:
+            return ""
+        slug = re.split(r"[?#]", href)[0].rstrip("/").split("/")[-1]
+        slug = re.sub(r"\.(html?|php)$", "", slug, flags=re.IGNORECASE)
+        slug = re.sub(r"[-_+]+", " ", slug)
+        return re.sub(r"\s+", " ", slug).strip()
+
     def collect_nodes(selectors):
         """Recupere (href, titre) pour chaque ancre. Le titre est indispensable:
         sans lui on ne peut pas verifier que le lien correspond au jeu cherche,
@@ -104,6 +120,10 @@ def extract_game_links(page, url, game_name=None):
                     if not href:
                         continue
                     title = (a.text or '').strip() or (a.attrib.get('title') or '').strip()
+                    if not title:
+                        title = a.attrib.get('aria-label') or ''
+                    if not title:
+                        title = title_from_href(href)
                     pairs.append((href, title))
             except Exception:
                 continue
@@ -126,7 +146,7 @@ def extract_game_links(page, url, game_name=None):
             game_links = page.css('div.cover-item-title a::attr(href)').getall()
         game_links = list(set(l for l in game_links if "free-download" in (l or '').lower()))
         for l in game_links:
-            add_link(l, "steamunlocked.org", "page_selection", True)
+            add_link(l, "steamunlocked.org", "page_selection", True, title_from_href(l))
         return found
 
     if "gamedrive.org" in url:
@@ -136,7 +156,7 @@ def extract_game_links(page, url, game_name=None):
             game_links = page.css('article h2.entry-title a::attr(href)').getall()
             game_links = list(set(l for l in game_links))
         for l in game_links:
-            add_link(l, "gamedrive.org", "page_selection", True)
+            add_link(l, "gamedrive.org", "page_selection", True, title_from_href(l))
         return found
 
     if "cfinder.xyz" in url or "directory.cfinder.xyz" in url:
@@ -177,9 +197,9 @@ def extract_game_links(page, url, game_name=None):
                 clean = re.sub(r'[^a-z0-9_]', '', l.lower().replace(' ', '_'))
                 if slug_underscored in clean:
                     filtered.append(l)
-            pairs = [(l, None) for l in filtered[:10]]
+            pairs = [(l, title_from_href(l)) for l in filtered[:10]]
         else:
-            pairs = [(l, None) for l in list(set(game_links))[:5]]
+            pairs = [(l, title_from_href(l)) for l in list(set(game_links))[:5]]
         for l, t in pairs:
             full_url = l if l.startswith('http') else f"https://elamigos.site/{l}"
             add_link(full_url, "elamigos.site", "page_selection", True, t)
