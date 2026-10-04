@@ -137,11 +137,13 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
             }))
         ).onConflictDoNothing().returning();
 
-        // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément)
+        // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément).
+        // Seuls les liens dont l'URL est absolue sont comptés : les chemins
+        // relatifs et fragments sont des hrefs cassés une fois rendus.
         let realCount = 0;
         try {
             const [{ count }] = await db.execute(
-                sql`SELECT COUNT(*)::int AS count FROM liens WHERE media_id = ${mediaId}`
+                sql`SELECT COUNT(*)::int AS count FROM liens WHERE media_id = ${mediaId} AND url LIKE ${'http%'}`
             );
             realCount = count ?? 0;
         } catch (e: any) {

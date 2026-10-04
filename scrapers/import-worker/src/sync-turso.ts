@@ -15,6 +15,12 @@ const SYNC_KEY = 'turso_last_sync_ms';
 // film/serie/anime: les liens passent par des embedders, pas par la table liens).
 const ALWAYS_SYNCED_TYPES = ['book', 'film', 'serie', 'anime'];
 
+// Un lien n'est exploitable que si son URL est absolue. 2276 liens sur 11504
+// sont des chemins relatifs ('/chapter/...') ou de purs fragments ('#...') :
+// le site les rendrait en href casses vers webmediia.cfd, et 53 medias
+// n'avaient que ça. Interroge la conformity ET le compteur sur ce critere.
+const URL_ABSOLUE = 'http%';
+
 type Logger = ReturnType<typeof createLog>;
 type MediaRow = typeof medias.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
@@ -31,7 +37,7 @@ function conformesFilter(
     m: typeof medias | typeof tursoMedias,
     l: typeof liens | typeof tursoLiens,
 ) {
-    return sql`(${m.type} IN (${sql.join(ALWAYS_SYNCED_TYPES.map(t => sql`${t}`), sql`, `)}) OR EXISTS (SELECT 1 FROM ${l} WHERE ${l.mediaId} = ${m.id} AND ${l.isActive} = true))`;
+    return sql`(${m.type} IN (${sql.join(ALWAYS_SYNCED_TYPES.map(t => sql`${t}`), sql`, `)}) OR EXISTS (SELECT 1 FROM ${l} WHERE ${l.mediaId} = ${m.id} AND ${l.isActive} = true AND ${l.url} LIKE ${URL_ABSOLUE}))`;
 }
 
 async function retry<T>(label: string, log: Logger, fn: () => Promise<T>): Promise<T> {
@@ -325,14 +331,15 @@ export async function syncNeonToTurso(
             log.info(`${orphanLiens.rowsAffected} liens et ${orphanEpisodes.rowsAffected} episodes orphelins purges de Turso`);
         }
 
-        // Recalcul de active_links_count. Seul l'ingesteur le met a jour, et il ne
+// Recalcul de active_links_count. Seul l'ingesteur le met a jour, et il ne
         // passe pas pour book/novel/webtoon/comic : le compteur derive en silence
         // (0 alors que les liens existent, ou 1285 au lieu de 18). Consequence
         // concrete : search.ts voit activeLinksCount = 0 et relance un scrape sur
-        // chaque apparition du media. Meme semantique que l'ingesteur (COUNT total
-        // de liens, sans filtre is_active) pour que le compteur reste comparable.
+        // chaque apparition du media. Meme semantique que l'ingesteur (COUNT des
+        // liens, sans filtre is_active, URL absolue requise) pour que le compteur
+        // reste comparable a celui de Neon et ne compte pas des href casses.
         const fixedCounters = await retry('recalcul active_links_count', log, () =>
-            turso.run(sql`UPDATE ${tursoMedias} SET active_links_count = COALESCE((SELECT COUNT(*) FROM ${tursoLiens} WHERE ${tursoLiens.mediaId} = ${tursoMedias}.id), 0)`),
+            turso.run(sql`UPDATE ${tursoMedias} SET active_links_count = COALESCE((SELECT COUNT(*) FROM ${tursoLiens} WHERE ${tursoLiens.mediaId} = ${tursoMedias}.id AND ${tursoLiens.url} LIKE ${URL_ABSOLUE}), 0)`),
         );
         if (fixedCounters.rowsAffected > 0) {
             log.info(`${fixedCounters.rowsAffected} compteurs active_links_count recalcules`);
