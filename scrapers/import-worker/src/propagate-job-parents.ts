@@ -54,16 +54,23 @@ async function main() {
 
         // Les parents viennent de Neon, par lots pour rester sous la limite de
         // parametres d'une seule requete.
+        //
+        // COALESCE indispensable: IGDB ne met pas le jeu de base dans la meme
+        // colonne selon le jeu. "Shadow of the Erdtree" (game_type 3) le range
+        // dans version_parent, "Elden Ring" lui-meme dans parent_game. Sans ce
+        // repli, 146 extensions n'avaient aucun parent et le matcher rattachait
+        // les liens du jeu de base.
         const parents = new Map<string, string>();
         for (let i = 0; i < mediaIds.length; i += 400) {
             const slice = mediaIds.slice(i, i + 400);
             const rows = await neon`
-                SELECT id::text AS id, parent_game_name
+                SELECT id::text AS id,
+                       COALESCE(parent_game_name, version_parent_name) AS parent
                 FROM medias
                 WHERE id::text IN ${neon(slice)}
-                  AND parent_game_name IS NOT NULL
+                  AND COALESCE(parent_game_name, version_parent_name) IS NOT NULL
             `;
-            for (const r of rows as any[]) parents.set(String(r.id), r.parent_game_name);
+            for (const r of rows as any[]) parents.set(String(r.id), r.parent);
         }
         log.info(`${parents.size} medias ont un parent IGDB`);
 
