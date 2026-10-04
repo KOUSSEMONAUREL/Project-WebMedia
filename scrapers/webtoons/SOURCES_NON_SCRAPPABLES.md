@@ -178,6 +178,59 @@ levée.** Les huit sous-domaines répondent 200 avec un vrai catalogue (~77–86
 liste. La ligne `IGNORE` est supprimée du tableau ; la source redevient candidate
 `NOUVEAU`/`BUILD`.
 
+## Resonde non-datacenter du 2026-10-04 : `en/comix` et `en/xomanga`
+
+Ces deux sources étaient `UNKNOWN` parce que le runner de CI est une IP datacenter et
+que les deux domaines renvoyaient un `403` Cloudflare. La règle du registre refuse
+toujours d'écrire un `IGNORE` sur cette seule preuve : il fallait une contre-sonde hors
+datacenter. Elle a été faite depuis une IP résidentielle, ce qui change la donne.
+
+**Position réseau de la sonde.** `92.128.4.120` en IPv4 et
+`2a01:cb05:9323:4000:…` en IPv6, toutes deux `AS3215 Orange S.A.` (FAI résidentiel
+français), donc effectivement une position non-datacenter. Témoin sur la même machine :
+`https://example.com` répond `200`, le réseau n'est donc pas en cause.
+
+**`en/comix` (`comix.to`) — `IGNORE` : challenge JavaScript sur toutes les routes.**
+
+| Route | HTTP | Corps | Titre |
+|---|---|---|---|
+| `/` | 403 | 5 591 o | `Just a moment...` |
+| `/api` | 403 | 5 344 o | `Just a moment...` |
+| `/api/manga/list` | 403 | 5 611 o | `Just a moment...` |
+| `/api/v1/manga` | 403 | 5 605 o | `Just a moment...` |
+| `/index.json` | 403 | 5 599 o | `Just a moment...` |
+| `/robots.txt` | 403 | 5 599 o | `Just a moment...` |
+
+Résultat identique en IPv4 forcée et en IPv6. Le mur ne dépend donc pas de notre
+position réseau : c'est un challenge Cloudflare servi à tout client qui n'exécute pas de
+JavaScript, et il ne laisse passer aucune voie JSON. L'upstream le confirme en
+utilisant `runWebView` pour la navigation, ce que notre moteur Cheerio ne peut pas faire.
+Rentre donc dans « Moteur de navigateur requis », comme `japscan` et `mangaplaza`.
+
+Condition de revivification : une route servant du contenu ou du JSON **sans** challenge
+Cloudflare.
+
+**`en/xomanga` (`xomanga.com`) — `BLOCKED`, donc verdict inconnu : le site est
+excellent, c'est notre position réseau qui bloque.**
+
+| Route | HTTP | Corps | Constat |
+|---|---|---|---|
+| `/` | 200 | 159 885 o | `XOmanga — Read Manga Online`, vrai catalogue |
+| `/api/manga/list` | 200 | 9 170 o | JSON réel : `{"manga":[{"id":"b53b972d-…","slug":"shu-san-wa-furimukanai",…}]}` |
+| `/index.json` | 404 | 33 204 o | le chemin utilisé par l'upstream n'existe plus, l'API a été déplacée |
+
+Le site est donc transposable tel quel : l'upstream ne fait que du JSON, et l'API répond
+sans challenge ni authentification. Ce qui l'a fait passer pour morte en CI est
+exclusivement le `403` Cloudflare appliqué aux plages GitHub Actions, WARP compris.
+
+À ne pas confondre avec un `IGNORE` : le registre classe `BLOCKED` une source vivante
+que seule notre position réseau empêche de lire (cf. `hentailoop` avant sa
+resonde). Elle redevient candidate `BUILD` le jour où le egress du scraping webtoon
+n'est plus une IP datacenter, pas le jour où le site change.
+
+Condition de revivification : un egress non-datacenter pour le scraping webtoon, ou une
+levée du blocage Cloudflare sur les plages GitHub Actions.
+
 ## Trois pièges de diagnostic à connaître
 
 Ces trois cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
