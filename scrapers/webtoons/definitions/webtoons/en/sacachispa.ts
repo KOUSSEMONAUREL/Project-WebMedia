@@ -49,6 +49,7 @@ interface MangaDetailDto {
 interface ChapterRefDto {
   chapter: string;
   title?: string | null;
+  patreonOnly?: boolean | null;
 }
 
 interface ReleaseDto {
@@ -120,8 +121,9 @@ export class SacachispaScraper extends BaseScraper {
       const body = res.data as { data: ReleaseDto[]; pagination: PaginationDto };
       for (const dto of body.data ?? []) {
         const title = dto.chapter?.title?.trim();
+        const locked = dto.chapter?.patreonOnly === true;
         chapters.push({
-          name: `Chapter ${dto.chapter?.chapter ?? ''}${title ? ` - ${title}` : ''}`,
+          name: `${locked ? '🔒 ' : ''}Chapter ${dto.chapter?.chapter ?? ''}${title ? ` - ${title}` : ''}`,
           url: `/read/${dto.id}`,
           chapterNumber: this.toChapterNumber(dto.chapter?.chapter),
           dateUpload: dto.publishedAt ? Date.parse(dto.publishedAt) : undefined,
