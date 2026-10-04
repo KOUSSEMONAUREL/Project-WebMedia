@@ -325,6 +325,19 @@ export async function syncNeonToTurso(
             log.info(`${orphanLiens.rowsAffected} liens et ${orphanEpisodes.rowsAffected} episodes orphelins purges de Turso`);
         }
 
+        // Recalcul de active_links_count. Seul l'ingesteur le met a jour, et il ne
+        // passe pas pour book/novel/webtoon/comic : le compteur derive en silence
+        // (0 alors que les liens existent, ou 1285 au lieu de 18). Consequence
+        // concrete : search.ts voit activeLinksCount = 0 et relance un scrape sur
+        // chaque apparition du media. Meme semantique que l'ingesteur (COUNT total
+        // de liens, sans filtre is_active) pour que le compteur reste comparable.
+        const fixedCounters = await retry('recalcul active_links_count', log, () =>
+            turso.run(sql`UPDATE ${tursoMedias} SET active_links_count = COALESCE((SELECT COUNT(*) FROM ${tursoLiens} WHERE ${tursoLiens.mediaId} = ${tursoMedias}.id), 0)`),
+        );
+        if (fixedCounters.rowsAffected > 0) {
+            log.info(`${fixedCounters.rowsAffected} compteurs active_links_count recalcules`);
+        }
+
         if (!opts?.forceFullSync) {
             const nowMs = startedAtMs;
             if (hasOffset) {
