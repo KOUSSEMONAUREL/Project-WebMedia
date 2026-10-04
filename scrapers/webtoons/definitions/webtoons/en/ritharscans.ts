@@ -1,50 +1,98 @@
 import { KeyoappScraper } from '../../../engine/keyoapp';
 import type { CheerioAPI } from 'cheerio';
-import type { Page, SearchResult } from '../../../engine/types';
+import type { Chapter, Page, SearchResult } from '../../../engine/types';
+
+interface RitharPageDto {
+  path: string;
+}
 
 export class RitharScansScraper extends KeyoappScraper {
   constructor() { super('RitharScans', 'https://ritharscans.com', 'en'); }
 
-  protected override readonly descriptionSelector: string = '#expand_content';
-  protected override readonly statusSelector: string = '[alt=Status]';
-  protected override readonly typeSelector: string = '[alt=Type]';
+  protected override readonly statusSelector: string = 'a[aria-label=Status]';
+  protected override readonly typeSelector: string = 'a[aria-label=Type]';
+  protected override readonly genreSelector: string = "div:has(>h1) a[href*='/genres/']";
+  protected override readonly authorSelector: string = 'dt:contains(Author) + dd';
+  protected override readonly artistSelector: string = 'dt:contains(Artist) + dd';
 
-  async getPopular(_page = 1): Promise<SearchResult> {
-    const res = await super.getPopular(_page);
-    const seen = new Set<string>();
-    res.mangas = res.mangas.filter(m => {
-      const key = m.url;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    res.hasNextPage = false;
-    return res;
+  override async getPopular(page = 1): Promise<SearchResult> {
+    const url = `${this.baseUrl}/search?sort=popular&page=${page}`;
+    const res = await this.get(url);
+    return this.parseSearchManga(res.data);
   }
 
-  async getSearch(query: string, _page = 1): Promise<SearchResult> {
-    const url = `${this.baseUrl}/search?title=${encodeURIComponent(query)}`;
-    const res = await this.get(url);
+  override async getLatest(page = 1): Promise<SearchResult> {
+    const res = await this.get(`${this.baseUrl}/latest?page=${page}`);
     const $ = this.$(res.data);
-    const mangas = $('[wire\\:snapshot*=pages.search] button[tags]').toArray()
+    const mangas = $('div.grid > div.group').toArray().map(el =>
+      this.popularMangaFromElement($(el)),
+    );
+    const hasNextPage = $("a[href*='?page=']").length > 0;
+    return { mangas, hasNextPage };
+  }
+
+  async getSearch(query: string, page = 1): Promise<SearchResult> {
+    let url = `${this.baseUrl}/search`;
+    const params: string[] = [];
+    if (page > 1) params.push(`page=${page}`);
+    if (query.trim()) params.push(`title=${encodeURIComponent(query.trim())}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await this.get(url);
+    return this.parseSearchManga(res.data);
+  }
+
+  private parseSearchManga(html: string): SearchResult {
+    const $ = this.$(html);
+    const mangas = $("main#main-content [wire\\:key*='serie']").toArray()
       .map(el => this.searchMangaFromElement($(el)));
-    return { mangas, hasNextPage: false };
+    return { mangas, hasNextPage: mangas.length >= 20 };
+  }
+
+  override async getChapterList(mangaUrl: string): Promise<Chapter[]> {
+    const res = await this.get(mangaUrl);
+    const $ = this.$(res.data);
+    return $('#chapters a[href*="/read/"]').toArray()
+      .map(el => $(el))
+      .filter($el => {
+        const card = $el.closest('.chapter-card');
+        const scope = card.length > 0 ? card : $el;
+        if (scope.find('.text-sm span').text().includes('Upcoming')) return false;
+        if (scope.find(this.paidChapterSelector).length > 0) return false;
+        return true;
+      })
+      .map($el => {
+        const url = this.absUrl($el.attr('href') || '');
+        const card = $el.closest('.chapter-card');
+        const scope = card.length > 0 ? card : $el;
+        const name = scope.find('.text-sm').first().text().trim() || $el.attr('aria-label') || $el.attr('title') || '';
+        const hasPaidIcon = scope.find(this.paidChapterSelector).length > 0;
+        return { name: hasPaidIcon ? `🔒 ${name}` : name, url };
+      });
+  }
+
+  protected override getImageUrl($el: ReturnType<CheerioAPI>, _selector: string): string {
+    const img = $el.find("img[alt$=' cover']").first();
+    if (img.length === 0) return super.getImageUrl($el, _selector);
+    const src = img.attr('src') || '';
+    if (!src) return '';
+    try {
+      return new URL(src, this.baseUrl).toString();
+    } catch {
+      return src;
+    }
   }
 
   protected override pageListParse($: CheerioAPI): Page[] {
-    const jsonLd = $('script[type="application/ld+json"]').first().html();
-    if (!jsonLd) return [];
+    const xData = $('[x-data^=immersiveReader]').first().attr('x-data') || '';
+    const pagesJs = xData.split("JSON.parse('")[1]?.split("')")[0] || '';
+    if (!pagesJs) throw new Error('Log in via WebView and purchase this chapter to read.');
+    let inner: string;
     try {
-      const data = JSON.parse(jsonLd);
-      const chapterId = data.url.substring(data.url.lastIndexOf('/') + 1);
-      const seriesId = data.isPartOf.url.substring(data.isPartOf.url.lastIndexOf('/') + 1);
-      return Array.from({ length: data.numberOfPages }, (_, i) => ({
-        index: i,
-        imageUrl: `${this.baseUrl}/storage/series/webtoon/${seriesId}/chapters/${chapterId}/${String(i + 1).padStart(3, '0')}.jpg`,
-      }));
-    } catch (err) {
-      console.error(`Failed to parse JSON-LD for page list on ${this.name}: ${err instanceof Error ? err.message : err}`);
-      return [];
+      inner = JSON.parse(`"${pagesJs}"`);
+    } catch {
+      inner = pagesJs;
     }
+    const pages = JSON.parse(inner) as RitharPageDto[];
+    return pages.map((page, i) => ({ index: i, imageUrl: page.path }));
   }
 }
