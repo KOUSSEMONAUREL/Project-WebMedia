@@ -53,13 +53,8 @@ class MongodbLogger {
         const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
         console[consoleMethod](`[${level.toUpperCase()}] [${service}] ${message}`, details || '');
 
-        // Repli sur l'environnement, lu a l'appel et non a la construction : aucun site d'appel
-        // ne passait d'URI, donc le chemin Mongo etait du code mort partout. Lire ici evite
-        // de dependre de l'ordre d'import entre dotenv/config et ce module, qui sinon
-        // capturerait undefined en silence.
-        const uri = envUri || (this.isWorker ? undefined : process.env?.MONGODB_URI);
-        if (uri) {
-            const collection = await this.connect(uri);
+        if (envUri && this.isNode) {
+            const collection = await this.connect(envUri);
             if (collection) {
                 try {
                     const safeDetails = details ? JSON.parse(JSON.stringify(details).substring(0, 5000)) : undefined;
