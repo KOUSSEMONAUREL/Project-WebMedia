@@ -69,6 +69,68 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `fr/ono` | `www.ono.live` + `ws.ono.live` | IGNORE | HTTP **202 à 0 octet** (CloudFront anti-bot) ; l'API GraphQL exige un JWT Cognito extrait des cookies du site | `ws.ono.live/graphql` répond sans en-tête `Authorization` |
 | `en/mangabay` | `manga-bay.biz` | IGNORE | Sondé le 2026-10-04 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond une page d'attente JS (spinner, `token mode modern`, contrôle `webdriver`/`hasCrypto`) sans catalogue ; l'upstream ne la franchit que via `runWebViewBlocking` (`DleGuardResolver.kt`, cookie `__guard_trust`) | Le garde DLE sert un vrai catalogue sans WebView (ou le cookie `__guard_trust` devient calculable sans navigateur) |
 
+### Sources vivantes derrière un challenge Cloudflare : `BLOCKED`, pas `IGNORE`
+
+Ces quatre entrées **ne sont pas classées `IGNORE`**, et c'est le point principal de cette
+section. Un `IGNORE` affirme que la source est morte ; rien ici ne le prouve. Ces sites
+répondent, ils sont en ligne, et un navigateur les ouvre. Ce qui manque, c'est notre
+capacité à les franchir : `axios` + `cheerio` n'exécutent ni JavaScript, ni fingerprint
+TLS, et n'obtiennent jamais de `cf_clearance`.
+
+Pourquoi `IGNORE` serait un verdict faux ici, alors que `en/mangabay` est bien `IGNORE`
+plus haut : mangabay exige un `WebView` **et** un descrambler, c'est-à-dire une
+architecture que ce dépôt n'a pas et n'est pas hostile à à avoir — le garde est la seule
+voie, donc la source est hors d'atteinte par conception. Ici le challenge est standard et
+se lève avec un simple navigateur : le registre mesure notre outillage, pas la santé des
+sites. Classer ces sources en `IGNORE` les ferait disparaître de tout radar alors qu'elles
+sont parfaitement portables, et donc des ports qui réussiront le jour où le dépôt gagnera
+un chemin anti-bot. C'est le piège que la règle refuse : sans cette ligne, un verdict ne
+vit que dans un commentaire d'issue fermée, donc il n'est ni requêtable ni rejouable.
+
+Sondé le **2026-10-05**, en IPv4 (`curl -4`), sans WARP. Les quatre réponses sont le même
+challenge, ~5,4 ko, `cf-ray` en `CDG` (Paris) pour les trois domaines distincts.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/theblank` | `theblank.net` | BLOCKED | `403` + **5 446 o**, `<title>Just a moment...</title>`, en-têtes `server: cloudflare` et **`cf-mitigated: challenge`** (`cf-ray: a45ee8144da13ce1-CDG`) : challenge Cloudflare interactif, aucun catalogue dans le corps | Un `GET` sans navigateur rend un catalogue lisible (bascule en Defensive mode, ou `cf_clearance` obtenable sans JS) |
+| `fr/astralmanga` | `astral-manga.fr` | BLOCKED | `403` + **5 470 o**, `Just a moment...`, `cf-mitigated: challenge` (`cf-ray: a45ee814b8cf9dae-CDG`) — identique au précédent | idem |
+| `fr/softepsilonscan` | `epsilonsoft.to` | BLOCKED | `403` + **5 469 o**, `Just a moment...`, `cf-mitigated: challenge` (`cf-ray: a45ee8151c7a2a10-CDG`) | idem |
+| `fr/epsilonscan` | `epsilonsoft.to` | BLOCKED | **Même domaine que `fr/softepsilonscan`** : les deux `build.gradle.kts` upstream pointent sur `epsilonsoft.to`, donc deux sources logiques sur une seule origine. Réponse identique à la précédente (`403`, 5 469 o) | Une seule fois la condition d'`fr/softepsilonscan` remplie, les deux sont portables : ne pas les re-sonder séparément |
+
+#### Pourquoi ces quatre ne sont pas portées maintenant
+
+Un port `BaseScraper` fait `axios.get()` puis `cheerio.load()`. Face à `cf-mitigated:
+challenge`, il recevrait 5,4 ko de page d'attente, `getSearch()` renverrait
+`{ mangas: [], hasNextPage: false }`, et le worker classerait le job en `no_match` après 3
+essais. Autrement dit : un fichier commité qui ne retourne jamais rien, et un media marqué
+« absent des sources » alors qu'il existe. C'est exactement le « bruit qui fait croire à
+un travail fait » que l'en-tête du registre interdit.
+
+Trois voies, par ordre de rapport coût/résultat, quand on voudra les porter :
+
+1. **Navigateur** — réutiliser ce que `scrapling-worker` fait déjà pour les jeux
+   (`Fetcher.get` + Playwright/patchright). Ce worker est aujourd'hui games-only ; lui
+   ouvrir les mangas est le prolongement le moins coûteux, et un `cf_clearance` récupéré
+   via navigateur permettrait ensuite de repasser en `cheerio` pour le gros du volume.
+2. **Résoudre le challenge à la main, une fois** — un `cf_clearance` est lié à l'IP et de
+   TTL court : il ne tient ni en CI ni plusieurs heures. À ne tenter que pour du one-shot.
+3. **Attendre un basculement du site en Defensive mode** — c'est la condition déjà
+   inscrite dans le tableau, et la seule qui ne demande aucun code.
+
+#### Ce qui a été vérifié avant d'écrire cette section
+
+Le diagnostic ne s'est pas arrêté à « ça ne marche pas en local ». Il a été fait sur runner
+GitHub, avec et sans WARP, parce que la piste « l'IP du runner est bannie » avait déjà
+produit un faux verdict dans ce dépôt :
+
+- **A/B sur le même runner** (`.github/workflows/diagnose-scraper-egress.yml`, run
+  `37357165963`, supprimé depuis) : à IP WARP `104.28.201.80` et à IP nue
+  `172.184.209.180`, `MangaKatana` et `MangaRead` répondent à l'identique. Le WARP ne
+  débloque ni ne dégrade rien : **un 403 sans WARP ne prouve donc rien** sur ces sites.
+- **Ce qui reste vrai malgré tout** : ces quatre renvoient `cf-mitigated: challenge`, qui
+  est une décision Cloudflare explicite, et non une banni d'IP comparable au `1026`. La
+  nuance compte : un `1026` se contourne, un `cf-mitigated: challenge` non sans navigateur.
+
 ### Ce que l'historique Git ne dit pas, et qu'il ne faut pas en déduire
 
 `git log --diff-filter=D` fait apparaître **139** ports supprimés. Ce nombre est un
