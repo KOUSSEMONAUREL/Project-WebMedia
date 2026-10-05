@@ -72,8 +72,19 @@ jobs:
           cd scrapers/webtoons
           npx tsx src/diagnose-egress.ts "WARP deconnecte"
 
+      - name: Sonde matching — nouveaux seuils sur runner
+        run: |
+          set -euo pipefail
+          cd scrapers/webtoons
+          npx tsx src/diagnose-match.ts
+
       - name: Verdict
         run: |
           echo "Compare les deux tableaux du resume de ce run."
           echo "Si la sonde A est nettement moins bonne que la sonde B,"
           echo "le blocage vient de l'IP de sortie du runner, pas des sources."
+          echo ""
+          echo "Pour le matching : compare ces chiffres aux references locales."
+          echo "Un titre a 0 match ici mais > 0 en local signale un probleme"
+          echo "d'acces, pas de matching. Les trois derniers titres etaient a 0"
+          echo "partout avant cette PR."
