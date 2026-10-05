@@ -1,0 +1,79 @@
+# Diagnostic d'egress des scrapers — lecture seule, aucune base de donnees.
+#
+# But : trancher entre deux hypotheses pour l'echec de masse du Webtoon Scraper
+# (0 resultat sur 246 sources) :
+#   A) l'IP de sortie du runner (derriere WARP) est bloquee par les sources ;
+#   B) les sources sont reellement hors service.
+#
+# Methode : le meme runner execute la sonde deux fois, WARP connecte puis deconnecte.
+# La seule variable est l'IP, donc tout ecart entre les deux colonnes est
+# attribuable au tunnel. Aucun secret n'est monte : le script ne fait que des GET
+# sortants et n'ecrit nulle part.
+
+name: Diagnose Scraper Egress
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: 'Echantillon de sources (defaut: 10 melanges joignables/bloquees)'
+        required: false
+        type: string
+
+concurrency:
+  group: diagnose-egress
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: cd scrapers/webtoons && npm ci
+
+      - name: Install Cloudflare Warp
+        run: |
+          set -euo pipefail
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+            | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update
+          sudo apt-get install -y cloudflare-warp
+          sudo warp-cli --accept-tos registration new
+          sudo systemctl start warp-svc
+
+      - name: Sonde A — WARP connecte
+        run: |
+          set -euo pipefail
+          sudo warp-cli --accept-tos connect
+          sleep 8
+          echo "--- etat WARP ---"
+          sudo warp-cli --accept-tos status
+          cd scrapers/webtoons
+          npx tsx src/diagnose-egress.ts "WARP connecte"
+
+      - name: Sonde B — WARP deconnecte
+        run: |
+          set -euo pipefail
+          sudo warp-cli --accept-tos disconnect || true
+          sleep 5
+          echo "--- etat WARP ---"
+          sudo warp-cli --accept-tos status || true
+          cd scrapers/webtoons
+          npx tsx src/diagnose-egress.ts "WARP deconnecte"
+
+      - name: Verdict
+        run: |
+          echo "Compare les deux tableaux du resume de ce run."
+          echo "Si la sonde A est nettement moins bonne que la sonde B,"
+          echo "le blocage vient de l'IP de sortie du runner, pas des sources."
