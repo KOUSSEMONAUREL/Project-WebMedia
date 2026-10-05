@@ -155,10 +155,12 @@ const port = parseInt(process.env.PORT || '3000', 10);
 // Les routes lisent leurs variables via c.env (API Cloudflare). Sur le serveur
 // Node, c.env est undefined: sans ce pont, /ingest/liens ne trouve ni Neon ni
 // Turso et le scraper local n'ecrit rien. process.env joue le role du binding.
+// @hono/node-server n'appelle le callback qu'avec (request, env) : il n'existe pas
+// d'ExecutionContext en Node. Le passer etait du code mort et cassait le typage.
 serve(
     {
-        fetch: (request, _env, executionCtx) =>
-            app.fetch(request, process.env as unknown as Record<string, unknown>, executionCtx),
+        fetch: (request) =>
+            app.fetch(request, process.env as unknown as Record<string, unknown>),
         port,
         hostname: '0.0.0.0',
     },
