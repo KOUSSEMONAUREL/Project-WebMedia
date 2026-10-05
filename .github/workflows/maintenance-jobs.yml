@@ -22,4 +22,12 @@ jobs:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
         run: cd backend && npx tsx src/jobs/cleanup-failed-jobs.ts
 
+      # La purge des logs est assuree par l'index TTL Mongo, en continu, pas par ce job.
+      # Ce controle verifie que l'index existe encore et que la collection reste sous
+      # le seuil du free tier M0 (512 Mo), et recree l'index si besoin.
+      - name: Check Mongo log retention
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: cd backend && npx tsx src/jobs/check-log-retention.ts
+
 
