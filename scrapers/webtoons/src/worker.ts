@@ -36,8 +36,8 @@ async function callInternal(endpoint: string, data: unknown) {
   });
 }
 
-export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number }> {
-  const results = await scrapeMedia(media);
+export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number; sourcesMatched: number }> {
+  const { results, sourcesMatched } = await scrapeMedia(media);
   let chaptersSaved = 0;
 
   for (const result of results) {
@@ -94,7 +94,7 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
     }
   }
 
-  return { chaptersSaved };
+  return { chaptersSaved, sourcesMatched };
 }
 
 if (process.argv[1]?.endsWith('worker.ts')) {
@@ -135,6 +135,14 @@ if (process.argv[1]?.endsWith('worker.ts')) {
       let errors = 0;
       const maxJobs = 60;
 
+      /**
+       * Nombre d'essais avant de declarer un media non scrappable. Aligne sur
+       * scrapling-worker (src/main.py) qui utilise 2, et sur le seuil historique
+       * des workers TS. Au-dela, on ne repete plus : soit le titre n'existe nulle
+       * part (-> no_match), soit la source est durablement en panne (-> failed).
+       */
+      const MAX_ATTEMPTS = 3;
+
       while (processed < maxJobs) {
         const [job] = await sb`
           UPDATE scraping_jobs
@@ -174,13 +182,31 @@ if (process.argv[1]?.endsWith('worker.ts')) {
         if (result.chaptersSaved > 0) {
           await sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`;
           log.success(`Saved ${result.chaptersSaved} link(s)`);
+        } else if (result.sourcesMatched === 0) {
+          // Aucun des scrapers ne porte ce titre. Distinct de `failed` : le job a
+          // bien ete traite, le media n'est simplement pas dans les sources, ou
+          // pas sous ce nom. Sans cette branche, `no_match` ne serait jamais pose
+          // pour le webtoon alors que l'orchestrateur le sait deja lire
+          // (isPermanentFailure), et le media repartirait en boucle indefiniment :
+          // chaque cycle recreait la ligne avec attempts=0 et repartait de zero.
+          if (job.attempts >= MAX_ATTEMPTS) {
+            await sb`UPDATE scraping_jobs SET status = 'no_match', last_error = 'No webtoon source carries this title', updated_at = NOW() WHERE id = ${job.id}`;
+            log.error(`no_match after ${job.attempts} attempts (aucune source)`);
+          } else {
+            await sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`;
+            log.retry('No source matched', job.attempts, MAX_ATTEMPTS);
+          }
         } else {
-          if (job.attempts >= 3) {
-            await sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'No chapters found', updated_at = NOW() WHERE id = ${job.id}`;
+          // Au moins une source a ete trouvee : le titre existe, c'est le scrape
+          // qui a echoue (source en panne, 403, timeout). C'est transitoire, donc
+          // le message doit le dire pour que le regex de l'orchestrateur le
+          // classe en erreur de pile et non en disparition de la source.
+          if (job.attempts >= MAX_ATTEMPTS) {
+            await sb`UPDATE scraping_jobs SET status = 'failed', last_error = ${`No chapters on ${result.sourcesMatched} matched source(s)`}, updated_at = NOW() WHERE id = ${job.id}`;
             log.error(`Failed after ${job.attempts} attempts`);
           } else {
             await sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`;
-            log.retry('No chapters', job.attempts, 3);
+            log.retry('No chapters', job.attempts, MAX_ATTEMPTS);
           }
         }
       }

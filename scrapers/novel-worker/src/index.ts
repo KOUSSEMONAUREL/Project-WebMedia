@@ -19,6 +19,14 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 const CONCURRENCY = 3;
 const MAX_JOBS = 30;
 
+/**
+ * Nombre d'essais avant de classer un media non scrappable. Aligne sur
+ * scrapling-worker et sur le seuil historique des workers TS : au-dela on ne
+ * repete plus, car le titre est absent des sources ou la source est
+ * durablement en panne.
+ */
+const MAX_ATTEMPTS = 3;
+
 const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
 const sb = drizzle(supabaseClient);
 
@@ -147,7 +155,7 @@ async function sendToIngest(mediaId: string, urls: { url: string; site: string }
   });
 }
 
-async function processJob(job: any): Promise<void> {
+async function processJob(job: any, log: ReturnType<typeof createLog>): Promise<void> {
   const tempDir = path.join('/tmp', `novel-worker-${job.id}`);
   let urls: { url: string; site: string }[] = [];
 
@@ -160,7 +168,30 @@ async function processJob(job: any): Promise<void> {
       urls = await runSearch(job.title, tempDir);
     }
 
-    if (urls.length === 0) throw new Error('No sources found');
+    // Aucun des sites interroges ne porte ce titre. Traite comme no_match et
+    // non comme echec : le job a bien ete execute, le media n'est simplement pas
+    // dans les sources, ou pas sous ce nom. Sans cette branche, le message partait
+    // dans le catch plus bas et devenait `failed`, donc transitoire pour
+    // l'orchestrateur -- et comme chaque cycle recreait la ligne avec
+    // attempts=0, le media repartait pour 3 essais a l'infini.
+    if (urls.length === 0) {
+      if (job.attempts >= MAX_ATTEMPTS) {
+        await sb.update(scrapingJobs)
+          .set({
+            status: 'no_match',
+            lastError: 'No novel source carries this title',
+            updatedAt: new Date(),
+          })
+          .where(eq(scrapingJobs.id, job.id));
+        log.warn(`no_match apres ${job.attempts} tentatives (aucune source)`);
+        return;
+      }
+      await sb.update(scrapingJobs)
+        .set({ status: 'pending', updatedAt: new Date() })
+        .where(eq(scrapingJobs.id, job.id));
+      log.retry(`Aucune source pour "${job.title}"`, job.attempts, MAX_ATTEMPTS);
+      return;
+    }
 
     urls = await Promise.all(urls.map(async (u) => {
       const resolvedUrl = await resolveApiUrl(u.url);
@@ -217,7 +248,7 @@ async function runOneShot() {
     tasks.push(limit(async () => {
       log.start(`Processing`, { title: job.title, id: job.id });
       try {
-        await processJob(job);
+        await processJob(job, log);
         log.success(`Completed: ${job.title}`);
       } catch (err: any) {
         log.error(err.message);

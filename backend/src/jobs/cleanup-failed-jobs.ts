@@ -8,8 +8,12 @@ const DAY_MS = 24 * 3600 * 1000;
  * d'analyse de l'orchestrateur (30 jours), sinon le compteur d'echecs se vide sous ses pieds
  * et le seuil de retrait ne peut jamais etre atteint.
  *
- * - 'failed' et 'no_match' restent 30j : ce sont eux qui portent le poids dans la fenetre.
- *   ('failed' est rare : quelques dizaines de lignes, donc le garder ne coute rien.)
+ * - 'failed' et 'no_match' doivent SURPASSER la fenetre, jamais l'egaler : un media
+ *   atteint le seuil de retrait a 5 echecs permanents, donc il doit pouvoir en
+ *   compter 5 dans la fenetre. A 30j exactement, purge et analyse tombaient le meme
+ *   jour, et la purge pouvait emporter la derniere ligne avant le comptage -- le media
+ *   repartait alors pour 5 cycles de plus. On garde 35j, un cycle de marge au-dela
+ *   des 30j de fenetre.
  * - 'completed' part a 7j : jamais lu par l'orchestrateur (un succes ne compte pas comme un
  *   echec), c'est du bruit, et c'est lui qui ferait grossir la table sur le free tier.
  *
@@ -19,8 +23,8 @@ const DAY_MS = 24 * 3600 * 1000;
  */
 const RETENTION_DAYS: Record<string, number> = {
     completed: 7,
-    failed: 30,
-    no_match: 30,
+    failed: 35,
+    no_match: 35,
 };
 
 async function cleanup() {

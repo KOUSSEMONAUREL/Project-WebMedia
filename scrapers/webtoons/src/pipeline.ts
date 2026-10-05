@@ -16,7 +16,13 @@ export interface MediaTarget {
 }
 
 /**
- * Résultat de scraping pour un media
+ * Resultat de scraping pour un media
+ *
+ * `sourcesMatched` compte les sources retenues par le matching, avant tout
+ * grattage. C'est ce nombre qui distingue "le titre n'existe sur aucune source"
+ * de "la source a ete trouvee mais n'a pas rendu de chapitre" : sans lui, un
+ * titre absent et une source en panne finissent tous deux en no_match, et le
+ * catalogue perdrait des medias qui existent.
  */
 export interface ScrapeResult {
   mediaId: string;
@@ -24,6 +30,13 @@ export interface ScrapeResult {
   rootUrl: string;
   chapters: { name: string; url: string; chapterNumber?: number }[];
   pages?: { url: string; index: number }[];
+}
+
+/** Sortie de scrapeMedia : ce qu'on a reussi a extraire, et sur combien de sources. */
+export interface ScrapeOutcome {
+  results: ScrapeResult[];
+  /** Sources trouvees pour ce titre, independamment du nombre de chapitres. */
+  sourcesMatched: number;
 }
 
 // Cache interne des scrapers
@@ -103,9 +116,10 @@ export async function findMatchingScrapers(media: MediaTarget): Promise<{ name: 
 
 /**
  * Scrape un media : chapitres + pages pour chaque source trouvée.
- * Retourne tous les résultats, dédupliqués par URL de chapitre.
+ * Retourne tous les résultats, dédupliqués par URL de chapitre, et le nombre
+ * de sources retenues par le matching.
  */
-export async function scrapeMedia(media: MediaTarget): Promise<ScrapeResult[]> {
+export async function scrapeMedia(media: MediaTarget): Promise<ScrapeOutcome> {
   const matches = await findMatchingScrapers(media);
   const results: ScrapeResult[] = [];
   const seenUrls = new Set<string>();
@@ -143,5 +157,5 @@ export async function scrapeMedia(media: MediaTarget): Promise<ScrapeResult[]> {
     }
   }
 
-  return results;
+  return { results, sourcesMatched: matches.length };
 }
