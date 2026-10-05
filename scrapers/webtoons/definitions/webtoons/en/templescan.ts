@@ -64,19 +64,27 @@ function pickString(o: JsonObject, ...keys: string[]): string | null {
 
 // ------------------------------------------------------------
 // RscKeys port (upstream RscKeys.kt, module `14834`): the site ships its
-// short field-key table in its own client bundle. Live bundle format
-// (observed 01/10/2026 — upstream's `.split(",")` regex matches nothing):
-//   ["Chapter","images",...],r="g212lcoaq2k8u9...(112 chars)";
-//   s=1+r.charCodeAt(0)%15; key(names[t])=r.slice(((t+s)%16)*7,+7).
-// Both the packed format and upstream's comma-separated format are read.
+// short field-key table in its own client bundle. Current bundle format
+// (upstream #404): a positional list of logical names, then a salt string
+// that each name slices a key out of, e.g.
+//   ["Chapter","images",...],a="o682...fk"; l=1+a.charCodeAt(0)%15;
+//   key(names[t])=salt.slice(((t+l)%16)*7,+7).
+// Slot count, key length and rotation offset are all read from the bundle,
+// so a rebuild that rotates the salt no longer needs an extension update.
+// The previous comma-separated format (`.split(",")`) is kept as fallback.
 // ------------------------------------------------------------
 
 type RscField = string;
 
 const RSC_CHUNK_PATH = '/_next/static/chunks/';
-const RSC_PACKED_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\]\s*,\s*[A-Za-z_$][\w$]*\s*=\s*"([A-Za-z0-9]{70,})"/;
+const RSC_TABLE_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\],\s*([A-Za-z0-9_$]{1,40})\s*=\s*"([A-Za-z0-9]+)"/g;
+const RSC_OFFSET_REGEX = /([A-Za-z0-9_$]{1,40})\s*=\s*(\d+)\s*\+\s*([A-Za-z0-9_$]{1,40})\.charCodeAt\(0\)\s*%\s*(\d+)/g;
+const RSC_SLOT_REGEX = /\(\s*[A-Za-z0-9_$]{1,40}\s*\+\s*([A-Za-z0-9_$]{1,40})\s*\)\s*%\s*(\d+)\s*\*\s*(\d+)/g;
 const RSC_SPLIT_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\],\s*[^=;]{1,32}=\s*"([^"]*)"\.split\(",\)/;
 const RSC_NAME_REGEX = /"([A-Za-z0-9_]+)"/g;
+// How far past the names array the minified derivation may sit before it is
+// not the one (upstream DERIVATION_WINDOW).
+const RSC_DERIVATION_WINDOW = 600;
 
 function rscNames(raw: string): string[] {
   const names: string[] = [];
@@ -86,20 +94,52 @@ function rscNames(raw: string): string[] {
   return names;
 }
 
-// Live packed-string derivation (module 14834): 16 slots of 7 chars.
-function derivePackedKeys(names: string[], packed: string): Map<string, string> | null {
-  if (names.length === 0 || names.length > 16) return null;
-  if (packed.length !== 112) return null;
-  const s = 1 + (packed.charCodeAt(0) % 15);
+// Salt-based derivation (module 14834): names[i] slices `keyLength` chars
+// out of the salt at slot `(i + start) % slotCount`.
+function deriveSaltKeys(names: string[], salt: string, saltVar: string, derivation: string): Map<string, string> | null {
+  const offsetRe = new RegExp(RSC_OFFSET_REGEX);
+  let offset: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = offsetRe.exec(derivation)) !== null) {
+    if (m[3] === saltVar) {
+      offset = m;
+      break;
+    }
+  }
+  if (!offset) return null;
+  const slotRe = new RegExp(RSC_SLOT_REGEX);
+  let slot: RegExpExecArray | null = null;
+  while ((m = slotRe.exec(derivation)) !== null) {
+    if (m[1] === offset[1]) {
+      slot = m;
+      break;
+    }
+  }
+  if (!slot) return null;
+  const slotCount = Number.parseInt(slot[2], 10);
+  const keyLength = Number.parseInt(slot[3], 10);
+  if (!slotCount || !keyLength) return null;
+  // The bundle's own guard: the salt must divide evenly into its slots and
+  // name every field.
+  if (salt.length !== slotCount * keyLength || names.length > slotCount) return null;
+  const start = Number.parseInt(offset[2], 10) + (salt.charCodeAt(0) % Number.parseInt(offset[4], 10));
   const out = new Map<string, string>();
-  names.forEach((n, t) => out.set(n, packed.slice(((t + s) % 16) * 7, ((t + s) % 16) * 7 + 7)));
+  names.forEach((name, index) => {
+    const position = (((index + start) % slotCount) * keyLength);
+    out.set(name, salt.substring(position, position + keyLength));
+  });
   return out;
 }
 
 function findRscTable(chunkSource: string): Map<string, string> | null {
-  const packed = RSC_PACKED_REGEX.exec(chunkSource);
-  if (packed) {
-    const table = derivePackedKeys(rscNames(packed[1]), packed[2]);
+  const tableRe = new RegExp(RSC_TABLE_REGEX);
+  let m: RegExpExecArray | null;
+  while ((m = tableRe.exec(chunkSource)) !== null) {
+    const names = rscNames(m[1]);
+    const saltVar = m[2];
+    const salt = m[3];
+    const derivation = chunkSource.substring(m[0].length + (m.index ?? 0), (m.index ?? 0) + m[0].length + RSC_DERIVATION_WINDOW);
+    const table = deriveSaltKeys(names, salt, saltVar, derivation);
     if (table && table.size > 0) return table;
   }
   const split = RSC_SPLIT_REGEX.exec(chunkSource);
