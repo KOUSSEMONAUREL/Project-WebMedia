@@ -84,7 +84,11 @@ interface ChapterDetailResponse {
 }
 
 export interface MangaBallFilters {
-  sortBy?: 'lastupdate' | 'views' | 'rating' | 'created_at' | 'name';
+  // Upstream added a `Relevance` sort option (keiyoushi #404): it maps to a
+  // null `sort_by`, i.e. the parameter is omitted and the API orders by
+  // relevance. Only meaningful with a keyword; keyword-less browse falls
+  // back to `lastupdate` so results stay ordered.
+  sortBy?: 'relevance' | 'lastupdate' | 'views' | 'rating' | 'created_at' | 'name';
   sortOrder?: 'asc' | 'desc';
   tagMode?: 'AND' | 'OR';
   type?: '' | 'manga' | 'manhwa' | 'manhua' | 'comics';
@@ -141,12 +145,16 @@ export class MangaBallScraper extends BaseScraper {
   }
 
   async searchAdvanced(page: number, keyword: string, filters: MangaBallFilters): Promise<SearchResult> {
+    // Mirrors upstream `effectiveSortBy`: relevance (or an unset sort with a
+    // keyword) omits `sort_by`/`sort_order` entirely; keyword-less browse
+    // falls back to `lastupdate`.
+    const requested = filters.sortBy === 'relevance' ? undefined : filters.sortBy;
+    const effectiveSortBy = requested ?? (keyword.trim() ? undefined : 'lastupdate');
     const response = await this.get('/api/v1/title/search-advanced', {
       params: {
         page,
         limit: 24,
-        sort_by: filters.sortBy ?? 'lastupdate',
-        sort_order: filters.sortOrder ?? 'desc',
+        ...(effectiveSortBy ? { sort_by: effectiveSortBy, sort_order: filters.sortOrder ?? 'desc' } : {}),
         tag_mode: filters.tagMode ?? 'AND',
         adult_mode: 'all',
         ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
