@@ -3,6 +3,53 @@ import { medias } from "../db/neon/schema";
 import { inArray } from 'drizzle-orm';
 import { logger } from "./logger";
 
+const DAY_MS = 24 * 3600000;
+
+/** Fenetre glissante d'analyse des echecs. Au-dela, le compteur repart de zero tout seul. */
+const FAILURE_WINDOW_MS = 30 * DAY_MS;
+
+/** Echecs "permanents" (source disparue) requis pour retirer un media de la rotation active. */
+const RETIRE_AFTER_PERMANENT = 5;
+
+/** Retrait temporaire, pas definitif : la source peut repasser, on reessaie plus tard. */
+const RETIRED_BACKOFF_MS = 30 * DAY_MS;
+
+/** Plafond du backoff des erreurs transitoires pour ne pas hammering un media malade. */
+const MAX_TRANSIENT_BACKOFF_MS = 7 * DAY_MS;
+
+/**
+ * Un echec permanent designe la source (media retire, 404) : le reessayer ne sert a rien.
+ * Un echec transitoire designe notre pile (timeout, 429, erreur reseau, scraper casse) :
+ * le media est sain, il faut juste reessayer plus tard, sinon un bug de deploiement
+ * condamnerait tout le catalogue.
+ */
+const PERMANENT_FAILURE_RE = /\b(404|410|not[\s_-]?found|no[\s_-]?match|introuvable|doesn'?t exist|does not exist|deleted|removed|disponible\s?non)\b/i;
+
+function isPermanentFailure(status: string | null, lastError: string | null): boolean {
+    if (status === 'no_match') return true;
+    if (!lastError) return false;
+    return PERMANENT_FAILURE_RE.test(lastError);
+}
+
+interface FailureProfile {
+    permanent: number;
+    transient: number;
+}
+
+/**
+ * Espacement entre deux passages d'un media. 24h quand tout va bien, puis double a chaque
+ * echec, plafonne a 7 jours pour les erreurs transitoires, et 30 jours une fois le media
+ * retire pour echecs permanents. La fonction est pure pour rester testable.
+ */
+function nextScrapeDelay(profile: FailureProfile | undefined): number {
+    if (!profile) return DAY_MS;
+    const { permanent, transient } = profile;
+    if (permanent >= RETIRE_AFTER_PERMANENT) return RETIRED_BACKOFF_MS;
+    const failures = permanent + transient;
+    if (failures <= 0) return DAY_MS;
+    return Math.min(Math.pow(2, failures) * DAY_MS, MAX_TRANSIENT_BACKOFF_MS);
+}
+
 export class OrchestratorService {
     private db: D1Database;
     private supabase: any;
@@ -69,21 +116,35 @@ export class OrchestratorService {
 
         const existingMediaIds = new Set((existingJobs || []).map((j: any) => j.media_id));
 
-        // Exclure les medias qui ont cumule 5 echecs ou plus (tous jobs confondus)
-        const { data: allAttempts } = await this.supabase
+        // Profiler les echecs des 30 derniers jours, en distinguant ce qui vient de la source
+        // (permanent) de ce qui vient de notre pile (transitoire). Un 'completed' ne compte
+        // jamais : sinon un media scrape avec succes depuis des mois finit ecarte.
+        const attemptWindow = new Date(now - FAILURE_WINDOW_MS).toISOString();
+        const { data: recentJobs, error: attemptsError } = await this.supabase
             .from('scraping_jobs')
-            .select('media_id, attempts')
-            .in('media_id', mediaIds);
-        const attemptTotals = new Map<string, number>();
-        for (const j of (allAttempts || [])) {
-            attemptTotals.set(j.media_id, (attemptTotals.get(j.media_id) || 0) + (j.attempts || 0));
+            .select('media_id, attempts, status, last_error')
+            .in('media_id', mediaIds)
+            .gte('created_at', attemptWindow);
+        if (attemptsError) {
+            console.error("Erreur lecture profil d'echecs:", attemptsError);
+            return { processed: 0 };
         }
-        const deadMediaIds = new Set<string>();
-        for (const [mid, total] of attemptTotals) {
-            if (total >= 5) deadMediaIds.add(mid);
+
+        const failureProfiles = new Map<string, FailureProfile>();
+        for (const j of (recentJobs || [])) {
+            if (j.status === 'completed') continue;
+            const weight = j.attempts || 0;
+            if (weight <= 0) continue;
+            const profile = failureProfiles.get(j.media_id) || { permanent: 0, transient: 0 };
+            if (isPermanentFailure(j.status, j.last_error)) profile.permanent += weight;
+            else profile.transient += weight;
+            failureProfiles.set(j.media_id, profile);
         }
-        if (deadMediaIds.size > 0) {
-            console.warn(`${deadMediaIds.size} medias ignores (${[...deadMediaIds].join(', ')}) : ${[...deadMediaIds].length} medias avec >= 5 echecs cumules`);
+
+        const retiredCount = [...failureProfiles.values()]
+            .filter((p) => p.permanent >= RETIRE_AFTER_PERMANENT).length;
+        if (retiredCount > 0) {
+            console.warn(`${retiredCount} medias retires (>= ${RETIRE_AFTER_PERMANENT} echecs permanents sur 30j), backoff ${RETIRED_BACKOFF_MS / DAY_MS}j`);
         }
 
         // 3. Recupere title/slug : priorite D1 (stocke a l'ingest), fallback Neon avec retry
@@ -154,53 +215,76 @@ export class OrchestratorService {
 
         // 4. Construire les batchs pour les inserts + updates
         const insertValues: any[] = [];
-        const updateStatements: any[] = [];
-        const nextScrape = now + (24 * 3600000);
+        // Deux lots distincts : les medias ecartes sont repousses immediatement, les medias
+        // retenus seulement apres insertion reussie (retry preserve si Supabase echoue).
+        // Tout media ecarte DOIT etre repousse : sinon il conserve le plus vieux next_scrape et
+        // la selection ORDER BY next_scrape ASC LIMIT 200 le remet en tete a chaque cycle.
+        const deferStatements: any[] = [];
+        const jobStatements: any[] = [];
+
+        const pushScrapeUpdate = (bucket: any[], at: number, mediaId: string) =>
+            bucket.push(
+                this.db.prepare(`UPDATE media_state SET next_scrape = ? WHERE media_id = ?`).bind(at, mediaId)
+            );
 
         for (const media of readyMedia) {
             const { media_id, type } = media;
-            if (existingMediaIds.has(media_id)) continue;
-            if (deadMediaIds.has(media_id)) continue;
+            const profile = failureProfiles.get(media_id);
+            const scheduledAt = now + nextScrapeDelay(profile);
 
             const mediaInfo = mediaInfoMap.get(media_id);
-            if (!mediaInfo) continue;
-
-            if (type === 'book') continue;
-
             const isStreaming = type === 'film' || type === 'serie' || type === 'anime';
-            if (isStreaming) continue;
-
             const workerType =
                 type === 'jeu' ? 'playwright' :
                 type === 'novel' ? 'novel' :
                 (type === 'webtoon' || type === 'comic' || type === 'manga') ? 'webtoon' :
                 null;
-            if (!workerType) continue;
+
+            const eligible =
+                !existingMediaIds.has(media_id) &&
+                (profile?.permanent || 0) < RETIRE_AFTER_PERMANENT &&
+                !!mediaInfo &&
+                type !== 'book' &&
+                !isStreaming &&
+                !!workerType;
+
+            if (!eligible) {
+                pushScrapeUpdate(deferStatements, scheduledAt, media_id);
+                continue;
+            }
 
             insertValues.push({
                 media_id: media_id,
                 media_type: type,
                 worker_type: workerType,
-                title: mediaInfo.title,
-                slug: mediaInfo.slug,
-                parent_game_name: mediaInfo.parentGameName || null,
+                title: mediaInfo!.title,
+                slug: mediaInfo!.slug,
+                parent_game_name: mediaInfo!.parentGameName || null,
                 status: 'pending',
                 priority: 1
             });
 
-            updateStatements.push(
-                this.db.prepare(`
-                    UPDATE media_state SET next_scrape = ? WHERE media_id = ?
-                `).bind(nextScrape, media_id)
-            );
+            pushScrapeUpdate(jobStatements, scheduledAt, media_id);
         }
 
+        const BATCH_SIZE = 100;
+        const runScrapeUpdates = async (statements: any[]) => {
+            for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+                await this.db.batch(statements.slice(i, i + BATCH_SIZE));
+            }
+        };
+
+        // 5. Repousser les medias ecartes AVANT tout return : ils ne dependent pas de l'insert,
+        // et sans cela un cycle qui ne cree aucun job laisserait la tete de file figee.
+        await runScrapeUpdates(deferStatements);
+
         if (insertValues.length === 0) {
-            console.log("✅ Tous les médias ont déjà des jobs en cours.");
+            console.log(`✅ Aucun nouveau job (${deferStatements.length} médias replanifiés).`);
             return { processed: 0 };
         }
 
-        // 5. UN SEUL batch insert Supabase en premier (si ça fail, D1 n'est pas modifié → retry possible)
+        // 6. UN SEUL batch insert Supabase en premier (si ça fail, les next_scrape du lot
+        // jobStatements ne sont pas touches → retry possible au prochain cycle)
         const { error: insertError } = await this.supabase
             .from('scraping_jobs')
             .insert(insertValues);
@@ -210,15 +294,10 @@ export class OrchestratorService {
         }
         console.log(`📡 ${insertValues.length} scraping jobs queued`);
 
-        // 6. UN SEUL batch D1 pour UPDATE les next_scrape
-        if (updateStatements.length > 0) {
-            const BATCH_SIZE = 100;
-            for (let i = 0; i < updateStatements.length; i += BATCH_SIZE) {
-                await this.db.batch(updateStatements.slice(i, i + BATCH_SIZE));
-            }
-        }
+        // 7. UN SEUL batch D1 pour UPDATE les next_scrape
+        await runScrapeUpdates(jobStatements);
 
-        await logger.audit('Orchestrator', `Cycle terminé: ${insertValues.length} jobs créés sur ${staleMedia.length} médias analysés`, { processed: insertValues.length }, this.mongoUri);
+        await logger.audit('Orchestrator', `Cycle terminé: ${insertValues.length} jobs créés sur ${staleMedia.length} médias analysés`, { processed: insertValues.length, deferred: deferStatements.length }, this.mongoUri);
         return { processed: insertValues.length };
     }
 }

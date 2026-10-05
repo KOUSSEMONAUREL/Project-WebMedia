@@ -1,118 +1,57 @@
 import 'dotenv/config';
 import postgres from 'postgres';
-import { createClient } from '@libsql/client';
-import { getNeonClient } from '../db/singleton';
-import { medias as neonMedias, episodes as neonEpisodes, liens as neonLiens } from '../db/neon/schema';
-import { eq, inArray } from 'drizzle-orm';
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/**
+ * Retention par statut terminal. Les durees sont alignees sur la fenetre glissante de 30 jours
+ * que lit l'orchestrateur : purger un 'no_match' plus tot lui ferait perdre son poids dans
+ * l'historique et le media retomberait a un intervalle d'un jour.
+ *
+ * Ce job purge des LIGNES, jamais des medias. Un echec de scrape (404, timeout, deploy casse)
+ * ne prouve pas que la source a disparu, donc supprimer la fiche D1/Neon/Turso serait une perte
+ * de donnees irreversible pour une simple panne technique. Les medias restent en base et
+ * l'orchestrateur les espace (backoff) jusqu'a ce qu'ils repartent.
+ */
+const RETENTION_DAYS: Record<string, number> = {
+    failed: 3,
+    completed: 7,
+    no_match: 30,
+};
 
 async function cleanup() {
-    const supabaseUrl = process.env.SUPABASE_DATABASE_URL || '';
-    if (!supabaseUrl) throw new Error('SUPABASE_DATABASE_URL missing');
+    const dbUrl = process.env.SUPABASE_DATABASE_URL || '';
+    if (!dbUrl) throw new Error('SUPABASE_DATABASE_URL missing');
 
-    const neonUrl = process.env.NEON_DATABASE_URL || '';
-    const tursoUrl = process.env.TURSO_DATABASE_URL || '';
-    const tursoToken = process.env.TURSO_AUTH_TOKEN || '';
-    const apiUrl = process.env.INTERNAL_API_URL || '';
-    const apiKey = process.env.INTERNAL_API_KEY || '';
+    const sb = postgres(dbUrl, { prepare: false });
 
-    const cutoff = new Date(Date.now() - 3 * 24 * 3600 * 1000);
-
-    // 1. Trouver les medias avec jobs failed > 1 jour
-    const sb = postgres(supabaseUrl, { prepare: false });
-    const failedMedia = await sb`
-        SELECT DISTINCT media_id, media_type, title
-        FROM scraping_jobs
-        WHERE status = 'failed' AND updated_at < ${cutoff}
-    `;
-    console.log(`Found ${failedMedia.length} failed medias to clean`);
-
-    // Toujours clean les success meme si aucun failed
-    const alwaysCleanup = async () => {
-        const successCutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-        const deletedSuccess = await sb`
-            DELETE FROM scraping_jobs WHERE status = 'success' AND updated_at < ${successCutoff}
+    // 1. Purge par statut, du plus court au plus long : si le job est interrompu en cours de
+    // route, la table est deja bornee sur l'essentiel.
+    for (const [status, days] of Object.entries(RETENTION_DAYS)) {
+        const cutoff = new Date(Date.now() - days * DAY_MS);
+        const deleted = await sb`
+            DELETE FROM scraping_jobs
+            WHERE status = ${status} AND updated_at < ${cutoff}
         `;
-        console.log(`Supabase: ${deletedSuccess.count} old success scraping_jobs deleted`);
-    };
-
-    if (failedMedia.length === 0) {
-        await alwaysCleanup();
-        await sb.end();
-        process.exit(0);
+        console.log(`Supabase: ${deleted.count} '${status}' de plus de ${days}j supprimes`);
     }
 
-    const allMediaIds = failedMedia.map((r: any) => r.media_id);
-    const novelIds = failedMedia.filter((r: any) => r.media_type === 'novel').map((r: any) => r.media_id);
-    const otherIds = failedMedia.filter((r: any) => r.media_type !== 'novel').map((r: any) => r.media_id);
-
-    // 2. Supprimer de Supabase (scraping_jobs - failed)
-    const deletedJobs = await sb`
-        DELETE FROM scraping_jobs WHERE media_id IN ${sb(allMediaIds)}
+    // 2. 'pending' / 'processing' ne doivent jamais trainer : on les signale sans les supprimer.
+    // Un job bloque est un bug a traiter, pas une ligne a purger.
+    const stale = await sb`
+        SELECT status, count(*)::int AS n, min(updated_at) AS oldest
+        FROM scraping_jobs
+        WHERE status IN ('pending', 'processing')
+        GROUP BY status
     `;
-    console.log(`Supabase: ${deletedJobs.count} failed scraping_jobs deleted`);
-
-    // 3. Clean aussi les success vieux (Supabase seulement, audit trail)
-    await alwaysCleanup();
-
-    // 4. Supprimer de D1 (media_state) via API (tous les types)
-    if (apiUrl && apiKey) {
-        let cleaned = 0;
-        let failed = 0;
-        for (const id of allMediaIds) {
-            let ok = false;
-            for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
-                try {
-                    const res = await fetch(`${apiUrl}/api/internal/cleanup/d1-state`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': apiKey },
-                        body: JSON.stringify({ mediaId: id })
-                    });
-                    if (res.ok) {
-                        ok = true;
-                    } else {
-                        console.warn(`D1: ${id} -> HTTP ${res.status} (tentative ${attempt}/3)`);
-                        if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
-                    }
-                } catch (e: any) {
-                    console.warn(`D1: ${id} -> ${e?.message || e} (tentative ${attempt}/3)`);
-                    if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
-                }
-            }
-            if (ok) cleaned++; else failed++;
-        }
-        console.log(`D1: ${cleaned} media_state entries cleaned${failed > 0 ? `, ${failed} FAILED after 3 attempts` : ''}`);
-    } else {
-        console.log('D1: skipped (no API config)');
+    for (const row of stale) {
+        const oldest = row.oldest instanceof Date ? row.oldest.toISOString() : row.oldest;
+        console.warn(`Stale ${row.status}: ${row.n} job(s), plus ancien ${oldest}`);
     }
 
-    // 5. Supprimer de Neon — sauf les novels (ont deja des liens RoyalRoad)
-    if (neonUrl && otherIds.length > 0) {
-        const { db: neonDb, client: pgClient } = getNeonClient(neonUrl);
-        const deletedNeon = await neonDb.delete(neonMedias)
-            .where(inArray(neonMedias.id, otherIds));
-        console.log(`Neon: ${deletedNeon.count || otherIds.length} medias + episodes/liens (cascade) deleted`);
-        await pgClient.end();
-    }
-    if (novelIds.length > 0) {
-        console.log(`Neon: SKIPPED ${novelIds.length} novels (existing links preserved)`);
-    }
-
-    // 6. Supprimer de Turso — sauf les novels
-    if (tursoUrl && otherIds.length > 0) {
-        const tc = createClient({ url: tursoUrl, authToken: tursoToken });
-        for (const id of otherIds) {
-            await tc.execute({ sql: 'DELETE FROM liens WHERE media_id = ?', args: [id] });
-            await tc.execute({ sql: 'DELETE FROM episodes WHERE media_id = ?', args: [id] });
-            await tc.execute({ sql: 'DELETE FROM medias WHERE id = ?', args: [id] });
-        }
-        console.log(`Turso: ${otherIds.length} medias + episodes + liens deleted`);
-        if (novelIds.length > 0) {
-            console.log(`Turso: SKIPPED ${novelIds.length} novels (existing links preserved)`);
-        }
-        tc.close();
-    } else if (novelIds.length > 0) {
-        console.log(`Turso: SKIPPED ${novelIds.length} novels (existing links preserved)`);
-    }
+    // 3. Etat final : la table doit rester bornee sur le free tier.
+    const [total] = await sb`SELECT count(*)::int AS total FROM scraping_jobs`;
+    console.log(`Supabase: ${total.total} scraping_jobs restants`);
 
     await sb.end();
     console.log('Cleanup done.');
