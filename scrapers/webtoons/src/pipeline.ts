@@ -1,5 +1,6 @@
 import { getScraper, getScraperForUrl } from './runner';
 import { BaseScraper } from '../engine/base';
+import { isSameTitle } from './title-match';
 
 /**
  * Cible de scraping : un media existant dans Neon
@@ -63,7 +64,7 @@ export async function findMatchingScrapers(media: MediaTarget): Promise<{ name: 
     const metaResults = await Promise.allSettled(
       candidates.map(async ({ name, scraper }) => {
         const search = await scraper.getSearch(media.title, 1);
-        const found = search.mangas.find(m => m.title.toLowerCase().includes(media.title.toLowerCase()));
+        const found = search.mangas.find(m => isSameTitle(media.title, m.title));
         if (found) return { name, scraper, url: found.url };
         return null;
       })
@@ -81,7 +82,7 @@ export async function findMatchingScrapers(media: MediaTarget): Promise<{ name: 
     all.map(async ({ name, scraper }): Promise<SearchOutcome> => {
       try {
         const search = await scraper.getSearch(media.title, 1);
-        const found = search.mangas.find(m => m.title.toLowerCase().includes(media.title.toLowerCase()));
+        const found = search.mangas.find(m => isSameTitle(media.title, m.title));
         if (found && !matches.some(m => m.name === name)) {
           matches.push({ name, scraper, url: found.url });
         }
