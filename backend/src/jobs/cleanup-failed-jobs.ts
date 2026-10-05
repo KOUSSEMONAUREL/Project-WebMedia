@@ -4,18 +4,22 @@ import postgres from 'postgres';
 const DAY_MS = 24 * 3600 * 1000;
 
 /**
- * Retention par statut terminal. Les durees sont alignees sur la fenetre glissante de 30 jours
- * que lit l'orchestrateur : purger un 'no_match' plus tot lui ferait perdre son poids dans
- * l'historique et le media retomberait a un intervalle d'un jour.
+ * Retention par statut. La regle : une duree de purge doit toujours couvrir la fenetre
+ * d'analyse de l'orchestrateur (30 jours), sinon le compteur d'echecs se vide sous ses pieds
+ * et le seuil de retrait ne peut jamais etre atteint.
+ *
+ * - 'failed' et 'no_match' restent 30j : ce sont eux qui portent le poids dans la fenetre.
+ *   ('failed' est rare : quelques dizaines de lignes, donc le garder ne coute rien.)
+ * - 'completed' part a 7j : jamais lu par l'orchestrateur (un succes ne compte pas comme un
+ *   echec), c'est du bruit, et c'est lui qui ferait grossir la table sur le free tier.
  *
  * Ce job purge des LIGNES, jamais des medias. Un echec de scrape (404, timeout, deploy casse)
- * ne prouve pas que la source a disparu, donc supprimer la fiche D1/Neon/Turso serait une perte
- * de donnees irreversible pour une simple panne technique. Les medias restent en base et
- * l'orchestrateur les espace (backoff) jusqu'a ce qu'ils repartent.
+ * ne prouve pas que la source a disparu : supprimer la fiche D1/Neon/Turso serait une perte
+ * irreversible pour une simple panne technique. Le media reste et l'orchestrateur l'espace.
  */
 const RETENTION_DAYS: Record<string, number> = {
-    failed: 3,
     completed: 7,
+    failed: 30,
     no_match: 30,
 };
 
