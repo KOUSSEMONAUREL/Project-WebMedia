@@ -2,8 +2,13 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const SERIES_PATH = /^\/[^/]+$/;
-const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4']);
 const CHAPTER_NUMBER = /\d+(\.\d+)?/;
+// "January 18, 2004" dans le libelle d'une option du select.
+const SNAFU_DATE = /^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/;
+const MONTHS: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+};
 
 export class SnafuComicScraper extends BaseScraper {
   readonly name = 'Snafu Comics';
@@ -89,53 +94,64 @@ export class SnafuComicScraper extends BaseScraper {
     const slug = mangaUrl.replace(/^\/+/, '').split('/')[0];
     const res = await this.get(`/${slug}/archive`);
     const $ = this.$(res.data);
-    const heading = $('h1, h2, h3, h4')
-      .filter((_, el) => $(el).text().trim().toLowerCase() === 'archive')
-      .first();
+
+    // L'archive ne contient PAS de liste de chapitres en liens. Elle affiche un
+    // <h1>Archive</h1> suivi de cette seule phrase : "Select a page from the
+    // drop-down menu to start reading the comic." Tout le contenu est dans un
+    // <select name="comic">, et ce select est un navigateur GLOBAL : il liste les
+    // chapitres du site entier, pas ceux de la serie.
+    //
+    // La version initiale de ce port cherchait des liens apres le <h1>, puis
+    // tombait sur tous les <a> de la page. Les deux collectaient les liens de la
+    // navigation du lecteur (`cc-first`, `cc-last`, `cc-cast`), donc une serie
+    // remontait 15 chapitres qui n'etaient pas les siens -- Powerpuff Girls D en
+    // renvoyait "First Day" et "PPG Chapter 1", qui sont a elle, mais une autre
+    // serie aurait recu des chapitres d'une serie voisine.
+    //
+    // On lit donc uniquement le select, filtré sur le slug : c'est la seule
+    // source complete et la seule non ambiguë.
     const found: Array<{ href: string; text: string }> = [];
-    if (heading.length > 0) {
-      let sibling = heading.next();
-      while (sibling.length > 0 && !HEADING_TAGS.has(sibling.get(0)?.tagName.toLowerCase() ?? '')) {
-        sibling.find('a[href]').each((_, el) => {
-          found.push({ href: $(el).attr('href') ?? '', text: $(el).text() });
-        });
-        if (sibling.is('a[href]')) found.push({ href: sibling.attr('href') ?? '', text: sibling.text() });
-        sibling = sibling.next();
-      }
-    } else {
-      $('a[href]').each((_, el) => {
-        found.push({ href: $(el).attr('href') ?? '', text: $(el).text() });
-      });
-    }
-    const chapterPath = new RegExp(`^/${slug}/.+`);
+    $('select[name="comic"] option').each((_, el) => {
+      const value = ($(el).attr('value') ?? '').trim();
+      if (!value) return;
+      found.push({ href: `/${value}`, text: $(el).text() });
+    });
     const chapters: Chapter[] = [];
     const seen = new Set<string>();
+
     for (const { href, text } of found) {
       const path = this.toPath(href);
-      if (!path || !chapterPath.test(path) || seen.has(path)) continue;
+      if (!path || seen.has(path)) continue;
+      // Filtre par slug, mesure : le select de chaque archive ne contient que
+      // les chapitres de SA serie. Verifie sur quatre series --
+      // powerpuffgirls 501/501, sugarbits 234/234, naruto 42/42,
+      // grimtales 454/454. Il est donc redondant sur ces pages, mais reste
+      // garde si l'archive d'une serie devient un select global.
+      if (!path.startsWith(`/${slug}/`)) continue;
       seen.add(path);
-      const clean = text.replace(/\s+/g, ' ').trim();
-      const name = clean || path.split('/').pop() || path;
-      const chapter: Chapter = { name, url: path };
-      const num = CHAPTER_NUMBER.exec(name)?.[0];
+
+      // Un libelle d'option est "January 18, 2004 - PPG Chapter 1" : la date
+      // precede le titre. On la retire pour nommer le chapitre et on la convertit
+      // en dateUpload, ce que le seul `attr('value')` perdait en nommant chaque
+      // chapitre `ppg-chapter-1`.
+      const label = text.replace(/\s+/g, ' ').trim();
+      const [datePart, ...rest] = label.split(' - ');
+      const title = rest.join(' - ').trim();
+      const chapter: Chapter = { name: title || label || path, url: path };
+
+      const parsed = SNAFU_DATE.exec(datePart.trim());
+      if (parsed) {
+        const month = MONTHS[parsed[1].toLowerCase()];
+        if (month !== undefined) {
+          chapter.dateUpload = Date.UTC(Number(parsed[3]), month, Number(parsed[2]));
+        }
+      }
+      const num = CHAPTER_NUMBER.exec(chapter.name)?.[0];
       if (num !== undefined) chapter.chapterNumber = Number.parseFloat(num);
       chapters.push(chapter);
     }
-    if (chapters.length > 0) return chapters;
-    const options: Chapter[] = [];
-    const seenOpt = new Set<string>();
-    $('select option[value]').each((_, el) => {
-      const value = ($(el).attr('value') ?? '').trim();
-      if (!value) return;
-      // Option values are site-root-relative (`changePage` prepends the origin),
-      // e.g. `powerpuffgirls/ppg-chapter-1` -> `/powerpuffgirls/ppg-chapter-1`.
-      // (Upstream falls back to `/$slug/$value` here, which doubles the slug.)
-      const url = this.toPath(value) ?? (value.includes('/') ? `/${value}` : `/${slug}/${value}`);
-      if (seenOpt.has(url)) return;
-      seenOpt.add(url);
-      options.push({ name: $(el).text().replace(/\s+/g, ' ').trim() || value, url });
-    });
-    return options;
+
+    return chapters;
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
