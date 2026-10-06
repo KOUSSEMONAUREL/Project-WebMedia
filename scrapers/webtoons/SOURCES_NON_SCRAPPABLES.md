@@ -131,6 +131,48 @@ produit un faux verdict dans ce dépôt :
   est une décision Cloudflare explicite, et non une banni d'IP comparable au `1026`. La
   nuance compte : un `1026` se contourne, un `cf-mitigated: challenge` non sans navigateur.
 
+### `fr/aniverse` : catalogue lisible, mais aucune URL de fiche
+
+`BLOCKED`, et pour une raison qui n'a **rien à voir avec Cloudflare** : cette source
+n'est pas un mur anti-bot. Elle est dans une situation plus simple et plus
+embêtante, celle d'un site dont on peut lire le catalogue sans pouvoir citer une fiche.
+
+L'issue #419 la classe `OUI (Cloudflare)`, c'est faux et la sonde le corrige :
+`/home` répond **200**, sans challenge ni `cf-mitigated`. C'est un Next.js, et son
+catalogue est bien présent — 26 séries avec des objets complets (titre français, anglais,
+romaji, natif, image TMDB, nombre d'épisodes, note). Toutes les données nécessaires à un
+port y sont.
+
+Ce qui manque, c'est le point d'entrée du scraper : **l'URL de la fiche**.
+
+| Route sondée | Réponse | Contenu |
+|---|---|---|
+| `/home` | 200 | catalogue complet dans le payload RSC |
+| `/manga` | 200 | payload **vide** (hydratation côté client) |
+| `/<slug>` | **404** | aucune fiche par slug |
+| `/catalogue` | **404** | — |
+| `/api`, `/api/home`, `/_next/data` | **404** | aucune API |
+| format d'URL dans les chunks JS | absent | rien qui ressemble à `/manga/...` ou `/watch/...` |
+
+Le worker n'ingère qu'une URL par source (`result.rootUrl`). Sans format d'URL de fiche
+connu, un port ne peut produire que des URL inventées, qui 404 à l'ingestion. On
+retombait donc soit sur une liste vide — un media marque « absent des sources » alors
+qu'il existe — soit sur un fichier commité qui ne fonctionne pas.
+
+Un port qui irait chercher le payload RSC de `/home` fonctionnerait au moment présent,
+et casserait à la prochaine mise à jour de Next.js : la structure des chunks fait partie
+de l'implémentation interne du framework, pas de son contrat. Le registre mesure la
+robustesse, pas la validité dans le temps d'un scrape.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `fr/aniverse` | `aniverse.fr` | BLOCKED | `200` sans challenge sur `/home`, catalogue de 26 series dans le payload RSC, mais `/<slug>` et `/catalogue` en `404`, `/manga` a un payload vide, aucune API, et aucun format d'URL de fiche dans le HTML ni dans les chunks JS | Le site expose une URL de fiche stable (`/manga/<slug>` ou equivalent) **ou** une API JSON de catalogue, accessible sans navigateur |
+
+À noter pour le prochain passage : le domaine de l'issue est `aniverse.fr`, et la
+redirection `307` de la racine pointe vers `/home`. Un agent qui sondera `/` sans suivre
+la redirection verra une page quasi vide (1 seul lien, 451 ko de JS) et conclura trop vite
+à un interstitiel.
+
 ### Ce que l'historique Git ne dit pas, et qu'il ne faut pas en déduire
 
 `git log --diff-filter=D` fait apparaître **139** ports supprimés. Ce nombre est un
