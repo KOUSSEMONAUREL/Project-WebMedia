@@ -220,7 +220,6 @@ export class ComikeyScraper extends BaseScraper {
 
     const webtoon = manifest.metadata?.readingProgression === 'ttb';
     const manifestUrlObj = new URL(manifestUrl);
-    const actFromUrl = manifestUrlObj.searchParams.get('act');
     const extraAct = (initData as unknown as { act?: string }).act;
 
     return manifest.readingOrder.map((page: ComikeyPage, i: number) => {
@@ -240,14 +239,12 @@ export class ComikeyScraper extends BaseScraper {
         }
       }
       const imageHref = best.href;
-      const urlObj = new URL(imageHref, manifestUrlObj);
-      urlObj.search = manifestUrlObj.search;
-      if (actFromUrl) {
-        urlObj.searchParams.set('act', actFromUrl);
-      } else if (extraAct && !urlObj.searchParams.has('act')) {
-        urlObj.searchParams.set('act', extraAct);
+      const imageUrl = new URL(imageHref, manifestUrlObj);
+      imageUrl.search = imageUrl.search || manifestUrlObj.search;
+      if (imageUrl.searchParams.get('act') === null && extraAct) {
+        imageUrl.searchParams.set('act', extraAct);
       }
-      return { index: i, imageUrl: urlObj.toString() };
+      return { index: i, imageUrl: imageUrl.toString() };
     });
   }
 
