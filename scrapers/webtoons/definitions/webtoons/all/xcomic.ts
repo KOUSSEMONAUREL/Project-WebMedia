@@ -2,8 +2,8 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const BROWSE_PAGE_SIZE = 12;
-const TITLES_IN_FLIGHT = 3;
 const COMIC_PROBES_PER_TITLE = 5;
+const CHAPTER_PAGE_SIZE = 100;
 
 const READ_DIRECTION_LABELS: [string, string][] = [
   ['ttb', '⬇️ Top To Bottom'],
@@ -31,11 +31,21 @@ const TITLE_BROWSE_QUERY = `
     }
 `;
 
+const TITLE_BROWSE_PAGER_QUERY = `
+    query get_title_browse_pager($select: Title_Browse_Select) {
+        get_title_browse_pager(select: $select) {
+            next
+            total
+        }
+    }
+`;
+
 const TITLE_NODE_QUERY = `
     query get_title_titleNode($id: ID!) {
         get_title_titleNode(id: $id) {
             id
             data {
+                id
                 title
                 alt_titles
                 native_title
@@ -95,8 +105,6 @@ const COMIC_NODE_QUERY = `
                 name
                 subName
                 altNames
-                authors
-                artists
                 originalLanguage
                 translatedLanguage
                 originalStatus
@@ -106,7 +114,6 @@ const COMIC_NODE_QUERY = `
                 contentRating
                 genres
                 tags
-                publishers
                 dbStatus
                 isPublic
                 follows
@@ -130,8 +137,61 @@ const COMIC_NODE_QUERY = `
                 summary { text }
                 extraInfo { text }
                 readDirection
+                trackingSites {
+                    anilist
+                    myanimelist
+                    mangaupdates
+                    kitsu
+                    animeplanet
+                }
                 urlPath
                 urlCover
+                title_titleNode {
+                    id
+                    data {
+                        id
+                        title
+                        alt_titles
+                        native_title
+                        romanized_title
+                        original_language
+                        translated_languages
+                        authors
+                        artists
+                        content_rating_id
+                        type_id
+                        demographic_ids
+                        genre_ids
+                        format_ids
+                        year
+                        type
+                        status
+                        description
+                        cover_local_url
+                        cover_url
+                        urlPath
+                        total_chapters
+                        total_follows
+                        total_reviews
+                        total_comments
+                        vote_avg
+                        vote_users
+                        vote_val
+                        chap_last_public_at
+                        is_merged
+                        merged_to
+                        comic_ids
+                        tracking_sites {
+                            anilist
+                            myanimelist
+                            mangaupdates
+                            kitsu
+                            animeplanet
+                            shikimori
+                            mangabaka
+                        }
+                    }
+                }
             }
         }
     }
@@ -142,27 +202,31 @@ const COMIC_PROBE_QUERY = `
         get_comicNode(id: $id) {
             id
             data {
-                name
                 subName
                 dbStatus
                 isPublic
                 translatedLanguage
                 chaps_normal
-                urlPath
-                urlCover
+                chapterNode_up_to {
+                    data {
+                        datePublic
+                    }
+                }
             }
         }
     }
 `;
 
-const CHAPTER_LIST_QUERY = `
-    query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
-        get_comic_chapterList_fullList(select: $select) {
+const CHAPTER_LIST_FIELDS = `
             paging { next total }
             items {
                 id
                 data {
                     id
+                    dbStatus
+                    isFinal
+                    volume
+                    serial
                     dname
                     title
                     urlPath
@@ -174,9 +238,28 @@ const CHAPTER_LIST_QUERY = `
                     count_images
                     is_new
                     srcName
-                    profileNodes { data { name } }
+                    srcTitle
+                    srcColor
+                    comments_topic
+                    comments_total
+                    views_login
+                    views_guest
                 }
             }
+`;
+
+const CHAPTER_LIST_QUERY = `
+    query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
+        get_comic_chapterList_fullList(select: $select) {
+${CHAPTER_LIST_FIELDS}
+        }
+    }
+`;
+
+const CHAPTER_UNIQ_LIST_QUERY = `
+    query get_comic_chapterList_uniqList($select: Select_Comic_ChapterList_UniqList) {
+        get_comic_chapterList_uniqList(select: $select) {
+${CHAPTER_LIST_FIELDS}
         }
     }
 `;
@@ -190,7 +273,7 @@ const CHAPTER_PAGES_QUERY = `
     }
 `;
 
-const ID_QUERY_REGEX = /^id\s*:?\s*([a-zA-Z0-9-_]+)\s*$/i;
+const ID_QUERY_REGEX = /^id\s*:?\s*([a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)?)\s*$/i;
 
 const LANGUAGES: [string, string][] = [
   ['English', 'en'], ['French', 'fr'], ['Portuguese', 'pt'], ['Korean', 'ko'],
@@ -241,15 +324,21 @@ interface TitleBrowseData {
   get_title_browse_items?: TitleBrowseNode[] | null;
 }
 
+interface TitleBrowsePagerData {
+  get_title_browse_pager?: { next?: number | null; total?: number | null } | null;
+}
+
+interface ChapterUpToNode {
+  data?: { datePublic?: number | null } | null;
+}
+
 interface ComicProbeData {
-  name?: string | null;
   subName?: string | null;
   dbStatus?: string | null;
   isPublic?: boolean | null;
   translatedLanguage?: string | null;
   chaps_normal?: number | null;
-  urlPath?: string | null;
-  urlCover?: string | null;
+  chapterNode_up_to?: ChapterUpToNode | null;
 }
 
 interface TitleTrackingSites {
@@ -308,8 +397,6 @@ interface ComicNode {
   name: string;
   subName?: string | null;
   altNames?: string[] | null;
-  authors?: string[] | null;
-  artists?: string[] | null;
   originalLanguage?: string | null;
   translatedLanguage?: string | null;
   originalStatus?: string | null;
@@ -319,7 +406,6 @@ interface ComicNode {
   contentRating?: string | null;
   genres?: string[] | null;
   tags?: string[] | null;
-  publishers?: string[] | null;
   dbStatus?: string | null;
   isPublic?: boolean | null;
   is_hot?: boolean | null;
@@ -330,12 +416,15 @@ interface ComicNode {
   score_val?: number | null;
   chaps_normal?: number | null;
   dateUpload?: number | null;
-  chapterNode_up_to?: { data?: { dname?: string | null; datePublic?: number | null } | null } | null;
+  chapterNode_up_to?: ChapterUpToNode | null;
   summary?: { text?: string | null } | null;
   extraInfo?: { text?: string | null } | null;
   readDirection?: string | null;
   urlPath?: string | null;
   urlCover?: string | null;
+  originalPubZone?: string | null;
+  originalPubFrom?: { y?: number | null; m?: number | null; d?: number | null } | null;
+  originalPubTill?: { y?: number | null; m?: number | null; d?: number | null } | null;
   trackingSites?: {
     mangaupdates?: string | null;
     myanimelist?: string | null;
@@ -343,11 +432,12 @@ interface ComicNode {
     anilist?: string | null;
     kitsu?: string | null;
   } | null;
+  titleNode?: { id?: string | null; data?: TitleNodeData | null } | null;
 }
 
 interface ChapterData {
   id: string;
-  dname: string;
+  dname?: string | null;
   title?: string | null;
   urlPath?: string | null;
   dateCreate?: number | null;
@@ -355,15 +445,25 @@ interface ChapterData {
   dateModify?: number | null;
   chaNum?: number | null;
   volNum?: number | null;
+  serial?: number | null;
   count_images?: number | null;
   is_new?: boolean | null;
   srcName?: string | null;
-  profileNodes?: { data: { name: string } | null }[] | null;
 }
 
 interface ChapterItem {
   id: string;
   data: ChapterData;
+}
+
+type ComicChapter = Chapter & { comicId?: string };
+
+interface ChapterEdition {
+  comicId: string;
+  label: string | null;
+  lastPublicAt: number | null;
+  chapterCount: number | null;
+  translatedLanguage: string | null;
 }
 
 function toTitleCase(value: string): string {
@@ -374,28 +474,25 @@ function toTitleCase(value: string): string {
     .join(' ');
 }
 
-function toTagCase(value: string): string {
-  return toTitleCase(value);
-}
-
 function languageLabel(code: string): string {
   const entry = LANGUAGES.find(([, c]) => c === code);
   return entry ? entry[0] : code;
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+function toMarkdownUrls(text: string): string {
+  return text.replace(/(?<!\[|\()https?:\/\/[^\s<"]+/g, (m) => `[${m}](${m})`);
+}
+
+function normalizeEditionLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\s+/g, ' ').trim();
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 export class XCOMICScraper extends BaseScraper {
   readonly name = 'XCOMIC';
   readonly baseUrl = 'https://xcomic.me';
   readonly lang = 'all';
-
-  private probeCache = new Map<string, ComicProbeData>();
-  private titleFreshness = new Map<string, number>();
 
   async getPopular(page = 1): Promise<SearchResult> {
     return this.search('', page, 'field_score');
@@ -408,25 +505,10 @@ export class XCOMICScraper extends BaseScraper {
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const idMatch = ID_QUERY_REGEX.exec(query.trim());
     if (idMatch) {
-      const id = idMatch[1].split('-')[0];
-      const extLang = this.lang === 'all' ? null : this.mapLangCode(this.lang);
-      const node = await this.fetchTitleNode(id);
-      if (node) {
-        const cover = node.cover_local_url ?? node.cover_url ?? '';
-        const firstComic = node.comic_ids?.[0];
-        const manga: Manga = {
-          title: this.cleanTitle(node.title ?? id),
-          url: firstComic ? `${node.id}:${firstComic}` : (node.id ?? id),
-          thumbnailUrl: cover ? this.absUrl(cover) : '',
-          lang: this.lang,
-        };
-        return { mangas: [manga], hasNextPage: false };
-      }
-      try {
-        const comic = await this.fetchComicNodeLegacy(id);
-        if (comic) return { mangas: [this.comicToManga(comic)], hasNextPage: false };
-      } catch { /* ignore */ }
-      return { mangas: [], hasNextPage: false };
+      const id = idMatch[1];
+      const manga = await this.resolveIdLookup(id);
+      if (!manga) throw new Error(`XCOMIC: entry id '${id}' not found`);
+      return { mangas: [manga], hasNextPage: false };
     }
     return this.search(query, page, null);
   }
@@ -455,303 +537,309 @@ export class XCOMICScraper extends BaseScraper {
         ignoreGlobalGenres: false,
       },
     };
-    const data = await this.graphql<{ get_title_browse_items: TitleBrowseNode[] }>(TITLE_BROWSE_QUERY, variables);
-    const titles: TitleBrowseNode[] = (data?.get_title_browse_items ?? []) as TitleBrowseNode[];
+    const [itemsData, pagerData] = await Promise.all([
+      this.graphql<TitleBrowseData>(TITLE_BROWSE_QUERY, variables),
+      this.graphql<TitleBrowsePagerData>(TITLE_BROWSE_PAGER_QUERY, variables),
+    ]);
+    const titles = itemsData?.get_title_browse_items ?? [];
     if (titles.length === 0) return { mangas: [], hasNextPage: false };
-    // Fast path: return one manga per title without per-source probing to stay within 10s batch timeout.
-    // Detailed per-source flattening is done lazily in getMangaDetails / chapter resolution.
     const mangas: Manga[] = titles.map((t) => {
-      const title = this.cleanTitle(t.data?.title ?? t.id ?? '');
-      const firstComic = t.data?.comic_ids?.[0] ?? t.id ?? '';
+      const title = (t.data?.title ?? '').replace(/\([^()]*\)|\{[^{}]*\}|\[(?:(?!]).)*]/gi, '').trim();
       const tid = t.id ?? '';
       const cover = t.data?.cover_local_url ?? t.data?.cover_url ?? '';
       return {
         title: title || tid,
-        url: firstComic ? `${tid}:${firstComic}` : tid,
+        url: tid,
         thumbnailUrl: cover ? this.absUrl(cover) : '',
         lang: this.lang,
       };
     });
-    return { mangas, hasNextPage: titles.length >= BROWSE_PAGE_SIZE };
+    const pager = pagerData?.get_title_browse_pager;
+    const hasNextPage = (pager?.next ?? 0) !== 0;
+    return { mangas: mangas.length > 0 ? mangas : [], hasNextPage };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const [manga, ] = await this.getMangaDetailsWithGate(mangaUrl);
+    const title = await this.resolveStoredTitleNode(mangaUrl);
+    if (!title) throw new Error('XCOMIC: title not found');
+    const editions = await this.resolveTargetComics(title);
+    const bestComicId = editions.bestComicId ?? title.comic_ids?.[0] ?? null;
+    if (!bestComicId) return {};
+    const comic = await this.fetchComicNode(bestComicId);
+    if (!comic) return {};
+    return this.comicToMangaChecked(comic, title, mangaUrl);
+  }
+
+  private async resolveIdLookup(id: string): Promise<Manga | null> {
+    const title = await this.resolveStoredTitleNode(id);
+    if (!title) return null;
+    const titleId = title.id ?? id;
+    const manga: Manga = {
+      title: (title.title ?? '').replace(/\([^()]*\)|\{[^{}]*\}|\[(?:(?!]).)*]/gi, '').trim() || titleId,
+      url: titleId,
+      thumbnailUrl: title.cover_local_url ?? title.cover_url ? this.absUrl(title.cover_local_url ?? title.cover_url ?? '') : '',
+      lang: this.lang,
+    };
+    const editions = await this.resolveTargetComics(title);
+    const bestComicId = editions.bestComicId ?? title.comic_ids?.[0] ?? null;
+    if (bestComicId) {
+      const comic = await this.fetchComicNode(bestComicId);
+      if (comic) return { ...this.comicToManga(comic, title), url: titleId };
+    }
     return manga;
   }
 
-  private async getMangaDetailsWithGate(mangaUrl: string): Promise<[Manga, boolean]> {
-    const extLang = this.lang === 'all' ? null : this.mapLangCode(this.lang);
-    const [titleId, pinned] = this.splitMangaUrl(mangaUrl);
-    let title = await this.fetchTitleNode(titleId);
-    if (!title) {
-      const comic = await this.fetchComicNodeLegacy(mangaUrl);
-      if (comic) {
-        const m = this.comicToManga(comic);
-        m.url = mangaUrl;
-        return [m, false];
+  private async resolveStoredTitleNode(storedUrl: string): Promise<TitleNodeData | null> {
+    const ids = storedUrl.split(':').map((s) => s.trim()).filter((s) => s.length > 0);
+    const distinct = [...new Set(ids)];
+    if (distinct.length === 0) return null;
+    const first = await this.fetchResolvedTitleNode(distinct[0]);
+    if (first) return first;
+    for (const comicId of distinct) {
+      const comic = await this.fetchComicNode(comicId);
+      const parentId = comic?.titleNode?.data?.id;
+      if (parentId) {
+        const resolved = await this.fetchResolvedTitleNode(parentId);
+        if (resolved) return resolved;
       }
-      throw new Error('XCOMIC: title not found');
     }
-    if (title.is_merged && title.merged_to && title.merged_to !== titleId) {
-      const merged = await this.fetchTitleNode(title.merged_to);
-      if (merged) title = merged;
-    }
-    let comicId: string | null = null;
-    let comic: ComicNode | null = null;
-    if (pinned) {
-      const c = await this.fetchComicNode(pinned);
-      if (c && this.isLive(c as unknown as ComicProbeData)) { comicId = pinned; comic = c; }
-    }
-    if (!comic) {
-      const ids = (title.comic_ids ?? []).filter((id): id is string => !!id);
-      const picked = await this.pickComic(ids, extLang);
-      if (!picked) throw new Error(`Failed to load '${this.lang}' uploads for this source`);
-      [comicId, comic] = picked;
-    }
-    if (!comic || !comicId) throw new Error('XCOMIC: comic not found');
-    const base = this.comicToManga(comic);
-    base.url = mangaUrl;
-    this.overlayTitleOnto(base, title);
-    const label = comic.subName ?? null;
-    if (label) base.title = `${base.title} \u00b7 ${this.unescapeHtml(label)}`;
-    return [base, false];
-  }
-
-  private async pickComic(ids: string[], extLang: string | null): Promise<[string, ComicNode] | null> {
-    if (ids.length === 0) return null;
-    const results = await Promise.all(ids.map(async (cid) => {
-      const n = await this.fetchComicNode(cid);
-      return n ? ([cid, n] as [string, ComicNode]) : null;
-    }));
-    const nodes: [string, ComicNode][] = [];
-    for (const r of results) if (r && this.isLive(r[1] as unknown as ComicProbeData)) nodes.push(r);
-    const filtered = nodes.filter(([, n]) => extLang == null || n.translatedLanguage === extLang);
-    const best = filtered.length > 0 ? filtered.sort((a, b) => (b[1].chaps_normal ?? 0) - (a[1].chaps_normal ?? 0))[0] : null;
-    if (best) return best;
-    if (extLang == null && nodes.length > 0) return nodes[0];
     return null;
   }
 
-  private async flattenTitle(t: TitleBrowseNode, extLang: string | null, forceFresh = false): Promise<[string, string, ComicProbeData][]> {
-    const titleId = t.id ?? '';
-    if (!titleId) return [];
-    const ids = (t.data?.comic_ids ?? []).filter((id): id is string => !!id && id.trim().length > 0);
-    if (ids.length === 0) return [];
-    const nowPublic = t.data?.chap_last_public_at ?? 0;
-    const unchanged = !forceFresh && nowPublic !== null && nowPublic !== 0 && nowPublic <= (this.titleFreshness.get(titleId) ?? 0);
-    if (unchanged && ids.every((id) => this.probeCache.has(id))) {
-      return ids.map((cid) => this.probeCache.get(cid)!).filter((p) => this.isLive(p) && (extLang == null || p.translatedLanguage === extLang)).map((p) => {
-        const cid = ids.find((id) => this.probeCache.get(id) === p) ?? ids[0];
-        return [titleId, cid, p] as [string, string, ComicProbeData];
-      }).sort((a, b) => (b[2].chaps_normal ?? 0) - (a[2].chaps_normal ?? 0));
+  private async fetchResolvedTitleNode(id: string): Promise<TitleNodeData | null> {
+    const title = await this.fetchTitleNode(id);
+    if (!title) return null;
+    const mergedId = title.is_merged === true && title.merged_to && title.merged_to !== id ? title.merged_to : null;
+    if (mergedId) {
+      const merged = await this.fetchTitleNode(mergedId);
+      if (merged) return merged;
     }
-    const probes = new Map<string, ComicProbeData>();
-    const probeResults = await Promise.all(ids.map(async (cid) => {
-      const p = await this.fetchComicProbe(cid);
-      return p ? ([cid, p] as const) : null;
-    }));
-    for (const r of probeResults) if (r) probes.set(r[0], r[1]);
-    if (nowPublic && nowPublic > 0) this.titleFreshness.set(titleId, nowPublic);
-    const out: [string, string, ComicProbeData][] = [];
-    for (const [cid, p] of probes.entries()) {
-      if (this.isLive(p) && (extLang == null || p.translatedLanguage === extLang)) out.push([titleId, cid, p]);
+    return title;
+  }
+
+  private async resolveTargetComics(title: TitleNodeData): Promise<TitleEditions> {
+    const comicIds = (title.comic_ids ?? []).filter((id) => id && id.trim().length > 0);
+    const expectedLang = this.lang === 'all' ? null : this.mapLangCode(this.lang);
+    const probes: [string, ComicProbeData][] = [];
+    for (let i = 0; i < comicIds.length; i += COMIC_PROBES_PER_TITLE) {
+      const batch = comicIds.slice(i, i + COMIC_PROBES_PER_TITLE);
+      const results = await Promise.all(batch.map(async (cid) => [cid, await this.fetchComicProbe(cid)] as [string, ComicProbeData | null]));
+      for (const [cid, p] of results) if (p) probes.push([cid, p]);
     }
-    out.sort((a, b) => (b[2].chaps_normal ?? 0) - (a[2].chaps_normal ?? 0));
-    return out;
+    const editions = probes
+      .filter(([, p]) => this.isLiveProbe(p) && (expectedLang == null || p.translatedLanguage === expectedLang))
+      .map(([cid, p]) => ({
+        comicId: cid,
+        label: normalizeEditionLabel(p.subName),
+        lastPublicAt: p.chapterNode_up_to?.data?.datePublic ?? null,
+        chapterCount: p.chaps_normal ?? null,
+        translatedLanguage: p.translatedLanguage ?? null,
+      }))
+      .sort((a, b) => (a.comicId < b.comicId ? -1 : 1));
+    return new TitleEditions(editions);
   }
 
-  private isLive(p: ComicProbeData | ComicNode): boolean {
-    const isPublic = (p as ComicProbeData).isPublic ?? (p as ComicNode).isPublic;
-    const dbStatus = (p as ComicProbeData).dbStatus ?? (p as ComicNode).dbStatus;
-    return isPublic !== false && (dbStatus == null || dbStatus === 'normal');
-  }
-
-  private probeToManga(p: ComicProbeData, titleId: string, comicId: string, t: TitleBrowseNode, extLang: string | null): Manga {
-    const displayTitle = this.cleanTitle(t.data?.title ?? titleId);
-    let title = displayTitle;
-    if (p.subName) title += ` \u00b7 ${this.unescapeHtml(p.subName)}`;
-    if (extLang == null && p.translatedLanguage) title += ` [${languageLabel(p.translatedLanguage)}]`;
-    const thumb = p.urlCover ?? t.data?.cover_local_url ?? t.data?.cover_url ?? '';
-    return {
-      title,
-      url: `${titleId}:${comicId}`,
-      thumbnailUrl: thumb ? this.absUrl(thumb) : '',
-      lang: this.lang,
-    };
-  }
-
-  private comicToManga(node: ComicNode): Manga {
-    const author = node.authors?.join(', ') || undefined;
-    const genreSet = new Set<string>();
-    if (node.type) genreSet.add(toTitleCase(node.type));
-    node.demographics?.forEach((d) => genreSet.add(toTitleCase(d)));
-    if (node.contentRating) genreSet.add(toTitleCase(node.contentRating));
-    node.genres?.forEach((g) => genreSet.add(toTitleCase(g)));
-    const status = this.mapStatus(node.originalStatus ?? node.uploadStatus, node.uploadStatus);
-    const thumbnailUrl = node.urlCover ? this.absUrl(node.urlCover) : node.urlCover ? this.absUrl(node.urlCover) : '';
-    const desc = this.buildDescription(node);
-    return {
-      title: this.cleanTitle(node.name),
-      url: node.id,
-      thumbnailUrl,
-      lang: this.lang,
-      author,
-      genre: [...genreSet].join(', ') || undefined,
-      status,
-      description: desc || undefined,
-    };
-  }
-
-  private overlayTitleOnto(m: Manga, title: TitleNodeData): void {
-    if (title.title && this.cleanTitle(title.title)) m.title = this.cleanTitle(title.title);
-    if (title.cover_local_url ?? title.cover_url) {
-      const c = title.cover_local_url ?? title.cover_url ?? '';
-      if (c) m.thumbnailUrl = c.startsWith('http') ? c : this.absUrl(c);
+  private mapLangCode(code: string): string {
+    switch (code) {
+      case 'pt-BR': return 'pt_br';
+      case 'es-419': return 'es_419';
+      case 'zh-Hant': return 'zh_hk';
+      case 'other': return '_t';
+      default: return code;
     }
-    const genreSet = new Set<string>();
-    if (m.genre) m.genre.split(', ').forEach((g) => { if (g) genreSet.add(g); });
-    if (title.type) genreSet.add(toTagCase(title.type));
-    title.demographic_ids?.forEach((d) => genreSet.add(toTagCase(d)));
-    if (title.content_rating_id) genreSet.add(toTagCase(title.content_rating_id));
-    title.genre_ids?.forEach((g) => genreSet.add(toTagCase(g)));
-    title.format_ids?.forEach((g) => genreSet.add(toTagCase(g)));
-    if (genreSet.size > 0) m.genre = [...genreSet].join(', ');
-    const parts: string[] = [];
-    if (title.original_language) parts.push(`**Original**: ${languageLabel(title.original_language)}`);
-    if (title.translated_languages && title.translated_languages.filter(Boolean).length > 0) {
-      const langs = (title.translated_languages as string[]).filter(Boolean).map((c) => languageLabel(c)).join(', ');
-      parts.push(`**Translated**: ${langs}`);
+  }
+
+  private isLiveProbe(p: ComicProbeData): boolean {
+    return p.isPublic !== false && (p.dbStatus == null || p.dbStatus === 'normal');
+  }
+
+  private async fetchAllChapters(editions: ChapterEdition[]): Promise<ComicChapter[]> {
+    const out: Chapter[] = [];
+    for (let i = 0; i < editions.length; i += COMIC_PROBES_PER_TITLE) {
+      const batch = editions.slice(i, i + COMIC_PROBES_PER_TITLE);
+      const results = await Promise.all(batch.map((e) => this.fetchChapterList(e.comicId, e.label)));
+      for (const chapters of results) out.push(...chapters);
     }
-    if (title.year) parts.push(`**Released**: ${title.year}`);
-    if (title.type) parts.push(`**Type**: ${toTagCase(title.type)}`);
-    if (title.description) parts.push(title.description);
-    if (title.chap_last_public_at) parts.push(`**Updated**: ${new Date(title.chap_last_public_at).toISOString().slice(0, 10)}`);
-    const stats: string[] = [];
-    if (title.vote_avg && title.vote_avg > 0) stats.push(`**Score**: ${title.vote_avg.toFixed(1)}`);
-    if (title.vote_users && title.vote_users > 0) stats.push(`**Votes**: ${title.vote_users}`);
-    if (title.total_follows && title.total_follows > 0) stats.push(`**Follows**: ${title.total_follows}`);
-    if (stats.length > 0) parts.push(`**Statistics**\n${stats.join(' \u00b7 ')}`);
-    if (title.alt_titles && title.alt_titles.filter(Boolean).length > 0) {
-      const alt = (title.alt_titles as string[]).filter((a) => a && a !== title.title);
-      if (alt.length > 0) parts.push(`**Alternative Titles**:\n${alt.map((a) => `- ${a}`).join('\n')}`);
+    return this.disambiguateEditionLabels(out);
+  }
+
+  private disambiguateEditionLabels(chapters: ComicChapter[]): ComicChapter[] {
+    const byLabel = new Map<string, Set<string>>();
+    for (const ch of chapters) {
+      const label = ch.scanlator ?? null;
+      if (!label) continue;
+      const set = byLabel.get(label.toLowerCase()) ?? new Set<string>();
+      if (ch.comicId) set.add(ch.comicId);
+      byLabel.set(label.toLowerCase(), set);
     }
-    let extra = parts.join('\n\n');
-    if (extra) extra += '\n\n---\n\n';
-    const existing = m.description ?? '';
-    const links: string[] = [];
-    const ts = title.tracking_sites;
-    if (ts?.anilist) links.push(`[AniList](https://anilist.co/manga/${ts.anilist})`);
-    if (ts?.myanimelist) links.push(`[MyAnimeList](https://myanimelist.net/manga/${ts.myanimelist})`);
-    if (ts?.mangaupdates) links.push(`[MangaUpdates](https://www.mangaupdates.com/series/${ts.mangaupdates})`);
-    if (ts?.kitsu) links.push(`[Kitsu](https://kitsu.app/manga/${ts.kitsu})`);
-    if (ts?.animeplanet) links.push(`[Anime-Planet](https://www.anime-planet.com/manga/${ts.animeplanet})`);
-    let suffix = '';
-    if (links.length > 0) suffix = `\n\n**External Links**:\n${links.map((l) => `- ${l}`).join('\n')}`;
-    m.description = (extra + existing + suffix).trim() || undefined;
-  }
-
-  private mapStatus(originalStatus: string | null | undefined, uploadStatus: string | null | undefined): 0 | 1 | 2 | 3 {
-    const status = originalStatus ?? uploadStatus;
-    if (!status) return 0;
-    if (status.includes('pending')) return 0;
-    if (status.includes('ongoing')) return 1;
-    if (status.includes('cancelled')) return 3;
-    if (status.includes('hiatus')) return 0;
-    if (status.includes('completed')) return 2;
-    return 0;
-  }
-
-  private buildDescription(node: ComicNode): string {
-    let desc = '';
-    if (node.is_hot) desc += '🔥 HOT ';
-    if (node.is_new) desc += '✨ NEW';
-    if (node.is_hot || node.is_new) desc += '\n\n';
-    const metadata: string[] = [];
-    if (node.originalLanguage) metadata.push(`**Original**: ${languageLabel(node.originalLanguage)}`);
-    if (node.translatedLanguage) metadata.push(`**Translated**: ${languageLabel(node.translatedLanguage)}`);
-    if (node.readDirection) {
-      const label = READ_DIRECTION_LABELS.find(([code]) => code === node.readDirection)?.[1] ?? node.readDirection;
-      metadata.push(`**Read Direction**: ${label}`);
-    }
-    if (metadata.length > 0) { desc += metadata.join('\n') + '\n\n'; }
-    const stats: string[] = [];
-    if (node.score_val && node.score_val > 0) stats.push(`**Score**: ${node.score_val.toFixed(1)}`);
-    if (node.follows && node.follows > 0) stats.push(`**Follows**: ${node.follows}`);
-    if (node.reviews && node.reviews > 0) stats.push(`**Reviews**: ${node.reviews}`);
-    if (node.comments_total && node.comments_total > 0) stats.push(`**Comments**: ${node.comments_total}`);
-    if (node.chaps_normal && node.chaps_normal > 0) stats.push(`**Chapters**: ${node.chaps_normal}`);
-    if (stats.length > 0) { desc += `**Statistics**\n${stats.join(' \u00b7 ')}\n\n`; }
-    if (node.summary?.text) desc += this.toMarkdownUrls(node.summary.text);
-    const links: string[] = [];
-    if (node.trackingSites?.mangaupdates) links.push(`[MangaUpdates](https://www.mangaupdates.com/series/${node.trackingSites.mangaupdates})`);
-    if (node.trackingSites?.myanimelist) links.push(`[MyAnimeList](https://myanimelist.net/manga/${node.trackingSites.myanimelist})`);
-    if (node.trackingSites?.animeplanet) links.push(`[Anime-Planet](https://www.anime-planet.com/manga/${node.trackingSites.animeplanet})`);
-    if (node.trackingSites?.anilist) links.push(`[AniList](https://anilist.co/manga/${node.trackingSites.anilist})`);
-    if (node.trackingSites?.kitsu) links.push(`[Kitsu](https://kitsu.app/manga/${node.trackingSites.kitsu})`);
-    if (links.length > 0) { if (desc.length > 0) desc += '\n\n'; desc += '**External Links**:\n' + links.map((l) => `- ${l}`).join('\n'); }
-    return desc.trim();
-  }
-
-  private toMarkdownUrls(text: string): string {
-    return text.replace(/(?<!\[|\()https?:\/\/[^\s<"]+/g, (m) => `[${m}](${m})`);
-  }
-
-  async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const comicId = await this.resolveComicId(mangaUrl);
-    if (!comicId) return [];
-    const firstPage = await this.fetchChapterListPage(comicId, 1);
-    const allChapters = [...firstPage.chapters];
-    const totalItems = firstPage.total ?? 0;
-    if (totalItems > 1000 && firstPage.hasNextPage) {
-      const totalPages = Math.ceil(totalItems / 1000);
-      for (let start = 2; start <= totalPages; start += 3) {
-        const batch: Promise<{ chapters: Chapter[] }>[] = [];
-        for (let p = start; p < start + 3 && p <= totalPages; p++) batch.push(this.fetchChapterListPage(comicId, p));
-        const pages = await Promise.all(batch);
-        for (const page of pages) allChapters.push(...page.chapters);
+    const colliding = new Set<string>();
+    for (const [label, ids] of byLabel) if (ids.size > 1) colliding.add(label);
+    for (const ch of chapters) {
+      const label = ch.scanlator ?? null;
+      if (label && ch.comicId && colliding.has(label.toLowerCase())) {
+        ch.scanlator = `${label} [${ch.comicId}]`;
       }
     }
-    return allChapters;
+    return chapters;
   }
 
-  private async resolveComicId(mangaUrl: string): Promise<string | null> {
-    const [titleId, pinned] = this.splitMangaUrl(mangaUrl);
-    if (pinned) return pinned;
-    const title = await this.fetchTitleNode(titleId);
-    if (!title) return mangaUrl; // legacy comic id
-    const ids = (title.comic_ids ?? []).filter((id): id is string => !!id);
-    const extLang = this.lang === 'all' ? null : this.mapLangCode(this.lang);
-    const picked = await this.pickComic(ids, extLang);
-    return picked ? picked[0] : null;
+  private async fetchChapterList(comicId: string, editionLabel: string | null): Promise<ComicChapter[]> {
+    const first = await this.fetchChapterListPage(comicId, 1, editionLabel);
+    const all = [...first.chapters];
+    const total = first.total ?? all.length;
+    const totalPages = Math.max(1, Math.ceil(total / CHAPTER_PAGE_SIZE));
+    for (let start = 2; start <= totalPages; start += 3) {
+      const batch: Promise<{ chapters: Chapter[] }>[] = [];
+      for (let p = start; p < start + 3 && p <= totalPages; p++) batch.push(this.fetchChapterListPage(comicId, p, editionLabel));
+      const pages = await Promise.all(batch);
+      for (const page of pages) all.push(...page.chapters);
+    }
+    return all;
   }
 
-  private async fetchChapterListPage(comicId: string, page: number): Promise<{ chapters: Chapter[]; total: number | null; hasNextPage: boolean }> {
-    const variables = { select: { comic_id: comicId, page, size: 1000, sortby: 'chapter_desc' } };
-    const data = await this.graphql<{ get_comic_chapterList_fullList: { paging: { next: number | null; total: number | null } | null; items: ChapterItem[] | null } | null }>(CHAPTER_LIST_QUERY, variables);
-    const response = data?.get_comic_chapterList_fullList;
-    if (!response) throw new Error('XCOMIC: chapter list not found');
-    const items: ChapterItem[] = response.items ?? [];
-    const chapters = items.map((item) => this.chapterToChapter(item));
-    return { chapters, total: response.paging?.total ?? null, hasNextPage: (response.paging?.next ?? 0) !== 0 };
+  private async fetchChapterListPage(comicId: string, page: number, editionLabel: string | null): Promise<{ chapters: ComicChapter[]; total: number | null }> {
+    const variables = { select: { comic_id: comicId, page, size: CHAPTER_PAGE_SIZE, sortby: 'chapter_desc' } };
+    const parse = (data: Record<string, unknown>, key: string) => {
+      const resp = data[key] as { paging?: { next?: number | null; total?: number | null } | null; items?: ChapterItem[] | null } | undefined;
+      if (!resp) return null;
+      const items = resp.items ?? [];
+      return { chapters: items.map((it) => this.chapterToChapter(it, comicId, editionLabel)), total: resp.paging?.total ?? null };
+    };
+    try {
+      const data = await this.graphql<Record<string, unknown>>(CHAPTER_UNIQ_LIST_QUERY, variables);
+      const parsed = parse(data, 'get_comic_chapterList_uniqList');
+      if (parsed) return parsed;
+      throw new Error('uniq list missing');
+    } catch {
+      const data = await this.graphql<Record<string, unknown>>(CHAPTER_LIST_QUERY, variables);
+      const parsed = parse(data, 'get_comic_chapterList_fullList');
+      if (parsed) return parsed;
+      return { chapters: [], total: null };
+    }
   }
 
-  private chapterToChapter(item: ChapterItem): Chapter {
+  private chapterToChapter(item: ChapterItem, comicId: string, editionLabel: string | null): ComicChapter {
     const d = item.data;
     const displayName = d.dname ?? '';
     const nameParts: string[] = [];
-    const number = (d.chaNum ?? d.volNum)?.toString().replace(/\.0$/, '');
+    const number = (d.chaNum ?? d.serial ?? d.volNum)?.toString().replace(/\.0$/, '');
     if (number != null && !displayName.includes(number)) nameParts.push(`Chapter ${number}`);
     if (displayName) nameParts.push(displayName);
     if (d.title) nameParts.push(d.title);
     const name = nameParts.join(': ');
     let scanlator: string | undefined;
-    if (d.srcName && d.srcName.length > 0) scanlator = d.srcName.replace(/^./, (c) => c.toUpperCase());
-    else {
-      const profiles = d.profileNodes?.map((n) => n.data?.name).filter((n): n is string => !!n);
-      if (profiles && profiles.length > 0) scanlator = profiles.join(', ');
+    const uploader = d.srcName ? d.srcName.replace(/^./, (c) => c.toUpperCase()) : undefined;
+    scanlator = editionLabel ?? uploader;
+    const chapter: ComicChapter = {
+      name,
+      url: item.id,
+      chapterNumber: d.chaNum ?? undefined,
+      dateUpload: d.dateModify ?? d.dateCreate ?? d.datePublic ?? undefined,
+      scanlator,
+      comicId,
+    };
+    return chapter;
+  }
+
+  private async comicToManga(node: ComicNode, work: TitleNodeData): Promise<Manga> {
+    const genreSet = new Set<string>();
+    const workType = work.type ?? node.type;
+    if (workType) genreSet.add(toTitleCase(workType));
+    (work.demographic_ids ?? node.demographics)?.forEach((d) => genreSet.add(toTitleCase(d)));
+    (work.genre_ids ?? node.genres)?.forEach((g) => genreSet.add(toTitleCase(g)));
+    (work.content_rating_id ? [work.content_rating_id] : node.contentRating ? [node.contentRating] : []).forEach((c) => genreSet.add(toTitleCase(c)));
+    work.format_ids?.forEach((g) => genreSet.add(toTitleCase(g)));
+    const status = this.mapStatus(work.status ?? node.originalStatus ?? node.uploadStatus, node.uploadStatus);
+    const cover = work.cover_local_url ?? work.cover_url ?? node.urlCover ?? '';
+    const authors = work.authors ?? null;
+    const artists = work.artists ?? null;
+    return {
+      title: (work.title ?? node.name).replace(/\([^()]*\)|\{[^{}]*\}|\[(?:(?!]).)*]/gi, '').trim(),
+      url: '',
+      thumbnailUrl: cover ? this.absUrl(cover) : '',
+      lang: this.lang,
+      author: authors?.join(', '),
+      artist: artists?.join(', '),
+      genre: [...genreSet].join(', ') || undefined,
+      status,
+      description: this.buildDescription(node, work),
+    };
+  }
+
+  private async comicToMangaChecked(node: ComicNode, work: TitleNodeData, url: string): Promise<Manga> {
+    const m = await this.comicToManga(node, work);
+    m.url = url;
+    return m;
+  }
+
+  private buildDescription(node: ComicNode, work: TitleNodeData): string {
+    const descParts: string[] = [];
+    if (node.is_hot || node.is_new) {
+      descParts.push(`${node.is_hot ? '🔥 HOT' : ''}${node.is_hot && node.is_new ? ' ' : ''}${node.is_new ? '✨ NEW' : ''}`);
     }
-    return { name, url: item.id, chapterNumber: d.chaNum ?? undefined, dateUpload: d.dateModify ?? d.dateCreate ?? d.datePublic ?? undefined, scanlator };
+    const metadata: string[] = [];
+    const original = work.original_language ?? node.originalLanguage;
+    if (original) metadata.push(`**Original**: ${languageLabel(original)}`);
+    const translated = (work.translated_languages ?? []).filter((x): x is string => !!x);
+    if (translated.length > 0) metadata.push(`**Translated**: ${translated.map(languageLabel).join(', ')}`);
+    else if (node.translatedLanguage) metadata.push(`**Translated**: ${languageLabel(node.translatedLanguage)}`);
+    if (node.originalPubZone) metadata.push(`**Region**: ${node.originalPubZone}`);
+    if (work.year) metadata.push(`**Released**: ${work.year}`);
+    if (node.readDirection) {
+      const label = READ_DIRECTION_LABELS.find(([code]) => code === node.readDirection)?.[1] ?? node.readDirection;
+      metadata.push(`**Read Direction**: ${label}`);
+    }
+    if (work.chap_last_public_at) metadata.push(`**Updated**: ${new Date(work.chap_last_public_at).toISOString().slice(0, 10)}`);
+    if (metadata.length > 0) descParts.push(metadata.join('\n'));
+    const stats: string[] = [];
+    const score = node.score_val;
+    if (score && score > 0) stats.push(`**Score**: ${score.toFixed(1)}`);
+    const follows = work.total_follows ?? null;
+    if (follows && follows > 0) stats.push(`**Follows**: ${follows}`);
+    const reviews = work.total_reviews ?? null;
+    if (reviews && reviews > 0) stats.push(`**Reviews**: ${reviews}`);
+    const comments = work.total_comments ?? null;
+    if (comments && comments > 0) stats.push(`**Comments**: ${comments}`);
+    const chaps = work.total_chapters ?? node.chaps_normal ?? null;
+    if (chaps && chaps > 0) stats.push(`**Chapters**: ${chaps}`);
+    if (stats.length > 0) descParts.push(`**Statistics**\n${stats.join(' · ')}`);
+    const desc = work.description ?? node.summary?.text ?? null;
+    if (desc) descParts.push(`**Description**\n${toMarkdownUrls(desc)}`);
+    const links: string[] = [];
+    const wts = work.tracking_sites;
+    if (wts?.anilist) links.push(`[AniList](https://anilist.co/manga/${wts.anilist})`);
+    if (wts?.myanimelist) links.push(`[MyAnimeList](https://myanimelist.net/manga/${wts.myanimelist})`);
+    if (wts?.mangaupdates) links.push(`[MangaUpdates](https://www.mangaupdates.com/series/${wts.mangaupdates})`);
+    if (wts?.kitsu) links.push(`[Kitsu](https://kitsu.app/manga/${wts.kitsu})`);
+    if (wts?.animeplanet) links.push(`[Anime-Planet](https://www.anime-planet.com/manga/${wts.animeplanet})`);
+    if (node.trackingSites?.anilist && !wts?.anilist) links.push(`[AniList](https://anilist.co/manga/${node.trackingSites.anilist})`);
+    if (node.trackingSites?.myanimelist && !wts?.myanimelist) links.push(`[MyAnimeList](https://myanimelist.net/manga/${node.trackingSites.myanimelist})`);
+    if (links.length > 0) descParts.push(`**External Links**:\n${links.map((l) => `- ${l}`).join('\n')}`);
+    const alts = [work.native_title, work.romanized_title, ...(work.alt_titles ?? [])].filter((a): a is string => !!a && a !== work.title);
+    if (alts.length > 0) descParts.push(`**Alternative Titles**:\n${alts.map((a) => `- ${a}`).join('\n')}`);
+    if (node.extraInfo?.text) descParts.push(`**Extra Info**:\n${node.extraInfo.text}`);
+    return descParts.join('\n\n');
+  }
+
+  private mapStatus(status: string | null | undefined, uploadStatus: string | null | undefined): 0 | 1 | 2 | 3 {
+    const s = status?.toLowerCase();
+    if (!s) return 0;
+    if (s.includes('pending')) return 0;
+    if (s.includes('ongoing') || s.includes('releasing')) return 1;
+    if (s.includes('cancelled')) return 3;
+    if (s.includes('hiatus')) return 0;
+    if (s.includes('completed')) return 2;
+    return 0;
+  }
+
+  async getChapterList(mangaUrl: string): Promise<Chapter[]> {
+    const title = await this.resolveStoredTitleNode(mangaUrl);
+    if (!title) return [];
+    const editions = await this.resolveTargetComics(title);
+    if (editions.sources.length === 0) return [];
+    const chapters = await this.fetchAllChapters(editions.sources);
+    chapters.sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0));
+    return chapters;
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
@@ -772,46 +860,21 @@ export class XCOMICScraper extends BaseScraper {
 
   private async fetchComicNode(id: string): Promise<ComicNode | null> {
     try {
-      const payload = await this.graphql<{ get_comicNode: { data: ComicNode } }>(COMIC_NODE_QUERY, { id });
-      return payload?.get_comicNode?.data ?? null;
+      const payload = await this.graphql<unknown>(COMIC_NODE_QUERY, { id });
+      const resp = (payload as Record<string, unknown>)['get_comicNode'] as { id?: string; data?: Record<string, unknown> } | undefined;
+      const d = resp?.data;
+      if (!d) return null;
+      const titleNodeWrapper = d['title_titleNode'] as { id?: string | null; data?: TitleNodeData | null } | null | undefined;
+      const node = { ...(d as object), id: (d['id'] as string) ?? resp?.id ?? id, titleNode: titleNodeWrapper ?? null } as unknown as ComicNode;
+      return node;
     } catch { return null; }
-  }
-
-  private async fetchComicNodeLegacy(id: string): Promise<ComicNode | null> {
-    return this.fetchComicNode(id);
   }
 
   private async fetchComicProbe(id: string): Promise<ComicProbeData | null> {
-    if (this.probeCache.has(id)) return this.probeCache.get(id)!;
     try {
       const payload = await this.graphql<{ get_comicNode: { data: ComicProbeData } }>(COMIC_PROBE_QUERY, { id });
-      const data = payload?.get_comicNode?.data ?? null;
-      if (data) this.probeCache.set(id, data);
-      return data;
+      return payload?.get_comicNode?.data ?? null;
     } catch { return null; }
-  }
-
-  private splitMangaUrl(url: string): [string, string | null] {
-    const i = url.indexOf(':');
-    return i < 0 ? [url, null] : [url.substring(0, i), url.substring(i + 1)];
-  }
-
-  private cleanTitle(title: string): string {
-    return title.replace(/\([^()]*\)|\{[^{}]*\}|\[(?:(?!]).)*]|«[^»]*»|〘[^〙]*〙|「[^」]*」|『[^』]*』|≪[^≫]*≫|﹛[^﹜]*﹜|〖[^〖〗]*〗|\uD81A\uDD0D.+?\uD81A\uDD0D|《[^》]*》|⌜.+?⌝|⟨[^⟩]*⟩|\/Official|\/ Official/gi, '').trim();
-  }
-
-  private unescapeHtml(s: string): string {
-    return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
-  }
-
-  private mapLangCode(code: string): string {
-    switch (code) {
-      case 'pt-BR': return 'pt_br';
-      case 'es-419': return 'es_419';
-      case 'zh-Hant': return 'zh_hk';
-      case 'other': return '_t';
-      default: return code;
-    }
   }
 
   private async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
@@ -822,5 +885,13 @@ export class XCOMICScraper extends BaseScraper {
     const errors: { message?: string }[] | null = json?.errors ?? null;
     if (errors && errors.length > 0) throw new Error(errors.map((e) => e.message ?? 'GraphQL error').join('\n'));
     return (json?.data ?? {}) as T;
+  }
+}
+
+class TitleEditions {
+  constructor(public sources: ChapterEdition[]) {}
+  get bestComicId(): string | null {
+    const best = [...this.sources].sort((a, b) => (b.chapterCount ?? Number.MIN_SAFE_INTEGER) - (a.chapterCount ?? Number.MIN_SAFE_INTEGER))[0];
+    return best?.comicId ?? null;
   }
 }
