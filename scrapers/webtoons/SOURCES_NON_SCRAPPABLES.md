@@ -335,9 +335,58 @@ n'est plus une IP datacenter, pas le jour où le site change.
 Condition de revivification : un egress non-datacenter pour le scraping webtoon, ou une
 levée du blocage Cloudflare sur les plages GitHub Actions.
 
+
+## Resonde du 2026-10-07 : `xomanga` revivifie, `comix` ne l'est pas
+
+Re-sonde IPv4 (`curl -4`) le 2026-10-07, contredisant la premiere version de cette
+section, qui concluait que les deux etaient revivifiables. **Un seul des deux l'est** :
+le raisonnement « HTTP 200 donc le blocage est leve » ne suffit pas, et il a produit un
+verdict faux sur `comix`.
+
+**`fr/xomanga` (`xomanga.com`) — `BLOCKED` leve : candidat `BUILD`.**
+
+`https://xomanga.com/api/manga/list` repond **200** et **8 824 o de JSON reel** :
+`{"manga": [ ... ]}` avec 24 entrées, chacune portant `id` (uuid), `slug` et `title`
+(`"Itaike na Hitomi"`, `"Academic Hype"`, …), plus une clé de couverture. Aucun challenge,
+`cf-mitigated` absent. C'est la condition de revivification ecrite ci-dessus
+(« une route servant du contenu ou du JSON sans challenge ») et elle est remplie.
+
+**`en/comix` (`comix.to`) — reste `IGNORE` : le catalogue n'est pas dans le HTML.**
+
+La reponse est bien `200` et fait ~400 ko, mais c'est une **coquille Next.js** :
+
+| Mesure | Valeur |
+|---|---|
+| Texte visible une fois scripts et styles retires | **35 caracteres** |
+| Liens `/title/<id>` dans le HTML | **0** |
+| `<script>` dans la page | 2 |
+| `/api` | `404` |
+
+Le `<title>` est correct (« Comix - Read Comics online for free ») et c'est
+**exactement ce qui donne une fausse impression de contenu** : une page qui repond 200
+et dont le titre est correct, mais dont le catalogue est monte en JavaScript.
+
+Le marqueur `challenge-platform` qui apparait dans la page **ne prouve aucun challenge** :
+c'est `/cdn-cgi/challenge-platform/scripts/jsd/main.js`, le script Cloudflare Bot
+Management (JSD) injecte sur tout site derriere Cloudflare, sans rapport avec un defi.
+Conclure « pas de challenge » sur sa seule absence serait aussi une erreur -- l'erreur
+inverse de celle commise ici.
+
+Le verdict du 2026-10-04 tient donc, et pour la bonne raison : ce n'est pas un blocage
+Cloudflare, c'est un catalogue rendu cote client. Un port `axios` + `cheerio` y
+recevrait 400 ko pour 35 caracteres utiles.
+
+### Piège ajouté : `200` et un bon titre ne prouvent rien
+
+Un nom de domaine repondant `200`, avec le bon `<title>` et plusieurs centaines de
+kilo-octets, est un cas tres courant de page vide. La mesure qui tranche est le texte
+visible apres retrait des scripts, ou la presence de liens de catalogue. C'est le
+quatrieme piege du registre, a cote de `curl` sans `-4`, du `baseUrl` dans le `.kt`
+plutot que dans `build.gradle.kts`, et du `1026` qui est un bannissement d'ASN.
+
 ## Trois pièges de diagnostic à connaître
 
-Ces trois cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
+Ces quatre cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
 refasse pas l'erreur.
 
 1. **`curl` sans `-4` ment.** Plusieurs domaines ci-dessus n'ont pas de route IPv6 et
@@ -353,6 +402,14 @@ refasse pas l'erreur.
    `kiutaku` est un site vivant déjà porté dans ce dépôt. Un 451 ne prouve donc **rien** sur
    l'état du site tant qu'il n'a pas été revalidé via WARP. C'est la règle la plus coûteuse
    à réapprendre, d'où sa place ici.
+4. **Un `200` avec un bon titre peut être une page vide.** `comix.to` répond `200`,
+   pèse 400 ko et s'intitule « Comix - Read Comics online for free », mais son
+   catalogue est monté en JavaScript : **35 caractères** de texte visible et **zéro**
+   lien `/title/<id>` dans le HTML. La mesure qui tranche est le texte visible après
+   retrait des scripts, pas le code de réponse. Corollaire du même genre : l'absence de
+   marqueur de challenge ne prouve pas non plus l'absence de blocage, car
+   `/cdn-cgi/challenge-platform/scripts/jsd/main.js` (Cloudflare Bot Management) est
+   injecté sur tout site derrière Cloudflare et n'a rien à voir avec un défi.
 
 Corollaire : un `ETIMEDOUT` vers une IP Cloudflare, ou un `ECONNRESET` en rafale sur
 plusieurs sites, vient généralement du runner lui-même (réseau restreint, ou throttling
