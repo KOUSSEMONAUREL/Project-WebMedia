@@ -142,8 +142,44 @@ export class WebnexScraper extends BaseScraper {
         chapterLists.push(await this.fetchChapters(mangaUrl, g, undefined));
       }
     }
+    // Un manga expose plusieurs sources de chapitres (ici 8 : genz, asura,
+    // vortex, manhuaplus, qi, kayn, hivetoons, thunder). Sans deduplication, un
+    // media aux 31 chapitres recevait 272 lignes, dont 8 fois le meme chapitre.
+    // On garde un chapitre par numero, en privilegiant une source dont le lecteur
+    // sert reellement des pages : `genz` rend une coquille de 39 ko sans `<img>`
+    // ni cle `pages`, la ou `manhuaplus` et `asura` exposent le payload complet.
     const all = chapterLists.flat();
-    return all.sort((a, b) => ((b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)) || ((b.dateUpload ?? 0) - (a.dateUpload ?? 0)));
+    const byNumber = new Map<string, Chapter>();
+    for (const c of all) {
+      if (c.chapterNumber === undefined || Number.isNaN(c.chapterNumber)) continue;
+      const key = `n${c.chapterNumber}`;
+      const current = byNumber.get(key);
+      if (!current) { byNumber.set(key, c); continue; }
+      if (await this.sourceServesPages(c) && !await this.sourceServesPages(current)) byNumber.set(key, c);
+    }
+    const merged = byNumber.size > 0 ? [...byNumber.values()] : all;
+    return merged.sort((a, b) => ((b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)) || ((b.dateUpload ?? 0) - (a.dateUpload ?? 0)));
+  }
+
+  /**
+   * Toutes les sources d'un manga ne servent pas les memes pages. Le verdict est
+   * mis en cache : la liste des sources est courte et getChapterList est appele
+   * sur les 60 medias d'un run.
+   */
+  private readonly pagesCache = new Map<string, boolean>();
+
+  private async sourceServesPages(chapter: Chapter): Promise<boolean> {
+    const cached = this.pagesCache.get(chapter.url);
+    if (cached !== undefined) return cached;
+    let serves = false;
+    try {
+      const res = await this.get(this.absUrl(chapter.url));
+      serves = !!extractNextJsHtml(String(res.data), v => isJsonObject(v) && Array.isArray(v.pages));
+    } catch {
+      serves = false;
+    }
+    this.pagesCache.set(chapter.url, serves);
+    return serves;
   }
 
   private async fetchChapters(mangaUrl: string, group: string | null, firstPageHtml?: string): Promise<Chapter[]> {
@@ -189,7 +225,11 @@ export class WebnexScraper extends BaseScraper {
       const name = isPlainTitle($title.attr('class'))
         ? $title.text().trim()
         : [$num.text().trim(), $title.text().trim()].filter(s => s.length > 0).join(': ');
-      const numText = $num.text().trim();
+      // `.ch-num` contient un <span class="visually-hidden">"Chapter "</span>
+      // AVANT le nombre. Un .text() brut donnait "Chapter 31" et
+      // parseFloat("Chapter 31") valait NaN : chapterNumber restait undefined
+      // sur toutes les series, donc le tri final ne triait rien.
+      const numText = $num.clone().find('.visually-hidden').remove().end().text().trim();
       const chapterNumber = parseFloat(numText);
       const scanlator = $el.find('.ch-source, .ch-source-name').first().text().trim() || undefined;
       const datetime = $el.find('time.ch-time').first().attr('datetime');
@@ -208,7 +248,11 @@ export class WebnexScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(this.absUrl(chapterUrl));
     const html = String(res.data);
-    const value = extractNextJsHtml(html, v => isJsonObject(v) && 'pages' in v && 'chapter' in v);
+    // Le predicat exigeait aussi une cle `chapter`, qui n'existe pas dans le payload :
+    // l'objet du lecteur est `{id, title, href, group, pages}`. La condition
+    // `pages` + tableau suffit, et elle ne vide plus le cache sur les sources
+    // sans images.
+    const value = extractNextJsHtml(html, v => isJsonObject(v) && Array.isArray(v.pages));
     if (!isJsonObject(value) || !Array.isArray(value.pages)) return [];
     const chapterAbs = this.absUrl(chapterUrl);
     const pages: Page[] = [];
