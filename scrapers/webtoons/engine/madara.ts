@@ -38,13 +38,13 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly searchMangaSelectorStr: string = "div.c-tabs-item__content , .manga__item";
   protected readonly searchMangaUrlSelector = 'div.post-title a';
 
-  protected readonly mangaDetailsSelectorTitle = "div.post-title h3, div.post-title h1, #manga-title > h1";
+  protected readonly mangaDetailsSelectorTitle: string = "div.post-title h3, div.post-title h1, #manga-title > h1";
   protected readonly mangaDetailsSelectorAuthor = "div.author-content > a, div.manga-authors > a";
-  protected readonly mangaDetailsSelectorArtist = "div.artist-content > a";
+  protected readonly mangaDetailsSelectorArtist: string = "div.artist-content > a";
   protected readonly mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:contains(Status) + div";
   protected readonly mangaDetailsSelectorDescription: string = "div.description-summary div.summary__content, div.summary_content div.post-content_item > h5 + div, div.summary_content div.manga-excerpt";
-  protected readonly mangaDetailsSelectorThumbnail = "div.summary_image img";
-  protected readonly mangaDetailsSelectorGenre = "div.genres-content a";
+  protected readonly mangaDetailsSelectorThumbnail: string = "div.summary_image img";
+  protected readonly mangaDetailsSelectorGenre: string = "div.genres-content a";
   protected readonly mangaDetailsSelectorTag = "div.tags-content a";
 
   protected readonly seriesTypeSelector = ".post-content_item:contains(Type) .summary-content";
