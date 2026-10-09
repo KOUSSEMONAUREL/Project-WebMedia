@@ -12,6 +12,11 @@ import { extractNextJsHtml, isJsonObject } from '../../../engine/nextjs';
  * flight payload; the site only server-renders the first few images, the
  * rest arrive in the hidden `div[id^="S:"]` chunks the client swaps into
  * `<template id="P:...">` placeholders — hence the asDocument surgery.
+ *
+ * Chapter listing follows upstream: each `li.ch-row` is one chapter (the
+ * upload the site picked) plus the other groups' uploads in its
+ * `.ch-sources-menu` dropdown. There is no more per-`source` group fetching
+ * (`select[name=source]` is gone from the page); pagination is `?page=N`.
  */
 
 type CheerioDoc = ReturnType<BaseScraper['$']>;
@@ -28,6 +33,27 @@ function parseStatus(text: string | undefined): MangaStatus {
 
 function isPlainTitle(cls: string | undefined): boolean {
   return (cls ?? '').split(/\s+/).includes('is-plain');
+}
+
+// Largest first, as the site's timeAgo() checks them (upstream Webnex.TIME_AGO_UNITS).
+const TIME_AGO_UNITS: Array<[string, number]> = [
+  ['y', 365 * 86400000],
+  ['mo', 30 * 86400000],
+  ['w', 7 * 86400000],
+  ['d', 86400000],
+  ['h', 3600000],
+  ['m', 60000],
+];
+
+// Upstream reads `pathSegments[1]` (`/read/<id>`); fall back to the last
+// non-empty segment so odd hrefs still resolve instead of vanishing.
+function chapterIdFromHref(href: string, baseUrl: string): string {
+  try {
+    const segs = new URL(href, baseUrl).pathname.split('/').filter(Boolean);
+    return segs[1] ?? segs[segs.length - 1] ?? '';
+  } catch {
+    return '';
+  }
 }
 
 // Keep line breaks and links; descriptions render as Markdown.
@@ -128,98 +154,61 @@ export class WebnexScraper extends BaseScraper {
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const res = await this.get(this.absUrl(mangaUrl));
-    const $ = this.asDocument(String(res.data));
-    const groups: string[] = [];
-    $('select[name="source"] option:not([value=""])').each((_i, el) => {
-      const v = $(el).attr('value');
-      if (v) groups.push(v);
-    });
-    const chapterLists: Chapter[][] = [];
-    if (groups.length === 0) {
-      chapterLists.push(await this.fetchChapters(mangaUrl, null, String(res.data)));
-    } else {
-      for (const g of groups) {
-        chapterLists.push(await this.fetchChapters(mangaUrl, g, undefined));
-      }
-    }
-    // Un manga expose plusieurs sources de chapitres (ici 8 : genz, asura,
-    // vortex, manhuaplus, qi, kayn, hivetoons, thunder). Sans deduplication, un
-    // media aux 31 chapitres recevait 272 lignes, dont 8 fois le meme chapitre.
-    // On garde un chapitre par numero, en privilegiant une source dont le lecteur
-    // sert reellement des pages : `genz` rend une coquille de 39 ko sans `<img>`
-    // ni cle `pages`, la ou `manhuaplus` et `asura` exposent le payload complet.
-    const all = chapterLists.flat();
-    const byNumber = new Map<string, Chapter>();
-    for (const c of all) {
-      if (c.chapterNumber === undefined || Number.isNaN(c.chapterNumber)) continue;
-      const key = `n${c.chapterNumber}`;
-      const current = byNumber.get(key);
-      if (!current) { byNumber.set(key, c); continue; }
-      if (await this.sourceServesPages(c) && !await this.sourceServesPages(current)) byNumber.set(key, c);
-    }
-    const merged = byNumber.size > 0 ? [...byNumber.values()] : all;
-    return merged.sort((a, b) => ((b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)) || ((b.dateUpload ?? 0) - (a.dateUpload ?? 0)));
-  }
-
-  /**
-   * Toutes les sources d'un manga ne servent pas les memes pages. Le verdict est
-   * mis en cache : la liste des sources est courte et getChapterList est appele
-   * sur les 60 medias d'un run.
-   */
-  private readonly pagesCache = new Map<string, boolean>();
-
-  private async sourceServesPages(chapter: Chapter): Promise<boolean> {
-    const cached = this.pagesCache.get(chapter.url);
-    if (cached !== undefined) return cached;
-    let serves = false;
-    try {
-      const res = await this.get(this.absUrl(chapter.url));
-      serves = !!extractNextJsHtml(String(res.data), v => isJsonObject(v) && Array.isArray(v.pages));
-    } catch {
-      serves = false;
-    }
-    this.pagesCache.set(chapter.url, serves);
-    return serves;
-  }
-
-  private async fetchChapters(mangaUrl: string, group: string | null, firstPageHtml?: string): Promise<Chapter[]> {
-    const first = firstPageHtml !== undefined
-      ? this.asDocument(firstPageHtml)
-      : this.asDocument(String((await this.get(this.pageUrl(mangaUrl, group, 1))).data));
-    const chapters = this.parseChapters(first);
+    const first = this.asDocument(String(res.data));
     let lastPage = 1;
     first('.pagination-page a[href$="#chapters"]').each((_i, el) => {
       const n = parseInt(first(el as unknown as Element).text(), 10);
       if (!Number.isNaN(n) && n > lastPage) lastPage = n;
     });
-    for (let page = 2; page <= lastPage; page++) {
-      const $p = this.asDocument(String((await this.get(this.pageUrl(mangaUrl, group, page))).data));
-      chapters.push(...this.parseChapters($p));
+    const docs: CheerioDoc[] = [first];
+    if (lastPage > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: lastPage - 1 }, (_, i) => i + 2).map(async page =>
+          this.asDocument(String((await this.get(this.pageUrl(mangaUrl, page))).data)),
+        ),
+      );
+      docs.push(...rest);
     }
-    return chapters;
+    // Groups are listed one after another, so interleave them by number and then date.
+    const chapters = docs.flatMap(d => this.parseChapters(d));
+    return chapters.sort((a, b) => ((b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)) || ((b.dateUpload ?? 0) - (a.dateUpload ?? 0)));
   }
 
-  private pageUrl(mangaUrl: string, group: string | null, page: number): string {
+  // Inverts the site's timeAgo(): "4w ago" means 4 weeks up to the 30 days
+  // where "1mo" takes over, so take the middle (upstream Webnex.parseTimeAgo).
+  private parseTimeAgo(text: string | undefined): number | undefined {
+    if (text === undefined) return undefined;
+    if (text === 'just now') return Date.now();
+    const match = /^(\d+)(mo|y|w|d|h|m) ago$/.exec(text);
+    if (!match) return undefined;
+    const count = parseInt(match[1], 10);
+    const idx = TIME_AGO_UNITS.findIndex(([suffix]) => suffix === match[2]);
+    if (idx === -1) return undefined;
+    const unit = TIME_AGO_UNITS[idx][1];
+    const larger = idx === 0 ? Number.POSITIVE_INFINITY : TIME_AGO_UNITS[idx - 1][1];
+    const upper = Math.min(unit * (count + 1), larger);
+    return Date.now() - (unit * count + upper) / 2;
+  }
+
+  private pageUrl(mangaUrl: string, page: number): string {
     const url = new URL(this.absUrl(mangaUrl));
-    if (group !== null) url.searchParams.set('source', group);
     if (page > 1) url.searchParams.set('page', String(page));
     return url.toString();
   }
 
+  // Each row is one chapter: the upload the site picked, plus the other
+  // groups' uploads in its dropdown (upstream Webnex.parseChapters).
+  // Upstream keeps the dropdown dates estimated when first seen via a
+  // `knownDates` cache carried by the app; this port is stateless, so every
+  // dropdown upload is dated from its relative `.ch-sources-time` label.
   private parseChapters($: CheerioDoc): Chapter[] {
     const chapters: Chapter[] = [];
     $('li.ch-row').each((_i, el) => {
       const $el = $(el);
       const $link = $el.find('a.ch-link').first();
       const href = $link.attr('href') ?? '';
-      let chapterId = '';
-      try {
-        const segs = new URL(href, this.baseUrl).pathname.split('/').filter(Boolean);
-        chapterId = segs[segs.length - 1] ?? '';
-      } catch {
-        return;
-      }
-      if (!chapterId) return;
+      const pickedId = chapterIdFromHref(href, this.baseUrl);
+      if (!pickedId) return;
       const $num = $link.find('.ch-num').first();
       const $title = $link.find('.ch-title').first();
       const name = isPlainTitle($title.attr('class'))
@@ -236,10 +225,24 @@ export class WebnexScraper extends BaseScraper {
       const dateUpload = datetime ? Date.parse(datetime) : NaN;
       chapters.push({
         name,
-        url: `/read/${chapterId}`,
+        url: `/read/${pickedId}`,
         chapterNumber: Number.isNaN(chapterNumber) ? undefined : chapterNumber,
         scanlator,
         dateUpload: Number.isNaN(dateUpload) ? undefined : dateUpload,
+      });
+      $el.find('.ch-sources-menu a.ch-sources-item').each((_j, item) => {
+        const $item = $(item);
+        const itemId = chapterIdFromHref($item.attr('href') ?? '', this.baseUrl);
+        if (!itemId) return;
+        const itemScanlator = $item.find('.ch-sources-name').first().text().trim() || undefined;
+        const itemDate = this.parseTimeAgo($item.find('.ch-sources-time').first().text().trim() || undefined);
+        chapters.push({
+          name,
+          url: `/read/${itemId}`,
+          chapterNumber: Number.isNaN(chapterNumber) ? undefined : chapterNumber,
+          scanlator: itemScanlator,
+          dateUpload: itemDate,
+        });
       });
     });
     return chapters;
