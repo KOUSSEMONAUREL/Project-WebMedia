@@ -69,6 +69,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `fr/ono` | `www.ono.live` + `ws.ono.live` | IGNORE | HTTP **202 à 0 octet** (CloudFront anti-bot) ; l'API GraphQL exige un JWT Cognito extrait des cookies du site | `ws.ono.live/graphql` répond sans en-tête `Authorization` |
 | `en/mangabay` | `manga-bay.biz` | IGNORE | Sondé le 2026-10-04 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond une page d'attente JS (spinner, `token mode modern`, contrôle `webdriver`/`hasCrypto`) sans catalogue ; l'upstream ne la franchit que via `runWebViewBlocking` (`DleGuardResolver.kt`, cookie `__guard_trust`) | Le garde DLE sert un vrai catalogue sans WebView (ou le cookie `__guard_trust` devient calculable sans navigateur) |
 | `all/komga` | `https://127.0.0.1:25600` | IGNORE | Source **auto-hébergée** : `Komga.kt` (issue #429) lit `baseUrl`, identifiants et clé API depuis les préférences utilisateur (`PREF_ADDRESS`, vide par défaut) et n'est utilisable que sur le propre serveur Komga de l'utilisateur. Sonde 2026-10-08 : `https://127.0.0.1:25600` → `000`, aucun catalogue public documenté | Une instance Komga publique sans authentification exposée |
+| `en/comix` | **candidat BUILD** — voir « Critère de portabilité » | **Retire du registre** | Le premier verdict (`IGNORE` pour `comix`, `BLOCKED` pour `aniverse`) jugeait la source sur le lecteur du site : WebView, chiffrement, signature des requetes. Or la pipeline n'ingère que `rootUrl`, l'URL de la serie. Catalogue et URL de fiche sont lisibles en HTTP simple pour les deux | n/a |
 
 ### Sources vivantes derrière un challenge Cloudflare : `BLOCKED`, pas `IGNORE`
 
@@ -167,7 +168,7 @@ robustesse, pas la validité dans le temps d'un scrape.
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
-| `fr/aniverse` | `aniverse.fr` | BLOCKED | `200` sans challenge sur `/home`, catalogue de 26 series dans le payload RSC, mais `/<slug>` et `/catalogue` en `404`, `/manga` a un payload vide, aucune API, et aucun format d'URL de fiche dans le HTML ni dans les chunks JS | Le site expose une URL de fiche stable (`/manga/<slug>` ou equivalent) **ou** une API JSON de catalogue, accessible sans navigateur |
+| `fr/aniverse` | **candidat BUILD** — voir « Critère de portabilité » | **Retire du registre** | Le premier verdict (`IGNORE` pour `comix`, `BLOCKED` pour `aniverse`) jugeait la source sur le lecteur du site : WebView, chiffrement, signature des requetes. Or la pipeline n'ingère que `rootUrl`, l'URL de la serie. Catalogue et URL de fiche sont lisibles en HTTP simple pour les deux | n/a |
 
 À noter pour le prochain passage : le domaine de l'issue est `aniverse.fr`, et la
 redirection `307` de la racine pointe vers `/home`. Un agent qui sondera `/` sans suivre
@@ -337,57 +338,192 @@ Condition de revivification : un egress non-datacenter pour le scraping webtoon,
 levée du blocage Cloudflare sur les plages GitHub Actions.
 
 
-## Resonde du 2026-10-07 : `xomanga` revivifie, `comix` ne l'est pas
+## Critere de portabilité : ce qu'on ingère n'est pas ce qu'on lit
 
-Re-sonde IPv4 (`curl -4`) le 2026-10-07, contredisant la premiere version de cette
-section, qui concluait que les deux etaient revivifiables. **Un seul des deux l'est** :
-le raisonnement « HTTP 200 donc le blocage est leve » ne suffit pas, et il a produit un
-verdict faux sur `comix`.
+Cette section remplace deux verdicts antérieurs, tous deux faux, et pour la même
+raison : on avait juge la source sur ce que le *lecteur* du site sait faire, au lieu
+de regarder ce que la *pipeline* ingère.
 
-**`fr/xomanga` (`xomanga.com`) — `BLOCKED` leve : candidat `BUILD`.**
+**Ce que la pipeline ingère.** Pour `type === 'webtoon'`, le worker envoie une seule
+URL par source : `result.rootUrl` (`scrapers/webtoons/src/worker.ts:84`), c'est-a-dire
+**l'URL de la serie**. Le backend la stocke telle quelle dans `liens.url` et l'utilisateur
+est redirige dessus. Les images des chapitres ne sont jamais utilisées dans ce chemin.
+Verifie en base : 285 jobs `webtoon` reussis, **0 job `comic`** -- le chemin qui ingère
+un lien par chapitre n'est pas utilise.
 
-`https://xomanga.com/api/manga/list` repond **200** et **8 824 o de JSON reel** :
-`{"manga": [ ... ]}` avec 24 entrées, chacune portant `id` (uuid), `slug` et `title`
-(`"Itaike na Hitomi"`, `"Academic Hype"`, …), plus une clé de couverture. Aucun challenge,
-`cf-mitigated` absent. C'est la condition de revivification ecrite ci-dessus
-(« une route servant du contenu ou du JSON sans challenge ») et elle est remplie.
+**Le critère, donc : une source est portable si elle livre un catalogue lisible et une
+URL de fiche lisible, en HTTP simple.** Un WebView, une API signée, un descramblage
+d'images ou un defi Cloudflare sur les *pages* ne bloquent rien, tant que ces deux la
+sont accessibles.
 
-**`en/comix` (`comix.to`) — reste `IGNORE` : le catalogue n'est pas dans le HTML.**
+Ce critère a ete applique à la baisse sur `comix`, `aniverse` et `cartoonporn`, qui avaient
+ete écartées pour des raisons qui ne concernaient que les pages.
 
-La reponse est bien `200` et fait ~400 ko, mais c'est une **coquille Next.js** :
+### `en/comix` (`comix.to`) — candidat `BUILD`
 
-| Mesure | Valeur |
+Le premier verdict le classait `IGNORE` en s'appuyant sur un `Cipher` upstream
+(`Comix.kt` : WebView, sboxes, signature des requetes). **Ce raisonnement est hors sujet
+ici** : tout cela ne sert qu'a lire les images des chapitres.
+
+Ce qui compte, et qui est vérifié :
+
+| Besoin | Etat |
 |---|---|
-| Texte visible une fois scripts et styles retires | **35 caracteres** |
-| Liens `/title/<id>` dans le HTML | **0** |
-| `<script>` dans la page | 2 |
-| `/api` | `404` |
+| catalogue | `script#initial-data` dans le HTML, 270 entrées `/title/…`, 130 slugs distincts |
+| URL de fiche | `https://comix.to/title/<slug>` -> **200**, 30 ko, titre + synopsis + genres |
+| couvertures | JPEG directs sur `static.comix.to`, **vérifié** (200, 37 ko, 280x420) |
 
-Le `<title>` est correct (« Comix - Read Comics online for free ») et c'est
-**exactement ce qui donne une fausse impression de contenu** : une page qui repond 200
-et dont le titre est correct, mais dont le catalogue est monte en JavaScript.
+Ce qui manque est reel mais sans effet ici : les pages de chapitre ne sont pas dans le
+HTML (`/title/<slug>/<id>-chapter-N` -> 200 avec 3,7 ko de metadonnées et zero image) et
+passent par une requete signée. Consequence pour un futur pipeline `comic` : le port
+devrait etre marque `comic-unsupported`, pas `webtoon-unsupported`.
 
-Le marqueur `challenge-platform` qui apparait dans la page **ne prouve aucun challenge** :
-c'est `/cdn-cgi/challenge-platform/scripts/jsd/main.js`, le script Cloudflare Bot
-Management (JSD) injecte sur tout site derriere Cloudflare, sans rapport avec un defi.
-Conclure « pas de challenge » sur sa seule absence serait aussi une erreur -- l'erreur
-inverse de celle commise ici.
+### `fr/aniverse` (`aniverse.fr`) — candidat `BUILD`
 
-Le verdict du 2026-10-04 tient donc, et pour la bonne raison : ce n'est pas un blocage
-Cloudflare, c'est un catalogue rendu cote client. Un port `axios` + `cheerio` y
-recevrait 400 ko pour 35 caracteres utiles.
+Verdict refait apres une première erreur de ma part : j'avais conclu non portable en
+cherchant le format d'URL dans `/home` et dans les premiers chunks JS, sans trouver de
+motif. Le format existe, il était dans le chunk 24 : `/manga/<slug>`.
 
-### Piège ajouté : `200` et un bon titre ne prouvent rien
+| Besoin | Etat |
+|---|---|
+| catalogue | `/manga` -> **200**, 571 ko, **41 slugs** dans le payload RSC |
+| URL de fiche | `https://aniverse.fr/manga/blue-lock` -> **200**, titre « Blue Lock Scan VF – Aniverse FR », genres et episodes presents |
 
-Un nom de domaine repondant `200`, avec le bon `<title>` et plusieurs centaines de
-kilo-octets, est un cas tres courant de page vide. La mesure qui tranche est le texte
-visible apres retrait des scripts, ou la presence de liens de catalogue. C'est le
-quatrieme piege du registre, a cote de `curl` sans `-4`, du `baseUrl` dans le `.kt`
-plutot que dans `build.gradle.kts`, et du `1026` qui est un bannissement d'ASN.
+Preuve du premier verdict faux : sur `/home` le payload contient 28 slugs mais aucun lien
+de fiche ; sur `/manga` il contient a la fois les slugs et les routes `/manga/<slug>`. La
+lecon est qu'il faut balayer **tous** les chunks JS : les routes sont formées par une
+concatenation (`"/" + segment`) que le HTML seul ne montre pas.
 
-## Trois pièges de diagnostic à connaître
+### `en/cartoonporn` (`cartoonporn.to`) — candidat `BUILD`
 
-Ces quatre cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
+| Besoin | Etat |
+|---|---|
+| catalogue | `/porncomic/` -> **200**, 71 ko de texte, **90 liens** `/porncomic/<slug>` |
+| URL de fiche | `/porncomic/<slug>/` -> **200**, titre « All in the Name of Eros... », 6 570 car |
+
+`/wp-json` repond **401**, donc l'API WordPress est verrouillée : le port doit passer par
+le HTML. La racine `/` ne sert que 7 liens de navigation, c'est `/porncomic/` qui porte le
+catalogue.
+
+### `fr/scanmanga` (`m.scan-manga.com`) — candidat `BUILD`
+
+`m.scan-manga.com` fait une `302` vers `www.scan-manga.com`. Les liens sont en URL absolue
+`https://www.scan-manga.com/<id>/<slug>.html`, et la fiche `/12915/Level-Up-With-Skills.html`
+repond **200** avec un titre et 27 836 caractères de texte.
+
+### `en/kitsunedawn` (`kitsunedawn.com`) — candidat `BUILD`, avec une reserve
+
+| Besoin | Etat |
+|---|---|
+| catalogue | `/latest` -> **200**, **95 liens** `/read/<uuid>` |
+| URL de fiche | `/read/<uuid>` -> **200**, titre « My Beautiful Childhood Friend... » |
+
+La racine affiche « No series found » alors que `/latest` en sert 95 : un port qui vise `/`
+paraîtra vide alors que le site est plein. `/read/<uuid>` est bien la fiche d'une serie
+(son titre mentionne « Share Chapter 5 »), et non un chapitre isolé.
+
+## Critère de portabilité : ce qu'on ingère n'est pas ce qu'on lit
+
+Cette section remplace deux verdicts antérieurs, tous deux faux, et pour la même
+raison : on avait jugé la source sur ce que le *lecteur* du site sait faire, au lieu
+de regarder ce que la *pipeline* ingère.
+
+**Ce que la pipeline ingère.** Pour `type === 'webtoon'`, le worker envoie une seule
+URL par source : `result.rootUrl` (`scrapers/webtoons/src/worker.ts:84`), c'est-à-dire
+**l'URL de la série**. Le backend la stocke telle quelle dans `liens.url` et l'utilisateur
+est redirigé dessus. Les images des chapitres ne sont jamais utilisées dans ce chemin.
+Vérifié en base : 285 jobs `webtoon` réussis, **0 job `comic`** -- le seul chemin qui
+ingérerait un lien par chapitre n'est pas utilisé.
+
+**Le critère, donc : une source est portable si elle livre un catalogue lisible et une
+URL de fiche lisible, en HTTP simple.** Un WebView, une API signée, un descramblage
+d'images ou un défi Cloudflare sur les *pages* ne bloquent rien, tant que ces deux la
+sont accessibles.
+
+Ce critère a été appliqué à la baisse sur `comix`, `aniverse` et `cartoonporn`, qui avaient
+été écartées pour des raisons qui ne concernaient que les pages.
+
+### `en/comix` (`comix.to`) -- candidat `BUILD`
+
+Le premier verdict le classait `IGNORE` en s'appuyant sur un `Cipher` upstream
+(`Comix.kt` : WebView, sboxes, signature des requetes). **Ce raisonnement est hors sujet
+ici** : tout cela ne sert qu'a lire les images des chapitres.
+
+| Besoin | Etat |
+|---|---|
+| catalogue | `script#initial-data` dans le HTML, 270 entrées `/title/...`, 130 slugs distincts |
+| URL de fiche | `https://comix.to/title/<slug>` -> **200**, 30 ko, titre + synopsis + genres |
+| couvertures | JPEG directs sur `static.comix.to`, **vérifié** (200, 37 ko, 280x420) |
+
+Ce qui manque est réel mais sans effet ici : les pages de chapitre ne sont pas dans le
+HTML (`/title/<slug>/<id>-chapter-N` -> 200 avec 3,7 ko de métadonnées et zero image) et
+passent par une requete signée. Consequence pour un futur pipeline `comic` : le port
+devrait etre marque `comic-unsupported`, pas `webtoon-unsupported`.
+
+### `fr/aniverse` (`aniverse.fr`) -- candidat `BUILD`
+
+Verdict refait apres une première erreur de ma part : j'avais conclu non portable en
+cherchant le format d'URL dans `/home` et dans les premiers chunks JS. Le format existe,
+il était dans le chunk 24 : `/manga/<slug>`.
+
+| Besoin | Etat |
+|---|---|
+| catalogue | `/manga` -> **200**, 571 ko, **41 slugs** dans le payload RSC |
+| URL de fiche | `https://aniverse.fr/manga/blue-lock` -> **200**, titre « Blue Lock Scan VF », genres et episodes presents |
+
+Preuve du premier verdict faux : sur `/home` le payload contient 28 slugs mais aucun lien
+de fiche ; sur `/manga` il contient a la fois les slugs et les routes `/manga/<slug>`. La
+lecon est qu'il faut balayer **tous** les chunks JS : les routes sont formées par une
+concatenation que le HTML seul ne montre pas.
+
+### `en/cartoonporn` (`cartoonporn.to`) -- candidat `BUILD`
+
+| Besoin | Etat |
+|---|---|
+| catalogue | `/porncomic/` -> **200**, 71 ko de texte, **90 liens** `/porncomic/<slug>` |
+| URL de fiche | `/porncomic/<slug>/` -> **200**, titre « All in the Name of Eros... », 6 570 car |
+
+`/wp-json` repond **401**, donc l'API WordPress est verrouillée : le port doit passer par
+le HTML. La racine `/` ne sert que 7 liens de navigation ; c'est `/porncomic/` qui porte
+le catalogue.
+
+### `fr/scanmanga` (`m.scan-manga.com`) -- candidat `BUILD`
+
+`m.scan-manga.com` fait une `302` vers `www.scan-manga.com`. Les liens sont en URL absolue
+`https://www.scan-manga.com/<id>/<slug>.html`, et la fiche `/12915/Level-Up-With-Skills.html`
+repond **200** avec un titre et 27 836 caractères de texte.
+
+### `en/kitsunedawn` (`kitsunedawn.com`) -- candidat `BUILD`, avec une reserve
+
+| Besoin | Etat |
+|---|---|
+| catalogue | `/latest` -> **200**, **95 liens** `/read/<uuid>` |
+| URL de fiche | `/read/<uuid>` -> **200**, titre « My Beautiful Childhood Friend... » |
+
+La racine affiche « No series found » alors que `/latest` en sert 95 : un port qui vise `/`
+paraîtra vide alors que le site est plein. `/read/<uuid>` est bien la fiche d'une série
+(son titre mentionne « Share Chapter 5 »), et non un chapitre isolé.
+
+### Ce qui reste reellement bloqué
+
+Les quatre sources du cycle du 2026-10-06 (`theblank`, `astralmanga`, `epsilonscan`,
+`softepsilonscan`) restent `BLOCKED`, et cette fois pour la bonne raison : leur
+*catalogue* lui-même est derrière le challenge. Sonde du 2026-10-09 sur la racine des
+trois domaines distincts : `403`, ~5,4 ko, `<title>Just a moment...</title>`,
+`cf-mitigated: challenge`. Aucun `rootUrl` n'est atteignable, donc aucune URL de fiche
+non plus. C'est le seul cas ou le désobfuscateur du lecteur est un vrai bloqué.
+
+## Resonde du 2026-10-07 : `fr/xomanga` revivifie, `en/comix` a ete corrige
+
+Sonde IPv4 (`curl -4`) le 2026-10-07. La première version de cette section concluait que les
+deux domaines n'etaient plus bloques, sur le raisonnement « HTTP 200 donc le blocage est
+leve ». `xomanga` : confirme, et meme au-dela, puisque le catalogue est lisible depuis la CI
+(voir la section du 2026-10-09). `comix` : le raisonnement etait bon, la conclusion non —
+voir le critère de portabilite plus haut.
+
+## Cinq pièges de diagnostic à connaître
+
+Ces cinq cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
 refasse pas l'erreur.
 
 1. **`curl` sans `-4` ment.** Plusieurs domaines ci-dessus n'ont pas de route IPv6 et
@@ -403,14 +539,20 @@ refasse pas l'erreur.
    `kiutaku` est un site vivant déjà porté dans ce dépôt. Un 451 ne prouve donc **rien** sur
    l'état du site tant qu'il n'a pas été revalidé via WARP. C'est la règle la plus coûteuse
    à réapprendre, d'où sa place ici.
-4. **Un `200` avec un bon titre peut être une page vide.** `comix.to` répond `200`,
-   pèse 400 ko et s'intitule « Comix - Read Comics online for free », mais son
-   catalogue est monté en JavaScript : **35 caractères** de texte visible et **zéro**
-   lien `/title/<id>` dans le HTML. La mesure qui tranche est le texte visible après
-   retrait des scripts, pas le code de réponse. Corollaire du même genre : l'absence de
-   marqueur de challenge ne prouve pas non plus l'absence de blocage, car
+4. **Un `200` avec un bon titre peut être une page vide — mais il ne prouve pas non plus
+   que le site est mort.** `comix.to` répond `200`, pèse 400 ko et s'intitule
+   « Comix - Read Comics online for free », alors que sa racine ne rend que 35 caractères
+   de texte visible : le catalogue est monté en JavaScript et ne se trouve que dans
+   `script#initial-data`. Deux erreurs symétriques à éviter donc : conclure « mort » parce
+   que le HTML est vide, et conclure « vide » parce que le HTML est vide — ici les données
+   sont toutes là, il faut juste lire le bon endroit. Corollaire du même genre : l'absence
+   de marqueur de challenge ne prouve pas l'absence de blocage, car
    `/cdn-cgi/challenge-platform/scripts/jsd/main.js` (Cloudflare Bot Management) est
    injecté sur tout site derrière Cloudflare et n'a rien à voir avec un défi.
+5. **Juger une source sur le lecteur du site plutôt que sur ce qu'on ingère.** C'est
+   l'erreur qui a fait classer `comix` et `aniverse` non portables : on a regardé ce que le
+   lecteur sait faire (WebView, chiffrement, signature) alors que la pipeline n'ingère que
+   l'URL de la série. Voir « Critère de portabilité » plus haut.
 
 Corollaire : un `ETIMEDOUT` vers une IP Cloudflare, ou un `ECONNRESET` en rafale sur
 plusieurs sites, vient généralement du runner lui-même (réseau restreint, ou throttling
