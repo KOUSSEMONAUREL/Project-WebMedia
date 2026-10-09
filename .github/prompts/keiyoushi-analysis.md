@@ -175,6 +175,29 @@ For each critical extension:
    - `NO_IMPACT` : purely internal Kotlin work (class renames, function extraction, generic
      filter DSL rewrite, build config) with endpoints/selectors/parsing untouched → document only.
 
+### What the pipeline actually ingests — read this before judging any source
+
+For `type === 'webtoon'` the worker sends **one URL per source**: `result.rootUrl`
+(`scrapers/webtoons/src/worker.ts:84`) — the **series page**. The backend stores it
+verbatim in `liens.url` and the user is redirected to it. Page images are never used on
+this path. Measured in the database: 285 successful `webtoon` jobs, **0 `comic` jobs** —
+the branch that would ingest one link per chapter is not exercised.
+
+So a source is viable when **it delivers a readable catalogue AND a readable series-page
+URL over plain HTTP**. Nothing else is required.
+
+**A WebView, a signed API, a descrambler, or a challenge in front of the *pages* blocks
+nothing**, as long as those two are reachable. `comix` and `aniverse` were both written
+up as non-viable on exactly this mistake before being corrected on 2026-10-09: `comix`
+because `Comix.kt` uses a WebView and sbox encryption, `aniverse` because no series-page
+URL pattern was found. Both deliver catalogue and series page over plain HTTP.
+
+Judge the catalogue and the series page. Before writing a `BLOCKED`/`IGNORE` verdict for
+a missing series URL, prove it is missing: scan **every** `/_next/static/chunks/*.js`
+for route fragments (`"/manga"`, `"/anime"`, `"/watch"`). Routes are often assembled by
+string concatenation and are invisible in the HTML alone — `aniverse`'s `/manga/<slug>`
+only showed up in chunk 24, after the verdict had already been written.
+
 ### Phase 3 — Analyze every NOUVEAU entry (you write it)
 
 1. Check the `Cloudflare` column AND probe the site yourself:
@@ -182,14 +205,17 @@ For each critical extension:
    curl -4 -sIL --max-time 20 "<URL>"                # through WARP (default)
    curl --noproxy '*' -4 -sIL --max-time 20 "<URL>"  # without tunnel
    ```
-2. Determine viability: HTML/JSON reachable (via WARP if needed), content parseable,
-   free content, not login-walled, no heavy JS rendering requirement.
+2. Determine viability on the two things that actually matter: a readable **catalogue**
+   (`getPopular`/`getSearch`) and a readable **series-page URL**, both over plain HTTP.
+   Free content, not login-walled. Do **not** count page-image extraction, chapter
+   images, WebView or decryption as a blocker — the pipeline never asks for them.
+   Record both as measured evidence (`HTTP` + a count of series URLs found).
 3. **Verdict**:
    - `BUILD` : viable → **write the full transcompilation as a new `.ts`** now, from A to Z:
      endpoints, selectors, parsing, class contract (follow how other scrapers in the same
      `<lang>` folder are written). Leave the file in the working tree.
-- `IGNORE` : dead by evidence, login-walled, or a JS-SPA that genuinely requires a
-      browser engine → document why **in `summary_md` and via a `REGISTRY_RECHECK`
+- `IGNORE` : dead by evidence, login-walled, or a JS-SPA whose **catalogue** genuinely
+      requires a browser engine → document why **in `summary_md` and via a `REGISTRY_RECHECK`
       handoff item**. Do not write a `.ts`: a port that has never returned a result is
       dead code, not a starting point. An anti-bot wall that survives one faithful
       transcription of the upstream bypass is **not** by itself an `IGNORE`: the wall
@@ -368,6 +394,19 @@ the review stay per-site.
 7. Reply in English in the handoff (`summary_md`, `pr_body`).
 8. Every live probe: try through WARP first (default route); use `--noproxy '*'` only to
    compare blocked-vs-open behavior.
+9. **Judge a source on what the pipeline ingests, not on what the site's reader can do.**
+   The pipeline stores one series-page URL per source and never touches page images. A
+   WebView, a signed API or a descrambler in the upstream Kotlin is **not** a blocker:
+   transcribe the catalogue and the series page, and call it `BUILD`. Two verdicts in this
+   repo (`comix`, `aniverse`) were wrong for exactly that reason.
+10. **Before recording a missing series-page URL, prove it is missing.** Scan every
+    `/_next/static/chunks/*.js` for route fragments before writing a `BLOCKED` verdict on a
+    Next.js site; the route may be built by concatenation and absent from the HTML.
+11. **Never assert a security mechanism you did not observe.** "Scrambled images", "signed
+    API", "WebView required" must be backed by a header, a payload key or an upstream
+    symbol you actually read. Zero occurrences of `scramble` in the HTML you fetched is not
+    proof that none exists — it may be produced by JS, which is exactly what a WebView would
+    run.
 
 ## Termination
 
