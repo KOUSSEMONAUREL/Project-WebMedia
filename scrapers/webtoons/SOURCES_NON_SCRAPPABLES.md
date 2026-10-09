@@ -69,6 +69,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `fr/ono` | `www.ono.live` + `ws.ono.live` | IGNORE | HTTP **202 à 0 octet** (CloudFront anti-bot) ; l'API GraphQL exige un JWT Cognito extrait des cookies du site | `ws.ono.live/graphql` répond sans en-tête `Authorization` |
 | `en/mangabay` | `manga-bay.biz` | IGNORE | Sondé le 2026-10-04 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond une page d'attente JS (spinner, `token mode modern`, contrôle `webdriver`/`hasCrypto`) sans catalogue ; l'upstream ne la franchit que via `runWebViewBlocking` (`DleGuardResolver.kt`, cookie `__guard_trust`) | Le garde DLE sert un vrai catalogue sans WebView (ou le cookie `__guard_trust` devient calculable sans navigateur) |
 | `all/komga` | `https://127.0.0.1:25600` | IGNORE | Source **auto-hébergée** : `Komga.kt` (issue #429) lit `baseUrl`, identifiants et clé API depuis les préférences utilisateur (`PREF_ADDRESS`, vide par défaut) et n'est utilisable que sur le propre serveur Komga de l'utilisateur. Sonde 2026-10-08 : `https://127.0.0.1:25600` → `000`, aucun catalogue public documenté | Une instance Komga publique sans authentification exposée |
+| `en/comix` | `comix.to` (+ `comix.ws`) | IGNORE | Sondé le 2026-10-09 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond `200` (~417 ko) avec un catalogue JSON déshydraté (`script#initial-data`, 272 entrées `/title/…`, texte visible 35 caractères) — mais les pages exigent l'API signée (`getSigned`, `ComixCipher`), le désembrochage d'images (`Descrambler.kt` : grille `5x5` via `x-scramble-grid`, XOR via `x-enc-seed`, `Bitmap` Android) et un repli `runWebView` (`Comix.kt`, 1 101 lignes). Même famille que `japscan`/`mangaplaza` : sans pipeline d'images, un port servirait des pages illisibles | Les images sont servies non embrouillées sans API signée, ou le moteur gagne un pipeline de désembrochage d'images |
 
 ### Sources vivantes derrière un challenge Cloudflare : `BLOCKED`, pas `IGNORE`
 
@@ -384,6 +385,24 @@ kilo-octets, est un cas tres courant de page vide. La mesure qui tranche est le 
 visible apres retrait des scripts, ou la presence de liens de catalogue. C'est le
 quatrieme piege du registre, a cote de `curl` sans `-4`, du `baseUrl` dans le `.kt`
 plutot que dans `build.gradle.kts`, et du `1026` qui est un bannissement d'ASN.
+
+Corollaire ajouté le 2026-10-09 (`en/comix`, issue #434) : un JSON déshydraté
+(`script#initial-data`, 272 entrées `/title/…`) dans une page à 35 caractères
+visibles prouve que le catalogue est servi côté serveur — mais ne prouve pas la
+portabilité. `comix.to` reste `IGNORE` parce que ses *pages* exigent une API
+signée, un désembrochage d'images 5x5 + XOR et un repli WebView : la condition
+de revivification porte donc sur les images, pas sur le catalogue.
+
+## Resonde du 2026-10-09 : `en/xomanga` revivifie jusque dans la CI (issue #434)
+
+`https://xomanga.com/api/manga/list` répond **200** et **~9 ko de JSON réel**
+depuis l'egress datacenter de la CI (`curl -4`, via WARP) : `{"manga":
+[{id (uuid), slug, title, cover_r2_key, …}]}`. Le blocage Cloudflare sur les
+plages GitHub Actions — la condition de revivification écrite le 2026-10-04 —
+est donc levé, et la source redevient candidate `NOUVEAU`/`BUILD`.
+
+À noter : l'amont est `src/en/xomanga` ; la mention `fr/xomanga` de la resonde
+du 2026-10-07 est une coquille (pas de `src/fr/xomanga` dans l'amont).
 
 ## Trois pièges de diagnostic à connaître
 
