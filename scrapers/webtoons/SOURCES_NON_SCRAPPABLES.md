@@ -422,87 +422,28 @@ La racine affiche « No series found » alors que `/latest` en sert 95 : un port
 paraîtra vide alors que le site est plein. `/read/<uuid>` est bien la fiche d'une serie
 (son titre mentionne « Share Chapter 5 »), et non un chapitre isolé.
 
-## Critère de portabilité : ce qu'on ingère n'est pas ce qu'on lit
+### `en/templescan` (`templetoons.com`) : BLOCKED, le site a mis un challenge
 
-Cette section remplace deux verdicts antérieurs, tous deux faux, et pour la même
-raison : on avait jugé la source sur ce que le *lecteur* du site sait faire, au lieu
-de regarder ce que la *pipeline* ingère.
+Verdict du **2026-10-11**, de nature un peu différente des quatre Cloudflare du cycle du
+2026-10-06 : ceux-là répondaient `403`, celui-ci répond `307` et **redirige vers une page de
+défi**.
 
-**Ce que la pipeline ingère.** Pour `type === 'webtoon'`, le worker envoie une seule
-URL par source : `result.rootUrl` (`scrapers/webtoons/src/worker.ts:84`), c'est-à-dire
-**l'URL de la série**. Le backend la stocke telle quelle dans `liens.url` et l'utilisateur
-est redirigé dessus. Les images des chapitres ne sont jamais utilisées dans ce chemin.
-Vérifié en base : 285 jobs `webtoon` réussis, **0 job `comic`** -- le seul chemin qui
-ingérerait un lien par chapitre n'est pas utilisé.
+Sonde : `https://templetoons.com` -> `307` vers `/challenge?redirect=%2F`, puis `200` avec
+**14 771 o** et un marqueur de challenge dans le corps. Aucun catalogue n'est rendu.
 
-**Le critère, donc : une source est portable si elle livre un catalogue lisible et une
-URL de fiche lisible, en HTTP simple.** Un WebView, une API signée, un descramblage
-d'images ou un défi Cloudflare sur les *pages* ne bloquent rien, tant que ces deux la
-sont accessibles.
+Conséquence pour le port : `getPopular` échoue désormais sur ce qui était un site
+fonctionnel. C'est une **régression**, pas une source neuve — et l'issue #443 la liste
+comme `CRITIQUE` parce que l'upstream a ajouté un `ChallengeInterceptor.kt`, ce qui
+confirme que le site a changé de comportement et que l'extension officielle a suivi.
 
-Ce critère a été appliqué à la baisse sur `comix`, `aniverse` et `cartoonporn`, qui avaient
-été écartées pour des raisons qui ne concernaient que les pages.
+Selon le critère de portabilité ci-dessus, le défi ne bloquerait rien **sur les pages** —
+or il est sur la racine, donc le catalogue lui-même est hors d'atteignable et aucun
+`rootUrl` ne peut être produit. Même situation que les quatre Cloudflare, donc même
+verdict.
 
-### `en/comix` (`comix.to`) -- candidat `BUILD`
-
-Le premier verdict le classait `IGNORE` en s'appuyant sur un `Cipher` upstream
-(`Comix.kt` : WebView, sboxes, signature des requetes). **Ce raisonnement est hors sujet
-ici** : tout cela ne sert qu'a lire les images des chapitres.
-
-| Besoin | Etat |
-|---|---|
-| catalogue | `script#initial-data` dans le HTML, 270 entrées `/title/...`, 130 slugs distincts |
-| URL de fiche | `https://comix.to/title/<slug>` -> **200**, 30 ko, titre + synopsis + genres |
-| couvertures | JPEG directs sur `static.comix.to`, **vérifié** (200, 37 ko, 280x420) |
-
-Ce qui manque est réel mais sans effet ici : les pages de chapitre ne sont pas dans le
-HTML (`/title/<slug>/<id>-chapter-N` -> 200 avec 3,7 ko de métadonnées et zero image) et
-passent par une requete signée. Consequence pour un futur pipeline `comic` : le port
-devrait etre marque `comic-unsupported`, pas `webtoon-unsupported`.
-
-### `fr/aniverse` (`aniverse.fr`) -- candidat `BUILD`
-
-Verdict refait apres une première erreur de ma part : j'avais conclu non portable en
-cherchant le format d'URL dans `/home` et dans les premiers chunks JS. Le format existe,
-il était dans le chunk 24 : `/manga/<slug>`.
-
-| Besoin | Etat |
-|---|---|
-| catalogue | `/manga` -> **200**, 571 ko, **41 slugs** dans le payload RSC |
-| URL de fiche | `https://aniverse.fr/manga/blue-lock` -> **200**, titre « Blue Lock Scan VF », genres et episodes presents |
-
-Preuve du premier verdict faux : sur `/home` le payload contient 28 slugs mais aucun lien
-de fiche ; sur `/manga` il contient a la fois les slugs et les routes `/manga/<slug>`. La
-lecon est qu'il faut balayer **tous** les chunks JS : les routes sont formées par une
-concatenation que le HTML seul ne montre pas.
-
-### `en/cartoonporn` (`cartoonporn.to`) -- candidat `BUILD`
-
-| Besoin | Etat |
-|---|---|
-| catalogue | `/porncomic/` -> **200**, 71 ko de texte, **90 liens** `/porncomic/<slug>` |
-| URL de fiche | `/porncomic/<slug>/` -> **200**, titre « All in the Name of Eros... », 6 570 car |
-
-`/wp-json` repond **401**, donc l'API WordPress est verrouillée : le port doit passer par
-le HTML. La racine `/` ne sert que 7 liens de navigation ; c'est `/porncomic/` qui porte
-le catalogue.
-
-### `fr/scanmanga` (`m.scan-manga.com`) -- candidat `BUILD`
-
-`m.scan-manga.com` fait une `302` vers `www.scan-manga.com`. Les liens sont en URL absolue
-`https://www.scan-manga.com/<id>/<slug>.html`, et la fiche `/12915/Level-Up-With-Skills.html`
-repond **200** avec un titre et 27 836 caractères de texte.
-
-### `en/kitsunedawn` (`kitsunedawn.com`) -- candidat `BUILD`, avec une reserve
-
-| Besoin | Etat |
-|---|---|
-| catalogue | `/latest` -> **200**, **95 liens** `/read/<uuid>` |
-| URL de fiche | `/read/<uuid>` -> **200**, titre « My Beautiful Childhood Friend... » |
-
-La racine affiche « No series found » alors que `/latest` en sert 95 : un port qui vise `/`
-paraîtra vide alors que le site est plein. `/read/<uuid>` est bien la fiche d'une série
-(son titre mentionne « Share Chapter 5 »), et non un chapitre isolé.
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/templescan` | `templetoons.com` | BLOCKED | `307` -> `/challenge?redirect=%2F`, puis `200` / **14 771 o** avec marqueur de challenge ; aucun catalogue rendu | La racine rend un catalogue lisible en HTTP simple (défi retiré, ou passage en Defensive mode) |
 
 ### Ce qui reste reellement bloqué
 
