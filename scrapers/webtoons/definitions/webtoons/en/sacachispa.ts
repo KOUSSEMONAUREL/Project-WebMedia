@@ -50,12 +50,26 @@ interface ChapterRefDto {
   chapter: string;
   title?: string | null;
   patreonOnly?: boolean | null;
+  freeAt?: string | null;
 }
 
 interface ReleaseDto {
   id: string;
   chapter: ChapterRefDto;
   publishedAt: string;
+}
+
+/**
+ * Mirrors upstream `ReleaseDto.toSChapter` lock logic: when `freeAt` parses
+ * to a valid timestamp it decides (locked while in the future); `patreonOnly`
+ * is only the fallback when `freeAt` is absent or unparseable.
+ */
+function isChapterLocked(freeAt: string | null | undefined, patreonOnly: boolean | null | undefined): boolean {
+  if (typeof freeAt === 'string' && freeAt.length > 0) {
+    const freeTime = Date.parse(freeAt);
+    if (!Number.isNaN(freeTime) && freeTime > 0) return freeTime > Date.now();
+  }
+  return patreonOnly === true;
 }
 
 export class SacachispaScraper extends BaseScraper {
@@ -121,7 +135,10 @@ export class SacachispaScraper extends BaseScraper {
       const body = res.data as { data: ReleaseDto[]; pagination: PaginationDto };
       for (const dto of body.data ?? []) {
         const title = dto.chapter?.title?.trim();
-        const locked = dto.chapter?.patreonOnly === true;
+        // Mirrors upstream `ReleaseDto.toSChapter` (keiyoushi #453): a chapter
+        // is locked while its `freeAt` timestamp lies in the future; only when
+        // `freeAt` is absent or unparseable does `patreonOnly` decide.
+        const locked = isChapterLocked(dto.chapter?.freeAt, dto.chapter?.patreonOnly);
         chapters.push({
           name: `${locked ? '🔒 ' : ''}Chapter ${dto.chapter?.chapter ?? ''}${title ? ` - ${title}` : ''}`,
           url: `/read/${dto.id}`,
