@@ -445,6 +445,76 @@ verdict.
 |---|---|---|---|---|
 | `en/templescan` | `templetoons.com` | BLOCKED | `307` -> `/challenge?redirect=%2F`, puis `200` / **14 771 o** avec marqueur de challenge ; aucun catalogue rendu | La racine rend un catalogue lisible en HTTP simple (défi retiré, ou passage en Defensive mode) |
 
+### `all/sirenscans` (`sirenscans.org`) et `en/toonz` (`toonz.to`) : candidats `BUILD`
+
+Verdict du **2026-10-12**, suite au cycle du 12/10. Ces deux sources sont **`NOUVEAU`
+upstream** et ne figuraient pas encore au registre, mais l'unique signal disponible etait
+la colonne « Cloudflare » du moniteur. Ce signal est **faux dans les deux sens** : voir le
+piege 6 ci-dessous.
+
+Sondes en HTTP simple (UA navigateur, `-L`), catalogue puis fiche :
+
+| Source | Catalogue | Fiche | Verdict |
+|---|---|---|---|
+| `all/sirenscans` | `https://sirenscans.org/recently-updated` → **200**, 250 732 o, **78 series** en liens relatifs | 57 liens de lecture sur la home | candidat `BUILD` |
+| `en/toonz` | `https://toonz.to/manga/most-popular` → **200**, 444 927 o, **55 liens `/manga/<slug>`** | `/manga/kimetsu-no-yaiba` → **200** | candidat `BUILD` |
+
+`sirenscans` sert du HTML statique, sans framework detectable. `toonz` est un Next.js dont
+le catalogue et deja dans le HTML servi — donc pas de WebView necessaire.
+
+Ce qui manque encore pour un port, et qui sera le travail du cycle suivant : les deux
+n'ont pas ete verifiees sur la **liste paginee** (`hasNextPage`), ni sur le nombre de
+chapitres et d'images. C'est un candidat, pas un port.
+
+### `all/comicklive` et `all/dbnewhope` : a re-sonder
+
+| Source | Sonde | Lecture |
+|---|---|---|
+| `all/comicklive` | `https://comick.live` → **200**, 89 878 o, titre `ComicK - Comick.io` | Rend un titre et une page de 89 ko, mais **0 lien manga** et `/comics` → **404**. La racine sert une coquille ; le catalogue n'est pas localise. |
+| `all/dbnewhope` | `https://dbnewhope.com` → **200**, 16 569 o, titre `DB New Hope - Free Fan Manga` | `/comics` → **404** avec 196 o. Catalogue non localise. |
+
+Ni l'un ni l'autre n'est `BLOCKED` : ni le moniteur ni une sonde unique ne permettent de
+conclure. Les deux restent **inconnus** et doivent etre re-sondes a la prochaine
+occasione, en cherchant le vrai chemin de catalogue plutot qu'en supposant `/comics`.
+
+### `en/templescan` : le `BLOCKED` tient, et l'observation le confirme
+
+Le cycle du 12/10 signale une modification critique de `TempleScan.kt` (+2 lignes :
+« Cloudflare blocks requests that send Origin »). C'est une piste serieuse, et elle a ete
+testee au lieu d'etre reprise telle quelle.
+
+Test du retrait de l'en-tete `Origin` (le fix upstream) : **aucun changement**, la reponse
+reste la page de defi de 14 771 o. Fiche `/comic/<slug>` : **200 mais 14 771 o exactement**,
+soit la taille de la page de defi — donc elle aussi bloquee.
+
+Contre-test avec un vrai navigateur (profil vierge, `chrome-clean`) : le `challenge-platform`
+repond **200** et le site charge avec **53 images** et **82 fiches `/comic/<slug>`**. Donc le
+defi est surmontable par un navigateur execute du JavaScript, et par rien d'autre.
+
+C'est exactement la definition de `BLOCKED` dans ce fichier : le site est vivant et le
+navigateur y entre, mais le catalogue et la fiche ne sont pas atteignables en HTTP simple,
+donc aucun `rootUrl` ne peut etre produit par notre pipeline. Le correctif de 2 lignes
+d'upstream ne change rien a ce constat pour nous.
+
+### `all/komga` : `http://127.0.0.1:25600`, hors perimetre
+
+Le moniteur le liste comme `NOUVEAU`, mais l'URL upstream est un **serveur local**. Ce n'est
+pas un site web : c'est un serveur de bibliotheque que l'utilisateur fait tourner chez lui.
+Aucun port n'a de sens ici, et aucune sonde depuis l'Internet ne peut dire quoi que ce soit.
+Deja au registre.
+
+### Les 3 autres `CRITIQUE` : aucun rapport avec la portabilite
+
+`all/kodokustudio`, `all/novelcool` et `en/comix` sont des **refactorisations internes
+upstream** (changement de classe de base, nouvelle methode `getMangaByUrl`, reecriture du
+chiffrement). Aucun ne modifie ce qu'un `webtoon` ingere :
+
+- `en/comix` : le port existe deja (#446) et n'ingere que `rootUrl`. La suppression de
+  `Cipher.kt` concerne l'API de recherche signee du lecteur, pas le catalogue.
+- `all/novelcool` : le nouveau `getMangaByUrl` verifie `url.host` et lit `pathSegments`.
+  C'est une source **novel**, pas un port `webtoon` de ce registre.
+- `all/kodokustudio` : passage de `Madara()` a `KeiSource()`. Pas d'impact catalogue.
+
 ### Ce qui reste reellement bloqué
 
 Les quatre sources du cycle du 2026-10-06 (`theblank`, `astralmanga`, `epsilonscan`,
@@ -462,9 +532,9 @@ leve ». `xomanga` : confirme, et meme au-dela, puisque le catalogue est lisible
 (voir la section du 2026-10-09). `comix` : le raisonnement etait bon, la conclusion non —
 voir le critère de portabilite plus haut.
 
-## Cinq pièges de diagnostic à connaître
+## Six pièges de diagnostic à connaître
 
-Ces cinq cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
+Ces six cas ont déjà produit un verdict faux. Ils sont notés pour que la relecture ne
 refasse pas l'erreur.
 
 1. **`curl` sans `-4` ment.** Plusieurs domaines ci-dessus n'ont pas de route IPv6 et
@@ -499,6 +569,22 @@ Corollaire : un `ETIMEDOUT` vers une IP Cloudflare, ou un `ECONNRESET` en rafale
 plusieurs sites, vient généralement du runner lui-même (réseau restreint, ou throttling
 Cloudflare déclenché par le volume du `batch_test`). Ce n'est pas un signal de site mort,
 et `batch_test` ne doit pas s'en servir pour conclure quoi que ce soit.
+
+6. **`challenge-platform` n'est pas la preuve d'un blocage.** Cloudflare injecte ce
+   script sur **toutes** les pages de ses sites, y compris celles qui rendent leur contenu
+   normalement. Le chercher dans le HTML donne un faux positif quasi systematique : au
+   cycle du 12/10, `lunatoons` (113 liens) et `onemanga.info` (14 liens) sortaient « défi »
+   alors qu'ils servent un catalogue complet.
+
+   Le seul test qui ne ment pas, c'est de comparer avec la taille exacte de la page de
+   défi : `templetoons` renvoie **14 771 o** à la fois sur `/` et sur une fiche `/comic/…`,
+   donc aucune des deux n'est lisible. Un vrai contenu a une taille et des liens
+   différents. De même, une réponse `403` isolée sur un site qui répond `200` ailleurs ne
+   prouve rien.
+
+   Corollaire : un vrai navigateur peut traverser un défi que HTTP simple ne peut pas
+   franchir. C'est précisément ce qui distingue « le site est vivant » de « le catalogue
+   est atteignable », et c'est le second qui compte pour un port.
 
 ## Maintenance
 
