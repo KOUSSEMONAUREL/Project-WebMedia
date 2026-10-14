@@ -99,6 +99,17 @@ challenge, ~5,4 ko, `cf-ray` en `CDG` (Paris) pour les trois domaines distincts.
 | `fr/softepsilonscan` | `epsilonsoft.to` | BLOCKED | `403` + **5 469 o**, `Just a moment...`, `cf-mitigated: challenge` (`cf-ray: a45ee8151c7a2a10-CDG`) | idem |
 | `fr/epsilonscan` | `epsilonsoft.to` | BLOCKED | **Même domaine que `fr/softepsilonscan`** : les deux `build.gradle.kts` upstream pointent sur `epsilonsoft.to`, donc deux sources logiques sur une seule origine. Réponse identique à la précédente (`403`, 5 469 o) | Une seule fois la condition d'`fr/softepsilonscan` remplie, les deux sont portables : ne pas les re-sonder séparément |
 
+Sondé le **2026-10-14** (issue #460), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
+les trois réponses sont identiques sur les deux routes — un défi Cloudflare en face
+de la racine, donc aucun catalogue ni aucune URL de fiche n'est atteignable en HTTP
+simple. Le moniteur les signalait `OUI (Cloudflare)` ; la sonde le confirme.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `all/kagane` | `kagane.org` | BLOCKED | `403` + **5 283 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`** (`cf-ray: a4a6510dc8fd5938-IAD`), identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
+| `en/battleinfivesecondsaftermeeting` | `www.deatte5.com` | BLOCKED | `403` + **4 546 o**, `<title>Attention Required! \| Cloudflare</title>`, identique via WARP et sans tunnel | idem |
+| `en/porncomix` | `bestporncomix.com` | BLOCKED | `403` + **5 312 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`** (`cf-ray: a4a6512268095938-IAD`), identique via WARP et sans tunnel | idem |
+
 #### Pourquoi ces quatre ne sont pas portées maintenant
 
 Un port `BaseScraper` fait `axios.get()` puis `cheerio.load()`. Face à `cf-mitigated:
@@ -531,6 +542,21 @@ deux domaines n'etaient plus bloques, sur le raisonnement « HTTP 200 donc le bl
 leve ». `xomanga` : confirme, et meme au-dela, puisque le catalogue est lisible depuis la CI
 (voir la section du 2026-10-09). `comix` : le raisonnement etait bon, la conclusion non —
 voir le critère de portabilite plus haut.
+
+### `en/kaliscancom` : supprimé upstream, domaine introuvable — port retiré
+
+Issue #460 (`:wastebasket: SUPPRIME`). Sondé le **2026-10-14**, en IPv4 (`curl -4`),
+via WARP puis `--noproxy '*'` : les **quatre miroirs** de l'extension —
+`kaliscan.com`, `kaliscan.me`, `kaliscan.io`, `mgjinx.com` — sont tous en
+**NXDOMAIN** sur les deux routes. Aucune occurrence de `REMOVE` n'exige pas
+mieux : un domaine qui ne résout plus, sur WARP et sans tunnel, est mort en tant
+que site. Le port `definitions/webtoons/en/kaliscancom.ts` a été retiré de
+l'arbre de travail ; la suppression sera committée via la PR du `REGISTRY_RECHECK`
+ci-dessous, comme n'importe quel autre verdict.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/kaliscancom` | `kaliscan.com` + `kaliscan.me` + `kaliscan.io` + `mgjinx.com` | RETIRÉ | `NXDOMAIN` sur les quatre miroirs, via WARP et `--noproxy '*'` (2026-10-14) | Un miroir redevient résolvable et ressert un catalogue lisible |
 
 ## Six pièges de diagnostic à connaître
 
