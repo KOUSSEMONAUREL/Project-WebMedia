@@ -8,7 +8,6 @@
     "preview": "astro preview",
     "astro": "astro",
     "check-lockfile": "npm ls --package-lock-only",
-    "postinstall": "patch-package",
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
@@ -57,7 +56,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "patch-package": "^8.0.1",
     "react-doctor": "^0.9.14",
     "wrangler": "^4"
   }
