@@ -110,6 +110,17 @@ simple. Le moniteur les signalait `OUI (Cloudflare)` ; la sonde le confirme.
 | `en/battleinfivesecondsaftermeeting` | `www.deatte5.com` | BLOCKED | `403` + **4 546 o**, `<title>Attention Required! \| Cloudflare</title>`, identique via WARP et sans tunnel | idem |
 | `en/porncomix` | `bestporncomix.com` | BLOCKED | `403` + **5 312 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`** (`cf-ray: a4a6512268095938-IAD`), identique via WARP et sans tunnel | idem |
 
+Sondé le **2026-10-15** (issue #469), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
+même situation que les trois précédentes — défi Cloudflare sur la racine **et** sur
+l'API catalogue (`/cdn/v1/browse`), donc aucun catalogue ni aucune URL de fiche
+n'est atteignable en HTTP simple. L'upstream ne franchit ce mur qu'avec un token
+Turnstile navigateur (`getTurnstileToken`) plus un déchiffrement d'images : c'est
+une propriété du site servi sans JS, pas de notre IP. Verdict `UNKNOWN`, pas `IGNORE`.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/toonkotsu` | `toonkotsu.com` | BLOCKED | `/` → `403` + **5 329 o**, `<title>Just a moment...</title>`, identique via WARP et sans tunnel ; `/cdn/v1/browse?sort=popular&order=desc&page=1&limit=5` → même défi (`403`, 5 844 o) | Un `GET` sans navigateur rend un catalogue lisible |
+
 #### Pourquoi ces quatre ne sont pas portées maintenant
 
 Un port `BaseScraper` fait `axios.get()` puis `cheerio.load()`. Face à `cf-mitigated:
