@@ -1,0 +1,45 @@
+diff --git a/node_modules/astro/dist/core/build/static-build.js b/node_modules/astro/dist/core/build/static-build.js
+index d06bbd6..785b6a5 100644
+--- a/node_modules/astro/dist/core/build/static-build.js
++++ b/node_modules/astro/dist/core/build/static-build.js
+@@ -80,6 +80,17 @@ async function buildEnvironments(opts, internals) {
+   const plugins = [...flatPlugins, ...viteConfig.plugins || []];
+   let currentRolldownInput = void 0;
+   let buildPostHooks = [];
++  function propagateRolldownToRollup(buildConfig) {
++    if (!buildConfig || !buildConfig.rolldownOptions) return buildConfig;
++    if (!buildConfig.rollupOptions) buildConfig.rollupOptions = {};
++    if (buildConfig.rolldownOptions.input != null) {
++      buildConfig.rollupOptions.input = buildConfig.rolldownOptions.input;
++    }
++    if (buildConfig.rolldownOptions.output) {
++      buildConfig.rollupOptions.output = buildConfig.rolldownOptions.output;
++    }
++    return buildConfig;
++  }
+   plugins.push({
+     name: "astro:resolve-input",
+     // When the rolldown input is safe to update, we normalize it to always be an object
+@@ -93,6 +104,14 @@ async function buildEnvironments(opts, internals) {
+           config.build.rolldownOptions.input.map((v, i) => [`index_${i}`, v])
+         );
+       }
++      // Propagate rolldownOptions to rollupOptions for all environments (Vite 7 compat)
++      propagateRolldownToRollup(config.build);
++      if (config.environments) {
++        for (const envName of Object.keys(config.environments)) {
++          const env = config.environments[envName];
++          if (env?.build) propagateRolldownToRollup(env.build);
++        }
++      }
+     },
+     // We save the rolldown input to be able to check later on
+     configResolved(config) {
+@@ -177,6 +196,7 @@ async function buildEnvironments(opts, internals) {
+         }
+         const sortedClientInput = Array.from(internals.clientInput).sort();
+         builder2.environments.client.config.build.rolldownOptions.input = sortedClientInput;
++        builder2.environments.client.config.build.rollupOptions.input = sortedClientInput;
+         settings.timer.start("Client build");
+         await builder2.build(builder2.environments.client);
+         settings.timer.end("Client build");
