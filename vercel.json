@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "includeFiles": "frontend/node_modules/@rolldown/binding-*/**"
+}
