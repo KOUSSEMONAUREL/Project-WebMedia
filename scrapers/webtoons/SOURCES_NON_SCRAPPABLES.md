@@ -537,7 +537,13 @@ chiffrement). Aucun ne modifie ce qu'un `webtoon` ingere :
   C'est une source **novel**, pas un port `webtoon` de ce registre.
 - `all/kodokustudio` : passage de `Madara()` a `KeiSource()`. Pas d'impact catalogue.
 
-### `en/coffeemanga` (`coffeemanga.net`) : candidat `BUILD`
+### `en/coffeemangaunoriginal` (`coffeemanga.net`) : candidat `BUILD`
+
+Le nom upstream est `coffeemangaunoriginal`, mais le domaine qui repond est
+`coffeemanga.net`. A ne pas confondre avec l'entree historique `en/coffeemanga`
+(voir plus haut), qui porte sur `coffeemanga.com` : ce domaine fait `301` vers
+`coffeemanga.moe`, lequel ne rend **rien** en HTTP simple (114 o). Ce sont deux
+sites distincts, et l'ancien verdict `IGNORE` ne s'applique qu'a `.com`/`.moe`.
 
 Sonde du **2026-10-16**, en HTTP simple (UA navigateur, `-L`). WordPress classique,
 pas de SPA : le catalogue et les fiches sont dans le HTML servi.
