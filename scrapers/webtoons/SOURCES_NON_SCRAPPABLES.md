@@ -537,6 +537,50 @@ chiffrement). Aucun ne modifie ce qu'un `webtoon` ingere :
   C'est une source **novel**, pas un port `webtoon` de ce registre.
 - `all/kodokustudio` : passage de `Madara()` a `KeiSource()`. Pas d'impact catalogue.
 
+### `en/coffeemanga` (`coffeemanga.net`) : candidat `BUILD`
+
+Sonde du **2026-10-16**, en HTTP simple (UA navigateur, `-L`). WordPress classique,
+pas de SPA : le catalogue et les fiches sont dans le HTML servi.
+
+| | Resultat |
+|---|---|
+| catalogue | `/manga/?m_orderby=latest` -> **200**, 79 liens de serie distincts |
+| fiche | `/manga/dungeon-crawler-carl/` -> **200**, titre `Dungeon Crawler Carl`, 3 liens de chapitre |
+| tri | `m_orderby` accepte `latest`, `views`, `new-manga`, `alphabet`, `rating` |
+
+Candidat `BUILD`, pas port : il reste a confirmer le nombre de pages du catalogue et
+la lecture des chapitres.
+
+### `all/mangamillion` (`mangamillion.shueisha.co.jp`) : pas un port simple
+
+La sonde HTTP simple renvoie 200 et 88 ko, mais le HTML ne contient que **2 liens
+internes** : le site est entierement rendu cote client.
+
+Le trafic reel montre `api.mangamillion.shueisha.co.jp` avec deux obstacles :
+
+1. **`content-type: application/protobuf`** — les reponses sont du Protocol
+   Buffers, pas du JSON. Il faudrait un decodage protobuf.
+2. **`access-token` obligatoire** — l'API `/api/home` repond **422** sans le
+   jeton, et le jeton est fourni par un appel de session (`/api/register`).
+
+Ce n'est donc pas un port `webtoon` de notre type : la racine n'est pas lisible et
+l'API n'est ni en JSON ni accessible sans jeton. Le reconstruire demanderait de
+lire le format protobuf et de reproduire la session — un travail sans rapport avec
+un port de site, et fragile a chaque changement d'API.
+
+### `en/readcomicsonline` (`readcomicsonline.ru`) : `BLOCKED`
+
+`/` repond **403** en 5 548 o. Verdict `BLOCKED` : le catalogue n'est pas
+atteignable en HTTP simple, donc aucun `rootUrl` n'est produit.
+
+### Rappel sur les 2 ports repris ce cycle
+
+`omegascans` et `philiascans` avaient ete livres puis refuses a juste titre : ils
+scrapaient le HTML et **fabriquaient les titres a partir des slugs**. Re-portes
+contre leur API JSON (`api.omegascans.org/query` et `philiascans.org/api/manga`),
+les titres sont desormais les vrais, la pagination suit `last_page`/`totalPages`, et
+la recherche repond sur des titres reels.
+
 ### Ce qui reste reellement bloqué
 
 Les quatre sources du cycle du 2026-10-06 (`theblank`, `astralmanga`, `epsilonscan`,
