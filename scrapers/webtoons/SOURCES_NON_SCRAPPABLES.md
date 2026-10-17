@@ -106,7 +106,6 @@ simple. Le moniteur les signalait `OUI (Cloudflare)` ; la sonde le confirme.
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
-| `all/kagane` | `kagane.org` | BLOCKED | `403` + **5 283 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`** (`cf-ray: a4a6510dc8fd5938-IAD`), identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
 | `en/battleinfivesecondsaftermeeting` | `www.deatte5.com` | BLOCKED | `403` + **4 546 o**, `<title>Attention Required! \| Cloudflare</title>`, identique via WARP et sans tunnel | idem |
 | `en/porncomix` | `bestporncomix.com` | BLOCKED | `403` + **5 312 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`** (`cf-ray: a4a6512268095938-IAD`), identique via WARP et sans tunnel | idem |
 
@@ -119,6 +118,7 @@ une propriété du site servi sans JS, pas de notre IP. Verdict `UNKNOWN`, pas `
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
+| `en/allporncomic` | `allporncomic.com` | BLOCKED | `403` + **5 311 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel (sondé le 2026-10-17) | Un `GET` sans navigateur rend un catalogue lisible |
 | `en/toonkotsu` | `toonkotsu.com` | BLOCKED | `/` → `403` + **5 329 o**, `<title>Just a moment...</title>`, identique via WARP et sans tunnel ; `/cdn/v1/browse?sort=popular&order=desc&page=1&limit=5` → même défi (`403`, 5 844 o) | Un `GET` sans navigateur rend un catalogue lisible |
 
 #### Pourquoi ces quatre ne sont pas portées maintenant
