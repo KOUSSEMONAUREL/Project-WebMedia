@@ -49,9 +49,9 @@ export class ScanRScraper extends BaseScraper {
     // catalogue, and asking for more would loop forever.
     if (page > 1) return { mangas: [], hasNextPage: false };
     const index = await this.fetchIndex();
+    const detailsList = await Promise.all([...index.keys()].map((slug) => this.fetchSerie(slug)));
     const mangas: Manga[] = [];
-    for (const slug of index.keys()) {
-      const details = await this.fetchSerie(slug);
+    for (const details of detailsList) {
       if (details) mangas.push(this.toManga(details));
     }
     return { mangas, hasNextPage: false };
@@ -66,12 +66,10 @@ export class ScanRScraper extends BaseScraper {
     const term = query.trim().toLowerCase();
     if (!term) return this.getPopular(1);
     const index = await this.fetchIndex();
+    const slugs = [...index.keys()].filter((slug) => slug.toLowerCase().includes(term));
+    const detailsList = await Promise.all(slugs.map((slug) => this.fetchSerie(slug)));
     const mangas: Manga[] = [];
-    for (const slug of index.keys()) {
-      // Search on the title alone, the way upstream's keyword filter behaves:
-      // the static index holds slugs only, not display titles.
-      if (!slug.toLowerCase().includes(term)) continue;
-      const details = await this.fetchSerie(slug);
+    for (const details of detailsList) {
       if (details) mangas.push(this.toManga(details));
     }
     return { mangas, hasNextPage: false };
@@ -118,7 +116,11 @@ export class ScanRScraper extends BaseScraper {
     const chapter = details?.chapters?.[chapterNumber];
     const proxyPath = chapter ? Object.values(chapter.groups ?? {})[0] : undefined;
     if (!proxyPath) return [];
-    const res = await this.get(`${CUBARI_URL}${proxyPath}`);
+    const IMG_PROXY_URL = 'https://img.teamscanr.fr';
+    const imageUrl = proxyPath.startsWith(IMG_PROXY_URL)
+      ? proxyPath
+      : `${CUBARI_URL}${proxyPath}`;
+    const res = await this.get(imageUrl);
     const images = (res.data as string[]) ?? [];
     return images.map((imageUrl, index) => ({ index, imageUrl }));
   }
