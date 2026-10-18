@@ -14,7 +14,7 @@ export class HiveworksScraper extends BaseScraper {
       const $el = $(el);
       const a = $el.find('a.comiclink').first();
       const href = a.attr('href') ?? '';
-      if (href.includes('sparklermonthly.com') || href.includes('explosm.net') || href.includes('johnnywander.com')) return;
+      if (href.includes('sparklermonthly.com') || href.includes('explosm.net') || href.includes('johnnywander.com') || href.includes('dumbingofage.com')) return;
       const title = $el.find('h1').text().trim();
       const thumb = $el.find('img').first().attr('src') ?? '';
       const artist = $el.find('h2').text().replace(/^by\s*/i, '').trim();
@@ -43,7 +43,7 @@ export class HiveworksScraper extends BaseScraper {
       const $el = $(el);
       const a = $el.find('a.comiclink').first();
       const href = a.attr('href') ?? '';
-      if (href.includes('sparklermonthly.com') || href.includes('explosm.net') || href.includes('johnnywander.com')) return;
+      if (href.includes('sparklermonthly.com') || href.includes('explosm.net') || href.includes('johnnywander.com') || href.includes('dumbingofage.com')) return;
       const title = $el.find('h1').text().trim();
       if (!title.toLowerCase().includes(q)) return;
       const thumb = $el.find('img').first().attr('src') ?? '';
