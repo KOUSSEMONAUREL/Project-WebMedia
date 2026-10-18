@@ -106,7 +106,6 @@ simple. Le moniteur les signalait `OUI (Cloudflare)` ; la sonde le confirme.
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
-| `all/kagane` | `kagane.org` | BLOCKED | `403` + **5 283 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`** (`cf-ray: a4a6510dc8fd5938-IAD`), identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
 | `en/battleinfivesecondsaftermeeting` | `www.deatte5.com` | BLOCKED | `403` + **4 546 o**, `<title>Attention Required! \| Cloudflare</title>`, identique via WARP et sans tunnel | idem |
 | `en/porncomix` | `bestporncomix.com` | BLOCKED | `403` + **5 312 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`** (`cf-ray: a4a6512268095938-IAD`), identique via WARP et sans tunnel | idem |
 
@@ -672,6 +671,19 @@ et `batch_test` ne doit pas s'en servir pour conclure quoi que ce soit.
    Corollaire : un vrai navigateur peut traverser un défi que HTTP simple ne peut pas
    franchir. C'est précisément ce qui distingue « le site est vivant » de « le catalogue
    est atteignable », et c'est le second qui compte pour un port.
+
+Sondé le **2026-10-18** (issue #486), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
+défi Cloudflare `cf-mitigated: challenge` identique sur les deux routes — aucun catalogue
+n'est atteignable en HTTP simple, et l'anti-bot survit à une transcription fidèle de
+l'intercepteur upstream. Verdict `UNKNOWN` (pas `IGNORE`) : un blocage sur les deux routes
+ne distingue pas un site mort d'une IP de runner bannie.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/allporncomic` | `allporncomic.com` | UNKNOWN | `403` + **5 311 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
+| `all/manhwadashraw` | `manhwa-raw.com` | UNKNOWN | `403` + **5 202 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
+| `en/batcave` | `batcave.biz` | UNKNOWN | `403` + **5 284 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
+| `en/killsixbilliondemons` | `killsixbilliondemons.com` | IGNORE | Interstitiel JS « One moment, please... » + rechargement automatique après 5 s, aucun contenu servable en HTTP simple (LiteSpeed anti-DDoS), identique avec `User-Agent` navigateur | Un `GET` sans navigateur rend un catalogue lisible |
 
 ## Maintenance
 
