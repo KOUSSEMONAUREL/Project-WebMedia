@@ -118,15 +118,15 @@ export class FlameComicsScraper extends BaseScraper {
 
   private async fetchBrowseSeries(): Promise<SeriesDto[]> {
     const res = await this.get(await this.dataUrl('browse.json'));
-    const data = toJson(res.data) as { pageProps?: { series?: SeriesDto[] } };
-    return data?.pageProps?.series ?? [];
+    const data = toJson(res.data) as { pageProps?: { series?: SeriesDto[]; allSeries?: SeriesDto[] } };
+    return data?.pageProps?.series ?? data?.pageProps?.allSeries ?? [];
   }
 
   async getPopular(page = 1): Promise<SearchResult> {
     void page;
     const series = (await this.fetchBrowseSeries())
       .filter(s => s.series_id !== null && s.series_id !== undefined)
-      .sort((a, b) => seriesPopularity(b) - seriesPopularity(a));
+      .sort((a, b) => (a.popularityRank ?? Number.MAX_SAFE_INTEGER) - (b.popularityRank ?? Number.MAX_SAFE_INTEGER));
     return {
       mangas: series.map(s => this.toManga(s)).filter((m): m is Manga => m !== null),
       hasNextPage: false,
@@ -135,17 +135,16 @@ export class FlameComicsScraper extends BaseScraper {
 
   async getLatest(page = 1): Promise<SearchResult> {
     void page;
-    const res = await this.get(await this.dataUrl('index.json'));
+    const res = await this.get(await this.dataUrl('latest.json'));
     const data = toJson(res.data) as {
       pageProps?: {
+        allSeries?: SeriesDto[];
         latestEntries?: { blocks?: Array<{ series?: SeriesDto[] }> };
-        popularEntries?: { blocks?: Array<{ series?: SeriesDto[] }> };
       };
     };
-    const blocks = data?.pageProps?.latestEntries?.blocks
-      ?? data?.pageProps?.popularEntries?.blocks
+    const series = data?.pageProps?.allSeries
+      ?? data?.pageProps?.latestEntries?.blocks?.[0]?.series
       ?? [];
-    const series = (blocks[0]?.series ?? []);
     return {
       mangas: series.map(s => this.toManga(s)).filter((m): m is Manga => m !== null),
       hasNextPage: false,
@@ -156,8 +155,7 @@ export class FlameComicsScraper extends BaseScraper {
     void page;
     const normalized = normalizeTitle(query);
     const series = (await this.fetchBrowseSeries()).filter(s => {
-      const titles = [s.title ?? '', ...(s.altTitles ?? [])];
-      return titles.some(t => normalizeTitle(t).includes(normalized));
+      return normalizeTitle(s.title ?? '').includes(normalized);
     });
     const itemsPerPage = 20;
     void itemsPerPage;
