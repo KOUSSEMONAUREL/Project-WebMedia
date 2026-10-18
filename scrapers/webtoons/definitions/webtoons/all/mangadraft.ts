@@ -53,7 +53,7 @@ const FRENCH_MONTHS: Record<string, number> = {
 
 export class MangaDraftScraper extends BaseScraper {
   readonly name = 'MangaDraft';
-  readonly baseUrl = 'https://mangadraft.com';
+  readonly baseUrl = 'https://www.mangadraft.com';
   readonly lang = 'all';
 
   async getPopular(page = 1): Promise<SearchResult> {
