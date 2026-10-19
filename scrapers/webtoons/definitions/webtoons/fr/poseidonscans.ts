@@ -174,12 +174,11 @@ export class PoseidonscansScraper extends BaseScraper {
     return chapters
       .filter(ch => {
         const isPremium = this.boolOf(ch, 'isPremium') ?? false;
-        const isLocked = isPremium && !isPremiumUser;
+        const premiumUntil = this.dateOf(ch, 'premiumUntil');
+        const isLocked = isPremium && (premiumUntil === undefined || premiumUntil > Date.now()) && !isPremiumUser;
         if (!this.hidePremium) return true;
         if (!isLocked) return true;
-        // Chapitre premium verrouillé : masqué tant que premiumUntil est futur
-        const until = this.dateOf(ch, 'premiumUntil') ?? 0;
-        return Date.now() > until;
+        return false;
       })
       .map(ch => this.chapterDtoToChapter(ch, slug, isPremiumUser))
       .sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0));
@@ -191,7 +190,8 @@ export class PoseidonscansScraper extends BaseScraper {
     const rawTitle = this.strOf(ch, 'title');
     const title = rawTitle !== undefined && rawTitle.trim().length > 0 ? rawTitle.trim() : undefined;
     const isPremium = this.boolOf(ch, 'isPremium') ?? false;
-    const isLocked = isPremium && !isPremiumUser;
+    const premiumUntil = this.dateOf(ch, 'premiumUntil');
+    const isLocked = isPremium && (premiumUntil === undefined || premiumUntil > Date.now()) && !isPremiumUser;
     const isVolume = (this.boolOf(ch, 'isVolume') ?? false) ||
       (number !== undefined && number % 1 === 0 && !!title && title.toLowerCase().includes('volume'));
 
@@ -224,7 +224,9 @@ export class PoseidonscansScraper extends BaseScraper {
     if (!dto) return [];
 
     const currentChapter = isJsonObject(dto.currentChapter) ? dto.currentChapter : null;
-    const isPremiumChapter = this.boolOf(currentChapter ?? {}, 'isPremium') ?? false;
+    const isPremium = this.boolOf(currentChapter ?? {}, 'isPremium') ?? false;
+    const premiumUntil = this.dateOf(currentChapter ?? {}, 'premiumUntil');
+    const isPremiumChapter = isPremium && (premiumUntil === undefined || premiumUntil > Date.now());
     if (isPremiumChapter) {
       const sessionStatus = this.strOf(dto, 'sessionStatus');
       if (sessionStatus === 'unauthenticated') {
