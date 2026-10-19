@@ -28,13 +28,13 @@ export class AnimeSamaScraper extends BaseScraper {
     const mangas: Manga[] = [];
     $('#list_catalog > div').each((_, el) => {
         const href = $(el).find('a').first().attr('href') ?? '';
-        const title = $(el).find('.card-title').text().trim();
+        const title = $(el).find('.as-carte-titre').text().trim();
         const thumb = $(el).find('img').attr('src') ?? '';
         if (title && href) {
             mangas.push({ title, url: href, thumbnailUrl: this.absUrl(thumb), lang: this.lang });
         }
     });
-    const hasNextPage = $('#list_pagination > a.bg-sky-900 + a').length > 0;
+    const hasNextPage = $('#list_pagination .pagi-actuelle + a').length > 0;
     return { mangas, hasNextPage };
   }
 
