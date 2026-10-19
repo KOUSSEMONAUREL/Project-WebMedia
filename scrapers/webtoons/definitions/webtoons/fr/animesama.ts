@@ -1,5 +1,5 @@
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, MangaStatus, Chapter, Page, SearchResult } from '../../../engine/types';
 import * as cheerio from 'cheerio';
 
 export class AnimeSamaScraper extends BaseScraper {
@@ -9,7 +9,7 @@ export class AnimeSamaScraper extends BaseScraper {
 
   private static readonly PANNEAU_SCAN_RE = /panneauScan\("(.+?)",\s*"(.+?)"\)/g;
   private static readonly CREER_LISTE_RE = /creerListe\((\d+),\s*(\d+)\)/g;
-  private static readonly NEW_SP_RE = /newSP\((?:\d+(?:\.\d+)?|"(.*?)")\)/g;
+  private static readonly NEW_SP_RE = /newSP\((\d+(?:\.\d+)?|"(.*?)")\)/g;
   private static readonly SCANS_RE = /(Scans|\(|\))/g;
 
   async getPopular(page = 1): Promise<SearchResult> {
@@ -22,7 +22,7 @@ export class AnimeSamaScraper extends BaseScraper {
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const res = await this.get('/catalogue', {
-      params: { 'type[0]': 'Scans', search: query, page: String(page) },
+      params: { 'type[]': 'Scans', search: query, page: String(page) },
     });
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
@@ -38,27 +38,45 @@ export class AnimeSamaScraper extends BaseScraper {
     return { mangas, hasNextPage };
   }
 
+  async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
+    const res = await this.get(mangaUrl);
+    const $ = this.$(res.data);
+    const description = $('p#synopsisText').first().text().trim();
+    const genre = $('.genre-pill').map((_, el) => $(el).text().trim()).get().filter(Boolean).join(', ');
+    const title = $('h1#titreOeuvre').first().text().trim();
+    const thumb = $('.oe-affiche img').first().attr('src') ?? '';
+    const author = $('dl.oe-infos dt:contains(Auteur) + dd').first().text().trim();
+    const statusText = $('dl.oe-infos dt:contains(Statut) + dd').first().text().trim().toLowerCase();
+    const status: MangaStatus = statusText === 'en cours' ? 1 : statusText === 'terminé' ? 0 : 3;
+    return {
+      title,
+      thumbnailUrl: thumb ? this.absUrl(thumb) : undefined,
+      description: description || undefined,
+      genre: genre || undefined,
+      author: author || undefined,
+      status,
+    };
+  }
+
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const masterRes = await this.get(mangaUrl);
+    const html = String(masterRes.data).replace(/\/\*[\s\S]*?\*\//g, '');
     AnimeSamaScraper.PANNEAU_SCAN_RE.lastIndex = 0;
-    const panneaux = [...masterRes.data.matchAll(AnimeSamaScraper.PANNEAU_SCAN_RE)]
+    const panneaux = [...html.matchAll(AnimeSamaScraper.PANNEAU_SCAN_RE)]
         .map(m => ({ title: m[1], url: m[2] }));
 
     const vfPanneaux = panneaux.filter(p => !p.url.includes('va'));
     if (vfPanneaux.length === 0) return [];
 
     const allChapters: Chapter[] = [];
+    const pageBase = mangaUrl.endsWith('/') ? mangaUrl : `${mangaUrl}/`;
     for (const panneau of vfPanneaux) {
         const scanlator = panneau.title.replace(AnimeSamaScraper.SCANS_RE, '').trim();
-        const vfRes = await this.get(panneau.url);
+        const vfRes = await this.get(new URL(panneau.url, pageBase).toString());
         const $ = this.$(vfRes.data);
         const title = ($('#titreOeuvre').contents().filter((_, n: any) => n.type === 'text').first().text() || $('#titreOeuvre').text()).trim();
         
-        const apiRes = await this.get(`/s2/scans/get_nb_chap_et_img.php`, { params: { oeuvre: title } });
-        const apiJson = apiRes.data;
-
         const chapters: Chapter[] = [];
-        let chapterDelay = 0;
         const fullHtml = $.html();
 
         if (fullHtml.includes('resetListe()')) {
@@ -75,25 +93,34 @@ export class AnimeSamaScraper extends BaseScraper {
                         chapters.push({ 
                             name: `Chapitre ${i}`, 
                             url: `/s2/scans/get_nb_chap_et_img.php?oeuvre=${encodeURIComponent(title)}&id=${chapters.length + 1}`,
-                            chapterNumber: i 
+                            chapterNumber: i,
+                            scanlator: scanlator || undefined,
                         });
                     }
                     continue;
                 }
                 const spMatch = AnimeSamaScraper.NEW_SP_RE.exec(line);
                 if (spMatch) {
-                    const rawName = spMatch[1];
+                    const rawName = spMatch[2] ?? spMatch[1];
                     chapters.push({ 
                         name: `Chapitre ${rawName}`, 
-                        url: `/s2/scans/get_nb_chap_et_img.php?oeuvre=${encodeURIComponent(title)}&id=${chapters.length + 1}`
+                        url: `/s2/scans/get_nb_chap_et_img.php?oeuvre=${encodeURIComponent(title)}&id=${chapters.length + 1}`,
+                        scanlator: scanlator || undefined,
                     });
-                    chapterDelay++;
                 }
             }
         }
         allChapters.push(...chapters);
     }
-    return allChapters.reverse();
+    const chapterId = (url: string): number => Number(new URL(url, this.baseUrl).searchParams.get('id') ?? 0);
+    const seen = new Set<string>();
+    const unique = allChapters.filter(ch => {
+        if (seen.has(ch.name)) return false;
+        seen.add(ch.name);
+        return true;
+    });
+    unique.sort((a, b) => chapterId(a.url) - chapterId(b.url));
+    return unique.reverse();
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
