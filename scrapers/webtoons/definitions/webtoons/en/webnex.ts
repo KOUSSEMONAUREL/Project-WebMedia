@@ -2,7 +2,6 @@ import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
 import { BaseScraper } from '../../../engine/base';
 import type { Chapter, Manga, Page, SearchResult, MangaStatus } from '../../../engine/types';
-import { extractNextJsHtml, isJsonObject } from '../../../engine/nextjs';
 
 /**
  * Transcompilation of keiyoushi `en/webnex` (Webnex.kt).
@@ -249,17 +248,21 @@ export class WebnexScraper extends BaseScraper {
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(this.absUrl(chapterUrl));
-    const html = String(res.data);
-    // Le predicat exigeait aussi une cle `chapter`, qui n'existe pas dans le payload :
-    // l'objet du lecteur est `{id, title, href, group, pages}`. La condition
-    // `pages` + tableau suffit, et elle ne vide plus le cache sur les sources
-    // sans images.
-    const value = extractNextJsHtml(html, v => isJsonObject(v) && Array.isArray(v.pages));
-    if (!isJsonObject(value) || !Array.isArray(value.pages)) return [];
     const chapterAbs = this.absUrl(chapterUrl);
+    // Upstream reads the dedicated `/pages` endpoint (ReaderDto.pages).
+    // Cloudflare rejects it unless the request is marked as a same-origin
+    // fetch instead of a document navigation.
+    const res = await this.get(`${chapterAbs.replace(/\/$/, '')}/pages`, {
+      headers: {
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+      },
+    });
+    const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    if (!data || typeof data !== 'object' || !Array.isArray((data as { pages?: unknown }).pages)) return [];
     const pages: Page[] = [];
-    for (const p of value.pages as unknown[]) {
+    for (const p of (data as { pages: unknown[] }).pages) {
       const url = typeof p === 'string' ? p : '';
       if (!url) continue;
       pages.push({ index: pages.length, imageUrl: new URL(url, chapterAbs).toString() });
