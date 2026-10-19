@@ -249,15 +249,28 @@ export class WebnexScraper extends BaseScraper {
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(this.absUrl(chapterUrl));
+    const chapterAbs = this.absUrl(chapterUrl);
+    // Upstream now serves the page list from a dedicated `/pages` endpoint
+    // (ReaderDto { pages: string[] }) instead of the RSC flight payload.
+    try {
+      const res = await this.get(`${chapterAbs.replace(/\/$/, '')}/pages`);
+      const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+      if (data && typeof data === 'object' && Array.isArray((data as { pages?: unknown }).pages)) {
+        const pages: Page[] = [];
+        for (const p of (data as { pages: unknown[] }).pages) {
+          const url = typeof p === 'string' ? p : '';
+          if (!url) continue;
+          pages.push({ index: pages.length, imageUrl: new URL(url, chapterAbs).toString() });
+        }
+        if (pages.length > 0) return pages;
+      }
+    } catch {
+      // fall through to RSC extraction
+    }
+    const res = await this.get(chapterAbs);
     const html = String(res.data);
-    // Le predicat exigeait aussi une cle `chapter`, qui n'existe pas dans le payload :
-    // l'objet du lecteur est `{id, title, href, group, pages}`. La condition
-    // `pages` + tableau suffit, et elle ne vide plus le cache sur les sources
-    // sans images.
     const value = extractNextJsHtml(html, v => isJsonObject(v) && Array.isArray(v.pages));
     if (!isJsonObject(value) || !Array.isArray(value.pages)) return [];
-    const chapterAbs = this.absUrl(chapterUrl);
     const pages: Page[] = [];
     for (const p of value.pages as unknown[]) {
       const url = typeof p === 'string' ? p : '';
