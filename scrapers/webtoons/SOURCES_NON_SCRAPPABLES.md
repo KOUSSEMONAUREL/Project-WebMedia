@@ -685,6 +685,15 @@ ne distingue pas un site mort d'une IP de runner bannie.
 | `en/batcave` | `batcave.biz` | UNKNOWN | `403` + **5 284 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
 | `en/killsixbilliondemons` | `killsixbilliondemons.com` | IGNORE | Interstitiel JS « One moment, please... » + rechargement automatique après 5 s, aucun contenu servable en HTTP simple (LiteSpeed anti-DDoS), identique avec `User-Agent` navigateur | Un `GET` sans navigateur rend un catalogue lisible |
 
+Sondé le **2026-10-19** (issue #500), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/comix` | `comix.to` | BLOCKED | `403` + **5 281 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel. L'upstream a migré vers `runInWebView` pour la même raison | Un `GET` sans navigateur rend un catalogue lisible |
+| `all/lunaranime` | `lunarx.to` | UNKNOWN | `403` + **5 282 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
+| `all/deviantart` | `www.deviantart.com` | IGNORE | Extension upstream de type galerie (`gallery:<user>/<folder>`), pas de catalogue popular/search standard ; `getPopularManga` upstream lève `UnsupportedOperationException`. Aucun catalogue générique ingérable par le pipeline webtoon | L'extension upstream expose un catalogue popular/search générique |
+
+
 ## Maintenance
 
 Ce registre est **modifié uniquement par les agents, et uniquement via PR** — jamais en
