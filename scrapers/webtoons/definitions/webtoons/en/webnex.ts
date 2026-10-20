@@ -202,7 +202,7 @@ export class WebnexScraper extends BaseScraper {
   // dropdown upload is dated from its relative `.ch-sources-time` label.
   private parseChapters($: CheerioDoc): Chapter[] {
     const chapters: Chapter[] = [];
-    $('li.ch-row').each((_i, el) => {
+    $('li.ch-row:not([aria-hidden=true]):not([style*=display:none])').each((_i, el) => {
       const $el = $(el);
       const $link = $el.find('a.ch-link').first();
       const href = $link.attr('href') ?? '';
