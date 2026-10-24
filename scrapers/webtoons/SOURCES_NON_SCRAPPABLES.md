@@ -67,7 +67,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `fr/hanabook` | `www.hana-book.fr` + `api.hana-book.fr` | IGNORE | Site vivant (200, 79 826 o) mais l'API `api-ebook/v14/catalogue/?page=1` répond **403** `{"success":false,"message":"Access Forbidden"}` ; l'upstream exige un token de session | L'API catalogue s'ouvre sans token |
 | `fr/japscan` | `www.japscan.foo` | IGNORE | Site **vivant** (200, 2 166 813 o) — l'upstream pointe déjà sur `.foo`, donc le domaine n'est pas la cause. Le lecteur exige un WebView + descrambler JS (`ReaderScripts.kt`) | Les URLs de pages du lecteur deviennent lisibles sans WebView |
 | `fr/ono` | `www.ono.live` + `ws.ono.live` | IGNORE | HTTP **202 à 0 octet** (CloudFront anti-bot) ; l'API GraphQL exige un JWT Cognito extrait des cookies du site | `ws.ono.live/graphql` répond sans en-tête `Authorization` |
-| `en/mangabay` | `manga-bay.biz` | IGNORE | Sondé le 2026-10-04 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond une page d'attente JS (spinner, `token mode modern`, contrôle `webdriver`/`hasCrypto`) sans catalogue ; l'upstream ne la franchit que via `runWebViewBlocking` (`DleGuardResolver.kt`, cookie `__guard_trust`) | Le garde DLE sert un vrai catalogue sans WebView (ou le cookie `__guard_trust` devient calculable sans navigateur) |
+| `en/mangabay` | `manga-bay.biz` | IGNORE | Sondé le 2026-10-04 (`curl -4`, via WARP puis `--noproxy '*'`) : `/` répond une page d'attente JS (spinner, `token mode modern`, contrôle `webdriver`/`hasCrypto`) sans catalogue ; l'upstream ne la franchit que via `runWebViewBlocking` (`DleGuardResolver.kt`, cookie `__guard_trust`). Re-sonde du 2026-10-23 : `302` vers `/_c?t=<token>&u=https%3A%2F%2Fmanga-bay.biz%2F`, cible `404` — le garde DLE persiste, verdict maintenu | Le garde DLE sert un vrai catalogue sans WebView (ou le cookie `__guard_trust` devient calculable sans navigateur) |
 | `all/komga` | `https://127.0.0.1:25600` | IGNORE | Source **auto-hébergée** : `Komga.kt` (issue #429) lit `baseUrl`, identifiants et clé API depuis les préférences utilisateur (`PREF_ADDRESS`, vide par défaut) et n'est utilisable que sur le propre serveur Komga de l'utilisateur. Sonde 2026-10-08 : `https://127.0.0.1:25600` → `000`, aucun catalogue public documenté | Une instance Komga publique sans authentification exposée |
 | `en/comix` | **candidat BUILD** — voir « Critère de portabilité » | **Retire du registre** | Le premier verdict (`IGNORE` pour `comix`, `BLOCKED` pour `aniverse`) jugeait la source sur le lecteur du site : WebView, chiffrement, signature des requetes. Or la pipeline n'ingère que `rootUrl`, l'URL de la serie. Catalogue et URL de fiche sont lisibles en HTTP simple pour les deux | n/a |
 
@@ -466,10 +466,10 @@ verdict.
 |---|---|---|---|---|
 | `en/templescan` | `templetoons.com` | BLOCKED | `307` -> `/challenge?redirect=%2F`, puis `200` / **14 771 o** avec marqueur de challenge ; aucun catalogue rendu | La racine rend un catalogue lisible en HTTP simple (défi retiré, ou passage en Defensive mode) |
 
-### `all/sirenscans` (`sirenscans.org`) et `en/toonz` (`toonz.to`) : candidats `BUILD`
+### `all/sirenscans` (`sirenscans.org`) : candidat `BUILD`
 
-Verdict du **2026-10-12**, suite au cycle du 12/10. Ces deux sources sont **`NOUVEAU`
-upstream** et ne figuraient pas encore au registre, mais l'unique signal disponible etait
+Verdict du **2026-10-12**, suite au cycle du 12/10. Cette source est **`NOUVEAU`
+upstream** et ne figurait pas encore au registre, mais l'unique signal disponible était
 la colonne « Cloudflare » du moniteur. Ce signal est **faux dans les deux sens** : voir le
 piege 6 ci-dessous.
 
@@ -478,14 +478,15 @@ Sondes en HTTP simple (UA navigateur, `-L`), catalogue puis fiche :
 | Source | Catalogue | Fiche | Verdict |
 |---|---|---|---|
 | `all/sirenscans` | `https://sirenscans.org/recently-updated` → **200**, 250 732 o, **78 series** en liens relatifs | 57 liens de lecture sur la home | candidat `BUILD` |
-| `en/toonz` | `https://toonz.to/manga/most-popular` → **200**, 444 927 o, **55 liens `/manga/<slug>`** | `/manga/kimetsu-no-yaiba` → **200** | candidat `BUILD` |
 
-`sirenscans` sert du HTML statique, sans framework detectable. `toonz` est un Next.js dont
-le catalogue et deja dans le HTML servi — donc pas de WebView necessaire.
+`sirenscans` sert du HTML statique, sans framework detectable.
 
-Ce qui manque encore pour un port, et qui sera le travail du cycle suivant : les deux
-n'ont pas ete verifiees sur la **liste paginee** (`hasNextPage`), ni sur le nombre de
-chapitres et d'images. C'est un candidat, pas un port.
+Le second candidat de cette sonde, `en/toonz`, a ete **rejuge `BLOCKED` au cycle du
+2026-10-23** (defi Cloudflare sur le catalogue, voir la section suivante).
+
+Ce qui manque encore pour un port, et qui sera le travail du cycle suivant : la liste
+paginee (`hasNextPage`), les chapitres et les images n'ont pas ete verifies. C'est un
+candidat, pas un port.
 
 ### `all/comicklive` et `all/dbnewhope` : a re-sonder
 
@@ -690,9 +691,20 @@ Sondé le **2026-10-19** (issue #500), en IPv4 (`curl -4`), via WARP puis `--nop
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `en/comix` | `comix.to` | BLOCKED | `403` + **5 281 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel. L'upstream a migré vers `runInWebView` pour la même raison | Un `GET` sans navigateur rend un catalogue lisible |
-| `all/lunaranime` | `lunarx.to` | UNKNOWN | `403` + **5 282 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
+| `all/lunaranime` | `lunarx.to` | UNKNOWN | `403` + **5 282 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel. Rejugé le **2026-10-23** : candidat `BUILD` via l'API `api.lunarx.to` (voir ci-dessous) | Un `GET` sans navigateur rend un catalogue lisible |
 | `all/deviantart` | `www.deviantart.com` | IGNORE | Extension upstream de type galerie (`gallery:<user>/<folder>`), pas de catalogue popular/search standard ; `getPopularManga` upstream lève `UnsupportedOperationException`. Aucun catalogue générique ingérable par le pipeline webtoon | L'extension upstream expose un catalogue popular/search générique |
 
+### Cycle du 2026-10-23 : `en/toonz` rejugé `BLOCKED`, `en/mangacloud` confirmé `BLOCKED`, `all/lunaranime` → candidat `BUILD`, re-sonde `en/mangabay`
+
+Sondes du **2026-10-23** en IPv4 (`curl -4 --noproxy '*'`), UA navigateur Chrome 129
+(appareil : WARP désactivé).
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/toonz` | `toonz.to` | BLOCKED | `/manga/most-popular` → `403` + **5 677 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`** ; la home `/` répond `200` (190 903 o) tantôt, tantôt le défi — blocage instable, en amont d'un catalogue `/manga/...` servi parfois. Le jour du cycle upstream (2026-10-22), le moniteur a aussi reçu `403` sur `/` et `/manga/most-popular` | Un `GET` sans navigateur rend le catalogue `/manga/most-popular` lisible |
+| `en/mangacloud` | `mangacloud.org` (API `api.mangacloud.org`) | BLOCKED | `baseUrl` upstream `https://mangacloud.org` → **200** ; catalogue en **409** sur les deux routes du port (`GET https://api.mangacloud.org/comic-popular-view/today` et `POST https://api.mangacloud.org/comic/library`, corps `{"error":"Conflict"}`), et l'upstream (`MangaCloud.kt`) exige un handshake `POST $API_URL/auth/handshake` avec un token Turnstile (`getTurnstileToken`, siteKey `0x4AAAAAADLVIGf7KBRQctG1`, action `guard`) — non reproductible en HTTP simple. Note : `en/mangacloud.ts` supprimé ce cycle | Un token Turnstile calibré sans solveur navigateur, ou un endpoint catalogue rendu en HTTP simple |
+| `all/lunaranime` | `lunarx.to` + `api.lunarx.to` | **candidat BUILD** (rejugé, `UNKNOWN` annulé) | L'extension upstream s'appelle **Lunar Manga** et son catalogue est une API ouverte : `GET https://api.lunarx.to/api/manga/search?page=1&limit=3` → **200**, JSON, `total: 6699`, champs `slug`/`title` ; `GET https://api.lunarx.to/api/manga/recent?page=1&limit=3` → **200**, `our_mangas`. Fiche : `https://lunarx.to/manga/<slug>` (ex. `https://lunarx.to/manga/the-cliff` → 200 via fetch externe, titre « The Cliff »). La home et la fiche restent `403` Cloudflare depuis le runner, mais la pipeline n'ingère que `rootUrl` et le catalogue est joignable en HTTP simple. Le lecteur exige Turnstile + DPoP + AES (`LunarSerenity.kt`, `LunarDecryptor.kt`), sans impact sur le catalogue | n/a — à construire dans un prochain cycle, ne pas construire ce passage |
+| `en/mangabay` | `manga-bay.biz` | IGNORE | **Re-sonde du 2026-10-23 maintenue** : `302` → `/_c?t=<token>&u=https%3A%2F%2Fmanga-bay.biz%2F`, cible **404** ; l'upstream re-liste toujours `src/en/mangabay` (DleGuardResolver.kt inchangé). Verdict ignoré maintenu | idem |
 
 ## Maintenance
 
