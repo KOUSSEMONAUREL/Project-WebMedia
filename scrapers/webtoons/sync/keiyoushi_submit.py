@@ -43,7 +43,7 @@ REGISTRY_FILE = "scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md"
 # REGISTRY_RECHECK porte la mise a jour de SOURCES_NON_SCRAPPABLES.md dans son
 # propre groupe (et donc sa propre PR) : un verdict de site engage une decision
 # durable, il ne doit jamais etre commite avec un scraper dans le meme commit.
-VALID_TYPES = ("BUILD", "ADAPT", "REMOVE", "REGISTRY_RECHECK")
+VALID_TYPES = ("BUILD", "ADAPT", "REMOVE", "REGISTRY_RECHECK", "FIX")
 
 
 def safe_ext(ext: str) -> str:
