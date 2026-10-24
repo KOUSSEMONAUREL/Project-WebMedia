@@ -126,7 +126,11 @@ def main() -> None:
             all_pass = all(
                 verdicts.get(pr.get("number")) == "PASS" for pr in pr_list
             )
-            paths = [p for c in handoff.get("changes", []) for p in c.get("paths", [])]
+            paths = [
+                p for c in handoff.get("changes", [])
+                if c.get("type") != "REMOVE"
+                for p in c.get("paths", [])
+            ]
             if all_pass:
                 missing = [p for p in paths if not os.path.exists(p)]
                 if missing:

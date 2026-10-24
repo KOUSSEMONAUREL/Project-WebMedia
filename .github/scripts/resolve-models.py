@@ -30,6 +30,36 @@ REGISTRY_URL = "https://models.dev/api.json"
 
 ENV_SLOTS = ["PRIMARY_MODEL", "FALLBACK_MODEL", "FALLBACK3_MODEL", "FALLBACK4_MODEL"]
 
+# Qualite modele: famille connue (deepseek v4, glm, ...) en premier, puis
+# contexte, puis ordre alphabetique comme dernier recours. Le tri pur par
+# contexte faisait remonter des modeles de second plan (grande fenetre, faible
+# capacite de raisonnement) devant des modeles plus competents, et le
+# debrouillage alphabetique finissait par choisir le propre nom de l'agent.
+MODEL_QUALITY_TIER: dict[str, int] = {
+    # Tier 0: modeles de reference (raisonnement + tool_call avances)
+    "deepseek-v4": 0,
+    "deepseek-v4.1": 0,
+    "deepseek-v4.1-flash": 0,
+    "deepseek-v4-flash": 0,
+    "glm-5": 0,
+    "glm-5.3": 0,
+    "glm-5.3-flash": 0,
+    # Tier 1: modeles solides connus
+    "big-pickle": 1,
+    "flint-40b": 1,
+    "mimo-v2.6": 1,
+    "nemotron-3.5": 1,
+    "nemotron-3-ultra": 1,
+    # Tier 2: tout le reste (dernier recours)
+}
+
+
+def model_tier(short: str) -> int:
+    for prefix, tier in MODEL_QUALITY_TIER.items():
+        if short.startswith(prefix):
+            return tier
+    return 2
+
 
 def run(*args: str, timeout: int = 60) -> tuple[int, str]:
     try:
@@ -96,12 +126,16 @@ def main() -> int:
     caps = registry_caps()
     if caps:
         # short id used by the CLI is the part after 'opencode/'
-        def key(mid: str) -> tuple[int, str]:
+        def key(mid: str) -> tuple[int, int, str]:
             short = mid.split("/", 1)[-1]
-            return (-caps.get(short, -1), mid)
+            return (
+                model_tier(short),
+                -caps.get(short, -1),
+                mid,
+            )
 
         ids.sort(key=key)
-        print("ordre: filtre gratuit+tool_call, gros contexte d'abord")
+        print("ordre: qualite (deepseek v4 / glm d'abord), puis contexte, puis nom")
     else:
         print("ordre: tel que retourne par le CLI (degrade)")
 
