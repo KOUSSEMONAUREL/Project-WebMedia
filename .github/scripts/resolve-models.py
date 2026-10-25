@@ -4,8 +4,9 @@
 Pipeline:
   1. `opencode models opencode` -> actually served right now (live truth).
   2. models.dev registry -> capabilities (free + tool_call) + context ranking.
-  3. Smoke-test candidates in order (`opencode run --model X "ping"`,
-     short timeout): dead models fail in seconds, live ones answer.
+  3. Smoke-test candidates in order (`opencode run --model X "ping"`),
+     in small parallel batches with a short timeout and a global deadline:
+     dead models fail fast, live ones answer, the step never hangs.
   4. Export PRIMARY_MODEL / FALLBACK_MODEL / FALLBACK3_MODEL / FALLBACK4_MODEL
      to $GITHUB_ENV (or stdout as `export K=V` when run locally).
 
@@ -19,14 +20,22 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 PROVIDER = "opencode"
 WANT_ALIVE = 4
 MIN_ALIVE = 2
-SMOKE_TIMEOUT_S = 90
+SMOKE_TIMEOUT_S = 45
 SMOKE_PROMPT = "reply with the single word: pong"
 REGISTRY_URL = "https://models.dev/api.json"
+# Un modele mort doit echouer en secondes, pas monopoliser le step. Les
+# smokes tournent par lots paralleles et la phase entiere est bornee: mieux
+# vaut un echec explicite en <6 min qu'un timeout GitHub opaque a 10 min.
+SMOKE_BATCH = 4
+SMOKE_DEADLINE_S = 240
+MAX_CANDIDATES = 12
 
 ENV_SLOTS = ["PRIMARY_MODEL", "FALLBACK_MODEL", "FALLBACK3_MODEL", "FALLBACK4_MODEL"]
 
@@ -113,38 +122,55 @@ def smoke(model: str) -> bool:
         timeout=SMOKE_TIMEOUT_S,
     )
     ok = rc == 0 and "pong" in out.lower()
-    print(f"  [{'OK' if ok else 'KO'}] {model}")
+    print(f"  [{'OK' if ok else 'KO'}] {model}", flush=True)
     return ok
 
 
 def main() -> int:
+    started = time.monotonic()
     ids = live_ids()
     if not ids:
         print("FAIL: aucun modele live retourne par opencode")
         return 1
 
     caps = registry_caps()
-    if caps:
-        # short id used by the CLI is the part after 'opencode/'
-        def key(mid: str) -> tuple[int, int, str]:
-            short = mid.split("/", 1)[-1]
-            return (
-                model_tier(short),
-                -caps.get(short, -1),
-                mid,
-            )
+    # Le tri qualite s'applique toujours: si models.dev est injoignable, le
+    # contexte vaut -1 et le nom tranche. Sans ca, l'ordre alphabetique du CLI
+    # remettait les modeles faibles (beam-free) en tete.
+    def key(mid: str) -> tuple[int, int, str]:
+        short = mid.split("/", 1)[-1]
+        return (
+            model_tier(short),
+            -caps.get(short, -1),
+            mid,
+        )
 
-        ids.sort(key=key)
-        print("ordre: qualite (deepseek v4 / glm d'abord), puis contexte, puis nom")
-    else:
-        print("ordre: tel que retourne par le CLI (degrade)")
+    ids.sort(key=key)
+    ids = ids[:MAX_CANDIDATES]
+    print("ordre: qualite (deepseek v4 / glm d'abord), puis contexte, puis nom")
 
     alive: list[str] = []
-    for mid in ids:
-        if len(alive) >= WANT_ALIVE:
-            break
-        if smoke(mid):
-            alive.append(mid)
+    idx = 0
+    while (
+        idx < len(ids)
+        and len(alive) < WANT_ALIVE
+        and time.monotonic() - started < SMOKE_DEADLINE_S
+    ):
+        batch = ids[idx: idx + SMOKE_BATCH]
+        idx += len(batch)
+        with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+            results = list(pool.map(smoke, batch))
+        for mid, ok in zip(batch, results):
+            if ok and len(alive) < WANT_ALIVE:
+                alive.append(mid)
+
+    if len(alive) < WANT_ALIVE:
+        print(
+            f"WARN: seulement {len(alive)} modele(s) vivant(s) en "
+            f"{time.monotonic() - started:.0f}s "
+            f"(cible {WANT_ALIVE}, min {MIN_ALIVE})",
+            flush=True,
+        )
 
     print(f"vivants: {len(alive)} (min requis: {MIN_ALIVE})")
     if len(alive) < MIN_ALIVE:

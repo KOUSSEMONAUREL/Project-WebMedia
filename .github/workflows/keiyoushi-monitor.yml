@@ -21,12 +21,19 @@ permissions:
   contents: write
   pull-requests: write
 
+# Un cycle (schedule ou manuel) a la fois: deux agents simultanes sur la meme
+# issue se marcheraient dessus (constate le 24/10: dispatch manuel + schedule).
+concurrency:
+  group: keiyoushi-monitor
+  cancel-in-progress: false
+
 jobs:
   check-upstream:
     outputs:
       has_changes: ${{ steps.monitor.outputs.has_changes }}
       open_issue: ${{ steps.openissue.outputs.open_issue }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -162,7 +169,11 @@ jobs:
     needs: check-upstream
     if: needs.check-upstream.outputs.has_changes == 'true' || github.event.inputs.force_agent == 'true' || needs.check-upstream.outputs.open_issue == 'true'
     runs-on: ubuntu-latest
+    # Borne dure: un modele qui part en boucle ne doit pas immobiliser un
+    # runner jusqu'au maximum GitHub de 6h (runs du 23 et 24/10).
+    timeout-minutes: 240
     env:
+      PYTHONUNBUFFERED: "1"
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-analysis.md
       REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
@@ -183,9 +194,11 @@ jobs:
           cache-dependency-path: scrapers/webtoons/package-lock.json
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: cd scrapers/webtoons && npm ci
 
       - name: Install Cloudflare Warp
+        timeout-minutes: 15
         run: |
           curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
@@ -199,6 +212,7 @@ jobs:
           echo "Public IP: $(curl -s https://ifconfig.me)"
 
       - name: Installer opencode
+        timeout-minutes: 10
         run: |
           curl -fsSL https://opencode.ai/install | bash
           export PATH="$HOME/.opencode/bin:$PATH"
@@ -206,6 +220,7 @@ jobs:
 
       - name: Trouver l'issue keiyoushi ouverte
         id: issue
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -223,14 +238,15 @@ jobs:
       - name: Resoudre les modeles vivants (zero dur)
         id: models
         if: steps.issue.outputs.issue_number != ''
-        timeout-minutes: 10
+        timeout-minutes: 8
         run: |
           export PATH="$HOME/.opencode/bin:$PATH"
-          python3 .github/scripts/resolve-models.py
+          python3 -u .github/scripts/resolve-models.py
 
       - name: Lancer l'agent (primary)
         id: primary
         if: steps.issue.outputs.issue_number != ''
+        timeout-minutes: 30
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -243,6 +259,7 @@ jobs:
       - name: Lancer l'agent (fallback 1)
         id: fallback
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure'
+        timeout-minutes: 25
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -256,6 +273,7 @@ jobs:
       - name: Lancer l'agent (fallback 2)
         id: fallback2
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure'
+        timeout-minutes: 25
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -270,6 +288,7 @@ jobs:
       - name: Lancer l'agent (fallback 3)
         id: fallback3
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure'
+        timeout-minutes: 25
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -283,6 +302,7 @@ jobs:
       - name: Lancer l'agent (fallback 4)
         id: fallback4
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure' && steps.fallback3.outcome == 'failure'
+        timeout-minutes: 25
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -326,6 +346,7 @@ jobs:
       - name: Verifier les PRs (reviewer)
         id: review
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
+        timeout-minutes: 45
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -339,6 +360,7 @@ jobs:
       - name: Verifier les PRs (reviewer fallback 2)
         id: review-fallback2
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure'
+        timeout-minutes: 30
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -353,6 +375,7 @@ jobs:
       - name: Verifier les PRs (reviewer fallback 3)
         id: review-fallback3
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure'
+        timeout-minutes: 30
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -366,6 +389,7 @@ jobs:
       - name: Verifier les PRs (reviewer fallback 4)
         id: review-fallback4
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure' && steps.review-fallback3.outcome == 'failure'
+        timeout-minutes: 30
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
