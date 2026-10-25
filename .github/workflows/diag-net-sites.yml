@@ -6,9 +6,12 @@ on:
 permissions:
   contents: read
 
+env:
+  APP_UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
 jobs:
-  diag:
-    name: diag-${{ matrix.name }}
+  sites:
+    name: sites-${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -32,51 +35,24 @@ jobs:
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           "$HOME/.opencode/bin/opencode" --version
 
-      - name: Baseline network and sites
+      - name: Build site list
+        run: |
+          python3 .github/scripts/diag_sites.py > /tmp/sites.txt
+          echo "sites=$(wc -l < /tmp/sites.txt)"
+          head -5 /tmp/sites.txt
+
+      - name: Probe baseline
         run: |
           set +e
           echo "== baseline ip =="
           curl -4 -sS --max-time 15 https://ifconfig.me || true
           echo
-          curl -sS --max-time 15 https://ipinfo.io/json | head -20 || true
-          echo
-          URLS=(
-            "https://globalcomix.com"
-            "https://inkrush.site"
-            "https://lunarx.to"
-            "https://mangadot.net"
-            "https://mangaomega.com"
-            "https://nhentai.com"
-            "https://hentairead.com"
-            "https://mahouirexnohentaikarte.com"
-            "https://mangalix.com"
-            "https://oriyami.com"
-            "https://rubycomics.net"
-            "https://www.voyce.me"
-            "https://webtoonclub.com"
-            "https://kiutaku.com"
-            "https://baobua.net"
-            "https://mangafire.to"
-            "https://api.github.com"
-            "https://raw.githubusercontent.com/keiyoushi/extensions-source/main/README.md"
-            "https://opencode.ai"
-          )
-          probe_all() {
-            local label="$1"
-            echo "=== SITES $label ==="
-            local url hdr body res4 rc4 flags cf
-            for url in "${URLS[@]}"; do
-              hdr=$(mktemp); body=$(mktemp)
-              res4=$(curl -4 -sS -L --max-time 20 -D "$hdr" -o "$body" -w '%{http_code} %{size_download} %{time_total}' "$url" 2>/dev/null)
-              rc4=$?
-              if [ $rc4 -ne 0 ]; then res4="ERR($rc4) 0 0"; fi
-              flags=$(grep -iEo 'just a moment|cf-chl|attention required|access denied|error code: 1026|enable javascript|cloudflare' "$body" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
-              cf=$(grep -iE '^(server|cf-ray|cf-mitigated):' "$hdr" 2>/dev/null | tr '\n' ';' | tr -d '\r')
-              echo "$url|v4=$res4|cf=$cf|body=$flags"
-              rm -f "$hdr" "$body"
-            done
-          }
-          probe_all baseline
+          rm -rf /tmp/probe && mkdir -p /tmp/probe
+          export APP_UA
+          xargs -P 16 -I{} bash .github/scripts/diag_probe.sh {} < /tmp/sites.txt
+          cat /tmp/probe/* | sort > /tmp/sites-baseline.tsv
+          echo "== summary baseline =="
+          python3 .github/scripts/diag_summary.py /tmp/sites-baseline.tsv
 
       - name: WARP setup
         if: matrix.network == 'warp'
@@ -152,83 +128,113 @@ jobs:
             exit 1
           fi
 
-      - name: Post-VPN sites
+      - name: Probe post-VPN
         if: matrix.network != 'none'
         run: |
           set +e
           echo "== post-vpn ip =="
           curl -sS --max-time 15 https://ifconfig.me || true
           echo
-          URLS=(
-            "https://globalcomix.com"
-            "https://inkrush.site"
-            "https://lunarx.to"
-            "https://mangadot.net"
-            "https://mangaomega.com"
-            "https://nhentai.com"
-            "https://hentairead.com"
-            "https://mahouirexnohentaikarte.com"
-            "https://mangalix.com"
-            "https://oriyami.com"
-            "https://rubycomics.net"
-            "https://www.voyce.me"
-            "https://webtoonclub.com"
-            "https://kiutaku.com"
-            "https://baobua.net"
-            "https://mangafire.to"
-            "https://api.github.com"
-            "https://raw.githubusercontent.com/keiyoushi/extensions-source/main/README.md"
-            "https://opencode.ai"
-          )
-          probe_all() {
-            local label="$1"
-            echo "=== SITES $label ==="
-            local url hdr body res4 rc4 flags cf
-            for url in "${URLS[@]}"; do
-              hdr=$(mktemp); body=$(mktemp)
-              res4=$(curl -4 -sS -L --max-time 20 -D "$hdr" -o "$body" -w '%{http_code} %{size_download} %{time_total}' "$url" 2>/dev/null)
-              rc4=$?
-              if [ $rc4 -ne 0 ]; then res4="ERR($rc4) 0 0"; fi
-              flags=$(grep -iEo 'just a moment|cf-chl|attention required|access denied|error code: 1026|enable javascript|cloudflare' "$body" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
-              cf=$(grep -iE '^(server|cf-ray|cf-mitigated):' "$hdr" 2>/dev/null | tr '\n' ';' | tr -d '\r')
-              echo "$url|v4=$res4|cf=$cf|body=$flags"
-              rm -f "$hdr" "$body"
-            done
-          }
-          probe_all post-vpn
+          rm -rf /tmp/probe && mkdir -p /tmp/probe
+          export APP_UA
+          xargs -P 16 -I{} bash .github/scripts/diag_probe.sh {} < /tmp/sites.txt
+          cat /tmp/probe/* | sort > /tmp/sites-post.tsv
+          echo "== summary post-vpn =="
+          python3 .github/scripts/diag_summary.py /tmp/sites-post.tsv
 
-      - name: OpenCode models and runs
-        timeout-minutes: 8
-        env:
-          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      - name: Free model probes
+        timeout-minutes: 10
         run: |
           set +e
           echo "== auth =="
           opencode auth list 2>&1 || true
-          echo "== gemini key =="
-          if [ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then echo "present"; else echo "absent"; fi
-          echo "== models google =="
-          opencode models google 2>&1 | grep -iE 'gemini' | head -10 || true
           run_model() {
-            local name="$1" model="$2" tmo="$3"
-            local home="/tmp/oc-home-$name"
+            local tag="$1" model="$2" tmo="$3"
+            local home="/tmp/oc-$tag"
             rm -rf "$home"; mkdir -p "$home/.config/opencode" "$home/.local/share"
-            echo "=== MODEL $name: $model ==="
-            out=$(timeout -k 5s "$tmo" env HOME="$home" XDG_DATA_HOME="$home/.local/share" XDG_CONFIG_HOME="$home/.config" opencode run --print-logs --log-level ERROR --model "$model" "reply with the single word: pong" 2>&1)
+            out=$(timeout -k 3s "$tmo" env HOME="$home" XDG_DATA_HOME="$home/.local/share" XDG_CONFIG_HOME="$home/.config" opencode run --print-logs --log-level ERROR --model "$model" "reply with the single word: pong" 2>&1)
             rc=$?
-            echo "exit=$rc"
-            echo "$out" | tail -40
-            echo "--- key ---"
-            echo "$out" | grep -iE "Free usage|AI_|agent=title|pong|429|401|403|error" | tail -15 || true
-            echo "--- data dir ---"
-            du -sh "$home/.local/share/opencode" 2>/dev/null || true
-            find "$home/.local/share/opencode" -maxdepth 3 -type f 2>/dev/null | head -5 || true
+            if echo "$out" | grep -qw pong; then status=OK; else status=KO; fi
+            err=$(echo "$out" | grep -oE 'Free usage limit reached|AI_[A-Za-z]+Error|429|high demand|Endpoint is unavailable|Unauthorized|401|403' | head -1)
+            echo "MODEL network=${{ matrix.name }} model=$model status=$status rc=$rc err=$err"
+            echo "$out" | grep -iE 'Free usage|AI_|agent=title|pong|429|401|403|error' | tail -5 || true
           }
-          run_model gemini google/gemini-flash-latest 60
-          run_model deepseek opencode/deepseek-v4.1-flash-free 45
+          run_model deepseek opencode/deepseek-v4.1-flash-free 30
+          run_model glm opencode/glm-5.3-flash-free 30
+          run_model nemotron-ultra opencode/nemotron-3-ultra-free 30
+          run_model nemotron-vl opencode/nemotron-3.5-super-vl-free 30
+
+      - name: Upload site results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sites-${{ matrix.name }}
+          path: |
+            /tmp/sites-baseline.tsv
+            /tmp/sites-post.tsv
+          if-no-files-found: ignore
 
       - name: Cleanup
         if: always()
         run: |
           sudo vpngate disconnect >/dev/null 2>&1 || true
+          sudo warp-cli --accept-tos disconnect >/dev/null 2>&1 || true
+
+  rotate:
+    name: rotate-warp
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Install opencode
+        timeout-minutes: 10
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          "$HOME/.opencode/bin/opencode" --version
+
+      - name: WARP setup
+        timeout-minutes: 12
+        run: |
+          set +e
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update && sudo apt-get install -y cloudflare-warp
+          sudo warp-cli --accept-tos registration new
+          sudo systemctl start warp-svc
+          sleep 2
+          sudo warp-cli --accept-tos connect
+          sleep 5
+          sudo warp-cli --accept-tos status
+
+      - name: Rotate WARP and probe free models
+        timeout-minutes: 18
+        run: |
+          set +e
+          smoke() {
+            local attempt="$1" model="$2" ip="$3"
+            local home="/tmp/rot-$attempt-$model"
+            rm -rf "$home"; mkdir -p "$home/.config/opencode" "$home/.local/share"
+            out=$(timeout -k 3s 25s env HOME="$home" XDG_DATA_HOME="$home/.local/share" XDG_CONFIG_HOME="$home/.config" opencode run --print-logs --log-level ERROR --model "opencode/$model" "reply with the single word: pong" 2>&1)
+            rc=$?
+            if echo "$out" | grep -qw pong; then status=OK; else status=KO; fi
+            err=$(echo "$out" | grep -oE 'Free usage limit reached|AI_[A-Za-z]+Error|429|high demand|Endpoint is unavailable' | head -1)
+            echo "ROTATE attempt=$attempt ip=$ip model=$model status=$status rc=$rc err=$err"
+          }
+          for attempt in 1 2 3; do
+            if [ "$attempt" -gt 1 ]; then
+              sudo warp-cli --accept-tos disconnect || true
+              sudo warp-cli --accept-tos registration new || true
+              sudo warp-cli --accept-tos connect || true
+              sleep 5
+            fi
+            ip=$(curl -sS --max-time 15 https://ifconfig.me || true)
+            echo "=== ROTATE attempt=$attempt ip=$ip ==="
+            for model in deepseek-v4.1-flash-free glm-5.3-flash-free nemotron-3-ultra-free nemotron-3.5-super-vl-free; do
+              smoke "$attempt" "$model" "$ip"
+            done
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
           sudo warp-cli --accept-tos disconnect >/dev/null 2>&1 || true
