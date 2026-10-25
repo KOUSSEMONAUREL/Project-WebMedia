@@ -27,14 +27,14 @@ from concurrent.futures import ThreadPoolExecutor
 PROVIDER = "opencode"
 WANT_ALIVE = 4
 MIN_ALIVE = 2
-SMOKE_TIMEOUT_S = 45
+SMOKE_TIMEOUT_S = 90
 SMOKE_PROMPT = "reply with the single word: pong"
 REGISTRY_URL = "https://models.dev/api.json"
 # Un modele mort doit echouer en secondes, pas monopoliser le step. Les
 # smokes tournent par lots paralleles et la phase entiere est bornee: mieux
 # vaut un echec explicite en <6 min qu'un timeout GitHub opaque a 10 min.
 SMOKE_BATCH = 4
-SMOKE_DEADLINE_S = 240
+SMOKE_DEADLINE_S = 300
 MAX_CANDIDATES = 12
 
 ENV_SLOTS = ["PRIMARY_MODEL", "FALLBACK_MODEL", "FALLBACK3_MODEL", "FALLBACK4_MODEL"]
@@ -76,7 +76,14 @@ def run(*args: str, timeout: int = 60) -> tuple[int, str]:
             list(args), capture_output=True, text=True, timeout=timeout,
         )
         return p.returncode, (p.stdout or "") + (p.stderr or "")
-    except (OSError, subprocess.TimeoutExpired) as e:
+    except subprocess.TimeoutExpired as e:
+        partial = ""
+        for stream in (e.stdout, e.stderr):
+            if stream:
+                partial += stream if isinstance(stream, str) \
+                    else stream.decode("utf-8", "replace")
+        return 1, f"ERROR: timeout after {timeout}s; partial={partial[-600:]}"
+    except OSError as e:
         return 1, f"ERROR: {e}"
 
 
@@ -117,12 +124,18 @@ def registry_caps() -> dict[str, int]:
 
 
 def smoke(model: str) -> bool:
+    started = time.monotonic()
     rc, out = run(
-        "opencode", "run", "--model", model, SMOKE_PROMPT,
+        "opencode", "run", "--print-logs", "--log-level", "ERROR",
+        "--model", model, SMOKE_PROMPT,
         timeout=SMOKE_TIMEOUT_S,
     )
+    elapsed = time.monotonic() - started
     ok = rc == 0 and "pong" in out.lower()
-    print(f"  [{'OK' if ok else 'KO'}] {model}", flush=True)
+    print(f"  [{'OK' if ok else 'KO'}] {model} ({elapsed:.0f}s)", flush=True)
+    if not ok:
+        reason = " ".join(out.split())[-400:]
+        print(f"       rc={rc} out={reason!r}", flush=True)
     return ok
 
 
