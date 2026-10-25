@@ -1,0 +1,167 @@
+name: diag-opencode-network
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no-vpn-deepseek-default
+            network: none
+            model: opencode/deepseek-v4.1-flash-free
+            small: default
+          - name: warp-deepseek-default
+            network: warp
+            model: opencode/deepseek-v4.1-flash-free
+            small: default
+          - name: vpngate-deepseek-default
+            network: vpngate
+            model: opencode/deepseek-v4.1-flash-free
+            small: default
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install opencode
+        timeout-minutes: 10
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          "$HOME/.opencode/bin/opencode" --version
+
+      - name: Network baseline
+        run: |
+          echo "== ipinfo =="
+          curl -sS https://ipinfo.io/json || true
+          echo "== ipv4 =="
+          curl -4 -sS https://ifconfig.me || true
+          echo "== ipv6 =="
+          curl -6 -sS https://ifconfig.me || true
+          echo "== dns =="
+          getent ahosts opencode.ai | head || true
+
+      - name: WARP setup
+        if: matrix.network == 'warp'
+        timeout-minutes: 12
+        run: |
+          before=$(curl -sS https://ifconfig.me || true)
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update && sudo apt-get install -y cloudflare-warp
+          sudo warp-cli --accept-tos registration new
+          sudo systemctl start warp-svc
+          sleep 2
+          sudo warp-cli --accept-tos connect
+          sleep 5
+          sudo warp-cli --accept-tos status
+          after=$(curl -sS https://ifconfig.me || true)
+          echo "before=$before after=$after"
+          if [ "$before" = "$after" ]; then
+            echo "WARP did not change the public IP"
+            exit 1
+          fi
+
+      - name: Prefer IPv4 under WARP
+        if: matrix.ipv6 == 'disabled'
+        run: |
+          sudo sh -c 'echo "precedence ::ffff:0:0/96 100" >> /etc/gai.conf'
+          ip=$(curl -sS https://ifconfig.me || true)
+          echo "after gai.conf: $ip"
+          if echo "$ip" | grep -q ':'; then
+            echo "still IPv6, disabling IPv6 stack"
+            sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+          fi
+          echo "final ip: $(curl -sS https://ifconfig.me || true)"
+          status=$(sudo warp-cli --accept-tos status 2>&1 || true)
+          echo "$status"
+          echo "$status" | grep -qi connected || exit 1
+
+      - name: VPNGate setup
+        if: matrix.network == 'vpngate'
+        timeout-minutes: 15
+        run: |
+          before=$(curl -sS https://ifconfig.me || true)
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openvpn
+          curl -fsSL https://github.com/KOUSSEMON-Aurel/vpngate/releases/download/v1.0.5/vpngate_1.0.5_linux_amd64.tar.gz -o /tmp/vpngate.tar.gz
+          rm -rf /tmp/vpngate-bin && mkdir -p /tmp/vpngate-bin
+          tar xzf /tmp/vpngate.tar.gz -C /tmp/vpngate-bin
+          sudo install -m 0755 /tmp/vpngate-bin/vpngate /usr/local/bin/vpngate
+          vpngate --version || true
+          connected=0
+          for c in jp us nl de; do
+            echo "Trying country $c"
+            sudo vpngate disconnect >/dev/null 2>&1 || true
+            timeout 120 sudo vpngate connect -d --best --tui=false --refresh --source vpngate --country "$c" --health-timeout 5s --health-concurrency 10 || true
+            for i in $(seq 1 20); do
+              s=$(sudo vpngate status 2>&1 || true)
+              echo "$s"
+              if echo "$s" | grep -qi "connected"; then
+                connected=1
+                break
+              fi
+              sleep 3
+            done
+            if [ "$connected" = 1 ]; then
+              echo "VPNGate connected via $c"
+              break
+            fi
+            echo "VPNGate failed via $c"
+            sudo vpngate logs 2>&1 | tail -20 || true
+          done
+          after=$(curl -sS https://ifconfig.me || true)
+          echo "before=$before after=$after"
+          if [ "$connected" != 1 ]; then
+            echo "VPNGate is not connected"
+            sudo vpngate status || true
+            sudo vpngate logs 2>&1 | tail -40 || true
+            exit 1
+          fi
+          if [ "$before" = "$after" ]; then
+            echo "VPNGate did not change the public IP"
+            exit 1
+          fi
+
+      - name: Test OpenCode
+        timeout-minutes: 6
+        env:
+          MODEL: ${{ matrix.model }}
+          SMALL: ${{ matrix.small }}
+        run: |
+          set -uo pipefail
+          echo "== auth =="
+          opencode auth list 2>&1 || true
+          echo "== env =="
+          env | grep -iE 'OPENCODE|OPENAI|ANTHROPIC|OPENROUTER|GROQ|CEREBRAS|MISTRAL|GOOGLE' || true
+          rm -rf /tmp/oc-home && mkdir -p /tmp/oc-home/.config/opencode
+          if [ "$SMALL" != "default" ]; then
+            printf '{"$schema":"https://opencode.ai/config.json","small_model":"%s"}\n' "$SMALL" > /tmp/oc-home/.config/opencode/opencode.json
+            export OPENCODE_CONFIG=/tmp/oc-home/.config/opencode/opencode.json
+            echo "== config =="
+            cat /tmp/oc-home/.config/opencode/opencode.json
+          fi
+          echo "== models =="
+          opencode models opencode 2>&1 | head -20 || true
+          echo "== run model=$MODEL small=$SMALL =="
+          out=$(timeout 90s env HOME=/tmp/oc-home XDG_DATA_HOME=/tmp/oc-home/.local/share XDG_CONFIG_HOME=/tmp/oc-home/.config opencode run --print-logs --log-level INFO --model "$MODEL" "reply with the single word: pong" 2>&1)
+          rc=$?
+          echo "exit=$rc"
+          echo "$out" | tail -50
+          echo "== key lines =="
+          echo "$out" | grep -iE "AI_|Free usage|stream error|agent=title|llm.model=|pong|error" | tail -25 || true
+          exit $rc
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo vpngate disconnect >/dev/null 2>&1 || true
+          sudo warp-cli --accept-tos disconnect >/dev/null 2>&1 || true
