@@ -12,8 +12,8 @@ Pipeline:
 
 Fails fast (exit 1) with fewer than MIN_ALIVE wiring models, instead of
 letting the whole agent chain die silently on stale hardcoded IDs.
-Analysis uses PRIMARY first, review starts at FALLBACK (a different
-model), remaining fallbacks cascade -- same contract as before.
+The analysis agent uses PRIMARY first, then the remaining slots cascade
+as fallbacks. Review is a deterministic code gate, not an LLM.
 """
 
 import json

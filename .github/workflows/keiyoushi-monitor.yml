@@ -33,6 +33,7 @@ jobs:
     outputs:
       has_changes: ${{ steps.monitor.outputs.has_changes }}
       open_issue: ${{ steps.openissue.outputs.open_issue }}
+      head_sha: ${{ steps.monitor.outputs.head_sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -177,10 +178,11 @@ jobs:
       PYTHONUNBUFFERED: "1"
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-analysis.md
-      REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
       SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_submit.py
       MERGE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_merge.py
       VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_verify.py
+      GATE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_gate.py
+      UPSTREAM_SHA: ${{ needs.check-upstream.outputs.head_sha || 'main' }}
       HANDOFF_FILE: /tmp/keiyoushi_handoff.json
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
@@ -318,7 +320,7 @@ jobs:
           fi
 
       - name: Soumettre (branches, commits, PRs)
-        # Non bloquant: une soumission partielle ne doit pas stopper la revue
+        # Non bloquant: une soumission partielle ne doit pas stopper le gate
         # et le merge de tourner sur ce qui a ete soumis. C'est
         # keiyoushi_verify.py (if: always) qui reste la porte unique et
         # transforme un cycle incomplet en echec bruyant et precis.
@@ -330,62 +332,19 @@ jobs:
         run: |
           python3 "$SUBMIT_SCRIPT"
 
-      - name: Verifier les PRs (reviewer)
-        id: review
+      - name: Verifier les PRs (gate deterministe)
+        id: gate
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
-        timeout-minutes: 45
-        continue-on-error: true
+        timeout-minutes: 90
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          opencode run --model "$FALLBACK_MODEL" --variant max --thinking --auto \
-            --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Independent verification, like a human senior engineer: fetch upstream Kotlin source and check our TS scraper matches exactly. FAIL only on a PR's own failed checks."
-        shell: bash
-
-      - name: Verifier les PRs (reviewer fallback 2)
-        id: review-fallback2
-        if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure'
-        timeout-minutes: 30
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
-        run: |
-          echo "Reviewer model failed, switching to $GEMINI_MODEL"
-          opencode run --model "$GEMINI_MODEL" --auto \
-            --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Independently verify each scraper against upstream Kotlin: diff must match exactly. FAIL only on a PR's own failed checks."
-
-      - name: Verifier les PRs (reviewer fallback 3)
-        id: review-fallback3
-        if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure'
-        timeout-minutes: 30
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
-        run: |
-          echo "fallback 2 failed, switching to $FALLBACK3_MODEL"
-          opencode run --model "$FALLBACK3_MODEL" --variant max --thinking --auto \
-            --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Verify scraper fidelity against upstream Kotlin. FAIL only on a PR's own failed checks."
-
-      - name: Verifier les PRs (reviewer fallback 4)
-        id: review-fallback4
-        if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true' && steps.review.outcome == 'failure' && steps.review-fallback2.outcome == 'failure' && steps.review-fallback3.outcome == 'failure'
-        timeout-minutes: 30
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
-        run: |
-          echo "fallback 3 failed, switching to $FALLBACK4_MODEL"
-          opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
-            --file "$REVIEW_PROMPT_FILE" \
-            -- "Review the PRs listed in $PR_LIST_FILE following the reviewer prompt (verdict per PR). Also read the handoff at $HANDOFF_FILE: IGNORE/NO_IMPACT entries are resolved verdicts, they never FAIL a PR. Verify scraper fidelity against upstream Kotlin. FAIL only on a PR's own failed checks."
+          python3 "$GATE_SCRIPT" \
+            --pr-list "$PR_LIST_FILE" \
+            --handoff "$HANDOFF_FILE" \
+            --upstream-sha "$UPSTREAM_SHA" \
+            --output "$REVIEW_FILE"
 
       - name: Appliquer verdicts et merger
         if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
