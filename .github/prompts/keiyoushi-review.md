@@ -50,7 +50,8 @@ would fail a markdown-only diff for the wrong reason (`getScraper` returns nothi
    ```
    Must pass clean (the file must compile in the project).
 
-3. **Check out the branch and run the scraper live** (the runner has WARP active):
+3. **Check out the branch and run the scraper live** (the runner uses the native GitHub
+   IP; there is no WARP/VPN):
    ```bash
    git switch <head-branch>   # e.g. fix/keiyoushi-98-sangchanhteam
    cd scrapers/webtoons && npx tsx -e "
@@ -69,7 +70,14 @@ would fail a markdown-only diff for the wrong reason (`getScraper` returns nothi
      return at least 1 result for the derived term (a site-appropriate search term, not a
      hardcoded English word).
    - If the site needs no search support (mono-titre), verify via the site itself.
-   - If a check fails once, retry once (transient). If it fails twice, verdict FAIL.
+   - If a check fails once, retry once (transient). If it fails twice on real content or
+     parsing, verdict FAIL.
+   - **CI network caveat:** if the scraper's exact endpoint fails only with a bare
+     Cloudflare challenge, `451 code 1026`, or `000` from the native runner, do NOT FAIL
+     solely for that when the diff, `tsc`, and upstream fidelity are clean. Verdict `PASS`
+     with a caveat in `reason`: `live unverified: CI challenge/IP ban; LOCAL_RECHECK:
+     VPNGate`. A homepage 403/challenge is not a scraper failure when the actual endpoint
+     returns content.
 
 4. **Run the targeted batch test for the scraper** (same branch):
    ```bash
@@ -86,18 +94,20 @@ self-evident from the markdown, so judge the evidence, not the prose:
    `src/<lang>/<ext>/build.gradle.kts`, not from the main `.kt`. Upstream's source lags
    its own domain (`japscan` is `www.japscan.foo`, `baobua` is `baobua.net`), and probing
    the wrong host produces a confident "dead" verdict about a live site.
-2. **Reproduce the probe yourself, on both routes, with `-4`:**
+2. **Reproduce the probe yourself on the native runner, with `-4` and the app UA:**
    ```bash
-   warp-cli status
-   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
-   curl --noproxy '*' -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
+   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 \
+     -A "$APP_UA" "<baseUrl>"
    ```
+   There is no WARP/VPN in the runner. If the host is challenged or banned from this IP,
+   that is a runner network fact, not proof about the site.
 3. **`FAIL` the PR if the row's verdict rests on a bare transport failure.** A row whose
-   only evidence is a `000`, `403`, `429` or `451 code 1026` on both routes is `FAIL`:
-   `baobua.net` and the definitely-live `kiutaku.com` return byte-identical 451/1026
-   responses from different Cloudflare IPs, so that evidence cannot tell a dead site from
-   a banned runner. The correct verdict there is `UNKNOWN`, or `IGNORE` backed by a
-   property of the site (no listings, login wall, WebView/descrambler requirement).
+   only evidence is a `000`, `403`, `429`, `451 code 1026` or a Cloudflare challenge is
+   `FAIL`: `baobua.net` and the definitely-live `kiutaku.com` returned byte-identical
+   451/1026 responses from different Cloudflare IPs, so that evidence cannot tell a dead
+   site from a banned runner. The correct verdict there is `UNKNOWN` plus `LOCAL_RECHECK:
+   VPNGate`, or `IGNORE` backed by a property of the site (no listings, login wall,
+   WebView/descrambler requirement).
 4. **`PASS` only if** the row keeps the three fields that make it grepable later — the
    verdict, the evidence with concrete codes/sizes, and an explicit **revival condition**
    saying what would make the source worth retrying. A row without a revival condition is
@@ -109,8 +119,10 @@ self-evident from the markdown, so judge the evidence, not the prose:
 - `IGNORE` is a resolved verdict (the site is provably dead, login-walled, or SPA-only) —
   that is NOT a FAIL condition by itself.
 - **"The runner's IP is blacklisted" is NOT a resolved verdict.** A `000`, `403`, `429`,
-  `451` or `451 code 1026` on both routes describes this CI's network position, not the
-  site, so it must be `UNKNOWN` — `FAIL` the row if it is filed as `IGNORE`.
+  `451`, `451 code 1026` or a Cloudflare challenge on the native probe describes this CI's
+  network position, not the site, so it must be `UNKNOWN` — `FAIL` the row if it is filed
+  as `IGNORE`. A `BUILD`/`ADAPT` PR can still `PASS` with a CI network caveat if the code,
+  static checks, and upstream fidelity are clean.
 - **An `IGNORE` asserted on evidence you cannot reproduce is `FAIL`**, whatever the
   verdict says: the row would then record a claim nobody checked.
 - If a change's `pr_body` claims verification that you cannot reproduce live →
@@ -136,8 +148,10 @@ Write the verdict JSON to **`$REVIEW_FILE`**:
 }
 ```
 
-- `PASS` only if ALL of: clean diff scope, `tsc` clean, live run returns real content twice,
-  handoff cross-check passes.
+- `PASS` only if ALL of: clean diff scope, `tsc` clean, live run returns real content on
+  two consecutive attempts when the endpoint is reachable, and the handoff cross-check
+  passes. If the exact endpoint is unreachable only because of a CI challenge/IP ban, a
+  `PASS` is allowed with the caveat above; all other live failures are `FAIL`.
 - `FAIL` otherwise, with the exact failing evidence in `reason`.
 - Review EVERY PR in the list. No skipped PRs.
 
@@ -146,6 +160,8 @@ Write the verdict JSON to **`$REVIEW_FILE`**:
 - You only read code, run tests, and write `$REVIEW_FILE`. You NEVER merge, push,
   comment, or close anything — a code-only script applies your verdicts.
 - Do not modify any file except `$REVIEW_FILE`.
+- Do not install or start WARP/VPNGate/OpenVPN. Review on the native runner; a CI
+  challenge/IP ban is recorded as a caveat for a local recheck, never bypassed.
 - Do not run destructive commands.
 - Reply in English inside `reason` fields.
 

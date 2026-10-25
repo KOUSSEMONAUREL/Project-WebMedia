@@ -15,6 +15,7 @@ env:
   ANALYZER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_analyze.py
   CLOUDFLARE_CHECK: ${{ github.workspace }}/scrapers/webtoons/sync/cloudflare_check.py
   PERSIST: ${{ github.workspace }}/scrapers/webtoons/sync/persist_commit.py
+  APP_UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 permissions:
   issues: write
@@ -196,20 +197,6 @@ jobs:
       - name: Install dependencies
         timeout-minutes: 10
         run: cd scrapers/webtoons && npm ci
-
-      - name: Install Cloudflare Warp
-        timeout-minutes: 15
-        run: |
-          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-          sudo apt-get update && sudo apt-get install -y cloudflare-warp
-          sudo warp-cli --accept-tos registration new
-          sudo systemctl start warp-svc
-          sleep 2
-          sudo warp-cli --accept-tos connect
-          sleep 3
-          sudo warp-cli --accept-tos status
-          echo "Public IP: $(curl -s https://ifconfig.me)"
 
       - name: Installer opencode
         timeout-minutes: 10

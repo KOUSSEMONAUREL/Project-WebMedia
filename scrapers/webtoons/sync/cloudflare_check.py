@@ -1,8 +1,78 @@
-import json, subprocess, os, re
+import json, subprocess, os, re, tempfile
 
 NEW_EXTS_FILE = os.environ.get('NEW_EXTENSIONS_FILE', '/tmp/keiyoushi_new_extensions.json')
 ISSUE_BODY_FILE = os.environ.get('ISSUE_BODY_FILE', '/tmp/keiyoushi_issue_body.md')
 HEAD_SHA = os.environ.get('HEAD_SHA', '')
+APP_UA = os.environ.get(
+    'APP_UA',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+)
+
+CHALLENGE_MARKERS = (
+    '/cdn-cgi/challenge-platform/',
+    'enable javascript and cookies to continue',
+    'window._cf_chl_opt',
+    'cf_chl_opt',
+    'challenge-form',
+    '<title>just a moment...</title>',
+)
+
+
+def classify(url):
+    with tempfile.TemporaryDirectory() as tmp:
+        headers_file = os.path.join(tmp, 'headers')
+        body_file = os.path.join(tmp, 'body')
+        try:
+            r = subprocess.run(
+                [
+                    'curl', '-sS', '-L', '-4', '--max-time', '12',
+                    '-A', APP_UA,
+                    '-D', headers_file, '-o', body_file,
+                    '-w', '%{http_code}', url,
+                ],
+                capture_output=True, text=True, timeout=20,
+            )
+        except subprocess.TimeoutExpired:
+            return 'TIMEOUT'
+        except Exception as exc:
+            return f'ERREUR: {str(exc)[:60]}'
+
+        code = (r.stdout or '').strip()
+        headers = ''
+        body = ''
+        try:
+            with open(headers_file, errors='replace') as f:
+                headers = f.read().lower()
+        except OSError:
+            pass
+        try:
+            with open(body_file, errors='replace') as f:
+                body = f.read(50_000).lower()
+        except OSError:
+            pass
+
+    if r.returncode == 28:
+        return 'TIMEOUT'
+    if r.returncode != 0 and code in ('', '000'):
+        return f'ERREUR: curl {r.returncode}'
+
+    if code == '451' or re.search(r'error code:?\s*1026', f'{headers}\n{body}'):
+        return 'BLOCK IP (451/1026)'
+    if 'cf-mitigated: challenge' in headers or any(m in body for m in CHALLENGE_MARKERS):
+        return 'CHALLENGE (Cloudflare)'
+    if 'cloudflare' in headers or 'cf-ray' in headers:
+        if code and not code.startswith('2') and not code.startswith('3'):
+            return f'OUI (Cloudflare, HTTP {code})'
+        return 'OUI (Cloudflare)'
+
+    server = ''
+    for line in headers.split('\n'):
+        if line.startswith('server:'):
+            server = line.split(':', 1)[1].strip()
+    if code and not code.startswith('2') and not code.startswith('3'):
+        return f'NON (HTTP {code}{", " + server if server else ""})'
+    return f'NON ({server or "accessible"})'
 
 if not os.path.exists(NEW_EXTS_FILE):
     print("No new extensions file found")
@@ -65,25 +135,7 @@ for ext in exts:
     if not url.startswith('http'):
         url = 'https://' + url
 
-    try:
-        r = subprocess.run(
-            ['curl', '-sI', '--max-time', '10', url],
-            capture_output=True, text=True, timeout=15
-        )
-        headers = r.stdout.lower()
-        if 'cloudflare' in headers or 'cf-ray' in headers:
-            results[ext['key']] = 'OUI (Cloudflare)'
-        else:
-            server = ''
-            for line in r.stdout.split('\n'):
-                if line.lower().startswith('server:'):
-                    server = line.split(':', 1)[1].strip()
-                    break
-            results[ext['key']] = f'NON ({server or "accessible"})'
-    except subprocess.TimeoutExpired:
-        results[ext['key']] = 'TIMEOUT'
-    except Exception as exc:
-        results[ext['key']] = f'ERREUR: {str(exc)[:60]}'
+    results[ext['key']] = classify(url)
 
     print(f'{ext["key"]}: {results[ext["key"]]}')
 

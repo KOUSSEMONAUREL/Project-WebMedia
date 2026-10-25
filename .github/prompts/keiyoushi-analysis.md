@@ -11,7 +11,7 @@ machine-readable **handoff**. You DO NOT perform any system/GitHub action yourse
 | You do (reflection)                        | A separate script does (execution)     |
 |--------------------------------------------|----------------------------------------|
 | Read the issue and upstream code           | `git checkout -b` / commit / push      |
-| Verify live behavior (curl, WARP)          | `gh pr create`                         |
+| Verify live behavior (curl, scraper API)   | `gh pr create`                         |
 | Write the `.ts` files                      | `gh issue comment` / `gh issue close`  |
 | Run `tsc --noEmit` / batch_test            | (nothing else — it just runs your handoff) |
 | Write the handoff (`$HANDOFF_FILE`)        |                                        |
@@ -47,15 +47,17 @@ machine-readable **handoff**. You DO NOT perform any system/GitHub action yourse
 - Test tooling available in the CI runner:
   - `cd scrapers/webtoons && npx tsc --noEmit` (type check)
   - `cd scrapers/webtoons && npx tsx tests/batch_test.ts` (live smoke test of all scrapers)
-  - Direct live probing with `curl -4 -sL --max-time 20 "<url>"`. **`-4` is not
+  - Direct live probing with `curl -4 -sL --max-time 20 -A "$APP_UA" "<url>"`. **`-4` is not
     optional:** some of these hosts answer on IPv6 with a connection that hangs or
     returns nothing while the site itself is perfectly alive, so a probe without it
     reports `000` and reads as "site mort".
-  - The runner installs **Cloudflare WARP** (system-wide proxy) before you start: sites
-    behind Cloudflare/anti-bot are reachable through the WARP tunnel. When a probe returns
-    403/challenge/blocked, retry it through WARP (`warp-cli status` to confirm; WARP is a
-    global system proxy, so plain curl goes through it). Use `curl --noproxy '*' -sIL <url>`
-    to compare behavior WITHOUT the tunnel.
+  - The runner uses the **native GitHub egress IP**. There is **no WARP and no VPN** in the
+    runner. A homepage 403/challenge is not a verdict about the scraper: probe the exact
+    endpoint the scraper uses (API/JSON/HTML), then run the scraper itself. The app's axios
+    client uses the same Chrome UA exposed as `$APP_UA`; always pass it to `curl`.
+  - If the exact endpoint is challenged or IP-banned from the native runner, record
+    `UNKNOWN` and add `LOCAL_RECHECK: VPNGate` to `summary_md`/the handoff. The maintainer
+    will recheck from another IP locally. Do not install a VPN in the runner.
 
 ## Issue entries format
 
@@ -84,11 +86,14 @@ upstream no longer touches would never come back. This phase is that safety net.
 
 1. For each registry entry, probe its upstream `baseUrl`:
    ```bash
-   curl -sS -4 -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
+   curl -sS -4 -A "$APP_UA" -o /dev/null -w '%{http_code} sz=%{size_download}\n' \
+     -L --max-time 20 "<baseUrl>"
    ```
    **Always pass `-4`.** Several registered domains have no IPv6 route and answer `000` by
    default while answering `200` over IPv4; without `-4` you will conclude "dead" about a
-   live site.
+   live site. If the response is a bare Cloudflare challenge or `451/1026`, you cannot
+   confirm a revival from this runner: leave the entry untouched and note
+   `LOCAL_RECHECK: VPNGate` in `summary_md`.
 2. **Take the `baseUrl` from `src/<lang>/<ext>/build.gradle.kts`, not from the main `.kt`.**
    Upstream's own source lags its own domain: `japscan` is `www.japscan.foo` (not `.com`)
    and `baobua` is `baobua.net` (not `.com`). Probing the wrong host yields a false "dead".
@@ -101,24 +106,27 @@ upstream no longer touches would never come back. This phase is that safety net.
      that the source move to `NOUVEAU` handling, with the evidence that the condition lifted.
    - Site **degraded further** → leave the entry alone. The registry already records why.
 
-4. **A `000`, `403`, `429` or `451` is never a verdict on its own — re-probe through WARP
-   first.** The runner's own egress IP is a fact about the runner, not about the site:
+4. **A `000`, `403`, `429` or `451` is never a verdict on its own.** Probe the exact
+   endpoint the scraper uses, with the app UA and IPv4:
 
    ```bash
-   warp-cli status                                                   # confirm tunnel is up
-   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 "<baseUrl>"
-   curl --noproxy '*' -4 -sS -o /dev/null -w '%{http_code}\n' -L --max-time 20 "<baseUrl>"
+   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L --max-time 20 \
+     -A "$APP_UA" "<baseUrl>"
    ```
 
+   - The native runner's egress IP is a fact about the runner, not about the site.
    - HTTP **451** with `error code: 1026` is a Cloudflare **ASN/IP ban**. `baobua.net` and
-     the already-ported, definitely-live `kiutaku.com` return byte-identical 451/1026
-     responses from different Cloudflare IPs. If you write that response down as "dead",
-     you will register a live site as dead, and nothing will ever bring it back.
-   - Therefore: if the WARP probe and the non-WARP probe **both** fail, record
-     `UNKNOWN` with the raw codes — not `IGNORE`, not "dead". Only an `IGNORE` survives
-     if the revival condition in the registry is genuinely still unmet for a reason that
-     is a property of the *site* (login wall, WebView/descrambler requirement, no
-     listings, dead upstream repo) and not of *your IP*.
+     the already-ported, definitely-live `kiutaku.com` returned byte-identical 451/1026
+     responses from some runners. If you write that response down as "dead", you will
+     register a live site as dead, and nothing will ever bring it back.
+   - If the raw endpoint is a bare Cloudflare challenge or 451/1026, record `UNKNOWN` with
+     the raw codes, not `IGNORE` and not "dead". Add `LOCAL_RECHECK: VPNGate` to
+     `summary_md`/the handoff so the maintainer can recheck from another IP locally. Do
+     not install a VPN in the runner.
+   - If the scraper's actual endpoint returns content, judge on that content. The homepage
+     challenge is irrelevant to the catalogue/series-page contract.
+   - Only an `IGNORE` survives if the reason is a property of the *site* (login wall,
+     WebView/descrambler requirement, no listings, dead upstream repo), not of *your IP*.
 
 **Note on cadence**: this phase runs whenever the agent runs, and the agent runs on
 upstream changes, when a Keiyoushi issue is open, or on manual dispatch — not on a
@@ -200,11 +208,14 @@ only showed up in chunk 24, after the verdict had already been written.
 
 ### Phase 3 — Analyze every NOUVEAU entry (you write it)
 
-1. Check the `Cloudflare` column AND probe the site yourself:
+1. Check the `Cloudflare` column AND probe the exact endpoint the scraper would use:
    ```bash
-   curl -4 -sIL --max-time 20 "<URL>"                # through WARP (default)
-   curl --noproxy '*' -4 -sIL --max-time 20 "<URL>"  # without tunnel
+   curl -4 -sS -A "$APP_UA" -o /dev/null -w '%{http_code} sz=%{size_download}\n' \
+     -L --max-time 20 "<URL>"
    ```
+   The column is a hint, not a verdict: `OUI` means Cloudflare-fronted but not
+   necessarily challenged; `CHALLENGE` means test the actual API/scraper; `BLOCK IP
+   (451/1026)` means `UNKNOWN` plus `LOCAL_RECHECK: VPNGate`.
 2. Determine viability on the two things that actually matter: a readable **catalogue**
    (`getPopular`/`getSearch`) and a readable **series-page URL**, both over plain HTTP.
    Free content, not login-walled. Do **not** count page-image extraction, chapter
@@ -214,47 +225,55 @@ only showed up in chunk 24, after the verdict had already been written.
    - `BUILD` : viable → **write the full transcompilation as a new `.ts`** now, from A to Z:
      endpoints, selectors, parsing, class contract (follow how other scrapers in the same
      `<lang>` folder are written). Leave the file in the working tree.
-- `IGNORE` : dead by evidence, login-walled, or a JS-SPA whose **catalogue** genuinely
-      requires a browser engine → document why **in `summary_md` and via a `REGISTRY_RECHECK`
-      handoff item**. Do not write a `.ts`: a port that has never returned a result is
-      dead code, not a starting point. An anti-bot wall that survives one faithful
-      transcription of the upstream bypass is **not** by itself an `IGNORE`: the wall
-      sits in front of an unknown site, so it becomes `UNKNOWN` (see step 5).
+   - `UNKNOWN`: the exact endpoint is challenged/IP-banned from the native runner, so the
+     catalogue or series page cannot be confirmed. Record the raw codes,
+     `LIVE_UNVERIFIED: CI challenge`, and `LOCAL_RECHECK: VPNGate`; write no `.ts`.
+   - `IGNORE` : dead by evidence, login-walled, or a JS-SPA whose **catalogue** genuinely
+     requires a browser engine → document why **in `summary_md` and via a `REGISTRY_RECHECK`
+     handoff item**. Do not write a `.ts`: a port that has never returned a result is
+     dead code, not a starting point. An anti-bot wall that survives one faithful
+     transcription of the upstream bypass is **not** by itself an `IGNORE`: the wall
+     sits in front of an unknown site, so it becomes `UNKNOWN` (see step 5).
 4. **Anti-bot in one attempt**: if the upstream Kotlin has an anti-403 interceptor
    (home-fetch → cookie → retry with Referer/Origin), transcribe the same mechanism
-   into the TS and try it once. Then re-probe **both** routes with `curl -4`:
-   - The site returns real content through at least one route → `BUILD`.
-   - Both routes return the same bare wall (`000`, `403`, `451`, challenge) → `UNKNOWN`.
-     Do not write `IGNORE`: you are describing this runner's network position, not the
-     site. `kiutaku.com` is a delivered, working scraper that a CI runner still gets
-     `451 code 1026` from — one IP's block is not a dead site.
+   into the TS and try it once. Then probe the exact scraper endpoint natively with
+   `curl -4 -A "$APP_UA"` and run the scraper:
+   - The scraper returns real content → `BUILD`. A homepage challenge does not cancel a
+     working API/endpoint.
+   - The raw endpoint and the scraper both return the same bare wall (`000`, `403`, `451`,
+     challenge) → `UNKNOWN` plus `LOCAL_RECHECK: VPNGate`. Do not write `IGNORE`: you are
+     describing this runner's network position, not the site. `kiutaku.com` is a delivered,
+     working scraper that a CI runner still gets `451 code 1026` from; one IP's block is
+     not a dead site.
    - The site is provably login-walled or SPA-only (no catalogue in the served payload,
      content behind auth) → `IGNORE`, with that fact as the evidence.
-5. **`IGNORE` requires evidence of both probes.** `IGNORE` is a durable claim that we
-   refuse to maintain a port, so it must rest on a reason that is a property of the
-   *site*. If both the WARP and the non-WARP probe fail the same way, and the failure is
-   a bare `000`/`451 code 1026`/`403` with no content behind it, the honest verdict is
-   `UNKNOWN`: record the raw codes and stop. Reserve `IGNORE` for cases where you can
-   point at the reason — no listings on the site, a login wall, a WebView/descrambler
-   dependency, an upstream repo that no longer exists — and note the codes you observed
-   alongside it.
+5. **`IGNORE` requires evidence about the site, not just failed probes.** `IGNORE` is a
+   durable claim that we refuse to maintain a port, so it must rest on a reason that is a
+   property of the *site*. If the native probe and the actual scraper endpoint fail the
+   same way with a bare `000`/`451 code 1026`/`403` and no content behind it, the honest
+   verdict is `UNKNOWN`: record the raw codes, add `LOCAL_RECHECK: VPNGate`, and stop.
+   Reserve `IGNORE` for cases where you can point at the reason — no listings on the
+   site, a login wall, a WebView/descrambler dependency, an upstream repo that no longer
+   exists — and note the codes you observed alongside it.
 
 ### Phase 4 — Analyze every SUPPRIMEE entry
 
 1. Confirm our `.ts` still exists.
-2. Probe the site (through WARP, then without). **Verdict**:
+2. Probe the exact endpoint natively (`-4`, `-A "$APP_UA"`) and run the scraper.
+   **Verdict**:
    - Site genuinely dead → `REMOVE`: delete our `.ts` in the working tree.
    - Site alive → `KEEP` : upstream disabled their extension, ours still works.
 
 `REMOVE` deletes working code, so the bar is higher than for `IGNORE`. Accept only a
-signal that is a property of the site, confirmed on **both** probe routes:
+signal that is a property of the site, confirmed on the native probe and the scraper
+endpoint:
 
 | Evidence | Verdict |
 |---|---|
-| DNS `NXDOMAIN` both routes | `REMOVE` |
-| HTTP `410` both routes | `REMOVE` |
-| HTTP `404` both routes on every path | `REMOVE` |
-| timeout, `ECONNRESET`, TLS error, `451 code 1026`, bare `000` | **not** `REMOVE` — `KEEP` and say why |
+| DNS `NXDOMAIN` on both | `REMOVE` |
+| HTTP `410` on both | `REMOVE` |
+| HTTP `404` on both on every path | `REMOVE` |
+| timeout, `ECONNRESET`, TLS error, `451 code 1026`, bare `000`, challenge | **not** `REMOVE` — `KEEP` and say why |
 
 A timeout is not a death certificate. When the whole batch times out at once, that is the
 runner's network, not a hundred dead sites; treating it as `DEAD` is how a working port
@@ -273,8 +292,12 @@ For every change (ADAPT, BUILD, REMOVE), edit the working tree. No git.
 1. Write the new `.ts` (BUILD), patch our `.ts` (ADAPT), or `rm` the dead `.ts` (REMOVE).
 2. **Verify TWICE** (mandatory, both passes, in this order):
    - Pass 1 (static): `cd scrapers/webtoons && npx tsc --noEmit` — must pass clean.
-   - Pass 1 (live): probe the site through WARP and confirm the HTML/JSON the scraper
-     consumes is as expected: `curl -4 -sL --max-time 20 "<endpoint the scraper uses>"`.
+   - Pass 1 (live): probe the exact endpoint the scraper uses natively and confirm the
+     HTML/JSON it consumes is as expected:
+     `curl -4 -sL --max-time 20 -A "$APP_UA" "<endpoint>"`. A homepage challenge is not a
+     failure if the actual endpoint returns the expected payload. If the endpoint itself
+     is challenged/IP-banned, record `LIVE_UNVERIFIED: CI challenge` and
+     `LOCAL_RECHECK: VPNGate`; do not mark the code change incomplete solely for that.
    - Pass 2 (runtime): run the targeted scraper end to end:
      ```bash
      cd scrapers/webtoons && npx tsx -e "
@@ -283,15 +306,19 @@ For every change (ADAPT, BUILD, REMOVE), edit the working tree. No git.
      if (!s) { console.error('scraper not found'); process.exit(1); }
      const pop = await s.getPopular(1);
      console.log(JSON.stringify({ name: s.name, popular: pop.mangas?.length }, null, 2));
-     const res = await s.search('one'); // or a site-appropriate term
+     const term = (pop.mangas?.[0]?.title ?? 'one').split(' ').slice(0, 2).join(' ');
+     const res = await s.getSearch(term);
      console.log(JSON.stringify({ search: res.mangas?.length }, null, 2));
      "
      ```
    - Pass 2 (regression): `cd scrapers/webtoons && npx tsx tests/batch_test.ts` and confirm
      the touched scraper reports `OK` (other pre-existing/unrelated failures are noted but
      not fixed unless trivially related).
-   - If anything fails: fix, then re-run the full verification cycle. Only proceed after
-     **two consecutive clean full cycles**.
+   - If anything fails: fix, then re-run the full verification cycle. The only exception is
+     a live probe blocked by a CI Cloudflare challenge/IP ban on the exact endpoint; that is
+     a local recheck caveat, not a code failure. Still run `tsc` and the targeted scraper;
+     if the scraper can run, use its output. Only proceed after **two consecutive clean full
+     cycles** (or one clean cycle plus a clearly recorded `LIVE_UNVERIFIED` network caveat).
 
 ### Phase 6 — Handoff (your only output)
 
@@ -336,6 +363,9 @@ Rules for the handoff:
 - You supply `pr_title` and `pr_body`. The execution script reads those, derives the
   `commit_msg` from the title and the issue number, and composes the PR itself — so do not
   expect your `commit_msg` string to be used verbatim.
+- Any CI network caveat (`LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate`) must
+  appear in both `summary_md` and the affected `pr_body`, so the local recheck stays
+  visible in the PR even if the issue closes.
 - `summary_md` is the synthesis comment posted on the issue:
   | Extension | Status | Verdict | Justification |
   |---|---|---|---|
@@ -343,9 +373,11 @@ Rules for the handoff:
 - `close`: `true` when every entry has a final verdict (BUILD/ADAPT merged or change
   submitted, or NO_IMPACT/IGNORE/KEEP documented). `IGNORE` — proven dead, login-walled
   or SPA-only — is a resolved verdict: nothing more we can do with that source, so
-  `close: true`. An anti-bot wall or a blacklisted runner IP is **not** a resolved
-  verdict and does not by itself justify closing: it yields `UNKNOWN`. `false` also when
-  a BUILD/ADAPT change was attempted but not completed (verify failed twice): then
+  `close: true`. A BUILD/ADAPT submitted with only a CI network caveat
+  (`LIVE_UNVERIFIED: CI challenge`) is still submitted: set `close: true` and record the
+  caveat plus `LOCAL_RECHECK: VPNGate`. An `UNKNOWN` source due to an IP block is **not**
+  a resolved verdict: keep the issue open (`close: false`) for the local recheck. `false`
+  also when a BUILD/ADAPT change was attempted but not completed for a code reason: then
   explain what is missing in `summary_md`.
 - An `IGNORE` verdict is only *fully* resolved once it is in the durable registry. So each
   `IGNORE` on a NOUVEAU entry must have a matching `REGISTRY_RECHECK` item, otherwise the
@@ -392,8 +424,9 @@ the review stay per-site.
 6. Do not touch `package.json`/`package-lock.json` unless a new dependency is genuinely
    required (prefer stdlib/undici/cheerio already available).
 7. Reply in English in the handoff (`summary_md`, `pr_body`).
-8. Every live probe: try through WARP first (default route); use `--noproxy '*'` only to
-   compare blocked-vs-open behavior.
+8. Every live probe goes through the native runner with `-4` and `-A "$APP_UA"`. There is
+   no WARP/VPN in the runner. If the native IP is challenged or banned, record `UNKNOWN`
+   plus `LOCAL_RECHECK: VPNGate`; the maintainer will recheck locally from another IP.
 9. **Judge a source on what the pipeline ingests, not on what the site's reader can do.**
    The pipeline stores one series-page URL per source and never touches page images. A
    WebView, a signed API or a descrambler in the upstream Kotlin is **not** a blocker:
