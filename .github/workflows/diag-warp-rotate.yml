@@ -1,0 +1,65 @@
+name: diag-warp-rotate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rotate:
+    name: rotate-warp
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install opencode
+        timeout-minutes: 10
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          "$HOME/.opencode/bin/opencode" --version
+
+      - name: Install WARP
+        timeout-minutes: 12
+        run: |
+          set +e
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update && sudo apt-get install -y cloudflare-warp
+          sudo systemctl start warp-svc
+          sleep 2
+          sudo warp-cli --accept-tos status || true
+
+      - name: Rotate WARP with registration delete/new
+        timeout-minutes: 22
+        run: |
+          set +e
+          smoke() {
+            local attempt="$1" model="$2" ip="$3"
+            local home="/tmp/rot-$attempt-$model"
+            rm -rf "$home"; mkdir -p "$home/.config/opencode" "$home/.local/share"
+            out=$(timeout -k 3s 20s env HOME="$home" XDG_DATA_HOME="$home/.local/share" XDG_CONFIG_HOME="$home/.config" opencode run --print-logs --log-level ERROR --model "opencode/$model" "reply with the single word: pong" 2>&1)
+            rc=$?
+            if echo "$out" | grep -qw pong; then status=OK; else status=KO; fi
+            err=$(echo "$out" | grep -oE 'Free usage limit reached|AI_[A-Za-z]+Error|429|high demand|Endpoint is unavailable' | head -1)
+            echo "ROTATE attempt=$attempt ip=$ip model=$model status=$status rc=$rc err=$err"
+            echo "$out" | grep -iE 'Free usage|AI_|agent=title|429|error' | tail -2 || true
+          }
+          for attempt in 1 2 3 4; do
+            sudo warp-cli --accept-tos disconnect || true
+            del=$(timeout 20 sudo warp-cli --accept-tos registration delete </dev/null 2>&1); echo "DELETE attempt=$attempt rc=$? out=$del"
+            new=$(timeout 30 sudo warp-cli --accept-tos registration new 2>&1); echo "NEW attempt=$attempt rc=$? out=$new"
+            sudo warp-cli --accept-tos connect || true
+            sleep 6
+            sudo warp-cli --accept-tos status || true
+            ip=$(curl -sS --max-time 15 https://ifconfig.me || true)
+            echo "=== ROTATE attempt=$attempt ip=$ip ==="
+            for model in deepseek-v4.1-flash-free glm-5.3-flash-free nemotron-3-ultra-free; do
+              smoke "$attempt" "$model" "$ip"
+            done
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo warp-cli --accept-tos disconnect >/dev/null 2>&1 || true
