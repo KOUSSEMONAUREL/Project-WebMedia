@@ -11,9 +11,11 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
  *   (`range=last30days`, `order_by=views`), mirroring the site's
  *   "Trending Comics This Month" section.
  * - Latest / search: `wp-json/wp/v2/posts` (`search=` for queries).
- * - Details: the post page (`h1.s-title`, `og:description`, `a[rel=tag]`,
- *   `time.published`); status is COMPLETED with a single `Chapter`, as the Kt
- *   sets `UpdateStrategy.ONLY_FETCH_ONCE`.
+ * - Details: the post page (`h1.s-title`, synopsis paragraphs in
+ *   `div.entry-content > p.wp-block-paragraph`, `a[rel=tag]`, `time.published`);
+ *   status is COMPLETED with a single `Chapter`, as the Kt sets
+ *   `UpdateStrategy.ONLY_FETCH_ONCE`. The publisher paragraph and everything
+ *   after it is dropped from the synopsis (upstream 2026-10 change).
  * - Pages: `.entry-content .wp-block-gallery img`, with the Kt's `-scaled`
  *   suffix stripped back to the full-size file.
  *
@@ -51,6 +53,11 @@ const API_LIMIT = 20;
 /** Only the EN site has a video category; other locales return none (Kt). */
 const EXCLUDED_CATEGORIES = new Set([320]);
 const SCALED_SUFFIX_REGEX = /-scaled(\.\w+)$/;
+/** Upstream `descriptionEndMarkers` for the EN site. */
+const DESCRIPTION_END_MARKERS = [
+  'Publisher of This Comic Book Episode',
+  'Watch comics feature genres',
+];
 
 function decodeEntities(value: string): string {
   return value
@@ -120,6 +127,7 @@ export class FsiComicsScraper extends BaseScraper {
       page: String(page),
       per_page: String(API_LIMIT),
       _embed: 'wp:featuredmedia',
+      _fields: 'link,title,categories,_embedded,_links.wp:featuredmedia',
     });
     return this.fetchPosts(`/wp-json/wp/v2/posts?${params.toString()}`, page);
   }
@@ -140,7 +148,14 @@ export class FsiComicsScraper extends BaseScraper {
     const $ = this.$(res.data as string);
     const title = ($('h1.s-title').first().text() || '').trim();
     if (!title) throw new Error('Title is mandatory');
-    const description = ($('meta[property="og:description"]').attr('content') || '').trim() || undefined;
+    const paragraphs: string[] = [];
+    for (const el of $('div.entry-content > p.wp-block-paragraph').toArray()) {
+      const paragraph = $(el).text().trim();
+      if (!paragraph) continue;
+      if (DESCRIPTION_END_MARKERS.some((marker) => paragraph.toLowerCase().includes(marker.toLowerCase()))) break;
+      paragraphs.push(paragraph);
+    }
+    const description = paragraphs.join('\n\n').trim() || undefined;
     const genre = $('a[rel=tag]').toArray().map((el) => $(el).text().trim()).filter(Boolean).join(', ') || undefined;
     const thumbnailUrl = this.absUrl($('meta[property="og:image"]').attr('content') || '');
     return { title, url: mangaUrl, thumbnailUrl, description, genre, status: 0, lang: this.lang };
