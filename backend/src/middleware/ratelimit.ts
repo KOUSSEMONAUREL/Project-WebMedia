@@ -10,7 +10,7 @@ export const rateLimit = (limit: number, windowSeconds: number): MiddlewareHandl
 
         if (!url || !token) return await next();
 
-        const key = `ratelimit:${ip}`;
+        const key = `ratelimit:${limit}:${windowSeconds}:${ip}`;
 
         // On utilise l'API REST d'Upstash via fetch pour le middleware
         let current = 0;

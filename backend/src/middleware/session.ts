@@ -19,6 +19,7 @@ type Variables = {
 };
 
 export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Variables }>(async (c, next) => {
+    let closeAuth: (() => Promise<void>) | undefined;
     try {
         const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
         if (!dbUrl) {
@@ -27,7 +28,8 @@ export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Va
             await next();
             return;
         }
-        const auth = getAuth(dbUrl);
+        const { auth, close } = getAuth(dbUrl, c);
+        closeAuth = close;
         if (!auth) {
             c.set('user', null);
             c.set('session', null);
@@ -48,6 +50,8 @@ export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Va
     } catch {
         c.set('user', null);
         c.set('session', null);
+    } finally {
+        if (closeAuth) await closeAuth();
     }
     await next();
 });

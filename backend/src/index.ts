@@ -5,6 +5,8 @@ import { prettyJSON } from 'hono/pretty-json';
 import { rateLimit } from './middleware/ratelimit';
 import { sessionMiddleware } from './middleware/session';
 import { getAuth, ensureAuthEnv } from './lib/auth';
+import { getExecutionContext } from './lib/context';
+import { runWithNeonClient } from './db/singleton';
 
 // Import des routes
 import userRoutes from './routes/user';
@@ -123,7 +125,26 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     }
 
     const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
-    return getAuth(dbUrl)!.handler(c.req.raw);
+    const { auth, close } = getAuth(dbUrl, c);
+    try {
+        return await auth.handler(c.req.raw);
+    } finally {
+        await close();
+    }
+});
+
+app.use('/api/*', async (c, next) => {
+    const connStr = c.env?.NEON_DATABASE_URL || process.env.NEON_DATABASE_URL || '';
+    const hyperdrive = c.env?.HYPERDRIVE;
+    if (!connStr && !hyperdrive?.connectionString) return next();
+
+    const ctx = getExecutionContext(c);
+    return runWithNeonClient(
+        connStr,
+        hyperdrive,
+        () => next(),
+        ctx?.waitUntil?.bind(ctx)
+    );
 });
 
 // ========== API KEY MIDDLEWARE (routes internes uniquement) ==========
@@ -154,10 +175,14 @@ app.use('/api/*', async (c, next) => {
 
 app.use('/api/*', async (c, next) => {
     if (c.req.path.startsWith('/api/auth/')) return next();
+    if (c.req.path.startsWith('/api/internal/')) return next();
     if (c.env?.ENVIRONMENT === 'development' || c.env?.ENVIRONMENT === 'test') return next();
 
     const path = c.req.path;
     if (path.startsWith('/api/search')) return rateLimit(10, 60)(c, next);
+    if (c.req.method === 'GET' && (path === '/api/media' || path.startsWith('/api/media/'))) {
+        return rateLimit(1000, 60)(c, next);
+    }
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/user');
     return rateLimit(isSensitive ? 20 : 60, 60)(c, next);
 });
@@ -204,10 +229,12 @@ export default {
     fetch: app.fetch,
     async scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
         console.log("Cron Triggered:", event.cron);
-        const orchestrator = new OrchestratorService(env);
-        ctx.waitUntil(orchestrator.resolveStaleMedia());
-
-        // IndexNow: soumet toutes les URLs a 9h
-        ctx.waitUntil(submitAllUrls(env));
+        ctx.waitUntil(runWithNeonClient(env.NEON_DATABASE_URL, env.HYPERDRIVE, async () => {
+            const orchestrator = new OrchestratorService(env);
+            await Promise.allSettled([
+                orchestrator.resolveStaleMedia(),
+                submitAllUrls(env),
+            ]);
+        }));
     }
 };

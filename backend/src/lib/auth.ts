@@ -2,20 +2,37 @@ import { betterAuth } from 'better-auth';
 import { bearer, captcha } from 'better-auth/plugins';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { getSupabaseClient } from '../db/singleton';
+import { getExecutionContext } from './context';
 import * as schema from '../db/supabase/schema';
 
 let _auth: any = null;
 
-export function getAuth(dbUrl?: string) {
-    if (_auth) return _auth;
-
+export function getAuth(dbUrl?: string, c?: any): { auth: any; close: () => Promise<void> } {
     const url = dbUrl || process.env.SUPABASE_DATABASE_URL || '';
     if (!url) {
         throw new Error('SUPABASE_DATABASE_URL is required for auth');
     }
 
-    const db = getSupabaseClient(url);
-    _auth = betterAuth({
+    const ctx = getExecutionContext(c);
+    if (!ctx) {
+        if (!_auth) {
+            const { db } = getSupabaseClient(url);
+            _auth = createAuth(db);
+        }
+        return { auth: _auth, close: async () => {} };
+    }
+
+    const { db, client } = getSupabaseClient(url);
+    return {
+        auth: createAuth(db),
+        close: async () => {
+            ctx.waitUntil(client.end());
+        },
+    };
+}
+
+function createAuth(db: any) {
+    return betterAuth({
         database: drizzleAdapter(db, {
             provider: 'pg',
             schema: {
@@ -93,7 +110,6 @@ export function getAuth(dbUrl?: string) {
             }),
         ],
     });
-    return _auth;
 }
 
 export function ensureAuthEnv(env: Record<string, string | undefined>) {

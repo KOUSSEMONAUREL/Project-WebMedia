@@ -93,7 +93,12 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
         }
     }
 
-    return getAuth(dbUrl).handler(c.req.raw);
+    const { auth, close } = getAuth(dbUrl);
+    try {
+        return await auth.handler(c.req.raw);
+    } finally {
+        await close();
+    }
 });
 
 // ========== API MIDDLEWARES ==========
@@ -114,9 +119,13 @@ app.use('/api/*', async (c, next) => {
 
 app.use('/api/*', async (c, next) => {
     if (c.req.path.startsWith('/api/auth/')) return next();
+    if (c.req.path.startsWith('/api/internal/')) return next();
     if (process.env.ENVIRONMENT === 'development' || process.env.ENVIRONMENT === 'test') return next();
     const path = c.req.path;
     if (path.startsWith('/api/search')) return rateLimitServer(10, 60)(c, next);
+    if (c.req.method === 'GET' && (path === '/api/media' || path.startsWith('/api/media/'))) {
+        return rateLimitServer(1000, 60)(c, next);
+    }
     const isSensitive = path.startsWith('/api/auth') || path.startsWith('/api/user');
     return rateLimitServer(isSensitive ? 20 : 60, 60)(c, next);
 });

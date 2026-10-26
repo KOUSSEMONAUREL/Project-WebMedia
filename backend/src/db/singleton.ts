@@ -1,18 +1,30 @@
-import { createNeonClient, createTursoClient, createDbClient, createSupabaseHttpClient } from './client';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { createNeonClient, createTursoClient, createSupabaseDbClient, createSupabaseHttpClient } from './client';
 
-const _neonCache = new Map<string, ReturnType<typeof createNeonClient>>();
-const _tursoCache = new Map<string, ReturnType<typeof createTursoClient>>();
-const _supabaseCache = new Map<string, any>();
+const requestNeon = new AsyncLocalStorage<ReturnType<typeof createNeonClient>>();
+
+export function runWithNeonClient<T>(
+    connectionString: string,
+    hyperdrive: any,
+    fn: () => Promise<T>,
+    waitUntil?: (promise: Promise<any>) => void
+): Promise<T> {
+    const client = createNeonClient(connectionString, hyperdrive);
+    return requestNeon.run(client, async () => {
+        try {
+            return await fn();
+        } finally {
+            if (waitUntil) waitUntil(client.client.end());
+            else await client.client.end();
+        }
+    });
+}
 
 export function getNeonClient(connectionString: string, hyperdrive?: any) {
-    const key = hyperdrive?.connectionString || connectionString;
-    let cached = _neonCache.get(key);
-    if (!cached) {
-        cached = createNeonClient(connectionString, hyperdrive);
-        _neonCache.set(key, cached);
-    }
-    return cached;
+    return createNeonClient(connectionString, hyperdrive);
 }
+
+const _tursoCache = new Map<string, ReturnType<typeof createTursoClient>>();
 
 export function getTursoClient(url: string, authToken?: string) {
     const key = `${url}:${authToken || ''}`;
@@ -25,12 +37,7 @@ export function getTursoClient(url: string, authToken?: string) {
 }
 
 export function getSupabaseClient(connectionString: string) {
-    let cached = _supabaseCache.get(connectionString);
-    if (!cached) {
-        cached = createDbClient(connectionString, 'supabase');
-        _supabaseCache.set(connectionString, cached);
-    }
-    return cached;
+    return createSupabaseDbClient(connectionString);
 }
 
 const _supabaseHttpCache = new Map<string, ReturnType<typeof createSupabaseHttpClient>>();
@@ -46,5 +53,6 @@ export function getSupabaseHttpClient(supabaseUrl: string, supabaseKey: string) 
 }
 
 export function getNeonDb(connectionString: string, hyperdrive?: any) {
-    return getNeonClient(connectionString, hyperdrive).db;
+    const scoped = requestNeon.getStore();
+    return (scoped || getNeonClient(connectionString, hyperdrive)).db;
 }

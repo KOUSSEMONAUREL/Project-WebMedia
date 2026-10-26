@@ -30,6 +30,12 @@ export function createTursoClient(url: string, authToken?: string) {
 export type NeonClient = ReturnType<typeof createNeonClient>;
 export type TursoClient = ReturnType<typeof createTursoClient>;
 
+export function createSupabaseDbClient(connectionString: string) {
+    const client = postgres(connectionString, { prepare: false });
+    const db = drizzlePg(client, { schema: supabaseSchema });
+    return { db, client };
+}
+
 /**
  * Client Supabase HTTP (via @supabase/supabase-js - utilise fetch, pas de TCP)
  */
@@ -40,8 +46,7 @@ export function createSupabaseHttpClient(supabaseUrl: string, supabaseKey: strin
 // Rétrocompat (à supprimer progressivement)
 export function createDbClient(connectionString: string, type: 'neon' | 'supabase' | 'turso', env?: any): any {
     if (type === 'supabase') {
-        const client = postgres(connectionString, { prepare: false });
-        return drizzlePg(client, { schema: supabaseSchema });
+        return createSupabaseDbClient(connectionString).db;
     }
     if (type === 'turso') return createTursoClient(connectionString, env?.TURSO_AUTH_TOKEN);
     return createNeonClient(connectionString, env?.HYPERDRIVE).db;

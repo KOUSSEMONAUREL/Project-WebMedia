@@ -7,7 +7,7 @@ export const rateLimitServer = (limit: number, windowSeconds: number): Middlewar
   return async (c, next) => {
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     const now = Date.now();
-    const key = `ratelimit:${ip}`;
+    const key = `ratelimit:${limit}:${windowSeconds}:${ip}`;
 
     let entry = store.get(key);
     if (!entry || now > entry.resetAt) {
