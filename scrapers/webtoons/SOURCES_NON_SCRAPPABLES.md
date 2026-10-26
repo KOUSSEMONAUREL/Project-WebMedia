@@ -557,6 +557,12 @@ pas de SPA : le catalogue et les fiches sont dans le HTML servi.
 Candidat `BUILD`, pas port : il reste a confirmer le nombre de pages du catalogue et
 la lecture des chapitres.
 
+**Mis a jour le 2026-10-26** : le site `coffeemanga.net` n'est plus le WordPress decrit
+ci-dessus, mais une application Inertia (`<script data-page="app" type="application/json">`).
+L'ancien domaine `coffeemangaunoriginal.com` est en `NXDOMAIN`. Le port
+`en/coffeemangaunoriginal.ts` (PR #552) lit les props `Catalog/Home`, `Catalog/Series`,
+`Catalog/Search` et `Reader/Chapter` ; gate live PASS sur le nouveau domaine.
+
 ### `all/mangamillion` (`mangamillion.shueisha.co.jp`) : pas un port simple
 
 La sonde HTTP simple renvoie 200 et 88 ko, mais le HTML ne contient que **2 liens
@@ -707,6 +713,41 @@ Sondes du **2026-10-23** en IPv4 (`curl -4 --noproxy '*'`), UA navigateur Chrome
 | `en/mangacloud` | `mangacloud.org` (API `api.mangacloud.org`) | BLOCKED | `baseUrl` upstream `https://mangacloud.org` → **200** ; catalogue en **409** sur les deux routes du port (`GET https://api.mangacloud.org/comic-popular-view/today` et `POST https://api.mangacloud.org/comic/library`, corps `{"error":"Conflict"}`), et l'upstream (`MangaCloud.kt`) exige un handshake `POST $API_URL/auth/handshake` avec un token Turnstile (`getTurnstileToken`, siteKey `0x4AAAAAADLVIGf7KBRQctG1`, action `guard`) — non reproductible en HTTP simple. Note : `en/mangacloud.ts` supprimé ce cycle | Un token Turnstile calibré sans solveur navigateur, ou un endpoint catalogue rendu en HTTP simple |
 | `all/lunaranime` | `lunarx.to` + `api.lunarx.to` | **candidat BUILD** (rejugé, `UNKNOWN` annulé) | L'extension upstream s'appelle **Lunar Manga** et son catalogue est une API ouverte : `GET https://api.lunarx.to/api/manga/search?page=1&limit=3` → **200**, JSON, `total: 6699`, champs `slug`/`title` ; `GET https://api.lunarx.to/api/manga/recent?page=1&limit=3` → **200**, `our_mangas`. Fiche : `https://lunarx.to/manga/<slug>` (ex. `https://lunarx.to/manga/the-cliff` → 200 via fetch externe, titre « The Cliff »). La home et la fiche restent `403` Cloudflare depuis le runner, mais la pipeline n'ingère que `rootUrl` et le catalogue est joignable en HTTP simple. Le lecteur exige Turnstile + DPoP + AES (`LunarSerenity.kt`, `LunarDecryptor.kt`), sans impact sur le catalogue | n/a — à construire dans un prochain cycle, ne pas construire ce passage |
 | `en/mangabay` | `manga-bay.biz` | IGNORE | **Re-sonde du 2026-10-23 maintenue** : `302` → `/_c?t=<token>&u=https%3A%2F%2Fmanga-bay.biz%2F`, cible **404** ; l'upstream re-liste toujours `src/en/mangabay` (DleGuardResolver.kt inchangé). Verdict ignoré maintenu | idem |
+
+## Cycle du 2026-10-26 (issue #544) : ports live, deltas non applicables, blocages
+
+Sondes du **2026-10-26** en IPv4 (`curl -4 -L`), UA navigateur.
+
+### Ports valides en direct
+
+| Extension | Domaine | Verdict | Preuve |
+|---|---|---|---|
+| `en/zazamanga` | `www.zazamanga.com` | PORTE (#550) | `GET /manga/?m_orderby=views` -> **200**, 195 198 o, cartes `div.page-item-detail` ; fiche et chapitre lisibles ; gate PASS (popular 24, latest 13, search 6, chapters 2140, pages 9) |
+| `en/voyceme` | `www.voyce.me` | PORTE (#551) | `POST https://hasura.voyce.me/v1/graphql` -> **200** ; popular/latest 20, search 2, chapters 135, pages 6 ; images `chapter_panels/*.jpeg` servies en **200** par le CDN statique |
+| `en/coffeemangaunoriginal` | `coffeemanga.net` | PORTE (#552) | `GET /` -> **200**, 322 914 o, app Inertia ; gate PASS (popular 12, latest 24, search 1, chapters 20, pages 1) ; ancien domaine `.com` en `NXDOMAIN` |
+
+### Sources inaccessibles en HTTP simple : aucun `rootUrl` produit
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `fr/toonfr` | `toonfr.com` | UNKNOWN | `403` + **5 433 o**, `<title>Just a moment...</title>` (Cloudflare) | Un `GET` sans navigateur rend le catalogue |
+| `all/mangadotnet` | `mangadot.net` | UNKNOWN | `403` + **5 435 o**, challenge Cloudflare | idem |
+| `en/hentairead` | `hentairead.com` | UNKNOWN | `403` + **5 458 o**, challenge Cloudflare | idem |
+| `en/comichubfree` | `comichubfree.com` | UNKNOWN | `/popular-comic` -> `403` + **5 520 o**, challenge Cloudflare ; gate `HOLD` (`probe: BLOCKED, HTTP 403, corps 5545 o`). Le correctif upstream des selecteurs `Author:` / `Genres:` a ete merge (#553) sans validation live | Un `GET` sans navigateur rend popular/latest/search |
+
+`all/nhentaicom` n'est pas dans le tableau ci-dessus : la sonde TLS echoue avant
+toute reponse HTTP (`curl: (35) TLS connect error: ... wrong version number`), donc le
+gate ne peut pas conclure. Verdict `UNKNOWN` maintenu ; condition de revivification :
+un `GET` HTTP simple repond a nouveau.
+
+### Deltas upstream non applicables au port `.ts`
+
+- `all/mangafire` : ajout de `languages[]=<langCode>` cote upstream ; notre source est un agregateur unique `lang='all'`, aucun filtre de langue a ajouter.
+- `all/schalenetwork` : retrait du mapping de langue `ja` ; notre port n'a pas de mapping de langue.
+- `en/comix` : changement WebView/readyState/tags API, cote lecteur ; le port n'ingere que `rootUrl`.
+- `en/templescan` : changement de headers d'images ; notre `getPageList` ne fait que retourner des URLs, sans requete image.
+- `en/webnex` : passage du lecteur en WebView ; `getPageList` n'est pas utilise par la pipeline.
+- `all/mangatoon` / `all/namicomi` : `versionCode` et listes de langues uniquement ; aucun changement `.ts`.
 
 ## Maintenance
 
