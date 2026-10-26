@@ -58,7 +58,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `all/hdoujin` | `hdoujin.org` | IGNORE | HTTP 200 mais **4 000 o** d'interstitiel contenant un cookie `cf-` ; l'API exige un token `clearance` obtenu via WebView | L'API répond sans token `clearance` |
-| `all/voyceme` | `voyceme.com` | IGNORE | HTTP 200 mais page **« voyceme.com for sale \| Spaceship.com »** (17 516 o) : le domaine est en vente, plus de contenu | Le domaine est racheté et ressert un vrai catalogue |
+| `all/voyceme` | `voyceme.com` | IGNORE (domaine remplacé) | `voyceme.com` répond toujours **200** avec la page **« voyceme.com for sale \| Spaceship.com »** (17 516 o), mais l'upstream `en/voyceme` (issue #529) pointe désormais sur **`https://www.voyce.me`**, vivant (200, catalogue + fiches `/series/<slug>`, GraphQL `hasura.voyce.me/v1/graphql` ouvert). Le port actif est `en/voyceme.ts` | n/a : la source est suivie sous le nouveau domaine `voyce.me` |
 | `en/coffeemanga` | `coffeemanga.com` | IGNORE | `301` puis `coffeemanga.ink` qui répond **404 « Not Found »** (1 249 o) : l'ancien domaine ne redirige plus vers rien | `/` ressert un catalogue lisible |
 | `en/firescans` | `firescans.com` | IGNORE | `302` puis `hugedomains.com/domain_profile.cfm?d=firescans.com` → **« FireScans.com is for sale »** (200, 54 319 o) | Le domaine est racheté et ressert un vrai catalogue |
 | `en/mangabtt` | `mangabtt.com` (ex `manhwabtt.cc`) | IGNORE | HTTP 200 mais page de **parking** de 3 901 o, sans catalogue | Le domaine est racheté et ressert un vrai catalogue |
@@ -684,7 +684,7 @@ ne distingue pas un site mort d'une IP de runner bannie.
 | `en/allporncomic` | `allporncomic.com` | UNKNOWN | `403` + **5 311 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
 | `all/manhwadashraw` | `manhwa-raw.com` | UNKNOWN | `403` + **5 202 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
 | `en/batcave` | `batcave.biz` | UNKNOWN | `403` + **5 284 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
-| `en/killsixbilliondemons` | `killsixbilliondemons.com` | IGNORE | Interstitiel JS « One moment, please... » + rechargement automatique après 5 s, aucun contenu servable en HTTP simple (LiteSpeed anti-DDoS), identique avec `User-Agent` navigateur | Un `GET` sans navigateur rend un catalogue lisible |
+| `en/killsixbilliondemons` | `killsixbilliondemons.com` | **candidat BUILD** | Le 2026-10-26 (issue #529), `GET /` en HTTP simple rend **200** et **46 428 o** avec le contenu de la série : l'interstitiel LiteSpeed « One moment, please... » n'apparaît plus. L'upstream `KillSixBillionDemons.kt` existe toujours (baseUrl `https://killsixbilliondemons.com`). Aucun `.ts` : l'issue #529 ne le liste pas, donc à traiter en NOUVEAU au prochain passage | n/a (condition remplie) |
 
 Sondé le **2026-10-19** (issue #500), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
 
