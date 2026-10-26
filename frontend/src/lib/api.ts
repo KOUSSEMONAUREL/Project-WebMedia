@@ -7,7 +7,7 @@ const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787')
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const TTL = { LIST: 2 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
-const API_TIMEOUT_MS = 5000;
+const API_TIMEOUT_MS = 8000;
 
 function cacheKey(endpoint: string, params?: string) {
   return params ? `${endpoint}?${params}` : endpoint;
