@@ -6,7 +6,8 @@ export { allMockData, getMockByType };
 const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
-const TTL = { LIST: 12 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
+const TTL = { LIST: 2 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
+const API_TIMEOUT_MS = 5000;
 
 function cacheKey(endpoint: string, params?: string) {
   return params ? `${endpoint}?${params}` : endpoint;
@@ -16,14 +17,27 @@ export function getApiHeaders(extra?: Record<string, string>): Record<string, st
   return { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-Internal-API-Key': API_KEY } : {}), ...extra };
 }
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  backend?: { fetch: typeof fetch },
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const init = { ...options, signal: controller.signal };
+  try {
+    return backend ? await backend.fetch(url, init) : await fetch(url, init);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const url = `${API_BASE_URL}${endpoint}`;
   const backend = (globalThis as any).__BACKEND;
+  const backendFetcher = backend && typeof backend.fetch === 'function' ? backend : undefined;
   const headers = { ...getApiHeaders(), ...options.headers };
-  if (backend) {
-    return backend.fetch(url, { ...options, headers });
-  }
-  return fetch(url, { ...options, headers });
+  return fetchWithTimeout(url, { ...options, headers }, backendFetcher);
 }
 
 async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -89,12 +103,20 @@ export async function getTrending(): Promise<ApiResponse<Media[]>> {
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media/trending');
+    if (res.success === false) throw new Error(res.error || 'API Error');
     const data = Array.isArray(res.data) ? res.data : (res.data && Array.isArray((res.data as any).data) ? (res.data as any).data : []);
     const result: ApiResponse<Media[]> = { success: true, data: mapMedias(data) };
     cacheSet(ck, result);
     return result;
   }
-  catch { console.warn('[api] getTrending failed, using mock'); return { success: true, data: mockTrending }; }
+  catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[api] getTrending failed, using mock');
+      return { success: true, data: mockTrending };
+    }
+    console.error('[api] getTrending failed', error);
+    return { success: false, data: [] };
+  }
 }
 
 export async function getMediaByType(
@@ -118,13 +140,18 @@ export async function getMediaByType(
     const res = await apiFetch(`/media?${ps}`);
     if (!res.ok) throw new Error('API Error');
     const json = await res.json();
+    if (json.success === false) throw new Error(json.error || 'API Error');
     if (json.data) json.data = json.data.map((m: any) => mapMedia({ ...m, type }));
     cacheSet(ck, json);
     return json;
-  } catch {
-    console.warn('[api] getMediaByType failed, using mock for', type);
-    const data = getMockByType(type);
-    return { success: true, data, total: data.length };
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[api] getMediaByType failed, using mock for', type);
+      const data = getMockByType(type);
+      return { success: true, data, total: data.length };
+    }
+    console.error('[api] getMediaByType failed for', type, error);
+    return { success: false, data: [], total: 0 };
   }
 }
 
@@ -134,10 +161,18 @@ export async function getAllMedia(): Promise<Media[]> {
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media[]>>('/media/all');
+    if (res.success === false) throw new Error(res.error || 'API Error');
     const data = mapMedias(res.data);
     cacheSet(ck, data);
     return data;
-  } catch { console.warn('[api] getAllMedia failed, using allMockData'); return allMockData; }
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[api] getAllMedia failed, using allMockData');
+      return allMockData;
+    }
+    console.error('[api] getAllMedia failed', error);
+    return [];
+  }
 }
 
 export async function searchMedia(query: string, filters?: {
@@ -152,15 +187,20 @@ export async function searchMedia(query: string, filters?: {
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media[]>>(`/search?${ps}`);
+    if (res.success === false) throw new Error(res.error || 'API Error');
     if (res.data) res.data = mapMedias(res.data);
     cacheSet(ck, res);
     return res;
-  } catch {
-    console.warn('[api] searchMedia failed, using mock for', query);
-    const lowerQuery = query.toLowerCase();
-    let results = allMockData.filter(m => m.title?.toLowerCase().includes(lowerQuery));
-    if (filters?.type && filters.type !== 'all') results = results.filter(m => m.type === filters.type);
-    return { success: true, data: results };
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[api] searchMedia failed, using mock for', query);
+      const lowerQuery = query.toLowerCase();
+      let results = allMockData.filter(m => m.title?.toLowerCase().includes(lowerQuery));
+      if (filters?.type && filters.type !== 'all') results = results.filter(m => m.type === filters.type);
+      return { success: true, data: results };
+    }
+    console.error('[api] searchMedia failed', error);
+    return { success: false, data: [], error: 'Recherche temporairement indisponible' };
   }
 }
 
@@ -177,6 +217,7 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
   if (cached) return cached;
   try {
     const res = await apiClient<ApiResponse<Media>>(`/media/${type}/${slug}`);
+    if (res.success === false) throw new Error(res.error || 'API Error');
     if (res.data) {
       res.data = mapMedia(res.data);
       const similar = res.data.similar ?? [];
@@ -194,16 +235,20 @@ export async function getMediaDetails(type: string, slug: string): Promise<ApiRe
     cacheSet(ck, res);
     return res;
   }
-  catch {
-    console.warn('[api] getMediaDetails failed, mock fallback for', type, slug);
-    const typeMap: Record<string, string> = {
-      films: 'film', series: 'serie', animes: 'anime',
-      jeux: 'jeu', webtoons: 'webtoon', comics: 'comic'
-    };
-    const mockType = typeMap[type] || type;
-    const media = allMockData.find(m => m.type === mockType && m.slug === slug);
-    if (media) return { success: true, data: media };
-    throw new Error('Media non trouve');
+  catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[api] getMediaDetails failed, mock fallback for', type, slug);
+      const typeMap: Record<string, string> = {
+        films: 'film', series: 'serie', animes: 'anime',
+        jeux: 'jeu', webtoons: 'webtoon', comics: 'comic'
+      };
+      const mockType = typeMap[type] || type;
+      const media = allMockData.find(m => m.type === mockType && m.slug === slug);
+      if (media) return { success: true, data: media };
+      throw new Error('Media non trouve');
+    }
+    console.error('[api] getMediaDetails failed', type, slug, error);
+    throw error;
   }
 }
 

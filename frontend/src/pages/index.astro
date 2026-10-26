@@ -13,9 +13,10 @@ let bestAnimes: Media[] = [];
 let popularGames: Media[] = [];
 let popularBooks: Media[] = [];
 let topNovels: Media[] = [];
+let dataComplete = false;
 
 try {
-  const [trendingRes, filmsRes, seriesRes, animesRes, gamesRes, booksRes, novelsRes] = await Promise.all([
+  const results = await Promise.allSettled([
     getTrending(),
     getMediaByType('film'),
     getMediaByType('serie'),
@@ -25,20 +26,35 @@ try {
     getMediaByType('novel'),
   ]);
 
-  trending = trendingRes.data || [];
-  popularFilms = filmsRes.data || [];
-  topSeries = seriesRes.data || [];
-  bestAnimes = animesRes.data || [];
-  popularGames = gamesRes.data || [];
-  popularBooks = booksRes.data || [];
-  topNovels = novelsRes.data || [];
+  const unwrap = (result: PromiseSettledResult<{ success: boolean; data: Media[] }>): Media[] =>
+    result.status === 'fulfilled' && result.value.success ? (result.value.data || []) : [];
+
+  trending = unwrap(results[0]);
+  popularFilms = unwrap(results[1]);
+  topSeries = unwrap(results[2]);
+  bestAnimes = unwrap(results[3]);
+  popularGames = unwrap(results[4]);
+  popularBooks = unwrap(results[5]);
+  topNovels = unwrap(results[6]);
+
+  dataComplete = results.every(
+    (result) => result.status === 'fulfilled' && result.value.success,
+  );
+  if (!dataComplete) {
+    console.error(
+      'Accueil: certaines sections sont indisponibles',
+      results.map((result) => result.status),
+    );
+  }
 } catch (error) {
   console.error("Erreur lors du chargement des données sur l'accueil:", error);
 }
 
 Astro.response.headers.set(
   'Cache-Control',
-  's-maxage=54000, stale-while-revalidate=1800'
+  dataComplete
+    ? 'public, s-maxage=10800, stale-while-revalidate=600'
+    : 'public, s-maxage=60, stale-while-revalidate=60',
 );
 
 ---
@@ -46,6 +62,14 @@ Astro.response.headers.set(
 <Layout title="Accueil" canonicalUrl="https://www.webmediia.cfd/">
     <div class="flex flex-col justify-center" style="min-height: calc(100vh - 74px)">
       <DynamicHero client:load />
+
+      {!dataComplete && (
+        <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 pt-4">
+          <p class="text-sm text-muted-foreground text-center">
+            Certaines sections sont temporairement indisponibles. Réessayez dans quelques instants.
+          </p>
+        </div>
+      )}
 
       <div class="max-w-7xl mx-auto w-full px-4 sm:px-6">
         <TrendingCarousel items={trending} client:load />
