@@ -733,8 +733,12 @@ Sondes du **2026-10-26** en IPv4 (`curl -4 -L`), UA navigateur.
 | `fr/toonfr` | `toonfr.com` | UNKNOWN | `403` + **5 433 o**, `<title>Just a moment...</title>` (Cloudflare) | Un `GET` sans navigateur rend le catalogue |
 | `all/mangadotnet` | `mangadot.net` | UNKNOWN | `403` + **5 435 o**, challenge Cloudflare | idem |
 | `en/hentairead` | `hentairead.com` | UNKNOWN | `403` + **5 458 o**, challenge Cloudflare | idem |
-| `all/nhentaicom` | `nhentai.com` | UNKNOWN | `curl: (35) TLS connect error: ... wrong version number` | Le site redevient joignable en TLS |
 | `en/comichubfree` | `comichubfree.com` | UNKNOWN | `/popular-comic` -> `403` + **5 520 o**, challenge Cloudflare ; gate `HOLD` (`probe: BLOCKED, HTTP 403, corps 5545 o`). Le correctif upstream des selecteurs `Author:` / `Genres:` a ete merge (#553) sans validation live | Un `GET` sans navigateur rend popular/latest/search |
+
+`all/nhentaicom` n'est pas dans le tableau ci-dessus : la sonde TLS echoue avant
+toute reponse HTTP (`curl: (35) TLS connect error: ... wrong version number`), donc le
+gate ne peut pas conclure. Verdict `UNKNOWN` maintenu ; condition de revivification :
+un `GET` HTTP simple repond a nouveau.
 
 ### Deltas upstream non applicables au port `.ts`
 
