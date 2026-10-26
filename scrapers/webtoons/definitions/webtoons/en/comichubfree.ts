@@ -72,6 +72,7 @@ export class ComichubfreeScraper extends BaseScraper {
       return dd.text().trim();
     };
     const status = textOf('Status:');
+    const genres = seriesInfo.find('dt:contains("Genres:") + dd a').toArray().map(el => $(el).text().trim()).filter(Boolean);
     // The `h1` is an SEO string ("Read <Title> Comics Online for Free");
     // upstream leaves the title unset in parseDetails (the listing title
     // stands), so unwrap the site wrapper instead of storing the SEO text.
@@ -82,8 +83,8 @@ export class ComichubfreeScraper extends BaseScraper {
       url: mangaUrl,
       thumbnailUrl: this.absUrl(pickImage(seriesInfo.find('img').first())),
       description: info.find('div#film-content').first().text().trim() || undefined,
-      author: textOf('Authors:') || undefined,
-      genre: undefined,
+      author: textOf('Author:') || undefined,
+      genre: genres.length > 0 ? genres.join(', ') : undefined,
       status: status === 'Ongoing' ? 1 : status === 'Completed' ? 0 : 3,
       lang: this.lang,
     };
