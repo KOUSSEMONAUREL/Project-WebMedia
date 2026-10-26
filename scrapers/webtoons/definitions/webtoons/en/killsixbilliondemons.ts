@@ -2,6 +2,7 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const AUTHOR_KSBD = 'Abbadon';
+const TITLE_KSBD = 'Kill Six Billion Demons';
 const DESCRIPTION_KSBD = `Q: What is this all about?
 This is a webcomic! It's graphic novel style, meaning it's meant to be read in large chunks, but you can subject yourself to the agony of reading it a couple pages a week!
 
@@ -20,137 +21,98 @@ KSBD will periodically take suggestions, mostly on characters to stick in the ba
 Q: Can I buy this book in a more traditional format?
 You absolutely can. You can get your hands on a print copy of the first and second books from Image comics in your local comics shop or anywhere else you can get comics. It looks fantastic in print and if you don't like reading stuff online I highly recommend it`.trimEnd();
 
-const PAGES_ORDER = '?order=ASC';
+const MAX_CHAPTER_ARCHIVE_PAGES = 50;
 
 export class KillSixBillionDemons extends BaseScraper {
   readonly name = 'KillSixBillionDemons';
   readonly baseUrl = 'https://killsixbilliondemons.com';
   readonly lang = 'en';
 
-  private async fetchBooksAsMangas(): Promise<Manga[]> {
+  private async fetchManga(): Promise<Manga | null> {
     const doc = await this.get(this.baseUrl);
     const $ = this.$(doc.data);
-    const mangas: Manga[] = [];
+    const chapterUrl = $('a[href*="/chapter/"]').first().attr('href') || '';
 
-    $('#chapter option.isBookOption').each((_, el) => {
-      const $el = $(el);
-      const value = $el.attr('value') || '';
-      const text = $el.text().trim();
-      if (!value || text === 'Select chapter') return;
+    if (!chapterUrl) return null;
 
-      const title = text.split(' (')[0];
-      const overviewUrl = value;
-
-      mangas.push({
-        title,
-        url: overviewUrl,
-        thumbnailUrl: '',
-        lang: this.lang,
-        author: AUTHOR_KSBD,
-        description: DESCRIPTION_KSBD,
-        status: 1,
-      });
-    });
-
-    return mangas;
-  }
-
-  private async fetchThumbnailUrl(bookOverviewUrl: string): Promise<string> {
-    const overviewDoc = await this.get(bookOverviewUrl + PAGES_ORDER);
-    const $ = this.$(overviewDoc.data);
-    const thumb = $('.comic-thumbnail-in-archive a img').first();
-    return thumb.length ? thumb.attr('src') || '' : '';
+    return {
+      title: TITLE_KSBD,
+      url: chapterUrl,
+      thumbnailUrl: $('.comic-thumbnail-in-archive a img').first().attr('src') || '',
+      lang: this.lang,
+      author: AUTHOR_KSBD,
+      description: DESCRIPTION_KSBD,
+      status: 1,
+    };
   }
 
   private async fetchChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const doc = await this.get(mangaUrl);
-    const $ = this.$(doc.data);
-    const options = $('#chapter option');
-
     const chapters: Chapter[] = [];
+    const seen = new Set<string>();
+    const visited = new Set<string>();
+    let currentUrl = mangaUrl;
+    let pageCount = 0;
 
-    options.each((_, el) => {
-      const $el = $(el);
-      const text = $el.text().trim();
-      const value = $el.attr('value') || '';
+    while (currentUrl && pageCount < MAX_CHAPTER_ARCHIVE_PAGES) {
+      if (visited.has(currentUrl)) break;
+      visited.add(currentUrl);
+      pageCount += 1;
 
-      if (text === 'Select chapter' || !value) return;
-
-      const chapterTitle = 'Chapter ' + text.split(' (')[0].trim();
-      const chapterNumber = parseFloat(text.replace(/[^\d.]/g, '')) || 0;
-
-      chapters.push({
-        name: chapterTitle,
-        url: value,
-        chapterNumber,
-      });
-    });
-
-    return chapters;
-  }
-
-  private async fetchActiveChapterPages(
-    chapterUrl: string,
-    chapterTitle: string,
-    startChapterNumber: number,
-  ): Promise<Chapter[]> {
-    const chapters: Chapter[] = [];
-    let currentUrl = this.baseUrl + chapterUrl + PAGES_ORDER;
-    let pageNum = startChapterNumber;
-
-    while (currentUrl) {
       const doc = await this.get(currentUrl);
       const $ = this.$(doc.data);
 
-      const links = $('.comic-thumbnail-in-archive a');
-      links.each((_, el) => {
+      $('.comic-thumbnail-in-archive a[href*="/comic/"]').each((_, el) => {
         const $el = $(el);
         const href = $el.attr('href') || '';
-        const title = $el.attr('title') || '';
-        if (href) {
-          pageNum = pageNum + 1;
-          chapters.push({
-            name: chapterTitle + ' - ' + (title.trim() || `Page ${pageNum}`),
-            url: href,
-            chapterNumber: pageNum,
-          });
-        }
+        if (!href || seen.has(href)) return;
+        seen.add(href);
+
+        const title = ($el.attr('title') || $el.text() || '').trim();
+        const numberMatch = href.match(/(\d+(?:-\d+)?)\/?$/);
+        const chapterNumber = numberMatch ? parseFloat(numberMatch[1].split('-')[0]) : chapters.length + 1;
+
+        chapters.push({
+          name: title || `Page ${chapters.length + 1}`,
+          url: href,
+          chapterNumber,
+        });
       });
 
-      const nextUrl = $('.paginav-next a').attr('href') || '';
-      if (!nextUrl || nextUrl === currentUrl) break;
-      currentUrl = nextUrl;
+      currentUrl = $('#paginav .paginav-next a[href]').first().attr('href') || '';
     }
 
     return chapters;
   }
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const mangas = await this.fetchBooksAsMangas();
+    const manga = await this.fetchManga();
     return {
-      mangas,
-      hasNextPage: mangas.length > 0,
+      mangas: manga ? [manga] : [],
+      hasNextPage: false,
     };
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    throw new Error(`${this.name}: getLatest() not implemented`);
+    return this.getPopular(page);
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
-    throw new Error(`${this.name}: getSearch() not available`);
+    const manga = await this.fetchManga();
+    if (!manga) return { mangas: [], hasNextPage: false };
+
+    const normalized = query.toLowerCase().trim();
+    const matches = normalized.length === 0 || manga.title.toLowerCase().includes(normalized);
+
+    return {
+      mangas: matches ? [manga] : [],
+      hasNextPage: false,
+    };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const doc = await this.get(mangaUrl);
-    const $ = this.$(doc.data);
-    const title = $('.post-title').first().text() || '';
-    const thumbnail = $('.comic-thumbnail-in-archive a img').first().attr('src') || '';
-
     return {
-      title,
+      title: TITLE_KSBD,
       url: mangaUrl,
-      thumbnailUrl: thumbnail,
       lang: this.lang,
       author: AUTHOR_KSBD,
       description: DESCRIPTION_KSBD,
@@ -158,21 +120,20 @@ export class KillSixBillionDemons extends BaseScraper {
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    return await this.fetchChapterList(mangaUrl);
+    return this.fetchChapterList(mangaUrl);
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const doc = await this.get(chapterUrl);
     const $ = this.$(doc.data);
-    const imageEls = $('#comic img');
 
-    return imageEls.map((_, el) => {
-      const $el = $(el);
-      const src = $el.attr('src') || '';
-      return {
-        index: 0,
-        imageUrl: src,
-      };
-    }).get();
+    return $('#comic img')
+      .map((index, el) => {
+        const src = $(el).attr('src') || '';
+        if (!src) return null;
+        return { index: index + 1, imageUrl: src };
+      })
+      .get()
+      .filter((page): page is Page => page !== null);
   }
 }
