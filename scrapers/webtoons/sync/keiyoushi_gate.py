@@ -524,6 +524,24 @@ def count_of(result, key):
     return None
 
 
+def ensure_probe_script():
+    """Charge la sonde depuis origin/main, independamment de la branche PR.
+
+    Les PRs anciennes peuvent avoir ete creees avant l'ajout de la sonde: le
+    gate doit tester leur code avec la sonde de reference, pas echouer sur un
+    fichier absent de leur arbre.
+    """
+    rel = "scrapers/webtoons/tests/gate_scraper.ts"
+    result = run(["git", "show", f"origin/main:{rel}"], timeout=30)
+    if result.returncode != 0:
+        return False
+    path = os.path.join(ROOT, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(result.stdout)
+    return True
+
+
 def run_gate_scraper(path):
     result = run(
         [TSX, "tests/gate_scraper.ts", path],
@@ -632,6 +650,9 @@ def process_pr(info, handoff, upstream_sha, live):
             entry["checks"]["live_skipped"] = True
             holds.append("live checks skipped")
 
+        if not reasons and kind == "code" and live:
+            if not ensure_probe_script():
+                reasons.append("gate probe script missing from origin/main")
         if not reasons and kind == "code" and live:
             for lang, ext, path in exts:
                 result = run_gate_scraper(path)
