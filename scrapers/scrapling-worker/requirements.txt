@@ -1,6 +1,6 @@
-scrapling>=0.4.15
-patchright>=1.64.1
-playwright>=1.64.0
+scrapling>=0.5
+patchright>=1.64.2
+playwright>=1.64.1
 psycopg2-binary>=2.9.13
 requests==2.34.2
 python-dotenv==1.2.4
