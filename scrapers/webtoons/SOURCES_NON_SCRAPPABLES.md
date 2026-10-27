@@ -63,7 +63,6 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `en/firescans` | `firescans.com` | IGNORE | `302` puis `hugedomains.com/domain_profile.cfm?d=firescans.com` → **« FireScans.com is for sale »** (200, 54 319 o) | Le domaine est racheté et ressert un vrai catalogue |
 | `en/mangabtt` | `mangabtt.com` (ex `manhwabtt.cc`) | IGNORE | HTTP 200 mais page de **parking** de 3 901 o, sans catalogue | Le domaine est racheté et ressert un vrai catalogue |
 | `en/mangaplaza` | `mangaplaza.com` + `reader.mangaplaza.com` | IGNORE | Site vivant (200, 2,4 Mo) mais le lecteur impose `SpeedBinb` (déchiffrement), et l'API `sws/apis/bibGetCntntInfo.php` répond `{"result":-100,"code":"E00006"}` avec un mur login + achat de chapitre | Un lecteur gratuit et non chiffré devient accessible sans WebView |
-| `en/vizshonenjump` | `vizshonenjump.com` | IGNORE | **NXDOMAIN** sur les résolveurs publics (1.1.1.1, 8.8.8.8) : le domaine n'existe plus | Le domaine est réenregistré et ressert un vrai catalogue |
 | `fr/hanabook` | `www.hana-book.fr` + `api.hana-book.fr` | IGNORE | Site vivant (200, 79 826 o) mais l'API `api-ebook/v14/catalogue/?page=1` répond **403** `{"success":false,"message":"Access Forbidden"}` ; l'upstream exige un token de session | L'API catalogue s'ouvre sans token |
 | `fr/japscan` | `www.japscan.foo` | IGNORE | Site **vivant** (200, 2 166 813 o) — l'upstream pointe déjà sur `.foo`, donc le domaine n'est pas la cause. Le lecteur exige un WebView + descrambler JS (`ReaderScripts.kt`) | Les URLs de pages du lecteur deviennent lisibles sans WebView |
 | `fr/ono` | `www.ono.live` + `ws.ono.live` | IGNORE | HTTP **202 à 0 octet** (CloudFront anti-bot) ; l'API GraphQL exige un JWT Cognito extrait des cookies du site | `ws.ono.live/graphql` répond sans en-tête `Authorization` |
@@ -700,7 +699,7 @@ Sondé le **2026-10-19** (issue #500), en IPv4 (`curl -4`), via WARP puis `--nop
 |---|---|---|---|---|
 | `en/comix` | `comix.to` | BLOCKED | `403` + **5 281 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel. L'upstream a migré vers `runInWebView` pour la même raison | Un `GET` sans navigateur rend un catalogue lisible |
 | `all/lunaranime` | `lunarx.to` | UNKNOWN | `403` + **5 282 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel. Rejugé le **2026-10-23** : candidat `BUILD` via l'API `api.lunarx.to` (voir ci-dessous) | Un `GET` sans navigateur rend un catalogue lisible |
-| `all/deviantart` | `www.deviantart.com` | IGNORE | Extension upstream de type galerie (`gallery:<user>/<folder>`), pas de catalogue popular/search standard ; `getPopularManga` upstream lève `UnsupportedOperationException`. Aucun catalogue générique ingérable par le pipeline webtoon | L'extension upstream expose un catalogue popular/search générique |
+| `all/deviantart` | `www.deviantart.com` | IGNORE | Extension upstream de type galerie (`gallery:<user>/<folder>`), pas de catalogue popular/search standard ; `getPopularManga` upstream lève `UnsupportedOperationException`. Aucun catalogue générique ingérable par le pipeline webtoon. Reconfirmé le 2026-10-27 (issue #555) : les ajouts upstream (`Dto.kt`, `ImageInterceptor.kt`, `Parsing.kt`) ne concernent que la lecture des écarts d'une galerie, les deux méthodes de catalogue lèvent toujours | L'extension upstream expose un catalogue popular/search générique |
 
 ### Cycle du 2026-10-23 : `en/toonz` rejugé `BLOCKED`, `en/mangacloud` confirmé `BLOCKED`, `all/lunaranime` → candidat `BUILD`, re-sonde `en/mangabay`
 
@@ -748,6 +747,35 @@ un `GET` HTTP simple repond a nouveau.
 - `en/templescan` : changement de headers d'images ; notre `getPageList` ne fait que retourner des URLs, sans requete image.
 - `en/webnex` : passage du lecteur en WebView ; `getPageList` n'est pas utilise par la pipeline.
 - `all/mangatoon` / `all/namicomi` : `versionCode` et listes de langues uniquement ; aucun changement `.ts`.
+
+## Cycle du 2026-10-27 (issue #555) : NexComic et VIZ portés, Lgbtics et ManhuaTop bloqués
+
+Sondes du **2026-10-27** en IPv4 (`curl -4 -L`), UA navigateur.
+
+### Ports valides en direct
+
+| Extension | Domaine | Verdict | Preuve |
+|---|---|---|---|
+| `en/nexcomic` | `nexcomic.com` | PORTÉ (#555) | `GET /api/local/series` -> **200**, 46 064 o, 27 séries ; `GET /api/local/popular?limit=100&period=all` -> **200** ; fiche `/series/<slug>.rsc` -> **200**, `series` + `chapters` ; gate live popular 27, search 2, chapitres 4, pages 33 |
+| `en/vizshonenjump` | `www.viz.com` | PORTÉ (#555) | `GET /manga-books/shonenjump/section/trending-manga` -> **200**, 8 séries ; `GET /manga-books/shonenjump/section/free-chapters` -> **200**, 283 entrées ; fiche `/shonenjump/chapters/one-piece` -> **200** ; gate live popular 8, search 1, chapitres 254. Le lecteur exige un abonnement VIZ, sans impact sur `rootUrl` |
+
+L'ancienne ligne `IGNORE` de `en/vizshonenjump` portait sur `vizshonenjump.com`
+(**NXDOMAIN**) ; l'upstream pointe en réalité sur `www.viz.com`, qui sert catalogue et
+fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapable.
+
+### Sources inaccessibles en HTTP simple : aucun `rootUrl` produit
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/lgbtics` | `lgbtics.com` | UNKNOWN | `/` et `/comic/` -> `403` + **5 768 o**, `<title>Attention Required! \| Cloudflare</title>` ; aucun catalogue. `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend le catalogue `/comic/` |
+| `en/manhuatop` | `manhuatop.org` | UNKNOWN | `/` -> `403` + **5 478 o**, `/series/` -> `403` + **5 499 o**, API exacte `/api/discovery?path=/series/` -> `403` + **5 629 o**, `<title>Just a moment...</title>`. `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend `/series/` ou `/api/discovery` |
+
+### Deltas upstream non applicables
+
+- `en/asurascans` : retrait de l'en-tête `Origin` ; notre port n'en envoie pas et son endpoint `api.asurascans.com/api/series` répond **200**.
+- `en/mangadrama` : passage au multisrc `InitManga` ; notre port HTML lit toujours les mêmes sélecteurs, gate live popular 429, search 2, chapitres 412.
+- `en/philiascans` : notre port applique la résolution des couvertures relatives (`baseUrl.resolve`) ; le reste du delta concerne le lecteur (DRM, filtres, `getMangaByUrl`). API `philiascans.org/api/manga` -> **403** challenge depuis le runner (`LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate`).
+- `en/templescan` : ajout de `Accept-Encoding` sur les requêtes d'images ; notre `getPageList` ne fait que retourner des URLs. Le domaine reste `403` challenge depuis le runner.
 
 ## Maintenance
 
