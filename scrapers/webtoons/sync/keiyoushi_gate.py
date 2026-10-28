@@ -357,11 +357,29 @@ def parse_registry_rows(lines):
     return rows
 
 
+def parse_ported_rows(lines):
+    """Rows from the cycle tables that document a live port (any column count)."""
+    ports = {}
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("|") or "`" not in stripped:
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        ext = cells[0].strip("` ")
+        verdict = cells[2].strip("` ").upper()
+        if ext and verdict.startswith(("PORTÉ", "PORTE", "PORTED")):
+            ports[ext] = cells[1].strip("` ")
+    return ports
+
+
 def evaluate_registry(added, removed):
     added_rows = parse_registry_rows(added)
     removed_rows = parse_registry_rows(removed)
     if not added_rows and not removed_rows:
         return "FAIL", "no registry row found in diff", None
+    ported = parse_ported_rows(added)
     reasons = []
     probes = []
     for cells in added_rows:
@@ -400,6 +418,14 @@ def evaluate_registry(added, removed):
         )
         if not mentioned:
             reasons.append(f"{ext}: removal not documented in added prose")
+        if ext in ported:
+            probe = probe_url(ported[ext])
+            probes.append(f"{ext}: ported: {probe}")
+            if probe.startswith(("CHALLENGE", "BLOCK IP", "TIMEOUT", "ERREUR")):
+                reasons.append(f"{ext}: removed but ported domain not readable ({probe})")
+            if probe.startswith(("NON (HTTP 404", "NON (HTTP 410")):
+                reasons.append(f"{ext}: removed but ported domain is dead ({probe})")
+            continue
         if host:
             probe = probe_url(host)
             probes.append(f"{ext}: removed: {probe}")

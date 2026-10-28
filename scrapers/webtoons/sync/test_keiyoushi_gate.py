@@ -139,6 +139,27 @@ class RegistryTest(unittest.TestCase):
         self.assertIn("still not readable", reason)
 
     @mock.patch.object(gate, "probe_url", return_value="NON (LiteSpeed)")
+    def test_removal_superseded_by_port_passes(self, _probe):
+        added = [
+            "`foo` a été porté sur `new.example` (voir le cycle).",
+            "| `foo` | `new.example` | PORTÉ (#42) | gate live PASS |",
+        ]
+        verdict, reason, probes = gate.evaluate_registry(added, [self.row])
+        self.assertEqual(verdict, "PASS")
+        self.assertIn("registry", reason)
+        self.assertTrue(any("ported:" in probe for probe in probes or []))
+
+    @mock.patch.object(gate, "probe_url", return_value="CHALLENGE (Cloudflare)")
+    def test_removal_superseded_by_unreadable_port_fails(self, _probe):
+        added = [
+            "`foo` a été porté sur `new.example`.",
+            "| `foo` | `new.example` | PORTÉ (#42) | gate live PASS |",
+        ]
+        verdict, reason, _ = gate.evaluate_registry(added, [self.row])
+        self.assertEqual(verdict, "FAIL")
+        self.assertIn("ported domain not readable", reason)
+
+    @mock.patch.object(gate, "probe_url", return_value="NON (LiteSpeed)")
     def test_undocumented_removal_fails(self, _probe):
         verdict, reason, _ = gate.evaluate_registry([], [self.row])
         self.assertEqual(verdict, "FAIL")
