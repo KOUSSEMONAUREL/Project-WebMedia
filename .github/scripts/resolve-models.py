@@ -8,12 +8,14 @@ Pipeline:
      in small parallel batches with a short timeout and a global deadline:
      dead models fail fast, live ones answer, the step never hangs.
   4. Export PRIMARY_MODEL / FALLBACK_MODEL / FALLBACK3_MODEL / FALLBACK4_MODEL
-     to $GITHUB_ENV (or stdout as `export K=V` when run locally).
+     to $GITHUB_ENV and $GITHUB_OUTPUT (or stdout as `export K=V` when run
+     locally), so the separate read-only review job reuses the exact chain.
 
 Fails fast (exit 1) with fewer than MIN_ALIVE wiring models, instead of
 letting the whole agent chain die silently on stale hardcoded IDs.
-The analysis agent uses PRIMARY first, then the remaining slots cascade
-as fallbacks. Review is a deterministic code gate, not an LLM.
+The analysis agent and the independent IA review share the same chain:
+PRIMARY first, then the remaining slots cascade as fallbacks. The
+deterministic gate still runs first and remains the security layer.
 """
 
 import json
@@ -202,7 +204,15 @@ def main() -> int:
             for k, v in exports.items():
                 f.write(f"{k}={v}\n")
         print(f"ecrit dans $GITHUB_ENV ({len(exports)} vars)")
-    else:
+
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a", encoding="utf-8") as f:
+            for k, v in exports.items():
+                f.write(f"{k.lower()}={v}\n")
+        print(f"ecrit dans $GITHUB_OUTPUT ({len(exports)} vars)")
+
+    if not github_env:
         for k, v in exports.items():
             print(f"export {k}={v}")
     return 0

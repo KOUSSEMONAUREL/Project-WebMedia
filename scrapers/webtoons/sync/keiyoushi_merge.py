@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Application des verdicts du gate et merge des PRs keiyoushi.
+"""Application des verdicts et merge des PRs keiyoushi.
 
 Pipeline: agent (analyse) -> submit (cree branches + PRs, ecrit la PR list)
--> gate deterministe (verdicts dans $REVIEW_FILE) -> ce script merge les PRs
-PASS en squash, laisse FAIL/HOLD ouvertes, commente l'issue et la ferme si
-tout est traite.
+-> gate deterministe (verdicts dans $REVIEW_FILE) -> revue IA independante
+(verdicts dans $AI_REVIEW_FILE) -> ce script applique la fusion des deux
+couches: le gate FAIL reste definitif, la revue IA peut confirmer/refuser un
+PASS ou debloquer un HOLD avec preuve. Les PRs PASS sont mergees en squash;
+les FAIL/HOLD restent ouvertes.
 
-Aucune IA impliquee dans la revue ni dans le merge.
+Si la revue IA est absente, seuls les verdicts du gate sont appliques. Si
+elle est presente mais invalide ou partielle, les PASS du gate concernes
+sont bloques en HOLD; les FAIL/HOLD du gate restent definitifs. L'IA ne fait
+jamais le merge elle-meme.
 """
 
 import json
@@ -15,11 +20,18 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import keiyoushi_review_policy as policy  # noqa: E402
+
 REPO = os.environ.get("GITHUB_REPOSITORY", "KOUSSEMONAUREL/Project-WebMedia")
 ISSUE = os.environ["ISSUE_NUMBER"]
 HANDOFF = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
 PR_LIST_FILE = os.environ.get("PR_LIST_FILE", "/tmp/keiyoushi_prs.json")
 REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
+AI_REVIEW_FILE = os.environ.get(
+    "AI_REVIEW_FILE", "/tmp/keiyoushi_ai_review.json"
+)
 SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
 
 
@@ -51,14 +63,30 @@ def comment_issue(body: str) -> None:
     path = "/tmp/keiyoushi_final_comment.md"
     with open(path, "w", encoding="utf-8") as f:
         f.write(body)
-    run("gh", "issue", "comment", str(ISSUE), "--repo", REPO, "--body-file", path)
+    result = run_raw(
+        "gh", "issue", "comment", str(ISSUE), "--repo", REPO,
+        "--body-file", path,
+    )
+    if result.returncode != 0:
+        print(
+            "COMMENT_WARNING: issue: "
+            f"{(result.stderr or result.stdout).strip()}"
+        )
 
 
 def comment_pr(number: int, body: str) -> None:
     path = f"/tmp/keiyoushi_pr_comment_{number}.md"
     with open(path, "w", encoding="utf-8") as f:
         f.write(body)
-    run("gh", "pr", "comment", str(number), "--repo", REPO, "--body-file", path)
+    result = run_raw(
+        "gh", "pr", "comment", str(number), "--repo", REPO,
+        "--body-file", path,
+    )
+    if result.returncode != 0:
+        print(
+            f"COMMENT_WARNING: PR #{number}: "
+            f"{(result.stderr or result.stdout).strip()}"
+        )
 
 
 def pr_state(url: str) -> str:
@@ -78,8 +106,8 @@ def pr_head(url: str) -> str:
                check=False) or ""
 
 
-def merge_with_retry(url: str, number: int) -> tuple[bool, str]:
-    """Squash-merge une PR deja verifiee par le gate.
+def merge_with_retry(url: str, expected_head: str) -> tuple[bool, str]:
+    """Squash-merge une PR deja verifiee par le gate et la revue IA.
 
     On ne fait pas `update-branch`: cela changerait la tete de la PR apres
     la verification et invaliderait le head_sha du gate. Sans protection de
@@ -89,9 +117,14 @@ def merge_with_retry(url: str, number: int) -> tuple[bool, str]:
     """
     last_error = "raison inconnue"
     for attempt in range(1, 4):
-        result = run_raw("gh", "pr", "merge", "--squash", "--delete-branch",
-                         url, "--repo", REPO)
+        result = run_raw(
+            "gh", "pr", "merge", "--squash", "--delete-branch",
+            "--match-head-commit", expected_head, url, "--repo", REPO,
+        )
 
+        state = pr_state(url)
+        if state == "MERGED":
+            return True, ""
         if result.returncode == 0:
             for _ in range(6):
                 state = pr_state(url)
@@ -103,6 +136,8 @@ def merge_with_retry(url: str, number: int) -> tuple[bool, str]:
             last_error = ("merge accepte par gh mais la PR n'est pas "
                           "passee a MERGED apres 30s")
         else:
+            if state == "CLOSED":
+                return False, "PR fermee sans etre mergee"
             last_error = ((result.stderr or result.stdout).strip()
                           or "refus sans message")
             if pr_mergeable(url) == "UNKNOWN":
@@ -133,7 +168,10 @@ def main() -> None:
     close = False
     try:
         handoff = json.load(open(HANDOFF, encoding="utf-8"))
-        close = bool(handoff.get("close", False)) if isinstance(handoff, dict) else False
+        close = (
+            handoff.get("close") is True
+            if isinstance(handoff, dict) else False
+        )
     except (OSError, ValueError):
         pass
 
@@ -144,30 +182,54 @@ def main() -> None:
     except (OSError, ValueError):
         pr_list = []
 
-    try:
-        review = json.load(open(REVIEW_FILE, encoding="utf-8"))
-        if not isinstance(review, dict):
-            raise ValueError("REVIEW_FILE is not an object")
-        if review.get("gate_version") != 1:
-            raise ValueError("REVIEW_FILE is not from the deterministic gate")
-        raw_prs = review.get("prs", [])
-        if not isinstance(raw_prs, list):
-            raise ValueError("REVIEW_FILE.prs is not a list")
-        verdicts = {
-            v["number"]: v for v in raw_prs
-            if isinstance(v, dict) and "number" in v
-        }
-    except (OSError, ValueError) as e:
+    gate = policy.load_json(REVIEW_FILE)
+    ai = policy.load_json(AI_REVIEW_FILE)
+    ai_present = os.path.exists(AI_REVIEW_FILE)
+    numbers = [
+        pr["number"] for pr in pr_list
+        if (
+            isinstance(pr, dict)
+            and type(pr.get("number")) is int
+            and pr["number"] > 0
+        )
+    ]
+    verdicts, review_source, review_errors = policy.effective_review(
+        gate, ai, numbers, ai_present=ai_present
+    )
+    if (
+        not isinstance(gate, dict)
+        or type(gate.get("gate_version")) is not int
+        or gate.get("gate_version") != 1
+    ):
         raw = ""
         try:
             with open(REVIEW_FILE, encoding="utf-8", errors="replace") as f:
                 raw = f.read(2000)
-        except OSError as e2:
-            raw = f"<non lisible: {e2}>"
-        print(f"REVIEW_ERROR: fichier de revue illisible ({e})\n"
+        except OSError as e:
+            raw = f"<non lisible: {e}>"
+        print("REVIEW_ERROR: fichier de gate illisible ou invalide\n"
               f"  path={REVIEW_FILE}\n"
               f"  contenu brut: {raw!r}")
-        verdicts = {}
+    reviewer_model = (
+        str(ai.get("reviewer_model") or "")
+        if isinstance(ai, dict) and review_source in ("ai", "mixed")
+        else ""
+    )
+    if review_source == "ai":
+        reviewer_label = "gate deterministe + revue IA"
+        if reviewer_model:
+            reviewer_label += f" ({reviewer_model})"
+    elif review_source == "mixed":
+        reviewer_label = "gate deterministe + revue IA partielle"
+        if reviewer_model:
+            reviewer_label += f" ({reviewer_model})"
+    elif review_source == "fallback":
+        reviewer_label = (
+            "gate deterministe (revue IA invalide/partielle: "
+            "PASS bloques en HOLD)"
+        )
+    else:
+        reviewer_label = "gate deterministe seul"
 
     merged: list[str] = []
     failed: list[str] = []
@@ -175,41 +237,46 @@ def main() -> None:
     unreviewed: list[str] = []
 
     for pr in pr_list:
-        if not isinstance(pr, dict) or "number" not in pr:
+        if not isinstance(pr, dict):
             continue
-        num = pr["number"]
-        url = pr.get("url", "")
-        title = pr.get("title", "")
+        num = pr.get("number")
+        if type(num) is not int or num <= 0:
+            unreviewed.append("- [ ] PR sans numero entier valide dans la PR list")
+            continue
+        url = str(pr.get("url") or "")
+        title = str(pr.get("title") or "")
         v = verdicts.get(num)
         if not isinstance(v, dict):
             unreviewed.append(
-                f"- [ ] PR #{num} ({title}) ({url}) - pas de verdict du gate"
+                f"- [ ] PR #{num} ({title}) ({url}) - pas de verdict final"
             )
             continue
 
         verdict = v.get("verdict")
-        reason = v.get("reason", "")
+        reason = str(v.get("reason") or "")[:2000]
         if verdict == "PASS":
             expected = str(v.get("head_sha") or "")
             current = pr_head(url) if url else ""
             if not expected:
                 unreviewed.append(
                     f"- [ ] PR #{num} ({title}) ({url}) - PASS sans head_sha "
-                    f"(sortie de gate incomplete)"
+                    f"(sortie de revue incomplete)"
                 )
                 continue
             if not current or current != expected:
                 failed.append(
-                    f"- [ ] PR #{num} ({title}) **head change depuis le gate** ({url})\n"
+                    f"- [ ] PR #{num} ({title}) **head change depuis la revue** ({url})\n"
                     f"  Verifie: {expected[:12]} | actuel: {current[:12] or 'inconnu'}"
                 )
                 comment_pr(num, (
-                    f"Gate: **PASS** sur `{expected[:12]}`, mais la tete de la PR "
-                    f"est maintenant `{current[:12] or 'inconnue'}`.\n\n"
-                    f"Merge refuse: relancer le gate sur la tete actuelle."
+                    f"Revue: **{reviewer_label}** PASS sur `{expected[:12]}`, "
+                    f"mais la tete de la PR est maintenant "
+                    f"`{current[:12] or 'inconnue'}`.\n\n"
+                    f"Merge refuse: relancer le gate et la revue sur la tete "
+                    f"actuelle."
                 ))
                 continue
-            ok, merge_reason = merge_with_retry(url, num)
+            ok, merge_reason = merge_with_retry(url, expected)
             if ok:
                 merged.append(f"- [x] PR #{num} ({title}) **merged** ({url})")
             else:
@@ -223,7 +290,8 @@ def main() -> None:
                 f"  Raison: {reason}"
             )
             comment_pr(num, (
-                f"Gate: **FAIL**\n\n"
+                f"Revue: **{reviewer_label}**\n\n"
+                f"Verdict: **FAIL**\n\n"
                 f"Raison: {reason}\n\n"
                 f"PR laissee ouverte pour revue humaine."
             ))
@@ -233,7 +301,8 @@ def main() -> None:
                 f"  Raison: {reason}"
             )
             comment_pr(num, (
-                f"Gate: **HOLD** (revue humaine requise)\n\n"
+                f"Revue: **{reviewer_label}**\n\n"
+                f"Verdict: **HOLD** (revue humaine requise)\n\n"
                 f"Raison: {reason}\n\n"
                 f"PR laissee ouverte, aucun merge automatique."
             ))
@@ -244,15 +313,15 @@ def main() -> None:
 
     parts: list[str] = []
     if merged:
-        parts.append("## PRs mergees (squash, gate deterministe)")
+        parts.append("## PRs mergees (squash)")
         parts.extend(merged)
         parts.append("")
     if failed:
-        parts.append("## PRs a revoir (gate FAIL / merge echoue)")
+        parts.append("## PRs a revoir (FAIL / merge echoue)")
         parts.extend(failed)
         parts.append("")
     if held:
-        parts.append("## PRs en attente de revue humaine (gate HOLD)")
+        parts.append("## PRs en attente de revue humaine (HOLD)")
         parts.extend(held)
         parts.append("")
     if unreviewed:
@@ -268,9 +337,15 @@ def main() -> None:
         parts.append("")
 
     parts.append(
-        "**Verification effectuee**: gate deterministe (scope, tsc, live probe "
-        "native, baseUrl upstream, registre). Aucune IA dans la revue."
+        f"**Revue appliquee**: {reviewer_label}. Le gate deterministe reste "
+        "la couche de securite (scope, tsc, live probe native, baseUrl "
+        "upstream, registre)."
     )
+    if review_errors:
+        parts.append(
+            "**Revue IA (partielle/invalide)**: "
+            + "; ".join(review_errors)[:1200]
+        )
     parts.append("")
 
     body = "\n".join(parts).strip()
@@ -282,7 +357,8 @@ def main() -> None:
     cycle_complete = all_merged and not skipped
     if close and cycle_complete:
         run("gh", "issue", "close", str(ISSUE), "--repo", REPO,
-            "--comment", "Issue traitee: toutes les PRs mergees (gate deterministe OK).")
+            "--comment",
+            f"Issue traitee: toutes les PRs mergees ({reviewer_label} OK).")
 
     print(json.dumps({
         "ok": True,
@@ -291,6 +367,9 @@ def main() -> None:
         "held": len(held),
         "unreviewed": len(unreviewed),
         "skipped": len(skipped),
+        "review_source": review_source,
+        "reviewer_model": reviewer_model,
+        "review_errors": review_errors,
         "issue_closed": bool(close and cycle_complete),
     }, indent=2))
 

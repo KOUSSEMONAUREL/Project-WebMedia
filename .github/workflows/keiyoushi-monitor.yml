@@ -172,15 +172,22 @@ jobs:
     if: needs.check-upstream.outputs.has_changes == 'true' || github.event.inputs.force_agent == 'true' || needs.check-upstream.outputs.open_issue == 'true'
     runs-on: ubuntu-latest
     # Borne dure: un modele qui part en boucle ne doit pas immobiliser un
-    # runner jusqu'au maximum GitHub de 6h (runs du 23 et 24/10).
-    timeout-minutes: 240
+    # runner jusqu'au maximum GitHub de 6h (runs du 23 et 24/10). 300 min
+    # couvre 130 min d'agents + 90 min de gate + installation.
+    timeout-minutes: 300
+    outputs:
+      issue_number: ${{ steps.issue.outputs.issue_number }}
+      handoff_valid: ${{ steps.handoff-check.outputs.valid }}
+      gate_outcome: ${{ steps.gate.outcome }}
+      primary_model: ${{ steps.models.outputs.primary_model }}
+      fallback_model: ${{ steps.models.outputs.fallback_model }}
+      fallback3_model: ${{ steps.models.outputs.fallback3_model }}
+      fallback4_model: ${{ steps.models.outputs.fallback4_model }}
     env:
       PYTHONUNBUFFERED: "1"
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-analysis.md
       SUBMIT_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_submit.py
-      MERGE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_merge.py
-      VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_verify.py
       GATE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_gate.py
       UPSTREAM_SHA: ${{ needs.check-upstream.outputs.head_sha || 'main' }}
       HANDOFF_FILE: /tmp/keiyoushi_handoff.json
@@ -188,6 +195,10 @@ jobs:
       REVIEW_FILE: /tmp/keiyoushi_review.json
     steps:
       - uses: actions/checkout@v7
+
+      - name: Tests policy revue
+        timeout-minutes: 5
+        run: python3 -m unittest discover -s scrapers/webtoons/sync -p 'test_*.py'
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -314,6 +325,9 @@ jobs:
           elif ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$HANDOFF_FILE" 2>/dev/null; then
             echo "INVALID_HANDOFF: JSON illisible"
             echo "valid=false" >> "$GITHUB_OUTPUT"
+          elif ! python3 -c "import json,sys; h=json.load(open(sys.argv[1])); assert isinstance(h.get('close'), bool); assert isinstance(h.get('changes'), list); assert all(isinstance(c, dict) for c in h['changes'])" "$HANDOFF_FILE" 2>/dev/null; then
+            echo "INVALID_HANDOFF: close booleen, changes liste d'objets requis"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
           else
             echo "Handoff valide: $(python3 -c "import json; h=json.load(open('$HANDOFF_FILE')); print('close=' + str(h.get('close')) + ', changes=' + str(len(h.get('changes', []))))")"
             echo "valid=true" >> "$GITHUB_OUTPUT"
@@ -346,18 +360,144 @@ jobs:
             --upstream-sha "$UPSTREAM_SHA" \
             --output "$REVIEW_FILE"
 
-      - name: Appliquer verdicts et merger
-        if: steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
+      - name: Archiver les artefacts du gate
+        if: always() && steps.issue.outputs.issue_number != '' && steps.handoff-check.outputs.valid == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: keiyoushi-gate
+          if-no-files-found: warn
+          retention-days: 1
+          path: |
+            /tmp/keiyoushi_review.json
+            /tmp/keiyoushi_prs.json
+            /tmp/keiyoushi_handoff.json
+            /tmp/keiyoushi_skipped.json
+
+  ai-review:
+    name: Revue IA independante (lecture seule)
+    needs:
+      - agent-analysis
+      - check-upstream
+    if: needs.agent-analysis.outputs.handoff_valid == 'true' && needs.agent-analysis.outputs.gate_outcome == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      PYTHONUNBUFFERED: "1"
+      ISSUE_NUMBER: ${{ needs.agent-analysis.outputs.issue_number }}
+      UPSTREAM_SHA: ${{ needs.check-upstream.outputs.head_sha || 'main' }}
+      GEMINI_MODEL: google/gemini-flash-latest
+      PRIMARY_MODEL: ${{ needs.agent-analysis.outputs.primary_model }}
+      FALLBACK_MODEL: ${{ needs.agent-analysis.outputs.fallback_model }}
+      FALLBACK3_MODEL: ${{ needs.agent-analysis.outputs.fallback3_model }}
+      FALLBACK4_MODEL: ${{ needs.agent-analysis.outputs.fallback4_model }}
+      HANDOFF_FILE: /tmp/keiyoushi_handoff.json
+      PR_LIST_FILE: /tmp/keiyoushi_prs.json
+      REVIEW_FILE: /tmp/keiyoushi_review.json
+      AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
+      AI_REVIEW_LOG_DIR: /tmp/keiyoushi-ai-review-logs
+      REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
+      REVIEW_RUNNER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_ai_review.py
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scrapers/webtoons/package-lock.json
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: cd scrapers/webtoons && npm ci
+
+      - name: Installer opencode
+        timeout-minutes: 10
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          export PATH="$HOME/.opencode/bin:$PATH"
+          opencode --version
+
+      - name: Recuperer les artefacts du gate
+        uses: actions/download-artifact@v8
+        with:
+          name: keiyoushi-gate
+          path: /tmp
+
+      - name: Revue IA independante (memes modeles que l'agent)
+        timeout-minutes: 55
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: |
+          export PATH="$HOME/.opencode/bin:$PATH"
+          python3 "$REVIEW_RUNNER"
+
+      - name: Archiver la revue IA
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keiyoushi-ai-review
+          if-no-files-found: warn
+          retention-days: 1
+          path: /tmp/keiyoushi_ai_review.json
+
+  apply:
+    name: Appliquer verdicts, merger et verifier
+    needs:
+      - agent-analysis
+      - ai-review
+    if: always() && needs.agent-analysis.result != 'skipped' && needs.agent-analysis.outputs.issue_number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      PYTHONUNBUFFERED: "1"
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ needs.agent-analysis.outputs.issue_number }}
+      MERGE_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_merge.py
+      VERIFY_SCRIPT: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_verify.py
+      HANDOFF_FILE: /tmp/keiyoushi_handoff.json
+      PR_LIST_FILE: /tmp/keiyoushi_prs.json
+      REVIEW_FILE: /tmp/keiyoushi_review.json
+      AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
+      SKIPPED_FILE: /tmp/keiyoushi_skipped.json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Recuperer les artefacts du gate
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: keiyoushi-gate
+          path: /tmp
+
+      - name: Recuperer la revue IA
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: keiyoushi-ai-review
+          path: /tmp
+
+      - name: Appliquer verdicts et merger
+        if: always() && needs.agent-analysis.outputs.handoff_valid == 'true' && needs.agent-analysis.outputs.gate_outcome == 'success'
         run: |
           python3 "$MERGE_SCRIPT"
 
       - name: Verification finale (independante de l'agent)
-        if: always() && steps.issue.outputs.issue_number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        if: always()
         run: |
           python3 "$VERIFY_SCRIPT"

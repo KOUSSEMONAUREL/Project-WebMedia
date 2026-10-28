@@ -26,8 +26,9 @@ machine-readable **handoff**. You DO NOT perform any system/GitHub action yourse
   commit, push or open a PR for it yourself.** Editing locally is what puts the change
   in the handoff's `paths`, which is how the execution script stages it and opens it as
   its own PR. So: write the verdict locally, list it as a `REGISTRY_RECHECK` item, and
-  let the script and the deterministic gate decide whether it reaches `main`. What you must
-  never do is bypass that gate — no `git commit` on that file, no direct push, no
+  let the script, the deterministic gate, and the independent review decide whether
+  it reaches `main`. What you must never do is bypass those checks — no `git commit`
+  on that file, no direct push, no
   `gh pr create`. A durable verdict lands the same way a scraper does: through a
   reviewed PR.
 - If you think something requires a git/PR action, put it in the handoff instead:
