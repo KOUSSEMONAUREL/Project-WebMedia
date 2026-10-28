@@ -121,6 +121,7 @@ async function main(): Promise<void> {
     ? await attempt(() => instance.getPageList(chapter.url))
     : { error: 'no chapter url', value: [] as Awaited<ReturnType<BaseScraper['getPageList']>> };
   const pageCount = Array.isArray(pages.value) ? pages.value.length : 0;
+  const pagesUnsupported = Boolean(pages.unsupported);
 
   let status = 'OK';
   let error = '';
@@ -134,10 +135,10 @@ async function main(): Promise<void> {
   } else if (chapterCount === 0) {
     status = 'CHAPTERS_EMPTY';
     error = chapters.error || 'chapter list is empty';
-  } else if (pageCount === 0) {
+  } else if (pageCount === 0 && !pagesUnsupported) {
     status = 'PAGES_EMPTY';
     error = pages.error || 'page list is empty';
-  } else if (homeCount === null && searchCount > 0 && chapterCount > 0 && pageCount > 0) {
+  } else if (homeCount === null && searchCount > 0 && chapterCount > 0 && (pageCount > 0 || pagesUnsupported)) {
     status = 'OK';
     error = 'popular/latest not implemented; search and content stages pass';
   }
@@ -165,7 +166,7 @@ async function main(): Promise<void> {
       latest: { count: latestCount, error: summarize(latest), unsupported: Boolean(latest.unsupported) },
       search: { count: searchCount, error: summarize(search) },
       chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
-      pages: { count: pageCount, chapterUrl: chapter?.url || null, error: summarize(pages) },
+      pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, error: summarize(pages) },
       probe: { verdict: probe.verdict, detail: probe.detail },
       error: error || networkError || probe.detail,
     }));
@@ -184,7 +185,7 @@ async function main(): Promise<void> {
     latest: { count: latestCount, error: summarize(latest), unsupported: Boolean(latest.unsupported) },
     search: { count: searchCount, error: summarize(search) },
     chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
-    pages: { count: pageCount, chapterUrl: chapter?.url || null, error: summarize(pages) },
+    pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, error: summarize(pages) },
     probe: null,
     error,
   }));
