@@ -193,7 +193,7 @@ export class JnovelScraper extends BaseScraper {
   async getPageList(_chapterUrl: string): Promise<Page[]> {
     // Pages are delivered as an encrypted E4P manifest behind the WebView viewer.
     // The webtoon pipeline only ingests the series URL, so page extraction is out of scope.
-    return [];
+    throw new Error('J-Novel: getPageList() not implemented (encrypted E4P WebView manifest)');
   }
 }
 
