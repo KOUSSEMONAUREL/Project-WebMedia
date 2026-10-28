@@ -46,13 +46,22 @@ export class PhiliaScansScraper extends BaseScraper {
     return url.split('#')[1]?.split('/')[0] ?? url.split('/').filter(Boolean).pop() ?? '';
   }
 
+  private resolveUrl(value: string | undefined): string {
+    if (!value) return '';
+    try {
+      return new URL(value, `${this.baseUrl}/`).toString();
+    } catch {
+      return value;
+    }
+  }
+
   private mapItems(items: MangaItem[]): Manga[] {
     return items
       .filter((m) => typeof m.slug === 'string' && m.slug.length > 0)
       .map((m) => ({
         title: m.title ?? '',
         url: `${this.baseUrl}/manga/${m.slug}`,
-        thumbnailUrl: m.coverImageUrl ?? '',
+        thumbnailUrl: this.resolveUrl(m.coverImageUrl),
         lang: this.lang,
       }));
   }
@@ -95,7 +104,7 @@ export class PhiliaScansScraper extends BaseScraper {
     return {
       title: m.title ?? '',
       url: `${this.baseUrl}/manga/${slug}`,
-      thumbnailUrl: m.coverImageUrl ?? '',
+      thumbnailUrl: this.resolveUrl(m.coverImageUrl),
       description: synopsis || undefined,
       status: m.status === 'ON_GOING' ? 1 : m.status === 'COMPLETED' ? 0 : 3,
       lang: this.lang,
