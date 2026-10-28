@@ -748,27 +748,28 @@ un `GET` HTTP simple repond a nouveau.
 - `en/webnex` : passage du lecteur en WebView ; `getPageList` n'est pas utilise par la pipeline.
 - `all/mangatoon` / `all/namicomi` : `versionCode` et listes de langues uniquement ; aucun changement `.ts`.
 
-## Cycle du 2026-10-27 (issue #555) : NexComic et VIZ portés, Lgbtics et ManhuaTop bloqués
+## Cycle du 2026-10-27 (issue #555) : NexComic et VIZ portés, Lgbtics et ManhuaTop à porter
 
-Sondes du **2026-10-27** en IPv4 (`curl -4 -L`), UA navigateur.
+Sondes du **2026-10-27** en IPv4 (`curl -4 -L`), UA navigateur, puis re-sonde
+`en/lgbtics` et `en/manhuatop` depuis une IP résidentielle (France, hors datacenter).
 
 ### Ports valides en direct
 
 | Extension | Domaine | Verdict | Preuve |
 |---|---|---|---|
 | `en/nexcomic` | `nexcomic.com` | PORTÉ (#555) | `GET /api/local/series` -> **200**, 46 064 o, 27 séries ; `GET /api/local/popular?limit=100&period=all` -> **200** ; fiche `/series/<slug>.rsc` -> **200**, `series` + `chapters` ; gate live popular 27, search 2, chapitres 4, pages 33 |
-| `en/vizshonenjump` | `www.viz.com` | PORTÉ (#555) | `GET /manga-books/shonenjump/section/trending-manga` -> **200**, 8 séries ; `GET /manga-books/shonenjump/section/free-chapters` -> **200**, 283 entrées ; fiche `/shonenjump/chapters/one-piece` -> **200** ; gate live popular 8, search 1, chapitres 254. Le lecteur exige un abonnement VIZ, sans impact sur `rootUrl` |
+| `en/vizshonenjump` | `www.viz.com` | PORTÉ (#555) | `GET /manga-books/shonenjump/section/trending-manga` -> **200**, 8 séries ; `GET /manga-books/shonenjump/section/free-chapters` -> **200**, 283 entrées ; fiche `/shonenjump/chapters/one-piece` -> **200** ; gate live popular 8, search 1, chapitres 254. Le lecteur exige un abonnement VIZ : `getPageList` lève `not implemented`, le gate accepte une page list explicitement non supportée |
 
 L'ancienne ligne `IGNORE` de `en/vizshonenjump` portait sur `vizshonenjump.com`
 (**NXDOMAIN**) ; l'upstream pointe en réalité sur `www.viz.com`, qui sert catalogue et
 fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapable.
 
-### Sources inaccessibles en HTTP simple : aucun `rootUrl` produit
+### Sources accessibles hors datacenter : `rootUrl` à porter
 
-| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
-|---|---|---|---|---|
-| `en/lgbtics` | `lgbtics.com` | UNKNOWN | `/` et `/comic/` -> `403` + **5 768 o**, `<title>Attention Required! \| Cloudflare</title>` ; aucun catalogue. `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend le catalogue `/comic/` |
-| `en/manhuatop` | `manhuatop.org` | UNKNOWN | `/` -> `403` + **5 478 o**, `/series/` -> `403` + **5 499 o**, API exacte `/api/discovery?path=/series/` -> `403` + **5 629 o**, `<title>Just a moment...</title>`. `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend `/series/` ou `/api/discovery` |
+| Extension | Domaine upstream | Verdict | Preuve |
+|---|---|---|---|
+| `en/lgbtics` | `lgbtics.com` | BUILD | Re-sonde du **2026-10-27** depuis une IP résidentielle (France) : `/comic/` -> **200**, 222 667 o, `<title>Manga Archive - Lgbtics</title>`, thème **Madara** (`wp-content/themes/madara`, 42 `page-item-detail`). Le runner datacenter reste bloqué (`403` Cloudflare) : `LOCAL_RECHECK: residential`. Port à faire via `engine/madara.ts` |
+| `en/manhuatop` | `manhuatop.org` | BUILD | Re-sonde du **2026-10-27** depuis une IP résidentielle (France) : `/series/` -> **200**, 222 614 o, `<title>Manga Archive - Manhua Top</title>`, liens de catalogue (`/series/?sort=latest_update`). `/api/discovery?path=/series/` reste `403` Cloudflare même localement : seul le catalogue HTML est vérifié. `LOCAL_RECHECK: residential`. Port custom à faire |
 
 ### Deltas upstream non applicables
 
@@ -776,6 +777,7 @@ fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapabl
 - `en/mangadrama` : passage au multisrc `InitManga` ; notre port HTML lit toujours les mêmes sélecteurs, gate live popular 429, search 2, chapitres 412.
 - `en/philiascans` : notre port applique la résolution des couvertures relatives (`baseUrl.resolve`) ; le reste du delta concerne le lecteur (DRM, filtres, `getMangaByUrl`). API `philiascans.org/api/manga` -> **403** challenge depuis le runner (`LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate`).
 - `en/templescan` : ajout de `Accept-Encoding` sur les requêtes d'images ; notre `getPageList` ne fait que retourner des URLs. Le domaine reste `403` challenge depuis le runner.
+- `all/deviantart` : ligne `IGNORE` reconfirmée ; les ajouts upstream (`Dto.kt`, `ImageInterceptor.kt`, `Parsing.kt`) ne concernent que la lecture des écarts d'une galerie, `getPopularManga`/`getLatestUpdates` lèvent toujours `UnsupportedOperationException`. Aucun catalogue popular/search à porter.
 
 ## Maintenance
 
