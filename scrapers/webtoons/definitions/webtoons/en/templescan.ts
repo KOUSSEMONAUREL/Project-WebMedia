@@ -81,7 +81,18 @@ const RSC_TABLE_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\],\s*([A-Za-z0-9_$]{1,40})\s
 const RSC_OFFSET_REGEX = /([A-Za-z0-9_$]{1,40})\s*=\s*(\d+)\s*\+\s*([A-Za-z0-9_$]{1,40})\.charCodeAt\(0\)\s*%\s*(\d+)/g;
 const RSC_SLOT_REGEX = /\(\s*[A-Za-z0-9_$]{1,40}\s*\+\s*([A-Za-z0-9_$]{1,40})\s*\)\s*%\s*(\d+)\s*\*\s*(\d+)/g;
 const RSC_SPLIT_REGEX = /\[((?:"[A-Za-z0-9_]+",?)+)\],\s*[^=;]{1,32}=\s*"([^"]*)"\.split\(",\)/;
+const RSC_PACKED_REGEX = /"([A-Za-z0-9]{70,})"\.match\(\/\.\{7\}\/g\)/;
 const RSC_NAME_REGEX = /"([A-Za-z0-9_]+)"/g;
+const RSC_PACKED_FIELDS = [
+  'Chapter',
+  'images',
+  'chapter_slug',
+  'title',
+  'Season',
+  'price',
+  'chapter_name',
+  'series_slug',
+];
 // How far past the names array the minified derivation may sit before it is
 // not the one (upstream DERIVATION_WINDOW).
 const RSC_DERIVATION_WINDOW = 600;
@@ -131,7 +142,29 @@ function deriveSaltKeys(names: string[], salt: string, saltVar: string, derivati
   return out;
 }
 
+// Packed derivation: the bundle rotates a 7-char key pool and consumes the
+// fields in the order the module registers them.
+function derivePackedKeys(packed: string): Map<string, string> | null {
+  const pool = packed.match(/.{7}/g) ?? [];
+  if (pool.length < RSC_PACKED_FIELDS.length) return null;
+  const remaining = pool.slice();
+  let cursor = 4;
+  const out = new Map<string, string>();
+  for (const field of RSC_PACKED_FIELDS) {
+    cursor = (cursor + 11) % remaining.length;
+    const key = remaining.splice(cursor, 1)[0];
+    if (!key || key.length !== 7) return null;
+    out.set(field, key);
+  }
+  return out;
+}
+
 function findRscTable(chunkSource: string): Map<string, string> | null {
+  const packed = RSC_PACKED_REGEX.exec(chunkSource);
+  if (packed) {
+    const table = derivePackedKeys(packed[1]);
+    if (table && table.size > 0) return table;
+  }
   const tableRe = new RegExp(RSC_TABLE_REGEX);
   let m: RegExpExecArray | null;
   while ((m = tableRe.exec(chunkSource)) !== null) {
@@ -345,10 +378,11 @@ function parseDate(value: string | null | undefined): number | undefined {
 const BROWSER_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+    '(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
   Accept:
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
+  'Sec-Fetch-User': '?1',
   'Upgrade-Insecure-Requests': '1',
 };
 
