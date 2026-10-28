@@ -283,7 +283,7 @@ def process_jobs():
     GAME_SOURCES = [
         ("steamunlocked.org", "https://steamunlocked.org/?s="),
         ("fitgirl-repacks.site", "https://fitgirl-repacks.site/?s="),
-        ("gamedrive.org", "https://gamedrive.org/?s="),
+        ("gamedrive.org", "https://gamedrive.org/search/"),
         ("elamigos.site", "https://elamigos.site/?q="),
         ("romspure.cc", "https://romspure.cc/?s="),
         ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),
@@ -436,7 +436,7 @@ def search_title_direct(game_name):
     GAME_SOURCES = [
         ("steamunlocked.org", "https://steamunlocked.org/?s="),
         ("fitgirl-repacks.site", "https://fitgirl-repacks.site/?s="),
-        ("gamedrive.org", "https://gamedrive.org/?s="),
+        ("gamedrive.org", "https://gamedrive.org/search/"),
         ("elamigos.site", "https://elamigos.site/?q="),
         ("romspure.cc", "https://romspure.cc/?s="),
         ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),

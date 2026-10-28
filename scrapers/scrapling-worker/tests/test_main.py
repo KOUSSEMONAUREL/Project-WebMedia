@@ -14,7 +14,6 @@ class TestMainModule(unittest.TestCase):
     def test_steamrip_handler_exists(self):
         with open(os.path.join(os.path.dirname(__file__), '..', 'src', 'main.py')) as f:
             source = f.read()
-        self.assertIn("# 10. SteamRip", source, "SteamRip handler must exist")
         self.assertIn('if "steamrip.com" in url:', source, "SteamRip URL check must exist")
 
     def test_headers_not_conditional(self):
@@ -22,8 +21,18 @@ class TestMainModule(unittest.TestCase):
             source = f.read()
         self.assertNotIn("headers if site_name == 'steamrip.com' else {}", source,
                          "Headers should NOT be conditional on steamrip")
-        self.assertIn("page = fetcher.get(search_url, headers=headers)", source,
-                      "Headers should use 'headers' variable directly")
+        self.assertIn('"headers": {"User-Agent": DEFAULT_UA}', source,
+                      "Headers should use the shared User-Agent")
+        self.assertIn("return Fetcher.get(url, **kwargs)", source,
+                      "Fetcher should receive the shared request options")
+
+    def test_gamedrive_uses_search_path(self):
+        src = os.path.join(os.path.dirname(__file__), '..', 'src')
+        for name in ('main.py', 'scraper_verify.py'):
+            with open(os.path.join(src, name)) as f:
+                source = f.read()
+            self.assertIn('("gamedrive.org", "https://gamedrive.org/search/")', source)
+            self.assertNotIn('("gamedrive.org", "https://gamedrive.org/?s=")', source)
 
     def test_all_game_sources_present(self):
         with open(os.path.join(os.path.dirname(__file__), '..', 'src', 'main.py')) as f:

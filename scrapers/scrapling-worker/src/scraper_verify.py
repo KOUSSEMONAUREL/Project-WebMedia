@@ -37,7 +37,7 @@ ISSUE_BODY_FILE = os.environ.get("SCRAPER_ISSUE_BODY_FILE", "/tmp/scraper_issue_
 GAME_SOURCES = [
     ("steamunlocked.org", "https://steamunlocked.org/?s="),
     ("fitgirl-repacks.site", "https://fitgirl-repacks.site/?s="),
-    ("gamedrive.org", "https://gamedrive.org/?s="),
+    ("gamedrive.org", "https://gamedrive.org/search/"),
     ("elamigos.site", "https://elamigos.site/?q="),
     ("romspure.cc", "https://romspure.cc/?s="),
     ("cfinder.xyz", "https://cfinder.xyz/api/cracks/search/"),
