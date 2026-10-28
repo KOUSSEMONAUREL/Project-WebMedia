@@ -764,12 +764,9 @@ L'ancienne ligne `IGNORE` de `en/vizshonenjump` portait sur `vizshonenjump.com`
 (**NXDOMAIN**) ; l'upstream pointe en réalité sur `www.viz.com`, qui sert catalogue et
 fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapable.
 
-### Sources accessibles hors datacenter : `rootUrl` à porter
+### Sources accessibles hors datacenter : `rootUrl` porté le 2026-10-28
 
-| Extension | Domaine upstream | Verdict | Preuve |
-|---|---|---|---|
-| `en/lgbtics` | `lgbtics.com` | BUILD | Re-sonde du **2026-10-27** depuis une IP résidentielle (France) : `/comic/` -> **200**, 222 667 o, `<title>Manga Archive - Lgbtics</title>`, thème **Madara** (`wp-content/themes/madara`, 42 `page-item-detail`). Le runner datacenter reste bloqué (`403` Cloudflare) : `LOCAL_RECHECK: residential`. Port à faire via `engine/madara.ts` |
-| `en/manhuatop` | `manhuatop.org` | BUILD | Re-sonde du **2026-10-27** depuis une IP résidentielle (France) : `/series/` -> **200**, 222 614 o, `<title>Manga Archive - Manhua Top</title>`, liens de catalogue (`/series/?sort=latest_update`). `/api/discovery?path=/series/` reste `403` Cloudflare même localement : seul le catalogue HTML est vérifié. `LOCAL_RECHECK: residential`. Port custom à faire |
+Les deux sources ont été portées après la re-sonde : voir le cycle #561 ci-dessous.
 
 ### Deltas upstream non applicables
 
@@ -778,6 +775,26 @@ fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapabl
 - `en/philiascans` : notre port applique la résolution des couvertures relatives (`baseUrl.resolve`) ; le reste du delta concerne le lecteur (DRM, filtres, `getMangaByUrl`). API `philiascans.org/api/manga` -> **403** challenge depuis le runner (`LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate`).
 - `en/templescan` : ajout de `Accept-Encoding` sur les requêtes d'images ; notre `getPageList` ne fait que retourner des URLs. Le domaine reste `403` challenge depuis le runner.
 - `all/deviantart` : ligne `IGNORE` reconfirmée ; les ajouts upstream (`Dto.kt`, `ImageInterceptor.kt`, `Parsing.kt`) ne concernent que la lecture des écarts d'une galerie, `getPopularManga`/`getLatestUpdates` lèvent toujours `UnsupportedOperationException`. Aucun catalogue popular/search à porter.
+
+## Cycle du 2026-10-28 (issue #561) : Lgbtics et ManhuaTop portés
+
+Les entrées `en/lgbtics` (`lgbtics.com`) et `en/manhuatop` (`manhuatop.org`)
+sont retirées du registre des sources à porter : les deux ports sont mergés.
+Validation fonctionnelle depuis une IP résidentielle (France, `curl -4`, UA
+navigateur). Le runner datacenter sans WARP reste `403` Cloudflare via
+axios/Node ; le worker de production se connecte via WARP.
+
+| Extension | Domaine | Verdict | Preuve |
+|---|---|---|---|
+| `en/lgbtics` | `lgbtics.com` | PORTÉ (#561) | `GET /comic/?m_orderby=views` -> **200**, 18 séries ; recherche `/?s=Sisters&post_type=wp-manga` -> 5 résultats ; fiche `/comic/sisters-boyfriend-shadbase/` -> 10 chapitres ; lecteur -> 1 page. Gate live `BLOCKED` (403 Cloudflare via Node), vérification fonctionnelle via curl |
+| `en/manhuatop` | `manhuatop.org` | PORTÉ (#561) | `GET /api/discovery?path=/series/?sort=trending-week` -> **200**, 24 séries ; recherche `/search/tales/` -> 24 résultats ; fiche `/manhua/tales-of-demons-and-gods-mh/` -> 1 152 chapitres paginés par 50 ; lecteur -> 21 pages sur `chapter-0`. Gate live `BLOCKED` (403 Cloudflare via Node), vérification fonctionnelle via curl |
+
+### Entrées retirées du registre
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/lgbtics` | `lgbtics.com` | Retire du registre | Porté le 2026-10-28 (#561), preuve fonctionnelle ci-dessus | n/a |
+| `en/manhuatop` | `manhuatop.org` | Retire du registre | Porté le 2026-10-28 (#561), preuve fonctionnelle ci-dessus | n/a |
 
 ## Maintenance
 
