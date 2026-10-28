@@ -151,9 +151,7 @@ export class VizShonenJumpScraper extends BaseScraper {
   }
 
   async getPageList(): Promise<Page[]> {
-    // VIZ serves chapter images only to a logged-in subscriber. The webtoon
-    // pipeline ingests the series URL and never consumes page images.
-    return [];
+    throw new Error('VIZ: getPageList() not implemented (reader requires a subscription)');
   }
 }
 
