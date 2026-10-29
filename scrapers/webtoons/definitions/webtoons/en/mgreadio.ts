@@ -7,6 +7,7 @@ interface MgreadSearchDto {
   id: number;
   title: string;
   url: string;
+  post_type: string;
   thumb?: string;
 }
 
@@ -41,6 +42,12 @@ function isAnimeEntry(title: string, url: string): boolean {
     normalized.startsWith('anime –') ||
     url.replace(/\/$/, '').split('/').pop()!.startsWith('anime-')
   );
+}
+
+function parseChapterDate(value: string): number | undefined {
+  const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}+07:00`;
+  const timestamp = Date.parse(normalized);
+  return Number.isNaN(timestamp) ? undefined : timestamp;
 }
 
 export class MgreadioScraper extends BaseScraper {
@@ -79,6 +86,27 @@ export class MgreadioScraper extends BaseScraper {
     return { mangas: filtered, hasNextPage };
   }
 
+  private advancedFilterFromHtml(html: string): SearchResult {
+    const $ = this.$(html);
+    const mangas: Manga[] = [];
+    $('div.manga-item-details').each((_i, el) => {
+      const $el = $(el);
+      const link = $el.find('h2 a').first();
+      const href = link.attr('href');
+      const title = link.text().trim();
+      if (!href || !title) return;
+      const thumbnailUrl = $el.find('img').first().attr('src') || '';
+      mangas.push({
+        title,
+        url: new URL(this.absUrl(href)).pathname,
+        thumbnailUrl: this.absUrl(thumbnailUrl),
+        lang: this.lang,
+      });
+    });
+    const hasNextPage = $("li:not(.uk-disabled) > a[aria-label='Next page']").length > 0;
+    return { mangas: mangas.filter(m => !isAnimeEntry(m.title, m.url)), hasNextPage };
+  }
+
   async getPopular(page = 1): Promise<SearchResult> {
     const res = await this.get(this.pageUrl('manga-ranking', page));
     return this.mangasPageFromHtml(res.data);
@@ -93,7 +121,8 @@ export class MgreadioScraper extends BaseScraper {
     if (query.trim()) {
       const url = `${this.baseUrl}/wp-json/initlise/v1/search?term=${encodeURIComponent(query.trim())}&page=${page}`;
       const res = await this.get(url);
-      const mangas: Manga[] = (res.data as MgreadSearchDto[] || [])
+      const results = (res.data as MgreadSearchDto[] || []).filter(dto => dto.post_type === 'manga');
+      const mangas: Manga[] = results
         .map(dto => {
           const parsedTitle = this.$(dto.title).text();
           const cleanUrl = dto.url.trim();
@@ -106,12 +135,12 @@ export class MgreadioScraper extends BaseScraper {
           };
         })
         .filter((m): m is Manga => !!m && !isAnimeEntry(m.title, m.url));
-      return { mangas, hasNextPage: false };
+      return { mangas, hasNextPage: results.length === 10 };
     }
 
     const url = this.pageUrl('advanced-filter', page);
     const res = await this.get(url);
-    return this.mangasPageFromHtml(res.data);
+    return this.advancedFilterFromHtml(res.data);
   }
 
   private mangaDetailsFromHtml(html: string, pageUrl: string): Partial<Manga> {
@@ -206,7 +235,7 @@ export class MgreadioScraper extends BaseScraper {
           name,
           url: `${cleanMangaPath}/${slug}/`,
           chapterNumber: num,
-          dateUpload: ch.created_at ? new Date(`${ch.created_at} UTC`).getTime() : undefined,
+          dateUpload: ch.created_at ? parseChapterDate(ch.created_at) : undefined,
         };
       }),
     );
@@ -226,6 +255,9 @@ export class MgreadioScraper extends BaseScraper {
       seen.add(imageUrl);
       pages.push({ index: pages.length, imageUrl });
     });
+    if (pages.length === 0) {
+      throw new Error('Mgread.io: getPageList() not implemented (encrypted reader payload)');
+    }
     return pages;
   }
 }
