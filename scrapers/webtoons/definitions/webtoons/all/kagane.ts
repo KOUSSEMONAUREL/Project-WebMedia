@@ -13,12 +13,24 @@ interface KaganeSearchResponse {
   total_pages?: number;
 }
 
+interface KaganeDetails {
+  slug?: string | null;
+}
+
+type KaganeCell = string | number | boolean | null | number[] | undefined;
+
+interface KaganeBookIndex {
+  fields: string[];
+  groups?: Array<{ title?: string }>;
+  books: KaganeCell[][];
+}
+
 export class KaganeScraper extends BaseScraper {
   readonly name = 'Kagane';
-  readonly baseUrl = 'https://kagane.si';
+  readonly baseUrl = 'https://kagane.cx';
   readonly lang = 'all';
 
-  private apiUrl = 'https://kagane.si/api/v2';
+  private apiUrl = 'https://kagane.cx/api/v2';
 
   async getPopular(_page = 1): Promise<SearchResult> {
     const page = _page - 1;
@@ -57,7 +69,8 @@ export class KaganeScraper extends BaseScraper {
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const id = mangaUrl.split('/').filter(Boolean).pop() || '';
+    const segment = mangaUrl.split('/').filter(Boolean).pop() || '';
+    const id = segment.slice(-36);
     if (!id) return { url: mangaUrl, lang: this.lang };
     try {
       const res = await this.get(`${this.apiUrl}/series/${id}`);
@@ -68,11 +81,60 @@ export class KaganeScraper extends BaseScraper {
     }
   }
 
-  async getChapterList(_mangaUrl: string): Promise<Chapter[]> {
-    return [];
+  async getChapterList(mangaUrl: string): Promise<Chapter[]> {
+    const segment = mangaUrl.split('/').filter(Boolean).pop() || '';
+    const id = segment.slice(-36);
+    if (!id) return [];
+
+    let slug = '';
+    try {
+      const detailRes = await this.get(`${this.apiUrl}/series/${id}`);
+      const detail = (typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data) as KaganeDetails;
+      slug = detail.slug?.trim() || '';
+    } catch {
+      slug = '';
+    }
+
+    const res = await this.get(`${this.apiUrl}/series/${id}/books/index?fields=List`);
+    const data = (typeof res.data === 'string' ? JSON.parse(res.data) : res.data) as KaganeBookIndex;
+    const fields = data.fields ?? [];
+    const groups = data.groups ?? [];
+    const cell = (row: KaganeCell[], field: string): KaganeCell => {
+      const index = fields.indexOf(field);
+      return index >= 0 ? row[index] : undefined;
+    };
+    const seriesPath = slug ? `${slug}-${id}` : id;
+
+    const chapters = (data.books ?? []).flatMap((row): Chapter[] => {
+      const bookId = String(cell(row, 'book_id') ?? '');
+      if (!bookId) return [];
+      const title = String(cell(row, 'title') ?? '').trim();
+      const chapterNo = cell(row, 'chapter_no');
+      const volumeNo = cell(row, 'volume_no');
+      const name = title || (volumeNo ? `Vol.${String(volumeNo)}` : chapterNo ? `Ch.${String(chapterNo)}` : bookId);
+      const rawNumber = cell(row, 'sort_no');
+      const number = typeof rawNumber === 'number' ? rawNumber : typeof rawNumber === 'string' ? Number.parseFloat(rawNumber) : undefined;
+      const rawDate = cell(row, 'released_at');
+      const seconds = typeof rawDate === 'number' ? rawDate : typeof rawDate === 'string' ? Number.parseFloat(rawDate) : undefined;
+      const rawGroupIndexes = cell(row, 'group_ix');
+      const groupIndexes = Array.isArray(rawGroupIndexes) ? rawGroupIndexes : [];
+      const scanlator = groupIndexes
+        .map(index => groups[index]?.title?.trim() || '')
+        .filter(Boolean)
+        .join(', ');
+      return [{
+        name,
+        url: `/series/${seriesPath}/reader/${bookId}`,
+        chapterNumber: number !== undefined && Number.isFinite(number) ? number : undefined,
+        scanlator: scanlator || undefined,
+        dateUpload: seconds !== undefined && Number.isFinite(seconds) ? seconds * 1000 : undefined,
+      }];
+    });
+
+    return chapters.sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0));
   }
 
   async getPageList(_chapterUrl: string): Promise<Page[]> {
-    return [];
+    throw new Error('Kagane: getPageList() not implemented');
   }
 }
