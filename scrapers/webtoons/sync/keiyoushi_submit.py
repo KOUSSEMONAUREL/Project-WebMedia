@@ -256,6 +256,39 @@ def run(*args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
+def has_changes_vs_main(paths: list[str]) -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--", *paths],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"ERROR: git status --porcelain -- {' '.join(paths)}"
+              f"\n{result.stderr}")
+        sys.exit(1)
+    return bool(result.stdout.strip())
+
+
+def has_staged_changes(paths: list[str]) -> bool:
+    result = subprocess.run(["git", "diff", "--cached", "--quiet", "--", *paths])
+    if result.returncode not in (0, 1):
+        print(f"ERROR: git diff --cached --quiet -- {' '.join(paths)}")
+        sys.exit(1)
+    return result.returncode == 1
+
+
+def next_free_branch(base: str) -> str:
+    for suffix in range(2, 100):
+        candidate = f"{base}-r{suffix}"
+        existing = run(
+            "gh", "pr", "list", "--head", candidate, "--repo", REPO,
+            "--state", "all", "--json", "number", "-q", "length",
+            check=False,
+        ).strip()
+        if existing in ("", "0"):
+            return candidate
+    raise RuntimeError(f"aucune branche libre pour {base}")
+
+
 def main() -> None:
     if not os.path.exists(HANDOFF):
         print("Aucun handoff produit par l'agent, rien a soumettre.")
@@ -314,9 +347,13 @@ def main() -> None:
             state, _, rest = existing_pr.partition("||")
             url, _, number = rest.partition("||")
             if state == "MERGED":
-                print(f"PR #{number} (branch {branch}) deja MERGED, "
-                      "skip (deja soumise, rien a re-submit)")
-                continue
+                if not has_changes_vs_main(paths):
+                    print(f"PR #{number} (branch {branch}) deja MERGED et "
+                          "contenu identique, skip (rien a re-submit)")
+                    continue
+                branch = next_free_branch(branch)
+                print(f"PR #{number} deja MERGED mais le contenu a change: "
+                      f"nouvelle PR sur {branch}")
             if state == "OPEN":
                 # La branche distante appartient au pipeline : on la
                 # reconstruit depuis main, ce qui la desynchronise de
@@ -334,7 +371,7 @@ def main() -> None:
                 run("git", "switch", "-c", branch, "main", check=False)
                 run("git", "stash", "pop")
                 run("git", "add", "-A", "--", *paths)
-                if run("git", "diff", "--cached", "--quiet", check=False):
+                if not has_staged_changes(paths):
                     print(f"PR #{number} ({label}): rien de nouveau a pousser, "
                           "la branche est deja a jour")
                 else:
@@ -350,21 +387,22 @@ def main() -> None:
                       "(branche reconstruite depuis main, force-with-lease)")
                 pr_urls.append(url)
                 continue
-            # PR fermee: elle n'empeche une nouvelle soumission que si la
-            # branche occupee existe encore. Branche fermee ET supprimee =
-            # cycle propre, on repart sur une PR neuve (c'etait le cas de
-            # #334 et #317, ignorees en silence au run #155).
-            run("git", "fetch", "--quiet", "origin", branch, check=False)
-            if run("git", "rev-parse", "--verify", "--quiet",
-                   f"origin/{branch}", check=False):
-                print(f"PR #{number} fermee et branche {branch} encore "
-                      "presente: ecarte")
-                skipped.append(
-                    f"`{label}` (PR #{number} fermee sur {branch}, branche "
-                    "encore presente: la supprimer pour re-soumettre)")
-                continue
-            print(f"PR #{number} fermee et branche {branch} supprimee: "
-                  "nouvelle soumission")
+            if state == "CLOSED":
+                # PR fermee: elle n'empeche une nouvelle soumission que si la
+                # branche occupee existe encore. Branche fermee ET supprimee =
+                # cycle propre, on repart sur une PR neuve (c'etait le cas de
+                # #334 et #317, ignorees en silence au run #155).
+                run("git", "fetch", "--quiet", "origin", branch, check=False)
+                if run("git", "rev-parse", "--verify", "--quiet",
+                       f"origin/{branch}", check=False):
+                    print(f"PR #{number} fermee et branche {branch} encore "
+                          "presente: ecarte")
+                    skipped.append(
+                        f"`{label}` (PR #{number} fermee sur {branch}, branche "
+                        "encore presente: la supprimer pour re-soumettre)")
+                    continue
+                print(f"PR #{number} fermee et branche {branch} supprimee: "
+                      "nouvelle soumission")
 
         run("git", "stash", "push", "-u", "-m", f"keiyoushi-{ISSUE}-pending", check=False)
         run("git", "branch", "-D", branch, check=False)
@@ -372,7 +410,7 @@ def main() -> None:
         run("git", "stash", "pop", check=False)
 
         run("git", "add", "-A", "--", *paths)
-        if run("git", "diff", "--cached", "--quiet", check=False):
+        if not has_staged_changes(paths):
             # Rien de neuf: le contenu annonce est deja identique sur la
             # branche (PR precedente du meme engine, ou travail deja merge).
             # On n'ouvre pas de PR vide, on le signale et on continue.

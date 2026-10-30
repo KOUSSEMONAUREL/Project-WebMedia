@@ -11,6 +11,8 @@ Lancement: python3 -m unittest discover -s scrapers/webtoons/sync -p 'test_*.py'
 import os
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 # `keiyoushi_submit` lit ISSUE_NUMBER a l'import (il est fourni par le runner
 # GitHub Actions). On pose une valeur de test pour que le module soit
@@ -133,6 +135,43 @@ class TestSplitAndTitle(unittest.TestCase):
     def test_registry_label_refuses_scraper_group(self):
         with self.assertRaises(ValueError):
             ks.registry_label([change(type="BUILD", paths=["scrapers/a.ts"])])
+
+
+class TestMergedResubmit(unittest.TestCase):
+    def test_next_free_branch_skips_existing_prs(self):
+        def fake_run(*args, check=True):
+            head = args[args.index("--head") + 1]
+            return "1" if head.endswith("-r2") else "0"
+
+        with mock.patch.object(ks, "run", side_effect=fake_run):
+            self.assertEqual(
+                ks.next_free_branch("fix/keiyoushi-568-kagane"),
+                "fix/keiyoushi-568-kagane-r3",
+            )
+
+    def test_has_changes_vs_main_detects_modified_and_untracked(self):
+        with mock.patch.object(
+            ks.subprocess, "run",
+            return_value=SimpleNamespace(returncode=0, stdout="?? a.ts\n"),
+        ):
+            self.assertTrue(ks.has_changes_vs_main(["a.ts"]))
+        with mock.patch.object(
+            ks.subprocess, "run",
+            return_value=SimpleNamespace(returncode=0, stdout=""),
+        ):
+            self.assertFalse(ks.has_changes_vs_main(["a.ts"]))
+
+    def test_has_staged_changes_reads_diff_exit_code(self):
+        with mock.patch.object(
+            ks.subprocess, "run",
+            return_value=SimpleNamespace(returncode=1),
+        ):
+            self.assertTrue(ks.has_staged_changes(["a.ts"]))
+        with mock.patch.object(
+            ks.subprocess, "run",
+            return_value=SimpleNamespace(returncode=0),
+        ):
+            self.assertFalse(ks.has_staged_changes(["a.ts"]))
 
 
 if __name__ == "__main__":
