@@ -153,6 +153,22 @@ produit un faux verdict dans ce dépôt :
   est une décision Cloudflare explicite, et non une banni d'IP comparable au `1026`. La
   nuance compte : un `1026` se contourne, un `cf-mitigated: challenge` non sans navigateur.
 
+### Deux nouvelles sources upstream bloquées par notre client HTTP (issue #568)
+
+Sondé le **2026-10-30**, en IPv4, depuis un poste local puis via le client
+`axios`/`fetch` du worker. Les deux sites sont **vivants** : le contenu existe.
+Ce qui échoue, c'est notre pile HTTP, pas le site. Un `403` Cloudflare ne doit
+donc pas devenir un `IGNORE` (voir la règle de décision).
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/nortverse` | `nortverse.com` | BLOCKED | `axios` et `fetch` → `403` + ~5,6 ko, `<title>Just a moment...</title>`, `cf-mitigated: challenge`, sur `/` **et** `/wp-json/wp/v2/comic`. Un lecteur navigateur (proxy de rendu) rend la page d'accueil et le JSON du catalogue : le site n'est pas mort, l'API est seulement protégée. Aucun `.ts` commité | Un `GET` Node/`fetch` sans navigateur rend le catalogue ou le JSON |
+| `en/novelcrow` | `novelcrow.com` | BLOCKED | Même challenge côté worker (`403`, ~5,8 ko, `cf-mitigated: challenge`). En revanche `curl` avec UA Chrome obtient **200** + 374 406 o et 18 séries (`div.page-item-detail`) : le blocage repose sur l'empreinte TLS/HTTP du client Node, pas sur l'IP ni sur le site. Aucun `.ts` commité | Le catalogue se charge avec `axios`/`fetch` sans navigateur (ou le worker gagne un transport type `curl-impersonate`) |
+
+Ces deux entrées restent hors du registre `IGNORE` : rien ne prouve qu'elles
+sont mortes. Elles ne sont pas portées maintenant uniquement parce qu'un port
+`BaseScraper` en `axios` renverrait le challenge au lieu du catalogue.
+
 ### `fr/aniverse` : catalogue lisible, mais aucune URL de fiche
 
 `BLOCKED`, et pour une raison qui n'a **rien à voir avec Cloudflare** : cette source

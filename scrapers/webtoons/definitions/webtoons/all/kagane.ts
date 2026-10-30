@@ -30,7 +30,7 @@ export class KaganeScraper extends BaseScraper {
   readonly baseUrl = 'https://kagane.cx';
   readonly lang = 'all';
 
-  private apiUrl = 'https://kagane.cx/api/v2';
+  private apiUrl = 'https://kagane.moe/api/v2';
 
   async getPopular(_page = 1): Promise<SearchResult> {
     const page = _page - 1;
