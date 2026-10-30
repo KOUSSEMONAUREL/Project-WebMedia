@@ -38,6 +38,7 @@ let sharedWidgetId: string | null = null;
 let sharedContainer: HTMLDivElement | null = null;
 let sharedToken: string | null = null;
 let sharedResolve: ((token: string) => void) | null = null;
+let sharedQueue: Promise<void> = Promise.resolve();
 
 function loadScript(): Promise<void> {
     if (document.getElementById(SCRIPT_ID) && window.turnstile) return Promise.resolve();
@@ -109,6 +110,7 @@ function initSharedWidget() {
                 sharedResolve('');
                 sharedResolve = null;
             }
+            sharedToken = null;
         },
     });
 }
@@ -121,38 +123,59 @@ async function ensureSharedWidget(): Promise<void> {
     await sharedInit;
 }
 
-async function getSharedToken(): Promise<string> {
-    if (sharedToken) return sharedToken;
+async function requestSharedToken(): Promise<string> {
     await ensureSharedWidget();
-    if (!sharedWidgetId || !window.turnstile) return '';
+    const turnstile = window.turnstile;
+    const widgetId = sharedWidgetId;
+    if (!widgetId || !turnstile) return '';
 
-    window.turnstile.execute(sharedContainer!);
+    if (sharedToken) {
+        const token = sharedToken;
+        sharedToken = null;
+        return token;
+    }
+
+    try { turnstile.reset(widgetId); } catch { }
 
     return new Promise<string>((resolve) => {
-        const timer = setTimeout(() => {
-            if (sharedResolve) {
-                sharedResolve('');
-                sharedResolve = null;
-            }
-            resolve('');
-        }, TOKEN_TIMEOUT);
+        let settled = false;
 
-        sharedResolve = (t: string) => {
+        function finish(token: string) {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
-            resolve(t);
-        };
-
-        const existing = window.turnstile && sharedWidgetId ? window.turnstile.getResponse(sharedWidgetId) : null;
-        if (existing) {
-            clearTimeout(timer);
-            sharedToken = existing;
-            sharedResolve = null;
-            resolve(existing);
+            if (sharedResolve === finish) sharedResolve = null;
+            sharedToken = null;
+            resolve(token);
         }
+
+        const timer = setTimeout(() => finish(''), TOKEN_TIMEOUT);
+        sharedResolve = finish;
+
+        try {
+            turnstile.execute(sharedContainer!);
+        } catch {
+            finish('');
+            return;
+        }
+
+        const existing = turnstile.getResponse(widgetId);
+        if (existing) finish(existing);
     });
 }
 
+async function getSharedToken(): Promise<string> {
+    const request = sharedQueue.then(() => requestSharedToken());
+    sharedQueue = request.then(() => undefined, () => undefined);
+    return request;
+}
+
 function resetSharedWidget() {
+    if (sharedResolve) {
+        const resolve = sharedResolve;
+        sharedResolve = null;
+        resolve('');
+    }
     sharedToken = null;
     if (sharedWidgetId && window.turnstile) {
         try { window.turnstile.reset(sharedWidgetId); } catch { }
@@ -160,6 +183,11 @@ function resetSharedWidget() {
 }
 
 function cleanupSharedWidget() {
+    if (sharedResolve) {
+        const resolve = sharedResolve;
+        sharedResolve = null;
+        resolve('');
+    }
     if (sharedContainer && sharedContainer.parentNode) {
         sharedContainer.parentNode.removeChild(sharedContainer);
     }

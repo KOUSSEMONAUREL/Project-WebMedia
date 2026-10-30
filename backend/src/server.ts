@@ -46,7 +46,7 @@ app.use('*', cors({
         return null;
     },
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Internal-API-Key', 'X-Turnstile-Token'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Internal-API-Key', 'X-Turnstile-Token', 'X-Captcha-Response'],
     exposeHeaders: ['Content-Type', 'Authorization'],
 }));
 
