@@ -1,9 +1,10 @@
-import type { Media, MediaType } from './types';
+import type { ApiResponse, Media, MediaType } from './types';
 import { mockTrending, mockFilms, mockSeries, mockAnimes, mockGames, mockWebtoons, allMockData, getMockByType } from './mockData';
 import { cacheGet, cacheSet } from './api-cache';
+import { PUBLIC_API_BASE } from './endpoints';
 export { allMockData, getMockByType };
 
-const API_BASE_URL = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+const API_BASE_URL = PUBLIC_API_BASE;
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 const TTL = { LIST: 2 * 60 * 60 * 1000, DETAIL: 12 * 60 * 60 * 1000 };
@@ -139,7 +140,7 @@ export async function getMediaByType(
   try {
     const res = await apiFetch(`/media?${ps}`);
     if (!res.ok) throw new Error('API Error');
-    const json = await res.json();
+    const json: any = await res.json();
     if (json.success === false) throw new Error(json.error || 'API Error');
     if (json.data) json.data = json.data.map((m: any) => mapMedia({ ...m, type }));
     cacheSet(ck, json);

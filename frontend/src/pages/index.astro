@@ -54,7 +54,7 @@ Astro.response.headers.set(
   'Cache-Control',
   dataComplete
     ? 'public, s-maxage=10800, stale-while-revalidate=600'
-    : 'public, s-maxage=60, stale-while-revalidate=60',
+    : 'public, s-maxage=300, stale-while-revalidate=600',
 );
 
 ---

@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { createAuthClient } from 'better-auth/react';
-
-const AUTH_URL = typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_AUTH_URL;
+import { AUTH_ORIGIN } from './endpoints';
 
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 export const authClient = createAuthClient({
-    baseURL: AUTH_URL,
+    baseURL: AUTH_ORIGIN,
     fetchOptions: {
         credentials: 'include',
         headers: API_KEY ? { 'X-Internal-API-Key': API_KEY } : undefined,
@@ -46,6 +45,8 @@ interface UserProfile {
     emailVerified: boolean;
 }
 
+type CachedSession = { user: UserProfile; session: null };
+
 function readUserCache(): UserProfile | null {
     try {
         const raw = localStorage.getItem(USER_CACHE_KEY);
@@ -79,7 +80,7 @@ export function useCachedSession() {
     const cachedUser = readUserCache();
     const { data: liveData, isPending: livePending, error } = _useSession();
 
-    const cachedSession: Session | null = cachedUser
+    const cachedSession: CachedSession | null = cachedUser
         ? { user: cachedUser, session: null }
         : null;
 

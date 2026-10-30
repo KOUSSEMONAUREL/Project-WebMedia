@@ -4,7 +4,6 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { rateLimit } from './middleware/ratelimit';
 import { sessionMiddleware } from './middleware/session';
-import { getAuth, ensureAuthEnv } from './lib/auth';
 import { getExecutionContext } from './lib/context';
 import { runWithNeonClient } from './db/singleton';
 
@@ -44,6 +43,7 @@ type Bindings = {
     TWITCH_CLIENT_ID: string;
     TWITCH_CLIENT_SECRET: string;
     GITHUB_TOKEN: string;
+    FRONTEND_URL: string;
 };
 
 type Variables = {
@@ -85,6 +85,11 @@ app.use('/api/*', async (c, next) => {
 
 // ========== BETTER AUTH HANDLER (before other middlewares) ==========
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
+    if (getExecutionContext(c)) {
+        return c.json({ error: 'Auth is handled by the auth backend' }, 404);
+    }
+
+    const { ensureAuthEnv, getAuth } = await import('./lib/auth');
     ensureAuthEnv({
         SUPABASE_DATABASE_URL: c.env?.SUPABASE_DATABASE_URL,
         GOOGLE_CLIENT_ID: c.env?.GOOGLE_CLIENT_ID,
@@ -134,6 +139,16 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 });
 
 app.use('/api/*', async (c, next) => {
+    const path = c.req.path;
+    const needsNeon =
+        path === '/api/media/trending' ||
+        (c.req.method === 'POST' && path === '/api/media') ||
+        path === '/api/search' ||
+        path === '/api/search/advanced' ||
+        path.startsWith('/api/internal/');
+
+    if (!needsNeon) return next();
+
     const connStr = c.env?.NEON_DATABASE_URL || process.env.NEON_DATABASE_URL || '';
     const hyperdrive = c.env?.HYPERDRIVE;
     if (!connStr && !hyperdrive?.connectionString) return next();
@@ -161,6 +176,7 @@ app.use('/api/internal/*', async (c, next) => {
 app.use('/api/*', async (c, next) => {
     const path = c.req.path;
     if (path.startsWith('/api/auth/') ||
+        path === '/api/media' ||
         path.startsWith('/api/media/') ||
         path.startsWith('/api/search') ||
         path.startsWith('/api/reviews/') ||
@@ -201,8 +217,8 @@ app.route('/api/translate', translateRoutes);
 // Health check (redirect if Accept is text/html, e.g. OAuth fallback)
 app.get('/', (c) => {
     const accept = c.req.header('accept') || '';
-    if (accept.includes('text/html')) {
-        return c.redirect('https://webmedia-front.koussemonaurel.workers.dev', 302);
+    if (accept.includes('text/html') && c.env.FRONTEND_URL) {
+        return c.redirect(c.env.FRONTEND_URL, 302);
     }
     return c.json({
         status: 'ok',

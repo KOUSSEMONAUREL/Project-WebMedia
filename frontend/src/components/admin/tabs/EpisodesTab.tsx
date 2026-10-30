@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { getApiHeaders } from '../../../lib/api';
+import { AUTH_API_BASE as API_BASE } from '../../../lib/endpoints';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,7 +18,7 @@ import { toast } from 'sonner';
 import { Edit, Trash2, Search } from 'lucide-react';
 import Pagination from './Pagination';
 
-const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 async function getToken() {

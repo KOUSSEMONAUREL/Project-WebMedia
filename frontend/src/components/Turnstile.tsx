@@ -142,7 +142,7 @@ async function getSharedToken(): Promise<string> {
             resolve(t);
         };
 
-        const existing = window.turnstile.getResponse(sharedWidgetId);
+        const existing = window.turnstile && sharedWidgetId ? window.turnstile.getResponse(sharedWidgetId) : null;
         if (existing) {
             clearTimeout(timer);
             sharedToken = existing;

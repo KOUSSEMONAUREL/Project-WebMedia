@@ -117,8 +117,8 @@ async function viaGoogle(text: string, lang: LangId): Promise<string | null> {
 }
 
 async function viaBackend(text: string, lang: LangId): Promise<string | null> {
-  const base = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
-  const url = `${base}/api/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
+  const { PUBLIC_API_BASE } = await import('./endpoints')
+  const url = `${PUBLIC_API_BASE}/translate?tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`
   const r = await fetch(url)
   if (!r.ok) throw new Error(`backend ${r.status}`)
   const j: any = await r.json()

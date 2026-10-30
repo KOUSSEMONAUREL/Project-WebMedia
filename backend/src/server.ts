@@ -46,6 +46,8 @@ app.use('*', cors({
         return null;
     },
     credentials: true,
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Internal-API-Key', 'X-Turnstile-Token'],
+    exposeHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // ========== BODY SIZE LIMIT (reject large payloads) ==========
@@ -105,6 +107,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 app.use('/api/*', async (c, next) => {
     const path = c.req.path;
     if (path.startsWith('/api/auth/') ||
+        path === '/api/media' ||
         path.startsWith('/api/media/') ||
         path.startsWith('/api/search') ||
         path.startsWith('/api/reviews/') ||

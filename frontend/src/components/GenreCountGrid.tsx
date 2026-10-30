@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+import { PUBLIC_API_BASE as API_BASE } from '../lib/endpoints';
 
 const GENRE_DATA: { label: string; slug: string }[] = [
   { label: 'Action', slug: 'action' },
@@ -26,7 +26,7 @@ export default function GenreCountGrid() {
     const ac = new AbortController();
     fetch(`${API_BASE}/media/genre-counts`, { signal: ac.signal })
       .then(r => r.json())
-      .then(d => { if (!ac.signal.aborted && d.success) setCounts(d.data); })
+      .then((d: any) => { if (!ac.signal.aborted && d.success) setCounts(d.data); })
       .catch(() => {});
     return () => ac.abort();
   }, []);

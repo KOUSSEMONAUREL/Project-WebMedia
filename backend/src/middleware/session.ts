@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory';
-import { getAuth } from '../lib/auth';
+import { getExecutionContext } from '../lib/context';
 
 type Variables = {
     user: {
@@ -19,6 +19,22 @@ type Variables = {
 };
 
 export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Variables }>(async (c, next) => {
+    const hasAuth = Boolean(c.req.header('authorization') || c.req.header('cookie'));
+
+    if (!hasAuth) {
+        c.set('user', null);
+        c.set('session', null);
+        await next();
+        return;
+    }
+
+    if (getExecutionContext(c)) {
+        c.set('user', null);
+        c.set('session', null);
+        await next();
+        return;
+    }
+
     let closeAuth: (() => Promise<void>) | undefined;
     try {
         const dbUrl = c.env?.SUPABASE_DATABASE_URL || process.env.SUPABASE_DATABASE_URL || '';
@@ -28,6 +44,7 @@ export const sessionMiddleware = createMiddleware<{ Bindings: any; Variables: Va
             await next();
             return;
         }
+        const { getAuth } = await import('../lib/auth');
         const { auth, close } = getAuth(dbUrl, c);
         closeAuth = close;
         if (!auth) {

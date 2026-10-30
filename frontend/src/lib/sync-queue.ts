@@ -1,3 +1,5 @@
+import { AUTH_API_BASE } from './endpoints';
+
 const SYNC_DELAY_MS = 15 * 60 * 1000;
 const SESSION_START_KEY = 'webmedia_session_start';
 const PENDING_FAVS_KEY = 'webmedia_pending_favs';
@@ -85,7 +87,7 @@ async function flushPendingOps(): Promise<void> {
 
   const turnstileToken = await getTurnstileTokenForSync();
 
-  const apiBaseUrl = ((import.meta as any).env?.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+  const apiBaseUrl = AUTH_API_BASE;
 
   savePendingFavs(new Map());
   savePendingHistory([]);

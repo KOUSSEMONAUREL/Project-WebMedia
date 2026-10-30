@@ -217,7 +217,7 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
       {isPending ? <SkeletonGrid /> : (
         items.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
-            {items.map((media) => <MediaCard key={media.id} media={media} />)}
+            {items.map((media: Media) => <MediaCard key={media.id} media={media} />)}
           </div>
         ) : (
           <div className="text-center py-24 text-muted-foreground">Aucun contenu trouve.</div>

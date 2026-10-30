@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import { authClient } from '../../lib/auth-client';
 import { getApiHeaders } from '../../lib/api';
+import { AUTH_API_BASE as API_BASE } from '../../lib/endpoints';
 import { AuthenticatedLayout } from './layout/authenticated-layout';
 import { Header } from './layout/header';
 import { Main } from './layout/main';
@@ -15,13 +16,12 @@ import JobsTab from './tabs/JobsTab';
 
 const DashboardTab = lazy(() => import('./DashboardTabContent'));
 
-const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 
 type Stats = { medias: number; episodes: number; liens: number; pendingJobs: number };
 type RecentItem = { id: string; title: string; type: string; image: string | null; created_at: string };
 type TypeCount = { type: string; count: number };
-type Tab = 'dashboard' | 'medias' | 'episodes' | 'liens' | 'jobs';
+export type Tab = 'dashboard' | 'medias' | 'episodes' | 'liens' | 'jobs';
 
 export default function AdminApp() {
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'admin'>('loading');

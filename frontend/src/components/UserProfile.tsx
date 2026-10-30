@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { authClient, getAuthToken, useCachedSession, clearUserCache } from '@/lib/auth-client';
 import { Heart, Clock, History } from 'lucide-react';
 import { getAllFavorites, getWatchlist, getHistory } from '../lib/indexeddb';
+import { AUTH_API_BASE } from '../lib/endpoints';
 import type { Favorite, HistoryEntry } from '../lib/indexeddb';
 import type { Media } from '../lib/api';
 import { EmptyState } from './EmptyState';
@@ -49,17 +50,16 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         try {
           const token = await getAuthToken();
 
-          const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787/api';
           const headers: Record<string, string> = {};
           if (token) headers['Authorization'] = `Bearer ${token}`;
 
-          const res = await fetch(`${apiBaseUrl}/user/favorites`, {
+          const res = await fetch(`${AUTH_API_BASE}/user/favorites`, {
             headers,
             credentials: 'include',
             signal,
           });
           if (res.ok) {
-            const json = await res.json();
+            const json: any = await res.json();
             if (json.success && Array.isArray(json.data)) {
               const remoteIds: string[] = json.data.map((f: any) => f.mediaId);
               const localIds = localFavs.map(f => f.id);
@@ -105,8 +105,7 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         const adminToken = await getAuthToken();
         if (adminToken) {
           try {
-            const adminUrl = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
-            const adminRes = await fetch(`${adminUrl}/admin/check`, {
+            const adminRes = await fetch(`${AUTH_API_BASE}/admin/check`, {
               headers: { 'Authorization': `Bearer ${adminToken}` },
               credentials: 'include',
               signal,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { getApiHeaders } from '../../../lib/api';
+import { AUTH_API_BASE as API_BASE } from '../../../lib/endpoints';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +12,7 @@ import { toast } from 'sonner';
 import { RotateCcw, Search, RefreshCw } from 'lucide-react';
 import Pagination from './Pagination';
 
-const API_BASE = (import.meta.env.PUBLIC_API_URL || 'http://localhost:8787').replace(/\/+$/, '') + '/api';
+
 const API_KEY = import.meta.env.PUBLIC_API_KEY || '';
 const jobsCache: { data: Job[] | null } = { data: null };
 
@@ -58,7 +59,7 @@ export default function JobsTab() {
       });
       if (signal?.aborted) return;
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data: any = await res.json();
       jobsCache.data = data;
       setJobs(data);
     } catch (e) {
