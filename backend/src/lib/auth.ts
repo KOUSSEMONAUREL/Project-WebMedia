@@ -51,8 +51,7 @@ function createAuth(db: any) {
                 enabled: false,
             },
             ipAddress: {
-                ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
-                trustedProxies: ['0.0.0.0/0'],
+                ipAddressHeaders: ['cf-connecting-ip'],
             },
         },
         trustedOrigins: [
