@@ -90,7 +90,9 @@ export class WebnexScraper extends BaseScraper {
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    return this.browse(page, '', 'updated');
+    const url = new URL(this.baseUrl);
+    url.searchParams.set('latest', String(page));
+    return this.browseUrl(url.toString(), 'section.latest-section');
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
@@ -102,10 +104,14 @@ export class WebnexScraper extends BaseScraper {
     if (query) url.searchParams.set('q', query);
     if (sort) url.searchParams.set('sort', sort);
     if (page > 1) url.searchParams.set('page', String(page));
-    const res = await this.get(url.toString());
+    return this.browseUrl(url.toString());
+  }
+
+  private async browseUrl(url: string, section = ''): Promise<SearchResult> {
+    const res = await this.get(url);
     const $ = this.asDocument(String(res.data));
     const mangas: Manga[] = [];
-    $('li.card-item a.card-link').each((_i, el) => {
+    $(`${section} li.card-item a.card-link`).each((_i, el) => {
       const $a = $(el);
       const href = $a.attr('href') ?? '';
       try {
@@ -119,7 +125,7 @@ export class WebnexScraper extends BaseScraper {
         // skip malformed
       }
     });
-    const hasNextPage = $('a[rel=next]').length > 0;
+    const hasNextPage = $('a[aria-label="Next page"]').length > 0;
     return { mangas, hasNextPage };
   }
 
@@ -249,6 +255,13 @@ export class WebnexScraper extends BaseScraper {
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const chapterAbs = this.absUrl(chapterUrl);
+    // The reader endpoint is gated by a per-chapter `wnx_reader` cookie that
+    // the chapter page sets on navigation.
+    const chapterRes = await this.get(chapterAbs);
+    const rawCookie = (chapterRes.headers as unknown as Record<string, unknown>)['set-cookie'];
+    const cookie = Array.isArray(rawCookie)
+      ? rawCookie.map(value => String(value).split(';')[0]).join('; ')
+      : typeof rawCookie === 'string' ? rawCookie.split(';')[0] : '';
     // Upstream reads the dedicated `/pages` endpoint (ReaderDto.pages).
     // Cloudflare rejects it unless the request is marked as a same-origin
     // fetch instead of a document navigation.
@@ -257,6 +270,7 @@ export class WebnexScraper extends BaseScraper {
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
+        ...(cookie ? { Cookie: cookie } : {}),
       },
     });
     const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
