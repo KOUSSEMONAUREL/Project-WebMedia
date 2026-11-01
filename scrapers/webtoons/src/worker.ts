@@ -36,6 +36,25 @@ async function callInternal(endpoint: string, data: unknown) {
   });
 }
 
+const DB_RETRYABLE = new Set([
+  'CONNECTION_CLOSED', 'CONNECTION_DESTROYED', 'CONNECTION_ENDED',
+  'CONNECT_TIMEOUT', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', '57P01', '08006',
+]);
+
+async function withDbRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (err: any) {
+      const code = String(err?.code || err?.errno || '');
+      if (attempt >= 3 || !DB_RETRYABLE.has(code)) throw err;
+      const delay = 250 * 2 ** (attempt - 1);
+      console.warn(`  DB ${label}: ${code}, retry ${attempt}/3 in ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number; sourcesMatched: number }> {
   const { results, sourcesMatched } = await scrapeMedia(media);
   let chaptersSaved = 0;
@@ -125,8 +144,16 @@ if (process.argv[1]?.endsWith('worker.ts')) {
         console.error('Missing SUPABASE_DATABASE_URL or NEON_DATABASE_URL');
         process.exit(1);
       }
-      const sb = postgres(supabaseUrl, { prepare: false });
-      const neon = postgres(neonUrl, { prepare: false });
+      const dbOptions = {
+        prepare: false,
+        max: 2,
+        idle_timeout: 20,
+        max_lifetime: 300,
+        connect_timeout: 10,
+        keep_alive: 30,
+      };
+      const sb = postgres(supabaseUrl, dbOptions);
+      const neon = postgres(neonUrl, dbOptions);
 
       const log = createLog('Webtoon Scraper', 'queue');
       log.header();
@@ -143,78 +170,101 @@ if (process.argv[1]?.endsWith('worker.ts')) {
        */
       const MAX_ATTEMPTS = 3;
 
-      while (processed < maxJobs) {
-        const [job] = await sb`
-          UPDATE scraping_jobs
-          SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
-          WHERE id = (
-            SELECT id FROM scraping_jobs
-            WHERE status = 'pending' AND worker_type = 'webtoon'
-              AND media_type IN ('webtoon', 'comic', 'manga')
-            ORDER BY priority DESC, created_at ASC
-            LIMIT 1
-            FOR UPDATE SKIP LOCKED
-          )
-          RETURNING id, media_id, media_type, title, slug, attempts
-        `;
+      let currentJobId: string | null = null;
+      try {
+        while (processed < maxJobs) {
+          const [job] = await withDbRetry('claim job', () => sb`
+            UPDATE scraping_jobs
+            SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
+            WHERE id = (
+              SELECT id FROM scraping_jobs
+              WHERE status = 'pending' AND worker_type = 'webtoon'
+                AND media_type IN ('webtoon', 'comic', 'manga')
+              ORDER BY priority DESC, created_at ASC
+              LIMIT 1
+              FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, media_id, media_type, title, slug, attempts
+          `);
 
-        if (!job) break;
+          if (!job) break;
+          currentJobId = job.id;
 
-        const [media] = await neon`
-          SELECT id, title, slug, type, external_id, metadata_source, synopsis
-          FROM medias WHERE id = ${job.media_id}
-        `;
-        if (!media) {
-          errors++;
-          await sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'Media not found', updated_at = NOW() WHERE id = ${job.id}`;
-          continue;
+          const [media] = await withDbRetry('load media', () => neon`
+            SELECT id, title, slug, type, external_id, metadata_source, synopsis
+            FROM medias WHERE id = ${job.media_id}
+          `);
+          if (!media) {
+            errors++;
+            await withDbRetry('mark media missing', () => sb`UPDATE scraping_jobs SET status = 'failed', last_error = 'Media not found', updated_at = NOW() WHERE id = ${job.id}`);
+            currentJobId = null;
+            continue;
+          }
+
+          processed++;
+          log.start(`Processing`, { title: media.title, type: media.type });
+
+          const result = await processMedia({
+            id: media.id, title: media.title, slug: media.slug,
+            type: media.type, externalId: media.external_id,
+            metadataSource: media.metadata_source, synopsis: media.synopsis,
+          });
+
+          if (result.chaptersSaved > 0) {
+            await withDbRetry('mark completed', () => sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`);
+            currentJobId = null;
+            log.success(`Saved ${result.chaptersSaved} link(s)`);
+          } else if (result.sourcesMatched === 0) {
+            // Aucun des scrapers ne porte ce titre. Distinct de `failed` : le job a
+            // bien ete traite, le media n'est simplement pas dans les sources, ou
+            // pas sous ce nom. Sans cette branche, `no_match` ne serait jamais pose
+            // pour le webtoon alors que l'orchestrateur le sait deja lire
+            // (isPermanentFailure), et le media repartirait en boucle indefiniment :
+            // chaque cycle recreait la ligne avec attempts=0 et repartait de zero.
+            if (job.attempts >= MAX_ATTEMPTS) {
+              await withDbRetry('mark no_match', () => sb`UPDATE scraping_jobs SET status = 'no_match', last_error = 'No webtoon source carries this title', updated_at = NOW() WHERE id = ${job.id}`);
+              currentJobId = null;
+              log.error(`no_match after ${job.attempts} attempts (aucune source)`);
+            } else {
+              await withDbRetry('release no_match job', () => sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`);
+              currentJobId = null;
+              log.retry('No source matched', job.attempts, MAX_ATTEMPTS);
+            }
+          } else {
+            // Au moins une source a ete trouvee : le titre existe, c'est le scrape
+            // qui a echoue (source en panne, 403, timeout). C'est transitoire, donc
+            // le message doit le dire pour que le regex de l'orchestrateur le
+            // classe en erreur de pile et non en disparition de la source.
+            if (job.attempts >= MAX_ATTEMPTS) {
+              await withDbRetry('mark failed', () => sb`UPDATE scraping_jobs SET status = 'failed', last_error = ${`No chapters on ${result.sourcesMatched} matched source(s)`}, updated_at = NOW() WHERE id = ${job.id}`);
+              currentJobId = null;
+              log.error(`Failed after ${job.attempts} attempts`);
+            } else {
+              await withDbRetry('release retry job', () => sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`);
+              currentJobId = null;
+              log.retry('No chapters', job.attempts, MAX_ATTEMPTS);
+            }
+          }
         }
 
-        processed++;
-        log.start(`Processing`, { title: media.title, type: media.type });
-
-        const result = await processMedia({
-          id: media.id, title: media.title, slug: media.slug,
-          type: media.type, externalId: media.external_id,
-          metadataSource: media.metadata_source, synopsis: media.synopsis,
-        });
-
-        if (result.chaptersSaved > 0) {
-          await sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`;
-          log.success(`Saved ${result.chaptersSaved} link(s)`);
-        } else if (result.sourcesMatched === 0) {
-          // Aucun des scrapers ne porte ce titre. Distinct de `failed` : le job a
-          // bien ete traite, le media n'est simplement pas dans les sources, ou
-          // pas sous ce nom. Sans cette branche, `no_match` ne serait jamais pose
-          // pour le webtoon alors que l'orchestrateur le sait deja lire
-          // (isPermanentFailure), et le media repartirait en boucle indefiniment :
-          // chaque cycle recreait la ligne avec attempts=0 et repartait de zero.
-          if (job.attempts >= MAX_ATTEMPTS) {
-            await sb`UPDATE scraping_jobs SET status = 'no_match', last_error = 'No webtoon source carries this title', updated_at = NOW() WHERE id = ${job.id}`;
-            log.error(`no_match after ${job.attempts} attempts (aucune source)`);
-          } else {
-            await sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`;
-            log.retry('No source matched', job.attempts, MAX_ATTEMPTS);
-          }
-        } else {
-          // Au moins une source a ete trouvee : le titre existe, c'est le scrape
-          // qui a echoue (source en panne, 403, timeout). C'est transitoire, donc
-          // le message doit le dire pour que le regex de l'orchestrateur le
-          // classe en erreur de pile et non en disparition de la source.
-          if (job.attempts >= MAX_ATTEMPTS) {
-            await sb`UPDATE scraping_jobs SET status = 'failed', last_error = ${`No chapters on ${result.sourcesMatched} matched source(s)`}, updated_at = NOW() WHERE id = ${job.id}`;
-            log.error(`Failed after ${job.attempts} attempts`);
-          } else {
-            await sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`;
-            log.retry('No chapters', job.attempts, MAX_ATTEMPTS);
+        log.summary(processed, errors);
+        process.exitCode = 0;
+      } catch (err: any) {
+        const detail = `${err?.code || ''} ${err?.message || err}`.trim();
+        console.error(`Queue worker failed: ${detail}`);
+        if (currentJobId) {
+          try {
+            await withDbRetry('requeue job', () => sb`UPDATE scraping_jobs SET status = 'pending', locked_at = NULL, updated_at = NOW() WHERE id = ${currentJobId}`);
+          } catch (requeueErr: any) {
+            console.error(`Could not requeue job ${currentJobId}: ${requeueErr?.message || requeueErr}`);
           }
         }
+        process.exitCode = 1;
+      } finally {
+        await sb.end().catch(() => {});
+        await neon.end().catch(() => {});
       }
-
-      log.summary(processed, errors);
-      await sb.end();
-      await neon.end();
-      process.exit(0);
+      process.exit(process.exitCode === 1 ? 1 : 0);
     });
   } else {
     const mediaId = mode;
