@@ -7,6 +7,7 @@ and writes a REVIEW_FILE compatible with keiyoushi_merge.py.
 """
 
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -218,16 +219,57 @@ def collect_exts(files, matched_changes):
     return found
 
 
+def resolve_gradle_base_url(value, text):
+    variables = re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", value)
+    if len(variables) != 1:
+        return None
+    pairs = re.findall(
+        r'["\']([A-Za-z0-9_-]+)["\']\s+to\s+["\']([^"\']+)["\']', text)
+    if not pairs:
+        return None
+    mapping = dict(pairs)
+    replacement = mapping.get("en") or pairs[0][1]
+    resolved = value.replace(
+        "${" + variables[0] + "}", replacement).replace(
+        "$" + variables[0], replacement)
+    return resolved if resolved.startswith(("http://", "https://")) else None
+
+
 def parse_upstream_base_url(text):
     match = re.search(r'baseUrl\s*=\s*["\']([^"\']+)["\']', text)
     if match:
-        return match.group(1)
+        value = match.group(1)
+        if "$" in value:
+            return resolve_gradle_base_url(value, text)
+        return value
     block = re.search(r"baseUrl\s*\{([^}]*)\}", text, re.S)
     if block:
         match = re.search(r'["\'](https?://[^"\']+)["\']', block.group(1))
         if match:
             return match.group(1)
     return None
+
+
+def is_local_host(value):
+    text = value.strip().strip("` ").split("+")[0].strip()
+    if not text:
+        return False
+    if "://" not in text:
+        text = "http://" + text
+    try:
+        host = (urlparse(text).hostname or "").lower()
+    except ValueError:
+        return False
+    if not host:
+        return False
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or \
+            host.endswith(".local"):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_private or address.is_link_local
 
 
 def fetch_upstream_base_url(lang, ext, sha):
@@ -380,6 +422,7 @@ def evaluate_registry(added, removed):
     if not added_rows and not removed_rows:
         return "FAIL", "no registry row found in diff", None
     ported = parse_ported_rows(added)
+    added_exts = {cells[0].strip("` ") for cells in added_rows}
     reasons = []
     probes = []
     for cells in added_rows:
@@ -398,6 +441,9 @@ def evaluate_registry(added, removed):
             reasons.append(f"{ext}: revival condition is {revival!r}")
         host = domain.split("+")[0].strip().strip("` ")
         if host:
+            if is_local_host(host):
+                probes.append(f"{ext}: local ({host})")
+                continue
             probe = probe_url(host)
             probes.append(f"{ext}: {probe}")
             if verdict == "IGNORE" and (
@@ -411,6 +457,8 @@ def evaluate_registry(added, removed):
         ext = cells[0].strip("` ")
         domain = cells[1].strip("` ")
         host = domain.split("+")[0].strip().strip("` ")
+        if ext in added_exts:
+            continue
         mentioned = any(
             ext in line or host in line
             for line in added
@@ -419,7 +467,11 @@ def evaluate_registry(added, removed):
         if not mentioned:
             reasons.append(f"{ext}: removal not documented in added prose")
         if ext in ported:
-            probe = probe_url(ported[ext])
+            ported_host = ported[ext]
+            if is_local_host(ported_host):
+                probes.append(f"{ext}: ported local ({ported_host})")
+                continue
+            probe = probe_url(ported_host)
             probes.append(f"{ext}: ported: {probe}")
             if probe.startswith(("CHALLENGE", "BLOCK IP", "TIMEOUT", "ERREUR")):
                 reasons.append(f"{ext}: removed but ported domain not readable ({probe})")
@@ -427,6 +479,9 @@ def evaluate_registry(added, removed):
                 reasons.append(f"{ext}: removed but ported domain is dead ({probe})")
             continue
         if host:
+            if is_local_host(host):
+                probes.append(f"{ext}: removed local ({host})")
+                continue
             probe = probe_url(host)
             probes.append(f"{ext}: removed: {probe}")
             if probe.startswith(("CHALLENGE", "BLOCK IP", "TIMEOUT", "ERREUR")):

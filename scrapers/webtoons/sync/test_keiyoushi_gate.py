@@ -90,6 +90,21 @@ class UpstreamTest(unittest.TestCase):
     def test_missing(self):
         self.assertIsNone(gate.parse_upstream_base_url("name = 'x'"))
 
+    def test_parse_gradle_subdomain_template(self):
+        text = '''
+        val subdomains = mapOf(
+            "pt-BR" to "br",
+            "en" to "www",
+        )
+        subdomains.forEach { (langCode, sub) ->
+            source {
+                baseUrl = "https://$sub.niadd.com"
+            }
+        }
+        '''
+        self.assertEqual(
+            gate.parse_upstream_base_url(text), "https://www.niadd.com")
+
 
 class RegistryTest(unittest.TestCase):
     row = (
@@ -164,6 +179,29 @@ class RegistryTest(unittest.TestCase):
         verdict, reason, _ = gate.evaluate_registry([], [self.row])
         self.assertEqual(verdict, "FAIL")
         self.assertIn("not documented", reason)
+
+    @mock.patch.object(gate, "probe_url", return_value="NON (HTTP 404)")
+    def test_modified_row_is_not_a_removal(self, probe):
+        added = [
+            "| `foo` | `foo.example` | IGNORE | Reconfirmé le 2026-10-31 | "
+            "Revérifier au prochain audit |",
+        ]
+        verdict, reason, _ = gate.evaluate_registry(added, [self.row])
+        self.assertEqual(verdict, "PASS")
+        self.assertNotIn("not documented", reason)
+        self.assertEqual(probe.call_count, 1)
+
+    @mock.patch.object(gate, "probe_url", return_value="ERREUR: curl 7")
+    def test_local_registry_row_skips_probe(self, probe):
+        row = (
+            "| `all/komga` | `https://127.0.0.1:25600` | IGNORE | "
+            "Source auto-hébergée | Une instance publique |"
+        )
+        verdict, reason, probes = gate.evaluate_registry([row], [])
+        self.assertEqual(verdict, "PASS")
+        self.assertIn("registry", reason)
+        self.assertIn("local", " ".join(probes or []))
+        probe.assert_not_called()
 
 
 class LiveTest(unittest.TestCase):
