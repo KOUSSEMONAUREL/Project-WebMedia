@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -289,8 +290,14 @@ const titleArg = process.argv.find(a => a.startsWith('--title=')) || (
     : null
 );
 
-if (titleArg) {
-  runSearchDirect(titleArg.split('=', 2)[1] || '');
-} else {
-  runOneShot();
+const isEntrypoint = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isEntrypoint) {
+  if (titleArg) {
+    runSearchDirect(titleArg.split('=', 2)[1] || '');
+  } else {
+    runOneShot();
+  }
 }

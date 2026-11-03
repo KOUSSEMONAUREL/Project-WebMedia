@@ -25,7 +25,7 @@ test('royalroad imported in index.ts', () => {
   const src = fs.readFileSync(path.join(DIR, '..', 'src', 'index.ts'), 'utf-8');
   assert.ok(src.includes("importRoyalRoad"), 'importRoyalRoad imported');
   assert.ok(src.includes("royalroad.js"), 'imported from royaload.js');
-  assert.ok(src.includes("RoyalRoad novels"), 'log message present');
+  assert.ok(src.includes("run('RoyalRoad'"), 'RoyalRoad run present');
 });
 
 test('@fsoc/royalroadl-api in package.json', async () => {
