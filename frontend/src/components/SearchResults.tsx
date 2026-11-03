@@ -138,7 +138,7 @@ export default function SearchResults() {
           </p>
           <a
             href="/auth/sign-in"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-primary-foreground transition-all duration-200 hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-primary-foreground transition-transform duration-200 hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)' }}
           >
             <LogIn className="w-4 h-4" />
@@ -184,9 +184,11 @@ export default function SearchResults() {
       </div>
 
       <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto md:mx-0 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-        <div className="relative glass rounded-2xl overflow-hidden border border-white/[0.06] focus-within:border-primary/30 focus-within:shadow-[0_0_40px_rgba(59,130,246,0.10)] transition-all duration-300">
+        <div className="relative glass rounded-2xl overflow-hidden border border-white/[0.06] focus-within:border-primary/30 focus-within:shadow-[0_0_40px_rgba(59,130,246,0.10)] transition-[border-color,box-shadow] duration-300">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
+          <label htmlFor="search-results-query" className="sr-only">Rechercher un titre</label>
           <input
+            id="search-results-query"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

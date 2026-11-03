@@ -171,7 +171,7 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{sortBy}</span>
             {(['created_at', 'title', 'rating', 'year'] as SortKey[]).map((key) => (
               <button key={key} type="button" onClick={() => handleSort(key)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-transparent ${sortKey === key ? 'bg-primary/12 text-primary border-primary/25' : 'bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.05]'}`}>
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-transparent ${sortKey === key ? 'bg-primary/12 text-primary border-primary/25' : 'bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.05]'}`}>
                 {sortLabel(key)}
               </button>
             ))}
@@ -180,16 +180,19 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
           <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-xl bg-secondary/20 border border-white/[0.04]">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{filterBy}</span>
             <select aria-label="Genre" value={genre} onChange={(e) => { setGenre(e.target.value); setPage(0); }}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer outline-none transition-all duration-200"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer outline-none transition-colors duration-200"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', colorScheme: 'dark' }}>
               <option value="" style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>Genre</option>
               {GENRES.map((g) => <option key={g} value={g} style={{ background: '#101016', color: 'rgba(255,255,255,0.85)' }}>{g}</option>)}
             </select>
-            <input type="number" placeholder="Annee min" value={yearMin} onChange={(e) => setYearMin(e.target.value)} onBlur={applyFilter}
+            <label htmlFor="year-min" className="sr-only">Année min</label>
+            <input id="year-min" type="number" placeholder="Annee min" value={yearMin} onChange={(e) => setYearMin(e.target.value)} onBlur={applyFilter}
               className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
-            <input type="number" placeholder="Annee max" value={yearMax} onChange={(e) => setYearMax(e.target.value)} onBlur={applyFilter}
+            <label htmlFor="year-max" className="sr-only">Année max</label>
+            <input id="year-max" type="number" placeholder="Annee max" value={yearMax} onChange={(e) => setYearMax(e.target.value)} onBlur={applyFilter}
               className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
-            <input type="number" placeholder="Note min" value={ratingMin} onChange={(e) => setRatingMin(e.target.value)} onBlur={applyFilter} min={0} max={10} step={0.5}
+            <label htmlFor="rating-min" className="sr-only">Note min</label>
+            <input id="rating-min" type="number" placeholder="Note min" value={ratingMin} onChange={(e) => setRatingMin(e.target.value)} onBlur={applyFilter} min={0} max={10} step={0.5}
               className="w-24 bg-secondary/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/40 [appearance:textfield]" />
             {hasActiveFilters && (
               <button type="button" onClick={clearFilters} className="flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -201,12 +204,12 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mb-8">
               <button type="button" onClick={() => goTo(page - 1)} disabled={page <= 0}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 <ChevronLeft className="h-4 w-4" /> Precedent
               </button>
               <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
               <button type="button" onClick={() => goTo(page + 1)} disabled={page >= totalPages - 1}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary/50 text-sm font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 Suivant <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -227,7 +230,7 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
       {!isPending && totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-12 flex-wrap">
           <button type="button" onClick={() => goTo(0)} disabled={page <= 0}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             <ChevronsLeft className="h-3.5 w-3.5" /> Debut
           </button>
           <div className="flex items-center gap-1">
@@ -243,7 +246,7 @@ function GridContent({ type, title, initialData, initialTotal }: Props) {
             )}
           </div>
           <button type="button" onClick={() => goTo(totalPages - 1)} disabled={page >= totalPages - 1}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary/50 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             Fin <ChevronsRight className="h-3.5 w-3.5" />
           </button>
         </div>

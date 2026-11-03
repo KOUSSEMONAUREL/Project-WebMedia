@@ -35,27 +35,29 @@ export function ProfileDropdown({ user, onLoginClick, onLogout }: ProfileDropdow
     // Charger les statistiques réelles
     useEffect(() => {
         if (!user || !isOpen) return;
-        async function fetchCounts() {
-            try {
-                const favs = await getAllFavorites();
-                const wl = await getWatchlist();
+        let ignore = false;
+        Promise.all([getAllFavorites(), getWatchlist()])
+            .then(([favs, wl]) => {
+                if (ignore) return;
                 const combined = [...favs, ...wl];
                 const filmCount = combined.filter(m => m.type === 'film').length;
                 const serieCount = combined.filter(m => m.type === 'serie').length;
                 const animeCount = combined.filter(m => m.type === 'anime').length;
                 setStats({ films: filmCount, series: serieCount, animes: animeCount, total: combined.length });
-            } catch (err) {
+            })
+            .catch((err) => {
                 console.warn('[dropdown-stats] erreur:', err);
-            }
-        }
-        fetchCounts();
+            });
+        return () => {
+            ignore = true;
+        };
     }, [user, isOpen]);
 
     if (!user) {
         return (
             <button
                 type="button"
-                className="flex items-center gap-2 px-3.5 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                className="flex items-center gap-2 px-3.5 py-1.5 text-[13px] font-semibold rounded-full border transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                 style={{
                     background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%)',
                     border: 'none',

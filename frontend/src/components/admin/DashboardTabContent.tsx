@@ -1,4 +1,13 @@
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { lazy } from 'react';
+const Bar = lazy(() => import('recharts').then((m) => ({ default: m.Bar })));
+const BarChart = lazy(() => import('recharts').then((m) => ({ default: m.BarChart })));
+const ResponsiveContainer = lazy(() => import('recharts').then((m) => ({ default: m.ResponsiveContainer })));
+const XAxis = lazy(() => import('recharts').then((m) => ({ default: m.XAxis })));
+const YAxis = lazy(() => import('recharts').then((m) => ({ default: m.YAxis })));
+const Tooltip = lazy(() => import('recharts').then((m) => ({ default: m.Tooltip })));
+const PieChart = lazy(() => import('recharts').then((m) => ({ default: m.PieChart })));
+const Pie = lazy(() => import('recharts').then((m) => ({ default: m.Pie })));
+const Cell = lazy(() => import('recharts').then((m) => ({ default: m.Cell })));
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 

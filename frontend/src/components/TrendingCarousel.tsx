@@ -85,27 +85,28 @@ export function TrendingCarousel({ items }: { items: Media[] }) {
         </h2>
       </div>
 
-      <ul
+      <div
         ref={containerRef}
-        role="list"
+        role="button"
+        tabIndex={0}
         aria-label={reco}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
-        className="trending-track flex gap-4 select-none list-none"
+        className="trending-track flex gap-4 select-none"
         style={{
           padding: '0.75rem 0.25rem 1rem',
           animationPlayState: paused ? 'paused' : 'running',
         } as React.CSSProperties}
       >
         {doubled.map((m, i) => (
-          <li key={`${m.id}-${i < ordered.length ? 0 : 1}`}>
+          <div key={`${m.id}-${i < ordered.length ? 0 : 1}`}>
             <MediaCard media={m} size="large" isLcp={i === 0} />
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
 
       <style>
         {`

@@ -25,7 +25,10 @@ export default function GenreCountGrid() {
   useEffect(() => {
     const ac = new AbortController();
     fetch(`${API_BASE}/media/genre-counts`, { signal: ac.signal })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      })
       .then((d: any) => { if (!ac.signal.aborted && d.success) setCounts(d.data); })
       .catch(() => {});
     return () => ac.abort();
@@ -39,7 +42,7 @@ export default function GenreCountGrid() {
           <a
             key={slug}
             href={`/genres/${slug}`}
-            className="group relative h-32 flex flex-col items-start justify-between p-4 rounded-xl bg-gradient-to-br from-card to-card/80 border border-border overflow-hidden transition-all hover:border-primary hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10"
+            className="group relative h-32 flex flex-col items-start justify-between p-4 rounded-xl bg-gradient-to-br from-card to-card/80 border border-border overflow-hidden transition-[border-color,box-shadow,transform] hover:border-primary hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="relative w-full flex items-center justify-between">
@@ -48,7 +51,7 @@ export default function GenreCountGrid() {
               </span>
             </div>
             {count !== undefined && (
-              <span className="relative self-end px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold tabular-nums transition-all group-hover:bg-primary/20">
+              <span className="relative self-end px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold tabular-nums transition-colors group-hover:bg-primary/20">
                 {count.toLocaleString()}
               </span>
             )}

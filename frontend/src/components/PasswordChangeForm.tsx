@@ -17,34 +17,40 @@ export function PasswordChangeForm({ error, sending, done, onSubmit }: Props) {
         <p className="text-sm font-semibold text-foreground">Mot de passe</p>
       </div>
       <form onSubmit={onSubmit} className="space-y-3">
+        <label htmlFor="current-pw" className="sr-only">Mot de passe actuel</label>
         <input
+          id="current-pw"
           type="password"
           name="currentPw"
           placeholder="Mot de passe actuel"
           required
-          className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          className="w-full h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
         />
         <div className="flex gap-2">
+          <label htmlFor="new-pw" className="sr-only">Nouveau mot de passe</label>
           <input
+            id="new-pw"
             type="password"
             name="newPw"
             placeholder="Nouveau mot de passe"
             required
-            className="flex-1 h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            className="flex-1 h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
           />
+          <label htmlFor="confirm-pw" className="sr-only">Confirmer</label>
           <input
+            id="confirm-pw"
             type="password"
             name="confirmPw"
             placeholder="Confirmer"
             required
-            className="flex-1 h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            className="flex-1 h-10 bg-secondary/50 border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
           />
         </div>
         {error && <p className="text-xs text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={sending}
-          className="w-full h-10 rounded-xl text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-all disabled:opacity-50 cursor-pointer"
+          className="w-full h-10 rounded-xl text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 cursor-pointer"
         >
           {sending ? 'Enregistrement...' : done ? 'Modifie' : 'Modifier le mot de passe'}
         </button>

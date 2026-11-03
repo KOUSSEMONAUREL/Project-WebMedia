@@ -43,15 +43,19 @@ export function UserSettings() {
 
   useEffect(() => {
     if (!sessionUser) return;
-    (async () => {
-      try {
-        const { data: accounts } = await authClient.listAccounts();
+    let ignore = false;
+    authClient.listAccounts()
+      .then(({ data: accounts }) => {
+        if (ignore) return;
         const hasCredential = accounts?.some((a: { providerId: string }) => a.providerId === 'credential') ?? false;
         setHasPassword(hasCredential);
-      } catch {
-        setHasPassword(false);
-      }
-    })();
+      })
+      .catch(() => {
+        if (!ignore) setHasPassword(false);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [sessionUser]);
 
   const currentUser = sessionUser ? {

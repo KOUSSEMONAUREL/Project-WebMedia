@@ -41,7 +41,7 @@ function StarRating({ value, onChange }: { value: number; onChange?: (v: number)
         <button key={i}
           type="button"
           onClick={() => onChange?.(i + 1)}
-          className="transition-all duration-150"
+          className="transition-[transform,color] duration-150"
           style={{
             color: i < value ? '#FBBF24' : 'rgba(255,255,255,0.2)',
             cursor: onChange ? 'pointer' : 'default',
@@ -60,7 +60,7 @@ function ReviewCard({ review }: { review: Review }) {
 
   return (
     <div
-      className="rounded-xl p-4 transition-all"
+      className="rounded-xl p-4 transition-colors"
       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
     >
       <div className="flex items-start gap-3">
@@ -232,7 +232,7 @@ export default function ReviewSection({ mediaId }: Props) {
                 rows={3}
                 maxLength={2000}
                 placeholder="Votre avis..."
-                className="w-full rounded-xl px-4 py-3 text-sm transition-all resize-none"
+                className="w-full rounded-xl px-4 py-3 text-sm transition-colors resize-none"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', outline: 'none' }}
                 onFocus={(e) => { e.target.style.borderColor = 'rgba(59,130,246,0.4)'; }}
                 onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
@@ -259,7 +259,7 @@ export default function ReviewSection({ mediaId }: Props) {
             <button
               type="submit"
               disabled={!canSubmit || !turnstileReady}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 background: canSubmit ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${canSubmit ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)'}`,

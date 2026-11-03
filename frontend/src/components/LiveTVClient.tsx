@@ -260,7 +260,7 @@ export function LiveTVClient() {
   }, [allChannels]);
 
   const filtered = useMemo(() => {
-    let result = allChannels;
+    let result = [...allChannels];
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(c => c.name.toLowerCase().includes(q));

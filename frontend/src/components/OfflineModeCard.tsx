@@ -30,7 +30,7 @@ export function OfflineModeCard({ enabled, onToggle, cacheCleared, onClearCache 
           aria-checked={enabled}
           aria-label={enabled ? 'Desactiver le mode hors-ligne' : 'Activer le mode hors-ligne'}
           onClick={onToggle}
-          className={`relative w-11 h-6 rounded-full border transition-all duration-300 cursor-pointer ${
+          className={`relative w-11 h-6 rounded-full border transition-colors duration-300 cursor-pointer ${
             enabled ? 'bg-blue-600 border-blue-500' : 'bg-secondary border-border'
           }`}
         >
@@ -45,7 +45,7 @@ export function OfflineModeCard({ enabled, onToggle, cacheCleared, onClearCache 
           <button
             type="button"
             onClick={onClearCache}
-            className="text-xs font-medium text-muted-foreground hover:text-red-400 px-3 py-1.5 rounded-lg border border-border hover:border-red-500/30 transition-all cursor-pointer"
+            className="text-xs font-medium text-muted-foreground hover:text-red-400 px-3 py-1.5 rounded-lg border border-border hover:border-red-500/30 transition-colors cursor-pointer"
           >
             {cacheCleared ? 'Cache vide' : 'Vider'}
           </button>

@@ -37,7 +37,7 @@ export function CookieBanner() {
       aria-label="Stockage local"
       open
       className={
-        'fixed bottom-0 left-0 right-0 z-[999] transition-all duration-250 w-full m-0 bg-transparent border-none ' +
+        'fixed bottom-0 left-0 right-0 z-[999] transition-colors duration-250 w-full m-0 bg-transparent border-none ' +
         (!visible ? 'invisible' : hiding ? 'opacity-0 translate-y-full' : 'opacity-100 translate-y-0')
       }
       style={{ display: 'block', background: 'none' }}
@@ -69,7 +69,7 @@ export function CookieBanner() {
               <button
                 type="button"
                 onClick={function() { dismiss('full'); }}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white/10 hover:bg-white/14 text-white/80 transition-all"
+                className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white/10 hover:bg-white/14 text-white/80 transition-colors"
               >
                 Accepter
               </button>

@@ -237,7 +237,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
               }`}
             >
               <span
-                className="text-[17px] font-display font-bold tracking-tight block transition-all duration-200"
+                className="text-[17px] font-display font-bold tracking-tight block transition-transform duration-200"
                 style={{
                   background: 'linear-gradient(135deg,#60a5fa 0%,#3b82f6 50%,#2563eb 100%)',
                   WebkitBackgroundClip: 'text',
@@ -264,7 +264,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
                   }`}
                 >
                   <span
-                    className="block transition-all duration-200"
+                    className="block transition-transform duration-200"
                     style={{
                       transform: pathname === link.href ? 'scale(1.07)' : 'none',
                       textShadow: pathname === link.href ? '0 0 12px rgba(59,130,246,0.35)' : 'none',
@@ -286,7 +286,7 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
               type="button"
               onClick={() => setMobileSearchOpen(true)}
               aria-label="Rechercher"
-              className="sm:hidden flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-all duration-200 cursor-pointer"
+              className="sm:hidden flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors duration-200 cursor-pointer"
             >
               <Search className="h-[17px] w-[17px]" />
             </button>
@@ -335,8 +335,9 @@ export function Navbar({ initialPathname = typeof window !== 'undefined' ? windo
             <div className="absolute inset-x-0 top-0 h-full flex items-center px-4 gap-2 sm:hidden bg-background/95 backdrop-blur-xl rounded-2xl">
               <button
                 type="button"
+                aria-label="Close mobile search"
                 onClick={() => setMobileSearchOpen(false)}
-                className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-all"
+                className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-[17px] w-[17px]" />
               </button>

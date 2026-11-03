@@ -99,7 +99,7 @@ export default function MediasTab() {
       const q = search.toLowerCase();
       list = list.filter(m => m.title?.toLowerCase().includes(q));
     }
-    return list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return [...list].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [medias, search, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));

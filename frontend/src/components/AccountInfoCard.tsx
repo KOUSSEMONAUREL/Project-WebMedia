@@ -24,7 +24,7 @@ export function AccountInfoCard({ username, email, avatar, onLogout }: Props) {
       <button
         type="button"
         onClick={onLogout}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all cursor-pointer"
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-colors cursor-pointer"
       >
         <LogOut className="h-4 w-4" />
         Deconnexion

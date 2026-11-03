@@ -227,7 +227,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
   return (
     <a
       href={detailHref}
-      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] ${
+      className={`group relative flex flex-col gap-2 flex-shrink-0 poster-row-card transition-transform duration-300 hover:-translate-y-1 hover:scale-[1.02] ${
         isLarge
           ? 'w-[130px] xs:w-[148px] sm:w-[180px] md:w-[200px] lg:w-[212px]'
           : 'w-[120px] xs:w-[138px] sm:w-[160px] md:w-[180px] lg:w-[192px]'
@@ -235,7 +235,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
     >
       {/* Poster */}
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl poster-wrap shadow-md transition-all duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-xl poster-wrap shadow-md transition-shadow duration-300 group-hover:shadow-xl group-hover:ring-1 group-hover:ring-primary/20"
         style={{ border: '1px solid rgba(255,255,255,0.06)' }}
       >
         {media.posterUrl ? (
@@ -282,11 +282,11 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
             <Play className="h-3 w-3 fill-current" />
             {details}
           </button>
-          <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300">
+          <div className="flex gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300">
             <button
               type="button"
               onClick={toggleFavorite}
-              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-colors ${
                 isFav
                   ? 'border-red-500/80 bg-red-500/25 text-red-400 hover:bg-red-500/35'
                   : 'border-white/20 hover:border-red-500/60 hover:bg-red-500/20'
@@ -298,7 +298,7 @@ export const MediaCard = memo(function MediaCard({ media, size = 'normal', isLcp
             <button
               type="button"
               onClick={toggleWatchlist}
-              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-all ${
+              className={`flex items-center gap-1 border px-3 py-1 rounded-full text-white transition-colors ${
                 isWl
                   ? 'border-primary/80 bg-primary/25 text-primary hover:bg-primary/35'
                   : 'border-white/20 hover:border-primary/60 hover:bg-primary/15'

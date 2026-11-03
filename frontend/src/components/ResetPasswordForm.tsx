@@ -30,10 +30,11 @@ export function ResetPasswordForm({
                     <input
                         type="email"
                         placeholder="Email"
+                        aria-label="Email"
                         value={email}
                         onChange={(e) => onEmailChange(e.target.value)}
                         maxLength={254}
-                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                     />
                 </div>
                 {error && (

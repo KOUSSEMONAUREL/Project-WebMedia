@@ -52,7 +52,7 @@ function GenreTab({ type, label, genreParam, isActive, onSelect }: {
 
   return (
     <button type="button" onClick={onSelect}
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
         isActive
           ? 'bg-primary text-white shadow-lg shadow-primary/20'
           : 'bg-secondary/50 text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
@@ -105,12 +105,12 @@ function TypeContent({ type, label, genreParam }: { type: MediaType; label: stri
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-6 mb-10">
               <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 <ChevronLeft className="h-3.5 w-3.5" /> Precedent
               </button>
               <span className="text-xs text-muted-foreground">{page + 1} / {totalPages}</span>
               <button type="button" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 Suivant <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -148,7 +148,7 @@ function GenreContent({ genre, displayName }: Props) {
         ))}
       </div>
 
-      <TypeContent key={activeTab} type={activeTab} label={MEDIA_TABS.find(t => t.type === activeTab)!.label} genreParam={genreParam} />
+      <TypeContent key={activeTab} type={activeTab} label={MEDIA_TABS.find(t => t.type === activeTab)?.label} genreParam={genreParam} />
     </div>
   );
 }

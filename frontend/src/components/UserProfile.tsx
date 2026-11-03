@@ -101,28 +101,34 @@ export function UserProfile({ initialTab = 'favorites' }: { initialTab?: TabType
         } catch (syncErr) {
           console.warn('[sync-profile] Echec de la recuperation des favoris Supabase:', syncErr);
         }
+      }
 
-        const adminToken = await getAuthToken();
-        if (adminToken) {
-          try {
-            const adminRes = await fetch(`${AUTH_API_BASE}/admin/check`, {
-              headers: { 'Authorization': `Bearer ${adminToken}` },
-              credentials: 'include',
-              signal,
-            });
-            if (adminRes.ok) setIsAdmin(true);
-          } catch {}
-        }
+      let adminFlag = false;
+      const adminToken = await getAuthToken();
+      if (adminToken) {
+        try {
+          const adminRes = await fetch(`${AUTH_API_BASE}/admin/check`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` },
+            credentials: 'include',
+            signal,
+          });
+          if (adminRes.ok) adminFlag = true;
+        } catch {}
       }
 
       const wl = await getWatchlist();
       const hist = await getHistory(30);
+
+      if (signal?.aborted) return;
+
       setFavorites(localFavs);
       setWatchlist(wl);
       setHistory(hist);
+      setIsAdmin(adminFlag);
+      setLoading(false);
     } catch (err) {
-      console.error('Erreur lors du chargement des donnees utilisateur:', err);
-    } finally {
+      if (signal?.aborted) return;
+      console.warn('[profile] Echec du chargement des donnees locales:', err);
       setLoading(false);
     }
   };

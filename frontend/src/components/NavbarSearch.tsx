@@ -66,10 +66,12 @@ export function NavbarSearch({ typeFilter }: Props) {
   }, []);
 
   return (
-    <div className="relative w-full sm:w-36 md:w-44 lg:w-36 xl:w-48 focus-within:w-full focus-within:sm:w-48 focus-within:md:w-60 focus-within:lg:w-56 focus-within:xl:w-72 transition-all duration-200 shrink-0" ref={searchRef}>
+    <div className="relative w-full sm:w-36 md:w-44 lg:w-36 xl:w-48 focus-within:w-full focus-within:sm:w-48 focus-within:md:w-60 focus-within:lg:w-56 focus-within:xl:w-72 transition-[width] duration-200 shrink-0" ref={searchRef}>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <label htmlFor="navbar-search" className="sr-only">Rechercher un titre</label>
         <input
+          id="navbar-search"
           ref={searchInputRef}
           type="text"
           value={searchQuery}
@@ -83,7 +85,7 @@ export function NavbarSearch({ typeFilter }: Props) {
           }}
           maxLength={200}
           placeholder="Rechercher..."
-          className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-all"
+          className="w-full h-9 bg-white/[0.04] border border-border/50 rounded-lg pl-9 pr-8 text-[13px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 focus:bg-white/[0.06] focus:ring-1 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(59,130,246,0.08)] transition-colors"
         />
         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/40 border border-border/30">
           {isMac ? <><Command className="h-2.5 w-2.5" />K</> : <>Ctrl+K</>}

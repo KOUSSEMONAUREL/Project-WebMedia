@@ -61,13 +61,15 @@ export function LoginForm({
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <label htmlFor="login-email" className="sr-only">Email</label>
                     <input
+                        id="login-email"
                         type="email"
                         placeholder="Email"
                         value={email}
                         onChange={(e) => onEmailChange(e.target.value)}
                         maxLength={254}
-                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                     />
                 </div>
 
@@ -78,7 +80,7 @@ export function LoginForm({
                         placeholder="Mot de passe"
                         value={password}
                         onChange={(e) => onPasswordChange(e.target.value)}
-                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                        className="w-full h-11 bg-secondary/50 border border-border rounded-lg pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                     />
                     <button
                         type="button"

@@ -46,7 +46,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
             {isAdmin && (
               <a
                 href="/admin"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-colors duration-200"
               >
                 <Shield className="w-4 h-4 text-muted-foreground" />
                 Admin
@@ -54,7 +54,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
             )}
             <a
               href="/settings"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-all duration-200"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border border-border hover:bg-white/[0.04] text-foreground transition-colors duration-200"
             >
               <Settings className="w-4 h-4 text-muted-foreground" />
               Reglages
@@ -62,7 +62,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-all duration-200"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 transition-colors duration-200"
             >
               <LogOut className="w-4 h-4" />
               Deconnexion
@@ -75,7 +75,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
         <button
           type="button"
           onClick={() => onTabChange('favorites')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-colors ${
             activeTab === 'favorites'
               ? 'bg-primary/10 border-primary/30 text-primary shadow-[0_4px_16px_rgba(59,130,246,0.1)]'
               : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
@@ -89,7 +89,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
         <button
           type="button"
           onClick={() => onTabChange('watchlist')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-colors ${
             activeTab === 'watchlist'
               ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_4px_16px_rgba(168,85,247,0.1)]'
               : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
@@ -103,7 +103,7 @@ export function ProfileHeader({ username, email, avatar, activeTab, favCount, wl
         <button
           type="button"
           onClick={() => onTabChange('history')}
-          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-all ${
+          className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border transition-colors ${
             activeTab === 'history'
               ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 shadow-[0_4px_16px_rgba(20,184,166,0.1)]'
               : 'bg-secondary/20 border-border/40 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
