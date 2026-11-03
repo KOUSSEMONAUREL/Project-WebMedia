@@ -16,17 +16,17 @@
   "dependencies": {
     "@fsoc/royalroadl-api": "^0.16.3",
     "@libsql/client": "^0.18.0",
-    "axios": "^1.20.0",
+    "axios": "^1.21.0",
     "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.4",
     "fast-xml-parser": "^5.11.2",
     "node-cron": "^4.6.0",
     "pg": "^8.23.1",
-    "postgres": "^3.4.4",
+    "postgres": "^4.0.0",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
