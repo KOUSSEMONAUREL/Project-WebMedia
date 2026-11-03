@@ -1,0 +1,26 @@
+name: OpenCode Connectivity Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install opencode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          export PATH="$HOME/.opencode/bin:$PATH"
+          opencode --version
+
+      - name: List live models
+        run: |
+          export PATH="$HOME/.opencode/bin:$PATH"
+          opencode models opencode
+
+      - name: Smoke test one model (beam-free)
+        continue-on-error: true
+        run: |
+          export PATH="$HOME/.opencode/bin:$PATH"
+          opencode run --print-logs --log-level ERROR --model opencode/beam-free "reply with the single word: pong" || true
