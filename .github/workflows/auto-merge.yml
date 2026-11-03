@@ -17,18 +17,23 @@ on:
       - 'scrapers/scrapling-worker/requirements*.txt'
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   check-and-merge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
         dir: [backend, frontend, scrapers/webtoons, scrapers/novel-worker, scrapers/import-worker]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -45,6 +50,9 @@ jobs:
 
       - name: Build (frontend)
         if: matrix.dir == 'frontend'
+        env:
+          PUBLIC_API_URL: http://127.0.0.1:8080
+          PUBLIC_AUTH_URL: http://127.0.0.1:8080
         run: cd ${{ matrix.dir }} && npm run build
 
       - name: Build check (scrapers)
@@ -55,6 +63,9 @@ jobs:
     needs: check-and-merge
     if: github.actor == 'dependabot[bot]' && success()
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: dependabot/fetch-metadata@v3
         id: metadata
