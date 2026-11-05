@@ -2,7 +2,8 @@ import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 // Transcompilation of keiyoushi `en/nuviatoon` after the 2026-10-15 upstream
-// rewrite (issue #469): baseUrl moved `nuviatoon.com` -> `nuviatoon.net`
+// rewrite (issue #469) and the 2026-11-05 upstream update: baseUrl moved
+// `nuviatoon.com` -> `nuviatoon.net` -> `nuviatoon.org`
 // (the old host returns 522), the catalogue moved
 // `/nuvia-api/series` -> `/api/comics`, and the DTOs were restructured
 // (`PaginatedResponse<SeriesDto>` -> `ComicsResponse`, `Meta{current_page,
@@ -33,6 +34,7 @@ interface GenreDto {
 interface ComicDto {
   slug: string;
   title: string;
+  type?: string | null;
   coverThumbUrl?: string | null;
   coverUrl?: string | null;
   description?: string | null;
@@ -72,11 +74,18 @@ interface PageDto {
 function parseStatus(status: string | null | undefined): 0 | 1 | 2 | 3 | undefined {
   switch (status?.toLowerCase()) {
     case 'ongoing': return 1;
-    case 'completed': return 2;
-    case 'hiatus': return 0;
-    case 'dropped': return 3;
+    case 'completed': return 0;
+    case 'hiatus': return 3;
+    case 'dropped': return 2;
     default: return undefined;
   }
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split(' ')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function comicToManga(dto: ComicDto): Manga {
@@ -97,7 +106,10 @@ function comicToManga(dto: ComicDto): Manga {
     author: dto.author ?? undefined,
     artist: dto.artist ?? undefined,
     description,
-    genre: dto.genres?.map((g) => g.name).join(', ') ?? undefined,
+    genre: [
+      ...(dto.type ? [dto.type.toLowerCase()] : []),
+      ...(dto.genres ?? []).map((g) => g.name),
+    ].map(toTitleCase).join(', ') || undefined,
     status: parseStatus(dto.seriesStatus),
     lang: 'en',
   };
@@ -122,7 +134,7 @@ function asJson(data: unknown): unknown {
 
 export class NuviatoonScraper extends BaseScraper {
   readonly name = 'Nuvia Toon';
-  readonly baseUrl = 'https://nuviatoon.net';
+  readonly baseUrl = 'https://nuviatoon.org';
   readonly lang = 'en';
 
   private async fetchComics(page: number, query: string | null, sort: string): Promise<SearchResult> {

@@ -84,7 +84,7 @@ export class OrtegascansScraper extends BaseScraper {
     return {
       title: this.strOf(dto, 'title') ?? '',
       url: slug,
-      thumbnailUrl: this.coverThumb(this.strOf(dto, 'coverImage')),
+      thumbnailUrl: this.coverUrl(slug),
       lang: this.lang,
     };
   }
@@ -130,7 +130,7 @@ export class OrtegascansScraper extends BaseScraper {
     return {
       title: this.strOf(manga, 'title') || undefined,
       url: slug,
-      thumbnailUrl: this.coverThumb(this.strOf(manga, 'coverImage')),
+      thumbnailUrl: this.coverUrl(slug),
       lang: this.lang,
       description: descriptionParts.join('\n\n') || undefined,
       author: this.strOf(manga, 'author') || undefined,
@@ -197,10 +197,9 @@ export class OrtegascansScraper extends BaseScraper {
 
   // ------------------------- Utilities -------------------------
 
-  private coverThumb(coverImage: string | undefined): string {
-    if (!coverImage) return '';
-    const apiPath = coverImage.replace('storage/', 'api/');
-    return `${this.baseUrl}/${apiPath}`;
+  private coverUrl(slug: string): string {
+    if (!slug) return '';
+    return `${this.baseUrl}/api/covers/${encodeURIComponent(slug)}.webp`;
   }
 
   private categoriesOf(obj: JsonObject): string | undefined {

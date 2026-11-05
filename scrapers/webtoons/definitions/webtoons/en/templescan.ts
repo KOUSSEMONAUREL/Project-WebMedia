@@ -62,6 +62,12 @@ function pickString(o: JsonObject, ...keys: string[]): string | null {
   return null;
 }
 
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function looksLikeSlug(value: string): boolean {
+  return SLUG_PATTERN.test(value);
+}
+
 // ------------------------------------------------------------
 // RscKeys port (upstream RscKeys.kt, module `14834`): the site ships its
 // short field-key table in its own client bundle. Current bundle format
@@ -230,9 +236,14 @@ function toBrowseSeries(value: Json): BrowseSeries | null {
   const o = asRecord(value);
   if (!o) return null;
   // Logical names (post-remap) first; previous-salt short keys as fallback.
-  const title = pickString(o, 'title', 'pnsk6q');
-  const slug = pickString(o, 'series_slug', 's20a8oj', 'sref');
+  let title = pickString(o, 'title', 'pnsk6q');
+  let slug = pickString(o, 'series_slug', 's20a8oj', 'sref');
   if (!slug || !title) return null;
+  // The current bundle swaps these two fields: the human title lands in the
+  // series_slug slot and the URL slug in the title slot.
+  if (looksLikeSlug(title) && !looksLikeSlug(slug)) {
+    [title, slug] = [slug, title];
+  }
   const views = o.total_views;
   return {
     slug,
@@ -375,6 +386,75 @@ function parseDate(value: string | null | undefined): number | undefined {
   return Number.isNaN(parsed) || parsed === 0 ? undefined : parsed;
 }
 
+function parseChapterAnchors($: CheerioAPI, slug: string): Chapter[] {
+  const chapters: Chapter[] = [];
+  $('a[id^="chapter-link-"]').each((_, element) => {
+    const link = $(element);
+    const href = link.attr('href');
+    if (!href) return;
+    // Upstream hides paid early-access chapters by default.
+    if (link.text().includes('Premium')) return;
+    const name = link.find('span.truncate').first().text().trim();
+    if (!name) return;
+    chapters.push({
+      name,
+      url: href.startsWith('/') ? href : `/comic/${slug}/${href.split('/').pop() ?? href}`,
+      dateUpload: parseDate(link.find('time').attr('datetime')),
+    });
+  });
+  return chapters;
+}
+
+const TEMPLE_IMAGE_SEED_REGEX = /(?:let|var|const)\s+d\s*=\s*"([^"]{8,64})"/g;
+const TEMPLE_DECODE_CONSTANT = '2048675417';
+
+function templeImageSeed(source: string): string | null {
+  const decodeAt = source.indexOf(TEMPLE_DECODE_CONSTANT);
+  if (decodeAt < 0) return null;
+  const prefix = source.substring(0, decodeAt);
+  const re = new RegExp(TEMPLE_IMAGE_SEED_REGEX);
+  let match: RegExpExecArray | null;
+  let seed: string | null = null;
+  while ((match = re.exec(prefix)) !== null) seed = match[1];
+  return seed;
+}
+
+function decodeTempleImage(encoded: string, index: number, seed: string): string {
+  let state = (Math.imul(index + 1, 795580989) ^ seed.length) >>> 0;
+  for (let i = 0; i < seed.length; i++) {
+    state = Math.imul(state ^ seed.charCodeAt(i), 2048675417);
+    state = (state ^ (state >>> 15)) >>> 0;
+  }
+  if (state === 0) state = 1;
+  const data = Buffer.from(encoded, 'base64url');
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i++) {
+    state = (state ^ (state << 13)) >>> 0;
+    state = (state ^ (state >>> 17)) >>> 0;
+    state = (state ^ (state << 5)) >>> 0;
+    out[i] = data[i] ^ (state & 0xff);
+  }
+  return out.toString('utf8');
+}
+
+function decodeTemplePages(value: Json, seed: string): Page[] {
+  const o = asRecord(value);
+  if (!o) return [];
+  const encoded = Object.values(o).find(item =>
+    Array.isArray(item) &&
+    item.length > 0 &&
+    item.every(entry => typeof entry === 'string' && /^[A-Za-z0-9_-]+$/.test(entry)),
+  );
+  if (!Array.isArray(encoded)) return [];
+  const pages: Page[] = [];
+  encoded.forEach((item, index) => {
+    if (typeof item !== 'string') return;
+    const imageUrl = decodeTempleImage(item, index, seed);
+    if (imageUrl.startsWith('http')) pages.push({ index, imageUrl });
+  });
+  return pages;
+}
+
 const BROWSER_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -392,6 +472,7 @@ export class TemplescanScraper extends BaseScraper {
   readonly lang = 'en';
 
   private rscTable: Map<string, string> | null = null;
+  private imageSeed: string | null = null;
 
   private cachedRscKeys(): Map<string, string> | null {
     return this.rscTable && this.rscTable.size > 0 ? this.rscTable : null;
@@ -553,6 +634,10 @@ export class TemplescanScraper extends BaseScraper {
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const slug = this.slugFromUrl(mangaUrl);
     if (!slug) return [];
+    const res = await this.get(`${this.baseUrl}/comic/${slug}`, { headers: { ...BROWSER_HEADERS } });
+    const html = String(res.data);
+    const fromHtml = parseChapterAnchors(this.$(html), slug);
+    if (fromHtml.length > 0) return fromHtml;
     const value = await this.fetchMapped(`${this.baseUrl}/comic/${slug}`, SERIES_FIELDS, false);
     if (value === null) return [];
     // Upstream default hides locked (paid early-access) chapters.
@@ -565,13 +650,29 @@ export class TemplescanScraper extends BaseScraper {
       }));
   }
 
+  private async readerSeed(html: string): Promise<string | null> {
+    if (this.imageSeed !== null) return this.imageSeed;
+    const $ = this.$(html);
+    const script = $('script[src]')
+      .toArray()
+      .map(el => $(el).attr('src') ?? '')
+      .find(src => src.includes('/comic/') && /\/page-[^/]+\.js$/.test(src));
+    if (!script) return null;
+    const res = await this.get(new URL(script, this.baseUrl).toString(), { headers: { ...BROWSER_HEADERS } });
+    this.imageSeed = templeImageSeed(String(res.data));
+    return this.imageSeed;
+  }
+
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const value = await this.fetchMapped(this.absUrl(chapterUrl), PAGES_FIELDS, false);
-    const o = value !== null ? asRecord(value) : null;
-    const raw = o ? (o.images ?? o.nu7315) : null;
-    if (!Array.isArray(raw)) return [];
-    return (raw as Json[])
-      .filter((u): u is string => typeof u === 'string' && u.length > 0)
-      .map((url, index) => ({ index, imageUrl: url }));
+    const res = await this.get(this.absUrl(chapterUrl), { headers: { ...BROWSER_HEADERS } });
+    const html = String(res.data);
+    const value = extractNextJsHtml(html, node => {
+      const o = asRecord(node);
+      return o !== null && Array.isArray(o.layoutHints) && typeof o.chapterName === 'string';
+    });
+    if (value === null) return [];
+    const seed = await this.readerSeed(html);
+    if (seed === null) return [];
+    return decodeTemplePages(value, seed);
   }
 }

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
 import { BaseScraper } from '../../../engine/base';
+import { extractNextJsHtml, isJsonObject } from '../../../engine/nextjs';
 import type { Chapter, Manga, Page, SearchResult, MangaStatus } from '../../../engine/types';
 
 /**
@@ -28,10 +29,6 @@ function parseStatus(text: string | undefined): MangaStatus {
     case 'dropped': return 2;
     default: return undefined;
   }
-}
-
-function isPlainTitle(cls: string | undefined): boolean {
-  return (cls ?? '').split(/\s+/).includes('is-plain');
 }
 
 // Largest first, as the site's timeAgo() checks them (upstream Webnex.TIME_AGO_UNITS).
@@ -77,6 +74,22 @@ function toMarkdown($: CheerioDoc, el: cheerio.Cheerio<Element>): string {
       default: out += toMarkdown($, $tag);
     }
   });
+  return out;
+}
+
+function extractWebnexTags(html: string): string[] {
+  const value = extractNextJsHtml(
+    html,
+    node => isJsonObject(node) && 'genres' in node && 'tags' in node,
+  );
+  if (!isJsonObject(value)) return [];
+  const out: string[] = [];
+  for (const field of ['genres', 'tags']) {
+    const list = value[field];
+    if (Array.isArray(list)) {
+      out.push(...list.filter((item): item is string => typeof item === 'string' && item.length > 0));
+    }
+  }
   return out;
 }
 
@@ -131,19 +144,42 @@ export class WebnexScraper extends BaseScraper {
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(this.absUrl(mangaUrl));
-    const $ = this.asDocument(String(res.data));
+    const html = String(res.data);
+    const $ = this.asDocument(html);
     const title = $('h1.series-title').first().text().trim();
-    const thumbnailUrl = $('.series-cover img').first().attr('src') ?? '';
+    const thumbnailUrl = $('.series-top-cover img').first().attr('src') ?? '';
     const author = $('.series-credits a[href*="author="]').map((_i, el) => $(el).text()).get().join(', ') || undefined;
     const artist = $('.series-credits a[href*="artist="]').map((_i, el) => $(el).text()).get().join(', ') || undefined;
-    const genre = $('.series-facts a[href*="kind="], .tag-cloud a.chip').map((_i, el) => $(el).text()).get().join(', ') || undefined;
-    const status = parseStatus($('.fact-status').first().text());
-    let description = $('.series-desc p').map((_i, el) => toMarkdown($, $(el))).get().join('\n\n');
-    const altTitles = $('details.series-more li').map((_i, el) => $(el).text()).get();
+    const badgeGenres = $('.series-badges a[href*="kind="], .series-badges a[href*="demographic="]')
+      .map((_i, el) => $(el).text().trim())
+      .get();
+    const genre = [...new Set([...badgeGenres, ...extractWebnexTags(html)])].join(', ') || undefined;
+    const $statusBadge = $('.series-badges li').filter((_i, el) => $(el).find('.dot').length > 0).first();
+    const status = parseStatus($statusBadge.text());
+    const facts = $('.series-badges > li')
+      .filter((_i, el) => {
+        const $li = $(el);
+        if ($li.find('.dot').length > 0) return false;
+        const href = $li.find('a').attr('href') ?? '';
+        return !href.includes('kind=') && !href.includes('demographic=');
+      })
+      .map((_i, el) => $(el).text().trim())
+      .get()
+      .filter(Boolean);
+    const rating = $('.cover-score strong').first().text().trim();
+    const paragraphs = $('.series-desc p').map((_i, el) => toMarkdown($, $(el))).get().filter(Boolean);
+    const altTitles = $('.series-alt-name')
+      .map((_i, el) => $(el).text().trim())
+      .get()
+      .filter(t => t.length > 0 && t !== title);
+    const descriptionParts: string[] = [];
+    if (rating) descriptionParts.push(`Rating: ${rating}/10`);
+    if (facts.length > 0) descriptionParts.push(facts.join(' • '));
+    descriptionParts.push(...paragraphs);
     if (altTitles.length > 0) {
-      if (description.length > 0) description += '\n\n';
-      description += 'Alternative titles:\n' + altTitles.map(t => `• ${t}`).join('\n');
+      descriptionParts.push('Alternative titles:\n' + [...new Set(altTitles)].map(t => `• ${t}`).join('\n'));
     }
+    const description = descriptionParts.join('\n\n');
     return {
       title,
       url: this.relativizeMangaUrl(mangaUrl),
@@ -216,14 +252,11 @@ export class WebnexScraper extends BaseScraper {
       if (!pickedId) return;
       const $num = $link.find('.ch-num').first();
       const $title = $link.find('.ch-title').first();
-      const name = isPlainTitle($title.attr('class'))
-        ? $title.text().trim()
-        : [$num.text().trim(), $title.text().trim()].filter(s => s.length > 0).join(': ');
-      // `.ch-num` contient un <span class="visually-hidden">"Chapter "</span>
-      // AVANT le nombre. Un .text() brut donnait "Chapter 31" et
-      // parseFloat("Chapter 31") valait NaN : chapterNumber restait undefined
-      // sur toutes les series, donc le tri final ne triait rien.
-      const numText = $num.clone().find('.visually-hidden').remove().end().text().trim();
+      // `.ch-num` nests the "Ch. " / "Chapter " labels in spans; upstream
+      // reads ownText(), i.e. only the text node holding the number.
+      const numText = $num.clone().children().remove().end().text().trim();
+      const titleText = $title.text().trim();
+      const name = titleText ? `Chapter ${numText}: ${titleText}` : `Chapter ${numText}`;
       const chapterNumber = parseFloat(numText);
       const scanlator = $el.find('.ch-source, .ch-source-name').first().text().trim() || undefined;
       const datetime = $el.find('time.ch-time').first().attr('datetime');
@@ -253,19 +286,42 @@ export class WebnexScraper extends BaseScraper {
     return chapters;
   }
 
+  private responseCookie(res: unknown): string {
+    const raw = (res as { headers?: Record<string, unknown> })?.headers?.['set-cookie'];
+    return Array.isArray(raw)
+      ? raw.map(value => String(value).split(';')[0]).join('; ')
+      : typeof raw === 'string' ? raw.split(';')[0] : '';
+  }
+
+  private responseUrl(res: unknown, fallback: string): string {
+    const final = (res as { request?: { res?: { responseUrl?: string } } })?.request?.res?.responseUrl;
+    return final && final.length > 0 ? final : fallback;
+  }
+
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const chapterAbs = this.absUrl(chapterUrl);
     // The reader endpoint is gated by a per-chapter `wnx_reader` cookie that
     // the chapter page sets on navigation.
-    const chapterRes = await this.get(chapterAbs);
-    const rawCookie = (chapterRes.headers as unknown as Record<string, unknown>)['set-cookie'];
-    const cookie = Array.isArray(rawCookie)
-      ? rawCookie.map(value => String(value).split(';')[0]).join('; ')
-      : typeof rawCookie === 'string' ? rawCookie.split(';')[0] : '';
+    let chapterRes = await this.get(chapterAbs);
+    let html = String(chapterRes.data);
+    let readerUrl = this.responseUrl(chapterRes, chapterAbs);
+    let cookie = this.responseCookie(chapterRes);
+    // "Opening series" interstitial: the page sets a cookie from inline JS
+    // and reloads. Upstream retries the same request with that cookie.
+    const opening = /<title>Opening series<\/title>[\s\S]*?document\.cookie\s*=\s*"([^"]+)"/.exec(html);
+    if (opening) {
+      cookie = [cookie, opening[1]].filter(Boolean).join('; ');
+      chapterRes = await this.get(readerUrl, { headers: cookie ? { Cookie: cookie } : undefined });
+      html = String(chapterRes.data);
+      readerUrl = this.responseUrl(chapterRes, readerUrl);
+      cookie = [cookie, this.responseCookie(chapterRes)].filter(Boolean).join('; ');
+    }
     // Upstream reads the dedicated `/pages` endpoint (ReaderDto.pages).
     // Cloudflare rejects it unless the request is marked as a same-origin
     // fetch instead of a document navigation.
-    const res = await this.get(`${chapterAbs.replace(/\/$/, '')}/pages`, {
+    const pagesUrl = new URL(readerUrl);
+    pagesUrl.pathname = pagesUrl.pathname.replace(/\/$/, '') + '/pages';
+    const res = await this.get(pagesUrl.toString(), {
       headers: {
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -273,7 +329,12 @@ export class WebnexScraper extends BaseScraper {
         ...(cookie ? { Cookie: cookie } : {}),
       },
     });
-    const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    let data: unknown;
+    try {
+      data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    } catch {
+      return [];
+    }
     if (!data || typeof data !== 'object' || !Array.isArray((data as { pages?: unknown }).pages)) return [];
     const pages: Page[] = [];
     for (const p of (data as { pages: unknown[] }).pages) {

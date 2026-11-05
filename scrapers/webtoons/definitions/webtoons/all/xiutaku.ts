@@ -1,10 +1,6 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
-const MOBILE_UA =
-  'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
-const MOBILE_HEADERS = { 'User-Agent': MOBILE_UA };
-
 function parseXiutakuDate(value: string): number | undefined {
   const match = /^(\d{2}):(\d{2}) (\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value.replace('🕒', '').trim());
   if (!match) return undefined;
@@ -18,12 +14,12 @@ export class XiutakuScraper extends BaseScraper {
   readonly lang = 'all';
 
   async getPopular(page = 1): Promise<SearchResult> {
-    const response = await this.get(`${this.baseUrl}/hot?start=${20 * (page - 1)}`, { headers: MOBILE_HEADERS });
+    const response = await this.get(`${this.baseUrl}/hot?start=${20 * (page - 1)}`);
     return this.parseMangasPage(response.data);
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const response = await this.get(`${this.baseUrl}/?start=${20 * (page - 1)}`, { headers: MOBILE_HEADERS });
+    const response = await this.get(`${this.baseUrl}/?start=${20 * (page - 1)}`);
     return this.parseMangasPage(response.data);
   }
 
@@ -52,7 +48,7 @@ export class XiutakuScraper extends BaseScraper {
       if (url.host !== 'xiutaku.com') {
         throw new Error('Xiutaku: unsupported url');
       }
-      const response = await this.get(query, { headers: MOBILE_HEADERS });
+      const response = await this.get(query);
       const $ = this.$(response.data);
       if ($('.article-header').length > 0) {
         const details = await this.getMangaDetails(url.pathname);
@@ -73,12 +69,12 @@ export class XiutakuScraper extends BaseScraper {
     const url = new URL(this.baseUrl);
     url.searchParams.set('search', query);
     url.searchParams.set('start', String(20 * (page - 1)));
-    const response = await this.get(url.toString(), { headers: MOBILE_HEADERS });
+    const response = await this.get(url.toString());
     return this.parseMangasPage(response.data);
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const response = await this.get(mangaUrl, { headers: MOBILE_HEADERS });
+    const response = await this.get(mangaUrl);
     const $ = this.$(response.data);
     const title = $('.article-header').first().text().trim();
     if (!title) {
@@ -98,7 +94,7 @@ export class XiutakuScraper extends BaseScraper {
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const response = await this.get(mangaUrl, { headers: MOBILE_HEADERS });
+    const response = await this.get(mangaUrl);
     const $ = this.$(response.data);
     const dateUpload = parseXiutakuDate($('.article-info > small').first().text());
     const maxPage = Number($('.pagination-list > span:last-child > a').first().text().trim()) || 1;
@@ -116,7 +112,7 @@ export class XiutakuScraper extends BaseScraper {
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const response = await this.get(chapterUrl, { headers: MOBILE_HEADERS });
+    const response = await this.get(chapterUrl);
     const $ = this.$(response.data);
     const pages: Page[] = [];
     $('.article-fulltext img').each((i, el) => {

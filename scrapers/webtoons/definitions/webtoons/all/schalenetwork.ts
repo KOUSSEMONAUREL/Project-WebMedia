@@ -8,7 +8,7 @@ import type { Chapter, Manga, Page, SearchResult } from '../../../engine/types';
  * `Origin`/`Referer` pair — a bare request gets 400.
  *
  * - API:     `https://api.schale.network/books?page=N[&sort=8][&s=…]`
- * - Series:  `https://shupogaki.moe/g/<id>/<key>` (SPA route; the readable
+ * - Series:  `https://niyaniya.moe/g/<id>/<key>` (SPA route; the readable
  *   metadata comes from `/books/detail/<id>/<key>`)
  * - Detail:  tags namespaced — 1 artists, 2 circles, 3 parodies, 4 magazines,
  *   5 characters, 6 cosplayers, 7 uploaders (skip "anonymous"), 8 males,
@@ -48,7 +48,7 @@ const API_URL = 'https://api.schale.network';
 
 export class SchaleNetworkScraper extends BaseScraper {
   readonly name = 'SchaleNetwork';
-  readonly baseUrl = 'https://shupogaki.moe';
+  readonly baseUrl = 'https://niyaniya.moe';
   readonly lang = 'all';
 
   private headers() {
@@ -124,7 +124,7 @@ export class SchaleNetworkScraper extends BaseScraper {
     section('Parodies', capitalize(byNamespace(3)));
     section('Characters', capitalize(byNamespace(5)));
     if (sections.length > 0) sections.push('');
-    sections.push(`Posted: ${new Date(data.created_at * 1000).toISOString()}`);
+    sections.push(`Posted: ${new Date(data.created_at).toISOString()}`);
     detail.description = sections.join('\n');
     return detail;
   }
@@ -134,7 +134,7 @@ export class SchaleNetworkScraper extends BaseScraper {
     return [{
       name: 'Chapter',
       url: mangaUrl,
-      dateUpload: (data.updated_at ?? data.created_at) * 1000,
+      dateUpload: data.updated_at ?? data.created_at,
     }];
   }
 

@@ -74,9 +74,15 @@ function extractInitialData(html: string): ComixQueries {
   return JSON.parse(match[1]) as ComixQueries;
 }
 
-function posterUrl(poster: ComixPoster | null | undefined): string {
+function posterUrl(baseUrl: string, poster: ComixPoster | null | undefined): string {
   if (!poster) return '';
-  return poster.medium ?? poster.large ?? poster.small ?? '';
+  const path = poster.medium ?? poster.large ?? poster.small ?? '';
+  if (!path) return '';
+  try {
+    return new URL(path, baseUrl).toString();
+  } catch {
+    return path;
+  }
 }
 
 export class ComixScraper extends BaseScraper {
@@ -88,7 +94,7 @@ export class ComixScraper extends BaseScraper {
     return {
       title: item.title,
       url: item.url ?? `/${item.hid}`,
-      thumbnailUrl: posterUrl(item.poster),
+      thumbnailUrl: posterUrl(this.baseUrl, item.poster),
       lang: this.lang,
     };
   }
@@ -155,7 +161,7 @@ export class ComixScraper extends BaseScraper {
     return {
       title: detail.title,
       url: mangaUrl,
-      thumbnailUrl: posterUrl(detail.poster),
+      thumbnailUrl: posterUrl(this.baseUrl, detail.poster),
       description: detail.synopsis ?? undefined,
       author: detail.authors?.map((a) => a.title).join(', ') || undefined,
       artist: detail.artists?.map((a) => a.title).join(', ') || undefined,
