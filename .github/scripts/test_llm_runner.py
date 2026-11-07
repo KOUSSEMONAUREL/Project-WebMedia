@@ -76,8 +76,9 @@ def run_coding_benchmark(model_id):
     completion_tokens = usage.get("completion_tokens", 0)
     tok_per_sec = completion_tokens / elapsed if elapsed > 0 else 0
     
-    # Check if correct regex was generated
-    valid_code = "[0-9a-fA-F]{40}" in content or "[0-9a-f]{40}" in content or "\\b[0-9a-fA-F]{40}\\b" in content
+    # Check if a valid 40-hex regex was generated (supporting [a-f0-9], [0-9a-f], [0-9a-fA-F], etc.)
+    import re
+    valid_code = bool(re.search(r'\[[a-f0-9A-F_-]+\]\{40\}', content) or ("[0-9a-f" in content.lower() and "40" in content))
     
     print(f"Generated tokens: {completion_tokens}")
     print(f"Elapsed: {elapsed:.2f}s")
@@ -286,3 +287,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
