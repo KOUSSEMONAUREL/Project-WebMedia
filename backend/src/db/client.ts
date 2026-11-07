@@ -6,6 +6,9 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import * as neonSchema from './neon/schema';
 import * as tursoSchema from './turso/schema';
 import * as supabaseSchema from './supabase/schema';
+import { enablePreparedStatements } from './prepared-statements';
+
+enablePreparedStatements();
 
 /**
  * Client Neon/Postgres (Écriture - Source of Truth)
@@ -13,7 +16,10 @@ import * as supabaseSchema from './supabase/schema';
 export function createNeonClient(connectionString: string, hyperdrive?: any) {
     // Si Hyperdrive est fourni, on l'utilise, sinon on utilise la string brute
     const finalConnString = hyperdrive?.connectionString || connectionString;
-    const client = postgres(finalConnString, { prepare: false });
+    const client = postgres(finalConnString, {
+        prepare: true,
+        ...(hyperdrive ? { max: 5, fetch_types: false } : {}),
+    });
     const db = drizzlePg(client, { schema: neonSchema });
     return { db, client };
 }
