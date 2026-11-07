@@ -441,11 +441,13 @@ concatenation (`"/" + segment`) que le HTML seul ne montre pas.
 le HTML. La racine `/` ne sert que 7 liens de navigation, c'est `/porncomic/` qui porte le
 catalogue.
 
-### `fr/scanmanga` (`m.scan-manga.com`) — candidat `BUILD`
+### `fr/scanmanga` (`m.scan-manga.com`) — protégé Cloudflare Challenge (07/11/2026)
 
-`m.scan-manga.com` fait une `302` vers `www.scan-manga.com`. Les liens sont en URL absolue
-`https://www.scan-manga.com/<id>/<slug>.html`, et la fiche `/12915/Level-Up-With-Skills.html`
-repond **200** avec un titre et 27 836 caractères de texte.
+`m.scan-manga.com` fait une `302` vers `www.scan-manga.com`. Le site a déployé un
+Cloudflare Managed Challenge (`cf_chl_opt` / HTTP 403) bloquant le scraping HTML sans
+solveur navigateur/headless. Upstream Keiyoushi utilise un déchiffrement Kotlin `LelCall`.
+Inutilisable en pur HTTP/fetch. Condition de revivification : désactivation du challenge Cloudflare
+ou solveur headless côté scraper.
 
 ### `en/kitsunedawn` (`kitsunedawn.com`) — candidat `BUILD`, avec une reserve
 

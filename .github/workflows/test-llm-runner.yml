@@ -1,0 +1,97 @@
+name: Test LLM on Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Modèle GGUF à tester sur le runner'
+        required: true
+        type: choice
+        default: 'Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M'
+        options:
+          - 'Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M'
+          - 'ibm-granite/granite-4.2-8b-GGUF:Q4_K_M'
+          - 'Qwen/Qwen2.5-Coder-3B-Instruct-GGUF:Q4_K_M'
+          - 'ibm-granite/granite-4.2-3b-GGUF:Q4_K_M'
+      threads:
+        description: 'Nombre de threads CPU'
+        required: false
+        default: '4'
+      ctx_size:
+        description: 'Taille du contexte (tokens)'
+        required: false
+        default: '4096'
+
+jobs:
+  benchmark-llm:
+    name: "Benchmark LLM (${{ inputs.model }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: System Hardware & Resource Check
+        run: |
+          echo "=== CPU Info ==="
+          lscpu | grep -E "Model name|CPU\(s\):|Thread|Core" || true
+          echo -e "\n=== RAM Info ==="
+          free -h
+          echo -e "\n=== Disk Info ==="
+          df -h /
+
+      - name: Cache HuggingFace Models
+        uses: actions/cache@v6
+        with:
+          path: /tmp/hf_cache
+          key: hf-models-${{ inputs.model }}
+          restore-keys: |
+            hf-models-
+
+      - name: Pull llama.cpp Server Docker Image
+        run: |
+          docker pull ghcr.io/ggml-org/llama.cpp:server
+
+      - name: Start llama.cpp Server
+        env:
+          MODEL: ${{ inputs.model }}
+          THREADS: ${{ inputs.threads }}
+          CTX_SIZE: ${{ inputs.ctx_size }}
+        run: |
+          mkdir -p /tmp/hf_cache
+          chmod -R 777 /tmp/hf_cache
+
+          echo "Starting llama.cpp server with model: $MODEL"
+          docker run -d --name llama-server \
+            -e HOME=/cachehome \
+            -v /tmp/hf_cache:/cachehome/.cache \
+            -p 127.0.0.1:8080:8080 \
+            ghcr.io/ggml-org/llama.cpp:server \
+            -hf "$MODEL" \
+            --host 0.0.0.0 --port 8080 \
+            -c "$CTX_SIZE" -t "$THREADS" --jinja --parallel 1 --api-key local-only
+
+      - name: Run Benchmark Test Suite
+        id: benchmark
+        env:
+          LLM_API_URL: "http://127.0.0.1:8080/v1"
+          LLM_API_KEY: "local-only"
+        run: |
+          python3 .github/scripts/test_llm_runner.py
+
+      - name: Dump Server Logs on Failure
+        if: failure()
+        run: |
+          echo "=== llama.cpp Server Logs ==="
+          docker logs --tail 100 llama-server || true
+
+      - name: Cleanup Server
+        if: always()
+        run: |
+          docker rm -f llama-server >/dev/null 2>&1 || true
