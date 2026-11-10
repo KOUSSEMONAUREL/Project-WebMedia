@@ -74,10 +74,58 @@ export class WebcomicsScraper extends BaseScraper {
     return chapters;
   }
 
-  async getPageList(_chapterUrl: string): Promise<Page[]> {
-    // Chapter reader is client-rendered; page images are not in the served HTML.
-    // The pipeline never ingests page images, so this is intentionally empty.
-    return [];
+  async getPageList(chapterUrl: string): Promise<Page[]> {
+    const res = await this.get(this.absUrl(chapterUrl));
+    return this.parsePages(res.data);
+  }
+
+  private parsePages(html: string): Page[] {
+    const payload = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+    if (!payload) return [];
+    let data: unknown;
+    try {
+      data = JSON.parse(payload);
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(data)) return [];
+
+    const resolve = (value: unknown, depth = 0): unknown => {
+      if (depth > 8) return value;
+      if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < data.length) {
+        return resolve(data[value], depth + 1);
+      }
+      if (Array.isArray(value)) return value.map(item => resolve(item, depth + 1));
+      if (value !== null && typeof value === 'object') {
+        const resolved: Record<string, unknown> = {};
+        for (const [key, item] of Object.entries(value)) resolved[key] = resolve(item, depth + 1);
+        return resolved;
+      }
+      return value;
+    };
+
+    const chapter = data.find((entry): entry is Record<string, unknown> =>
+      entry !== null && typeof entry === 'object' && !Array.isArray(entry) && 'images' in entry);
+    if (!chapter) return [];
+
+    const images = resolve(chapter.images);
+    const base = resolve(chapter.base_url);
+    if (!Array.isArray(images)) return [];
+
+    const pages: Page[] = [];
+    const seen = new Set<string>();
+    for (const image of images) {
+      if (image === null || typeof image !== 'object') continue;
+      const url = (image as Record<string, unknown>).url;
+      if (typeof url !== 'string' || url === '') continue;
+      const imageUrl = /^https?:\/\//i.test(url)
+        ? url
+        : this.absUrl(`${typeof base === 'string' ? base : ''}${url}`);
+      if (seen.has(imageUrl)) continue;
+      seen.add(imageUrl);
+      pages.push({ index: pages.length, imageUrl });
+    }
+    return pages;
   }
 
   private parseCards(html: string, hasNext: boolean): SearchResult {
