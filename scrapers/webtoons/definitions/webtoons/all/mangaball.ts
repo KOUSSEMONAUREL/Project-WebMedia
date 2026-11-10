@@ -92,6 +92,8 @@ export interface MangaBallFilters {
   sortOrder?: 'asc' | 'desc';
   tagMode?: 'AND' | 'OR';
   type?: '' | 'manga' | 'manhwa' | 'manhua' | 'comics';
+  originalLanguage?: string;
+  chapterLanguage?: string;
   publicationDemographic?: '' | 'shounen' | 'shoujo' | 'seinen' | 'josei';
   status?: '' | 'ongoing' | 'completed' | 'hiatus' | 'cancelled';
   includedTags?: string[];
@@ -158,7 +160,9 @@ export class MangaBallScraper extends BaseScraper {
         tag_mode: filters.tagMode ?? 'AND',
         adult_mode: 'all',
         ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+        ...(filters.chapterLanguage ? { chapterLanguage: filters.chapterLanguage } : {}),
         ...(filters.type ? { type: filters.type } : {}),
+        ...(filters.originalLanguage ? { originalLanguage: filters.originalLanguage } : {}),
         ...(filters.publicationDemographic ? { publicationDemographic: filters.publicationDemographic } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.includedTags?.length ? { included_tags: filters.includedTags.join(',') } : {}),
