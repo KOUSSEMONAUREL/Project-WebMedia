@@ -101,6 +101,14 @@ export class PlumicsScraper extends BaseScraper {
     const mangas = result.data
       .filter(project => project.lang === this.lang && project.category !== 'novel')
       .map(project => this.toManga(project));
+    if (mangas.length === 0) {
+      const fallback = await this.getProjects(page, 'popular');
+      const needle = query.trim().toLowerCase();
+      const matches = fallback.mangas.filter(manga => manga.title.toLowerCase().includes(needle));
+      if (matches.length > 0) {
+        return { mangas: matches, hasNextPage: fallback.hasNextPage };
+      }
+    }
     return { mangas, hasNextPage: result.next_page_url !== null };
   }
 
