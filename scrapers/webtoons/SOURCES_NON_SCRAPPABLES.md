@@ -72,7 +72,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `all/cinblue` | `cin.blue` | IGNORE | Sondé le 2026-11-08 (curl -4) : **200**, titre « Download or Watch your favorite doujin » ; les liens sont `/v/<id>` (vidéos/doujin), `/search`, `/fyp`, `/chat` : c’est un site de doujin/vidéo, **pas un catalogue manga/webtoon**, et il n’y a aucune URL de fiche de série | Un catalogue manga lisible apparaît |
 | `all/cubari` | `cubari.moe` | IGNORE | Sondé le 2026-11-08 (curl -4) : **200**, page « Cubari » qui se borne à lier des lecteurs tiers (weebcentral.com, guya.moe) ; aucun formulaire de recherche ni catalogue propre | Le site expose son propre catalogue |
 | `en/dreammanga` | `dream-manga.com` | IGNORE | Sondé le 2026-11-08 (curl -4) : **HTTP 404** (la colonne Cloudflare du moniteur indique déjà « HTTP 404 ») ; le domaine ne sert plus de contenu | Le domaine ressert un catalogue lisible |
-| `all/sankakucomplex` | `sankaku.app` | IGNORE | Sondé le 2026-11-08 (curl -4) : **000** ; Sankaku-style image board, pas un catalogue manga/webtoon, donc aucune URL de fiche de série | Un catalogue manga lisible apparaît |
+| `all/sankakucomplex` | `sankaku.app` | IGNORE | Sondé le 2026-11-08 (curl -4) : **000** ; re-sondé le 2026-11-10 : **200** (nginx). Sankaku-style image board, pas un catalogue manga/webtoon, donc aucune URL de fiche de série | Un catalogue manga lisible apparaît |
 
 ### Sources vivantes derrière un challenge Cloudflare : `BLOCKED`, pas `IGNORE`
 
