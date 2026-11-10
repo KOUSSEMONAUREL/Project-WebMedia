@@ -84,6 +84,7 @@ interface ChapterAttributesDto {
   title?: string;
   volume?: string;
   chapter?: string;
+  translatedLanguage?: string;
   pages: number;
   publishAt: string;
   externalUrl?: string;
@@ -142,6 +143,7 @@ export class MangadexScraper extends BaseScraper {
   async getPopular(page: number): Promise<SearchResult> {
     const url = new URL(`${API_URL}/manga`);
     url.searchParams.set('order[followedCount]', 'desc');
+    url.searchParams.set('hasAvailableChapters', 'true');
     url.searchParams.set('availableTranslatedLanguage[]', this.dexLang);
     url.searchParams.set('limit', MANGA_LIMIT.toString());
     url.searchParams.set('offset', getMangaListOffset(page));
