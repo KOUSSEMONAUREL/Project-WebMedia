@@ -14,10 +14,30 @@ export class FreeAdultComixScraper extends BaseScraper {
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
+    const trimmed = query.trim();
+    let result = await this.search(trimmed, page);
+    if (result.mangas.length === 0 && trimmed !== '') {
+      const normalized = this.normalizeQuery(trimmed);
+      if (normalized !== '' && normalized !== trimmed) {
+        result = await this.search(normalized, page);
+      }
+    }
+    return result;
+  }
+
+  private async search(query: string, page: number): Promise<SearchResult> {
     const url = new URL(this.listUrl(page));
-    if (query.trim()) url.searchParams.set('s', query.trim());
+    if (query !== '') url.searchParams.set('s', query);
     const res = await this.get(url.toString());
     return this.parseListing(res.data);
+  }
+
+  private normalizeQuery(query: string): string {
+    return query
+      .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private listUrl(page: number): string {
