@@ -1,7 +1,7 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
-const QUERY_PAGE_SIZE = 19;
+const QUERY_PAGE_SIZE = 20;
 
 interface MangaDto {
   desc: string;
@@ -17,6 +17,13 @@ function slugToTitle(url: string): string {
   return joined.charAt(0).toUpperCase() + joined.slice(1);
 }
 
+function galleryTitle(item: MangaDto): string {
+  const lastSegment = item.g_url.replace(/\/$/, '').split('/').pop() ?? '';
+  const id = /^\d+$/.test(lastSegment) ? lastSegment : '';
+  const desc = id ? item.desc.replace(new RegExp(`${id}$`), '').trim() : item.desc.trim();
+  return desc || slugToTitle(item.g_url);
+}
+
 export class PornPicsScraper extends BaseScraper {
   readonly name = 'PornPics';
   readonly baseUrl = 'https://www.pornpics.com';
@@ -26,7 +33,7 @@ export class PornPicsScraper extends BaseScraper {
 
   async getPopular(page = 1): Promise<SearchResult> {
     const res = await this.get(
-      `${this.baseUrl}/popular/api/galleries/list/?limit=${QUERY_PAGE_SIZE + 1}&offset=${(page - 1) * QUERY_PAGE_SIZE}&period=1&category_id=2586&lang=en`,
+      `${this.baseUrl}/popular/api/galleries/list/?limit=${QUERY_PAGE_SIZE}&offset=${(page - 1) * QUERY_PAGE_SIZE}&period=1&category_id=2586&lang=en`,
       { headers: { Cookie: 'pp_lang=' } },
     );
     return this.parseMangasPage(res);
@@ -34,7 +41,7 @@ export class PornPicsScraper extends BaseScraper {
 
   async getLatest(page = 1): Promise<SearchResult> {
     const res = await this.get(
-      `${this.baseUrl}/popular/api/galleries/list/?limit=${QUERY_PAGE_SIZE + 1}&offset=${(page - 1) * QUERY_PAGE_SIZE}&period=2&category_id=2587&lang=en`,
+      `${this.baseUrl}/popular/api/galleries/list/?limit=${QUERY_PAGE_SIZE}&offset=${(page - 1) * QUERY_PAGE_SIZE}&period=2&category_id=2587&lang=en`,
       { headers: { Cookie: 'pp_lang=' } },
     );
     return this.parseMangasPage(res);
@@ -45,7 +52,7 @@ export class PornPicsScraper extends BaseScraper {
       return this.getPopular(page);
     }
     const res = await this.get(
-      `${this.baseUrl}/search/srch.php?lang=en&offset=${(page - 1) * QUERY_PAGE_SIZE}&limit=${QUERY_PAGE_SIZE + 1}&q=${encodeURIComponent(query)}`,
+      `${this.baseUrl}/search/srch.php?lang=en&offset=${(page - 1) * QUERY_PAGE_SIZE}&limit=${QUERY_PAGE_SIZE}&q=${encodeURIComponent(query)}`,
       { headers: { Cookie: 'pp_lang=' } },
     );
     return this.parseMangasPage(res);
@@ -63,7 +70,7 @@ export class PornPicsScraper extends BaseScraper {
       const data: MangaDto[] = response.data;
       mangas = data.map(item => ({
         url: item.g_url.replace('https://www.pornpics.com', ''),
-        title: item.desc && item.desc.trim() ? item.desc : slugToTitle(item.g_url),
+        title: galleryTitle(item),
         thumbnailUrl: item.t_url,
         lang: this.lang,
       }));
@@ -79,9 +86,7 @@ export class PornPicsScraper extends BaseScraper {
         };
       }).get();
     }
-    const hasNextPage = mangas.length > QUERY_PAGE_SIZE;
-    if (hasNextPage) mangas = mangas.slice(0, -1);
-    return { mangas, hasNextPage };
+    return { mangas, hasNextPage: mangas.length >= QUERY_PAGE_SIZE };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
