@@ -3,7 +3,7 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 export class OnepunchmanonlineScraper extends BaseScraper {
   readonly name = 'One Punch Man Online';
-  readonly baseUrl = 'https://w20.1punchman.com';
+  readonly baseUrl = 'https://w21.1punchman.com';
   readonly lang = 'en';
 
   private singleManga(): Manga {

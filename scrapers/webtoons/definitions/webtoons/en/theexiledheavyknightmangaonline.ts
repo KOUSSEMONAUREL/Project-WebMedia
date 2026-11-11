@@ -3,7 +3,7 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 export class TheexiledheavyknightmangaonlineScraper extends BaseScraper {
   readonly name = 'Read The Exiled Heavy Knight Manga Online';
-  readonly baseUrl = 'https://w2.theexiledheavyknight.com';
+  readonly baseUrl = 'https://w3.theexiledheavyknight.com';
   readonly lang = 'en';
 
   private singleManga(): Manga {

@@ -228,7 +228,6 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('contentRating[]', 'erotica');
       url.searchParams.set('contentRating[]', 'pornographic');
       url.searchParams.set('includeFuturePublishAt', '0');
-      url.searchParams.set('includeEmptyPages', '0');
       const response = await this.get(url.toString());
       return this.parseLatestUpdatesResponse(response.data);
     }
@@ -351,7 +350,6 @@ export class MangadexScraper extends BaseScraper {
       url.searchParams.set('order[volume]', 'desc');
       url.searchParams.set('order[chapter]', 'desc');
       url.searchParams.set('includeFuturePublishAt', '0');
-      url.searchParams.set('includeEmptyPages', '0');
       url.searchParams.set('contentRating[]', 'safe');
       url.searchParams.set('contentRating[]', 'suggestive');
       url.searchParams.set('contentRating[]', 'erotica');

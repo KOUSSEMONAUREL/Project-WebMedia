@@ -1,9 +1,9 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
-const SUPABASE_URL = 'https://nrqghtbdrdnoywxjkgkf.supabase.co/rest/v1';
+const SUPABASE_URL = 'https://apidb.webdexscans.com/rest/v1';
 const SUPABASE_API_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycWdodGJkcmRub3l3eGprZ2tmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4Njg4NDEsImV4cCI6MjA5MjQ0NDg0MX0.Gnrn33_LMxFA9m_OdCpybBZ-Cjcc5rdsJlD8Y9eOICg';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyMzI5NzkxLCJleHAiOjE5NTAwMDk3OTF9.ub3n4yzBgZ1madOiy7R_QE5yOLRJISh8-C_wa0Ud8mQ';
 
 interface SearchSeriesDto {
   id: string;
