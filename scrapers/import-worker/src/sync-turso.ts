@@ -1,4 +1,4 @@
-import { sql, eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { createNeonClient, createTursoClient } from './db/client.js';
 import { medias, episodes, liens, importOffsets } from './db/neon/schema.js';
@@ -9,7 +9,15 @@ const BATCH = 100;
 const PAGE_SIZE = 1000;
 const RETRY_ATTEMPTS = 3;
 const RETRY_BASE_MS = 500;
-const SYNC_KEY = 'turso_last_sync_ms';
+const SYNC_KEYS = {
+    medias: 'turso_last_sync_medias_ms',
+    episodes: 'turso_last_sync_episodes_ms',
+    liens: 'turso_last_sync_liens_ms',
+} as const;
+const LEGACY_SYNC_KEY = 'turso_last_sync_ms';
+const MAX_ROWS = parseInt(process.env.SYNC_MAX_ROWS || '0', 10);
+const SKIP_OFFSETS = process.env.SYNC_SKIP_OFFSETS === '1';
+const SKIP_MAINTENANCE = process.env.SYNC_SKIP_MAINTENANCE === '1';
 
 // Types toujours syncés vers Turso même sans lien actif (book: pas de liens requis,
 // film/serie/anime: les liens passent par des embedders, pas par la table liens).
@@ -63,15 +71,17 @@ async function fetchAllPages<TRow extends Record<string, unknown> & { id: string
     const rows: TRow[] = [];
     let lastId: string | undefined;
     for (;;) {
-        const page = await retry(`fetch ${label}`, log, () => selectPage(lastId, PAGE_SIZE));
+        const pageSize = MAX_ROWS > 0 ? Math.min(PAGE_SIZE, MAX_ROWS - rows.length) : PAGE_SIZE;
+        if (pageSize <= 0) break;
+        const page = await retry(`fetch ${label}`, log, () => selectPage(lastId, pageSize));
         rows.push(...page);
-        if (page.length < PAGE_SIZE) break;
+        if (page.length < pageSize) break;
         lastId = (page[page.length - 1] as { id: string }).id;
     }
     return rows;
 }
 
-function mediaUpsert() {
+export function mediaUpsert() {
     return {
         target: tursoMedias.id,
         set: {
@@ -102,11 +112,12 @@ function mediaUpsert() {
             activeLinksCount: sql`excluded.active_links_count`,
             createdAt: sql`excluded.created_at`,
             updatedAt: sql`excluded.updated_at`,
-        }
+        },
+        setWhere: sql`COALESCE(excluded.updated_at, 0) > COALESCE(${tursoMedias.updatedAt}, 0)`,
     };
 }
 
-function episodeUpsert() {
+export function episodeUpsert() {
     return {
         target: tursoEpisodes.id,
         set: {
@@ -119,11 +130,12 @@ function episodeUpsert() {
             thumbnailUrl: sql`excluded.thumbnail_url`,
             duration: sql`excluded.duration`,
             updatedAt: sql`excluded.updated_at`,
-        }
+        },
+        setWhere: sql`COALESCE(excluded.updated_at, 0) > COALESCE(${tursoEpisodes.updatedAt}, 0)`,
     };
 }
 
-function lienUpsert() {
+export function lienUpsert() {
     return {
         target: tursoLiens.id,
         set: {
@@ -140,7 +152,8 @@ function lienUpsert() {
             lastVerified: sql`excluded.last_verified`,
             scrapedAt: sql`excluded.scraped_at`,
             updatedAt: sql`excluded.updated_at`,
-        }
+        },
+        setWhere: sql`COALESCE(excluded.updated_at, 0) > COALESCE(${tursoLiens.updatedAt}, 0)`,
     };
 }
 
@@ -163,28 +176,53 @@ export async function syncNeonToTurso(
     log.start('Syncing Neon -> Turso');
 
     try {
-        const [offset] = await neon.select()
-            .from(importOffsets)
-            .where(eq(importOffsets.key, SYNC_KEY));
+        const offsetRows = await neon.select().from(importOffsets);
+        const offsetMap = new Map(offsetRows.map(row => [row.key, Number(row.value)]));
+        const legacyOffset = offsetMap.get(LEGACY_SYNC_KEY) ?? 0;
 
-        const lastSyncMs = opts?.forceFullSync ? 0 : (offset?.value ?? 0);
-        const hasOffset = !opts?.forceFullSync && !!offset;
+        const offsetFor = (key: string) => {
+            if (opts?.forceFullSync) return 0;
+            return offsetMap.get(key) ?? legacyOffset;
+        };
 
-        if (lastSyncMs === 0) {
+        const mediasLastSyncMs = offsetFor(SYNC_KEYS.medias);
+        const episodesLastSyncMs = offsetFor(SYNC_KEYS.episodes);
+        const liensLastSyncMs = offsetFor(SYNC_KEYS.liens);
+
+        if (!opts?.forceFullSync) {
+            for (const key of Object.values(SYNC_KEYS)) {
+                if (!offsetMap.has(key)) {
+                    log.warn(`Offset ${key} absent, fallback sur ${LEGACY_SYNC_KEY}`);
+                }
+            }
+        }
+
+        if (mediasLastSyncMs === 0 || episodesLastSyncMs === 0 || liensLastSyncMs === 0) {
             log.info('Aucun offset trouve: full sync pour etablir la baseline');
         }
 
         const startedAtMs = Date.now();
-        const sinceIso = lastSyncMs > 0 ? new Date(lastSyncMs).toISOString() : null;
+        const mediasSinceIso = mediasLastSyncMs > 0 ? new Date(mediasLastSyncMs).toISOString() : null;
+        const episodesSinceIso = episodesLastSyncMs > 0 ? new Date(episodesLastSyncMs).toISOString() : null;
+        const liensSinceIso = liensLastSyncMs > 0 ? new Date(liensLastSyncMs).toISOString() : null;
+
+        const saveOffset = async (key: string, value: number) => {
+            await neon.insert(importOffsets)
+                .values({ key, value })
+                .onConflictDoUpdate({
+                    target: importOffsets.key,
+                    set: { value, updatedAt: new Date() },
+                });
+        };
 
         // Médias: modifiés depuis l'offset, ou dont un lien a été modifié depuis
         // l'offset (un média qui reçoit ses premiers liens n'a pas son updated_at
         // bumpé: l'ingest ne met à jour que active_links_count).
-        const mediaSince = sinceIso
-            ? sql`(${medias.updatedAt} > ${sinceIso} OR EXISTS (SELECT 1 FROM ${liens} WHERE ${liens.mediaId} = ${medias.id} AND ${liens.updatedAt} > ${sinceIso}))`
+        const mediaSince = mediasSinceIso
+            ? sql`(${medias.updatedAt} > ${mediasSinceIso} OR EXISTS (SELECT 1 FROM ${liens} WHERE ${liens.mediaId} = ${medias.id} AND ${liens.updatedAt} > ${mediasSinceIso}))`
             : sql`1=1`;
-        const episodeSince = sinceIso ? sql`${episodes.updatedAt} > ${sinceIso}` : sql`1=1`;
-        const lienSince = sinceIso ? sql`${liens.updatedAt} > ${sinceIso}` : sql`1=1`;
+        const episodeSince = episodesSinceIso ? sql`${episodes.updatedAt} > ${episodesSinceIso}` : sql`1=1`;
+        const lienSince = liensSinceIso ? sql`${liens.updatedAt} > ${liensSinceIso}` : sql`1=1`;
 
         const changedMedias = await fetchAllPages<MediaRow>(
             (lastId, pageSize) => neon.select().from(medias)
@@ -196,6 +234,7 @@ export async function syncNeonToTurso(
             'medias',
             log,
         );
+        let mediaRowsAffected = 0;
         if (changedMedias.length > 0) {
             log.start(`Syncing ${changedMedias.length} medias`);
             for (let i = 0; i < changedMedias.length; i += BATCH) {
@@ -229,11 +268,21 @@ export async function syncNeonToTurso(
                     createdAt: new Date(m.createdAt!),
                     updatedAt: new Date(m.updatedAt!),
                 }));
-                await retry(`insert medias batch ${i / BATCH + 1}`, log, () =>
+                const result = await retry(`insert medias batch ${i / BATCH + 1}`, log, () =>
                     turso.insert(tursoMedias).values(batch).onConflictDoUpdate(mediaUpsert()),
                 );
+                mediaRowsAffected += Number(result.rowsAffected ?? 0);
             }
+            log.info(`${changedMedias.length} medias traites, ${mediaRowsAffected} lignes ecrites`);
         }
+        if (!opts?.forceFullSync && !SKIP_OFFSETS) {
+            await saveOffset(SYNC_KEYS.medias, startedAtMs);
+        }
+
+        const tursoMediaRows = await retry('fetch turso media ids', log, () =>
+            turso.select({ id: tursoMedias.id }).from(tursoMedias),
+        );
+        const tursoMediaIds = new Set(tursoMediaRows.map(row => row.id));
 
         const changedEpisodes = await fetchAllPages<EpisodeRow>(
             (lastId, pageSize) => neon.select().from(episodes)
@@ -243,10 +292,16 @@ export async function syncNeonToTurso(
             'episodes',
             log,
         );
-        if (changedEpisodes.length > 0) {
-            log.start(`Syncing ${changedEpisodes.length} episodes`);
-            for (let i = 0; i < changedEpisodes.length; i += BATCH) {
-                const batch = changedEpisodes.slice(i, i + BATCH).map(e => ({
+        const syncableEpisodes = changedEpisodes.filter(e => tursoMediaIds.has(e.mediaId));
+        const skippedEpisodes = changedEpisodes.length - syncableEpisodes.length;
+        if (skippedEpisodes > 0) {
+            log.warn(`${skippedEpisodes} episodes ignores: media absent de Turso`);
+        }
+        let episodeRowsAffected = 0;
+        if (syncableEpisodes.length > 0) {
+            log.start(`Syncing ${syncableEpisodes.length} episodes`);
+            for (let i = 0; i < syncableEpisodes.length; i += BATCH) {
+                const batch = syncableEpisodes.slice(i, i + BATCH).map(e => ({
                     id: e.id,
                     mediaId: e.mediaId,
                     seasonNumber: e.seasonNumber,
@@ -258,10 +313,15 @@ export async function syncNeonToTurso(
                     duration: e.duration,
                     updatedAt: e.updatedAt ? new Date(e.updatedAt) : null,
                 }));
-                await retry(`insert episodes batch ${i / BATCH + 1}`, log, () =>
+                const result = await retry(`insert episodes batch ${i / BATCH + 1}`, log, () =>
                     turso.insert(tursoEpisodes).values(batch).onConflictDoUpdate(episodeUpsert()),
                 );
+                episodeRowsAffected += Number(result.rowsAffected ?? 0);
             }
+            log.info(`${syncableEpisodes.length} episodes traites, ${episodeRowsAffected} lignes ecrites`);
+        }
+        if (!opts?.forceFullSync && !SKIP_OFFSETS) {
+            await saveOffset(SYNC_KEYS.episodes, startedAtMs);
         }
 
         const changedLiens = await fetchAllPages<LienRow>(
@@ -272,10 +332,17 @@ export async function syncNeonToTurso(
             'liens',
             log,
         );
-        if (changedLiens.length > 0) {
-            log.start(`Syncing ${changedLiens.length} liens`);
-            for (let i = 0; i < changedLiens.length; i += BATCH) {
-                const batch = changedLiens.slice(i, i + BATCH).map(l => ({
+        const syncableLiens = changedLiens.filter(l => tursoMediaIds.has(l.mediaId));
+        const skippedLiens = changedLiens.filter(l => !tursoMediaIds.has(l.mediaId));
+        if (skippedLiens.length > 0) {
+            const sample = skippedLiens.slice(0, 20).map(l => `${l.id}:${l.mediaId}`).join(', ');
+            log.warn(`${skippedLiens.length} liens orphelins ignores (media absent de Turso): ${sample}${skippedLiens.length > 20 ? ', ...' : ''}`);
+        }
+        let lienRowsAffected = 0;
+        if (syncableLiens.length > 0) {
+            log.start(`Syncing ${syncableLiens.length} liens`);
+            for (let i = 0; i < syncableLiens.length; i += BATCH) {
+                const batch = syncableLiens.slice(i, i + BATCH).map(l => ({
                     id: l.id,
                     mediaId: l.mediaId,
                     episodeId: l.episodeId,
@@ -291,12 +358,18 @@ export async function syncNeonToTurso(
                     scrapedAt: l.scrapedAt ? new Date(l.scrapedAt) : null,
                     updatedAt: l.updatedAt ? new Date(l.updatedAt) : null,
                 }));
-                await retry(`insert liens batch ${i / BATCH + 1}`, log, () =>
+                const result = await retry(`insert liens batch ${i / BATCH + 1}`, log, () =>
                     turso.insert(tursoLiens).values(batch).onConflictDoUpdate(lienUpsert()),
                 );
+                lienRowsAffected += Number(result.rowsAffected ?? 0);
             }
+            log.info(`${syncableLiens.length} liens traites, ${lienRowsAffected} lignes ecrites`);
+        }
+        if (!opts?.forceFullSync && !SKIP_OFFSETS) {
+            await saveOffset(SYNC_KEYS.liens, startedAtMs);
         }
 
+        if (!SKIP_MAINTENANCE) {
         // Purge quotidienne: un média sans lien actif (hors types toujours syncés)
         // n'a rien de consommable dans Turso. DELETE direct par subquery (pas de fetch
         // d'IDs en mémoire). Le WHERE NOT conformes est évalué par SQLite server-side.
@@ -331,7 +404,7 @@ export async function syncNeonToTurso(
             log.info(`${orphanLiens.rowsAffected} liens et ${orphanEpisodes.rowsAffected} episodes orphelins purges de Turso`);
         }
 
-// Recalcul de active_links_count. Seul l'ingesteur le met a jour, et il ne
+        // Recalcul de active_links_count. Seul l'ingesteur le met a jour, et il ne
         // passe pas pour book/novel/webtoon/comic : le compteur derive en silence
         // (0 alors que les liens existent, ou 1285 au lieu de 18). Consequence
         // concrete : search.ts voit activeLinksCount = 0 et relance un scrape sur
@@ -345,21 +418,12 @@ export async function syncNeonToTurso(
             log.info(`${fixedCounters.rowsAffected} compteurs active_links_count recalcules`);
         }
 
-        if (!opts?.forceFullSync) {
-            const nowMs = startedAtMs;
-            if (hasOffset) {
-                await neon.update(importOffsets)
-                    .set({ value: nowMs, updatedAt: new Date() })
-                    .where(eq(importOffsets.key, SYNC_KEY));
-            } else {
-                await neon.insert(importOffsets)
-                    .values({ key: SYNC_KEY, value: nowMs });
-            }
         }
 
-        log.success(`Sync: ${changedMedias.length} medias, ${changedEpisodes.length} episodes, ${changedLiens.length} liens`);
+        log.success(`Sync: ${changedMedias.length} medias, ${syncableEpisodes.length}/${changedEpisodes.length} episodes, ${syncableLiens.length}/${changedLiens.length} liens (${mediaRowsAffected + episodeRowsAffected + lienRowsAffected} lignes ecrites)`);
     } catch (error: unknown) {
         log.error(`Sync Error: ${errMsg(error)}`);
+        throw error;
     } finally {
         try { await neon.$client.end(); } catch { /* ignore */ }
         try { turso.$client.close(); } catch { /* ignore */ }

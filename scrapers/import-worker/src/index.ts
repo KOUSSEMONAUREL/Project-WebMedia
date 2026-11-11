@@ -57,6 +57,7 @@ async function startApp() {
     if (process.env.GITHUB_ACTIONS) {
       let totalProcessed = 0;
       let totalErrors = 0;
+      let syncFailed = false;
 
       const run = async (label: string, fn: () => Promise<any>) => {
         log.start(label);
@@ -66,6 +67,7 @@ async function startApp() {
           log.success(label);
         } catch (err: any) {
           totalErrors++;
+          if (label === 'Sync Turso') syncFailed = true;
           log.error(`${label}: ${err.message}`);
         }
       };
@@ -86,7 +88,8 @@ async function startApp() {
       await run('Sync Turso', () => syncNeonToTurso(databaseUrl, tursoUrl, tursoToken));
 
       log.summary(totalProcessed, totalErrors);
-      process.exit(0);
+      if (syncFailed) log.error('Sync Turso a echoue: sortie en erreur');
+      process.exit(syncFailed ? 1 : 0);
     }
   } catch (err: any) {
     log.error(`Fatal: ${err.message || err}`);
