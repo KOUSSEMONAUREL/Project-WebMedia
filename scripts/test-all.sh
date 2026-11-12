@@ -33,6 +33,7 @@ run_test "Webtoon Runner" npx tsx --test "$ROOT/scrapers/webtoons/tests/runner.t
 # Import-worker tests
 run_test "Import Worker (MangaDex)" npx tsx --test "$ROOT/scrapers/import-worker/tests/mangadex.test.ts"
 run_test "Import Worker (RoyalRoad)" npx tsx --test "$ROOT/scrapers/import-worker/tests/royalroad.test.ts"
+run_test "Import Worker (Errors)" npx tsx --test "$ROOT/scrapers/import-worker/tests/errors.test.ts"
 
 # Novel-worker tests
 run_test "Novel Worker" npx tsx --test "$ROOT/scrapers/novel-worker/tests/index.test.ts"

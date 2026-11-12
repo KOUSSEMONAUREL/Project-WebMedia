@@ -1,5 +1,6 @@
 import { getOffset, setOffset } from './offset-tracker.js';
 import { createLog } from './log.js';
+import { errorMessage, isBlockedError } from './errors.js';
 
 export interface RateLimitConfig {
   requestsPerSecond: number;
@@ -135,8 +136,12 @@ export async function runScanner(config: ScannerConfig, ctx: ProcessContext, lim
       if (!isNaN(numericTs)) {
         await setOffset(key, numericTs, ctx.databaseUrl);
       }
-    } catch (err: any) {
-      log.warn(`Freshness pass failed: ${err.message}`);
+    } catch (err) {
+      if (isBlockedError(err)) {
+        log.skip(`${config.name}: freshness ignoree (${errorMessage(err)})`);
+      } else {
+        log.warn(`Freshness pass failed: ${errorMessage(err)}`);
+      }
     }
   }
 
@@ -158,8 +163,12 @@ export async function runScanner(config: ScannerConfig, ctx: ProcessContext, lim
         : offset + step;
       await setOffset(config.key, nextOffset, ctx.databaseUrl);
     }
-  } catch (err: any) {
-    log.error(`Discovery pass failed: ${err.message}`);
+  } catch (err) {
+    if (isBlockedError(err)) {
+      log.skip(`${config.name}: discovery ignoree (${errorMessage(err)})`);
+    } else {
+      log.error(`Discovery pass failed: ${errorMessage(err)}`);
+    }
   }
 
   log.success(`${config.name}: ${total} total`);

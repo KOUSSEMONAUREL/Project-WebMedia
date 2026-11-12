@@ -33,6 +33,7 @@ jobs:
           INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           GUTENBERG_API_KEY: ${{ secrets.GUTENBERG_API_KEY }}
+          IMPORT_ROYALROAD: "0"
         run: cd scrapers/import-worker && npm start
 
       - name: Reconcile D1 (backfill missing entries)

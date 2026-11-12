@@ -98,7 +98,7 @@ Exécuté quotidiennement (GitHub Actions `import-metadata.yml`). Importe via AP
 | **OpenLibrary** | book | ∞ |
 | **NosLivres** (French books) | book | ∞ |
 | **IGDB** (games) | jeu | 4 req/s OAuth |
-| **RoyalRoad** (web novels) | novel | 200/min |
+| **RoyalRoad** (web novels) | novel | 200/min (désactivé: Cloudflare 403, `IMPORT_ROYALROAD=0`) |
 | **MangaDex** (manga) | manga | ∞ |
 | **Fribb** (fan fiction) | book | ∞ |
 

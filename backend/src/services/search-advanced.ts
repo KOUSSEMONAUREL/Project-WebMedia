@@ -216,6 +216,13 @@ export async function searchIgdb(q: string, twitchId: string, twitchSecret: stri
 }
 
 const ROYAL_ROAD_API = 'https://www.royalroad.com';
+let royalRoadUnavailableLogged = false;
+
+function noteRoyalRoadUnavailable(reason: string) {
+  if (royalRoadUnavailableLogged) return;
+  royalRoadUnavailableLogged = true;
+  console.warn(`[searchRoyalRoad] indisponible: ${reason}`);
+}
 
 export async function searchRoyalRoad(q: string): Promise<ExternalResult[]> {
 
@@ -223,7 +230,10 @@ export async function searchRoyalRoad(q: string): Promise<ExternalResult[]> {
     const res = await fetch(`${ROYAL_ROAD_API}/api/fictions/search?term=${encodeURIComponent(q)}&page=1&perPage=8`, {
       headers: { 'Accept': 'application/json' }
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      noteRoyalRoadUnavailable(`HTTP ${res.status}`);
+      return [];
+    }
     const data: any = await res.json();
     const results = data.data || data.results || [];
     return (results || []).map((r: any) => ({
@@ -237,7 +247,8 @@ export async function searchRoyalRoad(q: string): Promise<ExternalResult[]> {
       metadataSource: 'royalroad',
       slug: extractSlug(r.title || r.name || '', String(r.id || r._id)),
     }));
-  } catch {
+  } catch (err) {
+    noteRoyalRoadUnavailable(err instanceof Error ? err.message : String(err));
     return [];
   }
 }

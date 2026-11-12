@@ -81,7 +81,7 @@ graph TD
 | OpenLibrary  | book        | 20                                                       |
 | Comic Vine   | comic       | 20                                                       |
 | NosLivres    | book        | 20                                                       |
-| RoyalRoad    | novel       | 20                                                       |
+| RoyalRoad    | novel       | 20 (désactivé: Cloudflare 403, `IMPORT_ROYALROAD=0`)     |
 
 Optimisations : batchCheckExisting (1 SELECT IN()), offset tracking persistant, retry 3x backoff exponentiel, ON CONFLICT DO NOTHING.
 

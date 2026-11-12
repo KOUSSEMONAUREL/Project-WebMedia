@@ -1,5 +1,6 @@
 import http from 'http';
 import { createLog } from './utils/log.js';
+import { errorMessage, isBlockedError } from './utils/errors.js';
 
 const port = parseInt(process.env.PORT || '8080', 10);
 if (!process.env.GITHUB_ACTIONS) {
@@ -51,6 +52,7 @@ async function startApp() {
 
     const LIMIT = parseInt(process.env.IMPORT_LIMIT || '20', 10);
     const LIMIT_OTHER = parseInt(process.env.IMPORT_LIMIT_OTHER || '40', 10);
+    const royalRoadEnabled = process.env.IMPORT_ROYALROAD === '1';
 
     log.info(`Limit(streaming+books)=${LIMIT}, Limit(other)=${LIMIT_OTHER}`);
 
@@ -65,10 +67,14 @@ async function startApp() {
           const count = await fn();
           if (typeof count === 'number') totalProcessed += count;
           log.success(label);
-        } catch (err: any) {
+        } catch (err) {
+          if (label !== 'Sync Turso' && isBlockedError(err)) {
+            log.skip(`${label}: source bloquee (${errorMessage(err)})`);
+            return;
+          }
           totalErrors++;
           if (label === 'Sync Turso') syncFailed = true;
-          log.error(`${label}: ${err.message}`);
+          log.error(`${label}: ${errorMessage(err)}`);
         }
       };
 
@@ -84,7 +90,11 @@ async function startApp() {
       if (twitchId && twitchSecret) await run('IGDB', () => importTrendingGames(twitchId, twitchSecret, databaseUrl, internalApiUrl, internalApiKey, LIMIT_OTHER));
       if (cvKey) await run('Comics (ComicVine)', () => importComics(cvKey, databaseUrl, internalApiUrl, internalApiKey, LIMIT_OTHER));
       await run('MangaDex', () => importTrendingManga(databaseUrl, '', LIMIT_OTHER));
-      await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT_OTHER));
+      if (royalRoadEnabled) {
+        await run('RoyalRoad', () => importRoyalRoad(databaseUrl, LIMIT_OTHER));
+      } else {
+        log.skip('RoyalRoad: desactive (Cloudflare 403)');
+      }
       await run('Sync Turso', () => syncNeonToTurso(databaseUrl, tursoUrl, tursoToken));
 
       log.summary(totalProcessed, totalErrors);
