@@ -52,6 +52,25 @@ function chapterIdFromHref(href: string, baseUrl: string): string {
   }
 }
 
+// Either `"wnx_name=value; Path=..."` or `["wnx_name=value", "Path=...", ...]`.
+const SCRIPT_COOKIE_REGEX = /"wnx_\w+=[^"]+"(?:\s*,\s*"[^"]*")*/;
+const STRING_LITERAL_REGEX = /"([^"]*)"/g;
+
+function extractScriptCookie(html: string): string {
+  const match = SCRIPT_COOKIE_REGEX.exec(html);
+  if (!match) return '';
+  return Array.from(match[0].matchAll(STRING_LITERAL_REGEX), literal => literal[1]).join('; ');
+}
+
+function extractPagesUrl(html: string): string | null {
+  const value = extractNextJsHtml(
+    html,
+    node => isJsonObject(node) && typeof node.pagesUrl === 'string' && isJsonObject(node.series),
+  );
+  if (!isJsonObject(value) || typeof value.pagesUrl !== 'string') return null;
+  return value.pagesUrl;
+}
+
 // Keep line breaks and links; descriptions render as Markdown.
 function toMarkdown($: CheerioDoc, el: cheerio.Cheerio<Element>): string {
   let out = '';
@@ -301,27 +320,24 @@ export class WebnexScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const chapterAbs = this.absUrl(chapterUrl);
     // The reader endpoint is gated by a per-chapter `wnx_reader` cookie that
-    // the chapter page sets on navigation.
+    // the chapter page sets from a script on navigation.
     let chapterRes = await this.get(chapterAbs);
     let html = String(chapterRes.data);
     let readerUrl = this.responseUrl(chapterRes, chapterAbs);
-    let cookie = this.responseCookie(chapterRes);
+    let cookie = [this.responseCookie(chapterRes), extractScriptCookie(html)].filter(Boolean).join('; ');
     // "Opening series" interstitial: the page sets a cookie from inline JS
     // and reloads. Upstream retries the same request with that cookie.
-    const opening = /<title>Opening series<\/title>[\s\S]*?document\.cookie\s*=\s*"([^"]+)"/.exec(html);
-    if (opening) {
-      cookie = [cookie, opening[1]].filter(Boolean).join('; ');
+    if (/<title>Opening series<\/title>/.test(html)) {
       chapterRes = await this.get(readerUrl, { headers: cookie ? { Cookie: cookie } : undefined });
       html = String(chapterRes.data);
       readerUrl = this.responseUrl(chapterRes, readerUrl);
-      cookie = [cookie, this.responseCookie(chapterRes)].filter(Boolean).join('; ');
+      cookie = [cookie, this.responseCookie(chapterRes), extractScriptCookie(html)].filter(Boolean).join('; ');
     }
-    // Upstream reads the dedicated `/pages` endpoint (ReaderDto.pages).
-    // Cloudflare rejects it unless the request is marked as a same-origin
-    // fetch instead of a document navigation.
-    const pagesUrl = new URL(readerUrl);
-    pagesUrl.pathname = pagesUrl.pathname.replace(/\/$/, '') + '/pages';
-    const res = await this.get(pagesUrl.toString(), {
+    // Upstream reads `pagesUrl` from the reader's RSC props and fetches it as
+    // a same-origin XHR, the way the reader itself does.
+    const pagesPath = extractPagesUrl(html) ?? new URL(readerUrl).pathname.replace(/\/$/, '') + '/pages';
+    const pagesUrl = new URL(pagesPath, readerUrl).toString();
+    const res = await this.get(pagesUrl, {
       headers: {
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -340,7 +356,7 @@ export class WebnexScraper extends BaseScraper {
     for (const p of (data as { pages: unknown[] }).pages) {
       const url = typeof p === 'string' ? p : '';
       if (!url) continue;
-      pages.push({ index: pages.length, imageUrl: new URL(url, chapterAbs).toString() });
+      pages.push({ index: pages.length, imageUrl: new URL(url, readerUrl).toString() });
     }
     return pages;
   }
