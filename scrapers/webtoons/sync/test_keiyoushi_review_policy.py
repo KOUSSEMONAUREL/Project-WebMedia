@@ -14,7 +14,7 @@ HEAD = "a" * 40
 
 
 def gate(number=1, verdict="PASS", head=HEAD, checks=None, kind="code"):
-    merged_checks = {"kind": kind}
+    merged_checks: dict[str, object] = {"kind": kind}
     if kind == "code":
         merged_checks["exts"] = ["en/foo"]
     if checks:
@@ -443,6 +443,27 @@ class RunnerParsingTest(unittest.TestCase):
             self.assertEqual(
                 google.get("GOOGLE_GENERATIVE_AI_API_KEY"), "secret"
             )
+
+
+class StatusTest(unittest.TestCase):
+    def test_write_status_writes_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "status.json")
+            with mock.patch.object(review, "AI_REVIEW_STATUS_FILE", path):
+                review.write_status(
+                    "unavailable", "all models failed", ["model: rc=124"]
+                )
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            self.assertEqual(data["status"], "unavailable")
+            self.assertEqual(data["reason"], "all models failed")
+            self.assertEqual(data["attempts"], ["model: rc=124"])
+
+    def test_advisory_exit_code(self):
+        with mock.patch.object(review, "AI_REVIEW_ADVISORY", True):
+            self.assertEqual(review.advisory_exit_code(1), 0)
+        with mock.patch.object(review, "AI_REVIEW_ADVISORY", False):
+            self.assertEqual(review.advisory_exit_code(1), 1)
 
 
 class ModelChainTest(unittest.TestCase):

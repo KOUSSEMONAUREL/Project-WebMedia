@@ -380,8 +380,7 @@ jobs:
       - check-upstream
     if: needs.agent-analysis.outputs.handoff_valid == 'true' && needs.agent-analysis.outputs.gate_outcome == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    continue-on-error: true
+    timeout-minutes: 40
     permissions:
       contents: read
       issues: read
@@ -399,6 +398,8 @@ jobs:
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
       AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
+      AI_REVIEW_STATUS_FILE: /tmp/keiyoushi_ai_review_status.json
+      AI_REVIEW_ADVISORY: "1"
       AI_REVIEW_LOG_DIR: /tmp/keiyoushi-ai-review-logs
       REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
       REVIEW_RUNNER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_ai_review.py
@@ -432,8 +433,7 @@ jobs:
           path: /tmp
 
       - name: Revue IA independante (memes modeles que l'agent)
-        timeout-minutes: 55
-        continue-on-error: true
+        timeout-minutes: 20
         env:
           GH_TOKEN: ${{ github.token }}
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
@@ -446,9 +446,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: keiyoushi-ai-review
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
-          path: /tmp/keiyoushi_ai_review.json
+          path: |
+            /tmp/keiyoushi_ai_review.json
+            /tmp/keiyoushi_ai_review_status.json
 
   apply:
     name: Appliquer verdicts, merger et verifier
@@ -472,6 +474,7 @@ jobs:
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
       AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
+      AI_REVIEW_STATUS_FILE: /tmp/keiyoushi_ai_review_status.json
       SKIPPED_FILE: /tmp/keiyoushi_skipped.json
     steps:
       - uses: actions/checkout@v7
@@ -486,7 +489,7 @@ jobs:
           path: /tmp
 
       - name: Recuperer la revue IA
-        continue-on-error: true
+        if: needs.ai-review.result == 'success'
         uses: actions/download-artifact@v8
         with:
           name: keiyoushi-ai-review

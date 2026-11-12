@@ -8,6 +8,14 @@ to `$AI_REVIEW_FILE`.
 You never merge, comment, close, push, or create branches. You never edit a
 repository file. The merge script applies your verdicts after validating them.
 
+## Budget
+
+Finish in under 10 minutes. Do not run `npx tsc`, do not install dependencies,
+do not clone the upstream repository, do not start a browser, and do not run
+long live probes. One `gh pr diff` per PR is enough. If a claim cannot be
+verified quickly from the diff, gate JSON, or handoff, output `HOLD` and state
+the missing evidence. Do not keep investigating after the budget is exhausted.
+
 ## Inputs
 
 - `$PR_LIST_FILE`: JSON list of PRs to review:
@@ -26,16 +34,18 @@ repository file. The merge script applies your verdicts after validating them.
 1. **A gate `FAIL` is final.** For every PR whose gate verdict is `FAIL`, your
    verdict MUST be `FAIL`. Never override a deterministic FAIL.
 2. **A gate `PASS` still needs your review.** Output `PASS` only if the diff,
-   TypeScript contract, live behaviour, and upstream fidelity all hold. Output
-   `FAIL` if you find a real defect. Output `HOLD` only when a human decision
-   is genuinely required.
+   the gate's TypeScript/live checks, and upstream fidelity all hold. Trust
+   `checks` for `tsc` and live probe results; do not re-run them. Output `FAIL`
+   if you find a real defect. Output `HOLD` only when a human decision is
+   genuinely required.
 3. **A gate `HOLD` can become `PASS` only with explicit evidence:**
    - code PR: the gate identified at least one scraper extension in
-     `checks.exts`, and you independently obtained real live content
-     (`popular`, `search`, `chapters`, or `pages` non-zero) and set
-     `live_verified: true` with counts and URLs in `live_evidence`; or
-   - registry PR: the gate has `checks.registry_ok: true`, you independently
-     validated the row, and you set `registry_ok: true`.
+     `checks.exts`, and `checks` records real live content (`popular`,
+     `search`, `chapters`, or `pages` non-zero), or you run at most one quick
+     probe and record counts and URLs in `live_evidence`; set
+     `live_verified: true`; or
+   - registry PR: the gate has `checks.registry_ok: true`, you validated the
+     row from the diff and gate evidence, and you set `registry_ok: true`.
    A `403`, `429`, `451`, Cloudflare challenge, timeout, or empty body is
    **not** live verification. Never turn a network caveat into a PASS.
    If a code PR has no scraper extension in `checks.exts`, keep `HOLD`:
@@ -49,27 +59,24 @@ repository file. The merge script applies your verdicts after validating them.
 
 ## Per-PR checks
 
-1. **Read the PR.** Run `gh pr view <number> --repo <repo>` and
-   `gh pr diff <number> --repo <repo>`. Read the complete diff.
+1. **Read the PR.** Run `gh pr diff <number> --repo <repo>`. Read the complete
+   diff. Use `gh pr view` only if the diff lacks context.
 2. **Scope and security.** The PR must only touch scraper files, engine files,
    or the registry, consistently with the handoff. Reject secrets, forbidden
    APIs, unrelated edits, dead code, `any`, or commented-out blocks.
-3. **TypeScript contract.** If you check out the PR, run
-   `cd scrapers/webtoons && npx tsc --noEmit`. The scraper must extend
-   `BaseScraper`, set `name`/`baseUrl`/`lang`, and use the project's existing
-   interface. Do not leave the working tree modified.
-4. **Upstream fidelity.** Fetch the upstream Kotlin source from
-   `https://github.com/keiyoushi/extensions-source/tree/main/src/<lang>/<ext>`
-   (and `build.gradle.kts` for the real `baseUrl`). Compare endpoints,
+3. **TypeScript contract.** Trust the gate's `tsc` result. The scraper must
+   extend `BaseScraper`, set `name`/`baseUrl`/`lang`, and use the project's
+   existing interface. Flag only a clear contract break visible in the diff.
+4. **Upstream fidelity.** Fetch at most one upstream Kotlin file or
+   `build.gradle.kts` when the diff alone is not enough. Compare endpoints,
    selectors, JSON/protobuf fields, pagination, headers, and anti-403 logic.
    Flag any behaviour-changing divergence. Reject a TS scraper that omits an
    upstream anti-403 interceptor, or one that adds more bot-circumvention than
    upstream (hardcoded cookies, bypass tokens, etc.).
-5. **Live behaviour.** For a code PR, run the scraper or the exact endpoint
-   with IPv4 and `$APP_UA`. Use a site-derived search term, not a hardcoded
-   English word. A source is viable when it returns a readable catalogue and a
-   readable series-page URL. Page-image extraction, WebView, or signed page
-   APIs are not blockers. Retry once for a transient failure.
+5. **Live behaviour.** Trust the gate's live probe for a gate `PASS`. Do not
+   re-run it. For a gate `HOLD` you want to promote, use the gate's recorded
+   counts, or run at most one quick probe with IPv4 and `$APP_UA`. A `403`,
+   `429`, `451`, Cloudflare challenge, timeout, or empty body is not evidence.
 6. **Handoff cross-check.** Read `$HANDOFF_FILE` before writing verdicts.
    `IGNORE`/`NO_IMPACT` entries are resolved. Do not fail a PR because another
    entry was `IGNORE`. Do fail a PR if its body claims verification you cannot
@@ -84,11 +91,8 @@ evidence, not the prose.
 
 1. Read the real `baseUrl` from upstream `src/<lang>/<ext>/build.gradle.kts`,
    not from the main `.kt`.
-2. Reproduce the probe on the native runner:
-   ```bash
-   curl -4 -sS -o /dev/null -w '%{http_code} sz=%{size_download}\n' -L \
-     --max-time 20 -A "$APP_UA" "<baseUrl>"
-   ```
+2. Use the gate's registry probe evidence. Do not re-run long probes. At most
+   one quick `curl` is allowed only if the gate evidence is missing.
 3. `FAIL` a row whose verdict rests only on `000`, `403`, `429`, `451 code
    1026`, or a Cloudflare challenge. That describes the runner's IP, not the
    site. The correct verdict there is `UNKNOWN` plus `LOCAL_RECHECK:

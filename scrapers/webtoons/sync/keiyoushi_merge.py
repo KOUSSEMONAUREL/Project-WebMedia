@@ -32,6 +32,9 @@ REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
 AI_REVIEW_FILE = os.environ.get(
     "AI_REVIEW_FILE", "/tmp/keiyoushi_ai_review.json"
 )
+AI_REVIEW_STATUS_FILE = os.environ.get(
+    "AI_REVIEW_STATUS_FILE", "/tmp/keiyoushi_ai_review_status.json"
+)
 SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
 
 
@@ -45,6 +48,23 @@ def skipped_changes() -> list[str]:
         return []
     raw = data.get("skipped", [])
     return [str(x) for x in raw] if isinstance(raw, list) else []
+
+
+def load_ai_status() -> dict:
+    try:
+        with open(AI_REVIEW_STATUS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def ai_status_detail(status: dict) -> str:
+    label = str(status.get("status") or "").strip()
+    if label not in ("unavailable", "running"):
+        return ""
+    reason = " ".join(str(status.get("reason") or "").split())
+    return reason[:600] if reason else label
 
 
 def run_raw(*args: str) -> subprocess.CompletedProcess:
@@ -215,6 +235,8 @@ def main() -> None:
         if isinstance(ai, dict) and review_source in ("ai", "mixed")
         else ""
     )
+    ai_status = load_ai_status()
+    ai_status_text = ai_status_detail(ai_status)
     if review_source == "ai":
         reviewer_label = "gate deterministe + revue IA"
         if reviewer_model:
@@ -228,8 +250,12 @@ def main() -> None:
             "gate deterministe (revue IA invalide/partielle: "
             "PASS bloques en HOLD)"
         )
+        if ai_status_text:
+            reviewer_label += f" ({ai_status_text})"
     else:
         reviewer_label = "gate deterministe seul"
+        if ai_status_text:
+            reviewer_label += f" (revue IA indisponible: {ai_status_text})"
 
     merged: list[str] = []
     failed: list[str] = []
@@ -346,6 +372,8 @@ def main() -> None:
             "**Revue IA (partielle/invalide)**: "
             + "; ".join(review_errors)[:1200]
         )
+    if ai_status_text:
+        parts.append(f"**Revue IA**: indisponible ({ai_status_text}).")
     parts.append("")
 
     body = "\n".join(parts).strip()
@@ -369,6 +397,8 @@ def main() -> None:
         "skipped": len(skipped),
         "review_source": review_source,
         "reviewer_model": reviewer_model,
+        "ai_review_status": ai_status.get("status"),
+        "ai_review_reason": ai_status.get("reason"),
         "review_errors": review_errors,
         "issue_closed": bool(close and cycle_complete),
     }, indent=2))

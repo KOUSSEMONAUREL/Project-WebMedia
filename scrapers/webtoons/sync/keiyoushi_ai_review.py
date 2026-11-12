@@ -37,9 +37,15 @@ HANDOFF_FILE = os.environ.get("HANDOFF_FILE", "/tmp/keiyoushi_handoff.json")
 AI_REVIEW_FILE = os.environ.get(
     "AI_REVIEW_FILE", "/tmp/keiyoushi_ai_review.json"
 )
+AI_REVIEW_STATUS_FILE = os.environ.get(
+    "AI_REVIEW_STATUS_FILE", "/tmp/keiyoushi_ai_review_status.json"
+)
+AI_REVIEW_ADVISORY = os.environ.get(
+    "AI_REVIEW_ADVISORY", ""
+).strip().lower() in ("1", "true", "yes", "on")
 LOG_DIR = os.environ.get("AI_REVIEW_LOG_DIR", "/tmp/keiyoushi-ai-review-logs")
-PER_MODEL_TIMEOUT_S = int(os.environ.get("AI_REVIEW_MODEL_TIMEOUT_S", "900"))
-TOTAL_DEADLINE_S = int(os.environ.get("AI_REVIEW_TOTAL_DEADLINE_S", "2700"))
+PER_MODEL_TIMEOUT_S = int(os.environ.get("AI_REVIEW_MODEL_TIMEOUT_S", "300"))
+TOTAL_DEADLINE_S = int(os.environ.get("AI_REVIEW_TOTAL_DEADLINE_S", "600"))
 MODEL_SLOTS = (
     "PRIMARY_MODEL",
     "FALLBACK_MODEL",
@@ -78,6 +84,37 @@ def model_chain():
             seen.add(model)
             models.append(model)
     return models
+
+
+def advisory_exit_code(code):
+    return 0 if AI_REVIEW_ADVISORY else code
+
+
+def write_status(status, reason, attempts=None, reviewer_model=""):
+    payload = {
+        "status": status,
+        "reason": reason,
+        "attempts": attempts or [],
+        "reviewer_model": reviewer_model,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        directory = os.path.dirname(AI_REVIEW_STATUS_FILE)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        temporary = AI_REVIEW_STATUS_FILE + ".tmp"
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+        os.replace(temporary, AI_REVIEW_STATUS_FILE)
+    except OSError as exc:
+        print(f"AI_REVIEW_STATUS_WRITE_FAILED: {exc}", flush=True)
+    return payload
+
+
+def unavailable(reason, attempts=None):
+    write_status("unavailable", reason, attempts)
+    print(f"AI_REVIEW_UNAVAILABLE: {reason}", flush=True)
+    return advisory_exit_code(1)
 
 
 def opencode_bin():
@@ -237,39 +274,37 @@ def normalize_review(data):
 
 
 def main():
+    write_status("running", "revue IA en cours")
     if os.path.exists(AI_REVIEW_FILE):
         try:
             os.remove(AI_REVIEW_FILE)
         except OSError as exc:
-            print(f"AI_REVIEW_UNAVAILABLE: suppression impossible: {exc}")
-            return 1
+            return unavailable(f"suppression impossible: {exc}")
     numbers = pr_numbers()
     if not numbers:
+        write_status("skipped", "aucune PR a reviewer")
         print("AI_REVIEW_SKIPPED: aucune PR a reviewer")
         return 0
     if not os.path.exists(PROMPT_FILE):
-        print(f"AI_REVIEW_UNAVAILABLE: prompt absent: {PROMPT_FILE}")
-        return 1
+        return unavailable(f"prompt absent: {PROMPT_FILE}")
     if not os.path.exists(GATE_REVIEW_FILE):
-        print(f"AI_REVIEW_UNAVAILABLE: gate absent: {GATE_REVIEW_FILE}")
-        return 1
+        return unavailable(f"gate absent: {GATE_REVIEW_FILE}")
 
     gate = load_json(GATE_REVIEW_FILE)
     gate_map = policy.gate_entries(gate)
     missing_gate = [n for n in numbers if n not in gate_map]
     if missing_gate:
-        print("AI_REVIEW_UNAVAILABLE: PRs sans verdict gate: "
-              + ", ".join(f"#{n}" for n in missing_gate))
-        return 1
+        return unavailable(
+            "PRs sans verdict gate: "
+            + ", ".join(f"#{n}" for n in missing_gate)
+        )
 
     models = model_chain()
     if not models:
-        print("AI_REVIEW_UNAVAILABLE: aucun modele resolu")
-        return 1
+        return unavailable("aucun modele resolu")
     opencode = opencode_bin()
     if not opencode:
-        print("AI_REVIEW_UNAVAILABLE: binaire opencode introuvable")
-        return 1
+        return unavailable("binaire opencode introuvable")
 
     deadline = time.monotonic() + TOTAL_DEADLINE_S
     failures = []
@@ -299,6 +334,9 @@ def main():
         with open(temporary, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
         os.replace(temporary, AI_REVIEW_FILE)
+        write_status(
+            "ok", f"verdict produit par {model}", reviewer_model=model
+        )
         print(
             f"AI_REVIEW_OK: {model} ({index}/{len(models)}), "
             f"{len(data.get('prs', []))} PRs",
@@ -306,10 +344,12 @@ def main():
         )
         return 0
 
-    print("AI_REVIEW_UNAVAILABLE: tous les modeles ont echoue")
+    reason = "tous les modeles ont echoue"
+    write_status("unavailable", reason, failures)
+    print(f"AI_REVIEW_UNAVAILABLE: {reason}")
     for failure in failures:
         print(f" - {failure}")
-    return 1
+    return advisory_exit_code(1)
 
 
 if __name__ == "__main__":
