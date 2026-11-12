@@ -73,6 +73,7 @@ positifs (« domaine mort »), pas des déductions de commit.
 | `all/cubari` | `cubari.moe` | IGNORE | Sondé le 2026-11-08 (curl -4) : **200**, page « Cubari » qui se borne à lier des lecteurs tiers (weebcentral.com, guya.moe) ; aucun formulaire de recherche ni catalogue propre | Le site expose son propre catalogue |
 | `en/dreammanga` | `dream-manga.com` | IGNORE | Sondé le 2026-11-08 (curl -4) : **HTTP 404** (la colonne Cloudflare du moniteur indique déjà « HTTP 404 ») ; le domaine ne sert plus de contenu | Le domaine ressert un catalogue lisible |
 | `all/sankakucomplex` | `sankaku.app` | IGNORE | Sondé le 2026-11-08 (curl -4) : **000** ; re-sondé le 2026-11-10 : **200** (nginx). Sankaku-style image board, pas un catalogue manga/webtoon, donc aucune URL de fiche de série | Un catalogue manga lisible apparaît |
+| `en/madokami` | `manga.madokami.al` | IGNORE | Sondé le **2026-11-12** (curl -4) : `/` et `/recent` → **401 Unauthorized** (250 o), `WWW-Authenticate: Basic`, `server: nginx` ; l'upstream `Madokami.kt` exige des identifiants utilisateur (Basic auth via préférences) et lève une `IOException` sans eux. Aucun catalogue public | Le catalogue `/recent` répond sans authentification Basic |
 
 ### Sources vivantes derrière un challenge Cloudflare : `BLOCKED`, pas `IGNORE`
 
