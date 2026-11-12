@@ -5,11 +5,16 @@ const SUPABASE_URL = 'https://apidb.webdexscans.com/rest/v1';
 const SUPABASE_API_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyMzI5NzkxLCJleHAiOjE5NTAwMDk3OTF9.ub3n4yzBgZ1madOiy7R_QE5yOLRJISh8-C_wa0Ud8mQ';
 
+interface LatestChapterDto {
+  created_at?: string | null;
+}
+
 interface SearchSeriesDto {
   id: string;
   title: string;
   slug: string;
   cover_url?: string | null;
+  chapters?: LatestChapterDto[] | null;
 }
 
 interface GenreInfo {
@@ -57,6 +62,7 @@ export class WebdexscansScraper extends BaseScraper {
     const data = await this.apiGet('/series', {
       select: 'id,title,slug,cover_url',
       order: 'view_count.desc',
+      status: 'neq.draft',
       offset: String(offset),
       limit: '24',
     });
@@ -64,14 +70,22 @@ export class WebdexscansScraper extends BaseScraper {
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    const offset = (page - 1) * 24;
     const data = await this.apiGet('/series', {
-      select: 'id,title,slug,cover_url',
-      order: 'updated_at.desc',
-      offset: String(offset),
-      limit: '24',
+      select: 'id,title,slug,cover_url,chapters(created_at)',
+      'chapters.order': 'created_at.desc',
+      'chapters.limit': '1',
+      status: 'neq.draft',
     });
-    return this.mangaListParse(data);
+    // PostgREST cannot order a to-many embed, so the whole series list is
+    // sorted and paged here, as upstream does.
+    const sorted = (Array.isArray(data) ? data : []) as SearchSeriesDto[];
+    sorted.sort((a, b) => this.latestChapterTimestamp(b) - this.latestChapterTimestamp(a));
+    const offset = (page - 1) * 24;
+    const pageItems = sorted.slice(offset, offset + 24);
+    return {
+      mangas: pageItems.map(item => this.listItemToManga(item)),
+      hasNextPage: offset + pageItems.length < sorted.length,
+    };
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
@@ -79,6 +93,7 @@ export class WebdexscansScraper extends BaseScraper {
     const params: Record<string, string> = {
       select: 'id,title,slug,cover_url',
       order: 'updated_at.desc',
+      status: 'neq.draft',
       offset: String(offset),
       limit: '24',
     };
@@ -140,13 +155,24 @@ export class WebdexscansScraper extends BaseScraper {
 
   private mangaListParse(data: unknown): SearchResult {
     const list = (Array.isArray(data) ? data : []) as SearchSeriesDto[];
-    const mangas = list.map(item => ({
+    const mangas = list.map(item => this.listItemToManga(item));
+    return { mangas, hasNextPage: mangas.length === 24 };
+  }
+
+  private listItemToManga(item: SearchSeriesDto): Manga {
+    return {
       title: item.title,
       url: item.id,
       thumbnailUrl: item.cover_url ? this.absUrl(item.cover_url) : '',
       lang: this.lang,
-    }));
-    return { mangas, hasNextPage: mangas.length === 24 };
+    };
+  }
+
+  private latestChapterTimestamp(item: SearchSeriesDto): number {
+    const createdAt = item.chapters?.[0]?.created_at;
+    if (!createdAt) return Number.NEGATIVE_INFINITY;
+    const timestamp = Date.parse(createdAt);
+    return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
   }
 
   private seriesToManga(series: SeriesInfo, url: string): Partial<Manga> {
