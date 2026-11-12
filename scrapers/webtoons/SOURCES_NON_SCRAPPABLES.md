@@ -173,6 +173,21 @@ Ces deux entrées restent hors du registre `IGNORE` : rien ne prouve qu'elles
 sont mortes. Elles ne sont pas portées maintenant uniquement parce qu'un port
 `BaseScraper` en `axios` renverrait le challenge au lieu du catalogue.
 
+### `all/onisaga` : challenge Cloudflare (issue #623)
+
+Sondé le **2026-11-11** (issue #623), en IPv4 **et** IPv6, puis avec un navigateur
+Chrome. `onisaga.com`, `www.onisaga.com` et `api.onisaga.com` répondent tous
+`403` + **5 434–5 649 o**, `<title>Just a moment...</title>`,
+`cf-mitigated: challenge`, `server: cloudflare`. Le challenge est identique sur
+les routes utiles de l'upstream : `/api/rpc/catalog/browse` en `GET` et en `POST`
+JSON (`{"json":{...}}`), ainsi que `/api/age-confirmation`. Chrome reste bloqué
+sur le Turnstile « Verify you are human ». Le site est vivant, mais aucun
+catalogue ni JSON n'est lisible sans navigateur. Aucun `.ts` commité.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `all/onisaga` | `onisaga.com` + `www.onisaga.com` + `api.onisaga.com` | BLOCKED | `403` + **5 434–5 649 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`**, `server: cloudflare`, en IPv4 et IPv6, sur `/`, `/api/rpc/catalog/browse` (`GET` et `POST` JSON) et `/api/age-confirmation` ; navigateur Chrome bloqué par le Turnstile « Verify you are human ». L'upstream `OniSaga.kt` ne franchit ce mur qu'avec un cookie d'âge et l'API protégée | Un `GET`/`POST` sans navigateur rend le catalogue ou le JSON de l'API (challenge retiré, ou `cf_clearance` obtenable sans JS) |
+
 ### `fr/aniverse` : catalogue lisible, mais aucune URL de fiche
 
 `BLOCKED`, et pour une raison qui n'a **rien à voir avec Cloudflare** : cette source
