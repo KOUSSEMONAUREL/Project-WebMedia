@@ -423,8 +423,17 @@ class RunnerParsingTest(unittest.TestCase):
 
     def test_normalize_review_caps_reason(self):
         data = {"prs": [{"number": 1, "reason": "x" * 5000}]}
-        normalized = review.normalize_review(data)
+        with mock.patch.object(review, "COMPACT", False):
+            normalized = review.normalize_review(data)
         self.assertEqual(len(normalized["prs"][0]["reason"]), 4000)
+
+    def test_normalize_review_caps_reason_in_compact_mode(self):
+        data = {"prs": [{"number": 1, "reason": "x" * 5000}]}
+        with mock.patch.multiple(
+            review, COMPACT=True, COMPACT_REASON_MAX=700
+        ):
+            normalized = review.normalize_review(data)
+        self.assertEqual(len(normalized["prs"][0]["reason"]), 700)
 
     def test_child_env_removes_write_surfaces(self):
         env = {
@@ -499,6 +508,472 @@ class ModelChainTest(unittest.TestCase):
         self.assertIn("max", command)
         self.assertIn("--thinking", command)
         self.assertIn("--auto", command)
+
+    def test_command_points_to_bundle_and_partial_file(self):
+        command = review.build_command("/bin/opencode", "opencode/model")
+        joined = " ".join(command)
+        self.assertIn(review.AI_REVIEW_BUNDLE_FILE, joined)
+        self.assertIn(review.AI_REVIEW_PARTIAL_FILE, joined)
+        self.assertNotIn(review.AI_REVIEW_FILE, joined)
+
+    def test_command_carries_adaptive_time_budget(self):
+        command = review.build_command(
+            "/bin/opencode", "opencode/model", budget_s=420
+        )
+        joined = " ".join(command)
+        self.assertIn("420 seconds", joined)
+
+
+class RunnerFlowTest(unittest.TestCase):
+    def test_gate_fail_is_synthesized_and_not_sent_to_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def path(name):
+                return os.path.join(tmp, name)
+
+            pr_path = path("prs.json")
+            gate_path = path("gate.json")
+            handoff_path = path("handoff.json")
+            prompt_path = path("prompt.md")
+            final_path = path("ai.json")
+            partial_path = path("partial.json")
+            bundle_path = path("bundle.json")
+            status_path = path("status.json")
+            log_path = path("model.log")
+            with open(pr_path, "w", encoding="utf-8") as handle:
+                json.dump([
+                    {"number": 1, "title": "one", "url": "u1"},
+                    {"number": 2, "title": "two", "url": "u2"},
+                    {"number": 3, "title": "three", "url": "u3"},
+                ], handle)
+            with open(gate_path, "w", encoding="utf-8") as handle:
+                json.dump({
+                    "gate_version": 1,
+                    "prs": [
+                        {
+                            "number": 1, "verdict": "PASS", "head_sha": HEAD,
+                            "reason": "ok", "checks": {"kind": "code"},
+                        },
+                        {
+                            "number": 2, "verdict": "FAIL", "head_sha": HEAD,
+                            "reason": "bad", "checks": {"kind": "code"},
+                        },
+                        {
+                            "number": 3, "verdict": "HOLD", "head_sha": HEAD,
+                            "reason": "maybe", "checks": {"kind": "code"},
+                        },
+                    ],
+                }, handle)
+            with open(handoff_path, "w", encoding="utf-8") as handle:
+                json.dump({"close": False, "summary_md": "summary"}, handle)
+            with open(prompt_path, "w", encoding="utf-8") as handle:
+                handle.write("prompt")
+            with open(log_path, "w", encoding="utf-8") as handle:
+                handle.write("log")
+
+            def fake_bundle(reviewable, gate_map, metadata, handoff):
+                self.assertEqual(reviewable, [1, 3])
+                self.assertNotIn(2, reviewable)
+                return ({
+                    "bundle_version": 1,
+                    "reviewable_prs": [
+                        {"number": 1, "gate": gate_map[1], "diff": "d1"},
+                        {"number": 3, "gate": gate_map[3], "diff": "d3"},
+                    ],
+                }, {})
+
+            def fake_run(opencode, model, timeout, grace=0):
+                with open(partial_path, "w", encoding="utf-8") as handle:
+                    json.dump({
+                        "review_version": 1,
+                        "prs": [
+                            ai(number=1)["prs"][0],
+                            ai(
+                                number=3,
+                                verdict="HOLD",
+                                gate_verdict="HOLD",
+                            )["prs"][0],
+                        ],
+                    }, handle)
+                return 0, log_path
+
+            patches = {
+                "PR_LIST_FILE": pr_path,
+                "GATE_REVIEW_FILE": gate_path,
+                "HANDOFF_FILE": handoff_path,
+                "PROMPT_FILE": prompt_path,
+                "AI_REVIEW_FILE": final_path,
+                "AI_REVIEW_PARTIAL_FILE": partial_path,
+                "AI_REVIEW_BUNDLE_FILE": bundle_path,
+                "AI_REVIEW_STATUS_FILE": status_path,
+                "AI_REVIEW_ADVISORY": False,
+            }
+            with mock.patch.multiple(review, **patches), \
+                    mock.patch.object(
+                        review, "build_review_bundle", side_effect=fake_bundle
+                    ), \
+                    mock.patch.object(
+                        review, "run_model", side_effect=fake_run
+                    ), \
+                    mock.patch.object(
+                        review, "model_chain", return_value=["test/model"]
+                    ), \
+                    mock.patch.object(
+                        review, "opencode_bin", return_value="/bin/opencode"
+                    ):
+                code = review.main()
+
+            self.assertEqual(code, 0)
+            with open(final_path, encoding="utf-8") as handle:
+                final = json.load(handle)
+            verdicts = {
+                entry["number"]: entry["verdict"]
+                for entry in final["prs"]
+            }
+            self.assertEqual(verdicts, {1: "PASS", 2: "FAIL", 3: "HOLD"})
+            self.assertEqual(final["reviewer_model"], "test/model")
+
+    def test_valid_partial_is_used_even_if_process_timed_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def path(name):
+                return os.path.join(tmp, name)
+
+            pr_path = path("prs.json")
+            gate_path = path("gate.json")
+            handoff_path = path("handoff.json")
+            prompt_path = path("prompt.md")
+            final_path = path("ai.json")
+            partial_path = path("partial.json")
+            bundle_path = path("bundle.json")
+            status_path = path("status.json")
+            log_path = path("model.log")
+            with open(pr_path, "w", encoding="utf-8") as handle:
+                json.dump([{"number": 1, "title": "one", "url": "u1"}], handle)
+            with open(gate_path, "w", encoding="utf-8") as handle:
+                json.dump(gate(number=1), handle)
+            with open(handoff_path, "w", encoding="utf-8") as handle:
+                json.dump({"close": False, "summary_md": "summary"}, handle)
+            with open(prompt_path, "w", encoding="utf-8") as handle:
+                handle.write("prompt")
+            with open(log_path, "w", encoding="utf-8") as handle:
+                handle.write("partial written before timeout")
+
+            def fake_bundle(reviewable, gate_map, metadata, handoff):
+                return ({
+                    "bundle_version": 1,
+                    "reviewable_prs": [{
+                        "number": 1,
+                        "gate": gate_map[1],
+                        "diff": "d1",
+                    }],
+                }, {})
+
+            def fake_run(opencode, model, timeout, grace=0):
+                with open(partial_path, "w", encoding="utf-8") as handle:
+                    json.dump(ai(number=1), handle)
+                return 124, log_path
+
+            patches = {
+                "PR_LIST_FILE": pr_path,
+                "GATE_REVIEW_FILE": gate_path,
+                "HANDOFF_FILE": handoff_path,
+                "PROMPT_FILE": prompt_path,
+                "AI_REVIEW_FILE": final_path,
+                "AI_REVIEW_PARTIAL_FILE": partial_path,
+                "AI_REVIEW_BUNDLE_FILE": bundle_path,
+                "AI_REVIEW_STATUS_FILE": status_path,
+                "AI_REVIEW_ADVISORY": False,
+            }
+            with mock.patch.multiple(review, **patches), \
+                    mock.patch.object(
+                        review, "build_review_bundle", side_effect=fake_bundle
+                    ), \
+                    mock.patch.object(
+                        review, "run_model", side_effect=fake_run
+                    ), \
+                    mock.patch.object(
+                        review, "model_chain", return_value=["test/model"]
+                    ), \
+                    mock.patch.object(
+                        review, "opencode_bin", return_value="/bin/opencode"
+                    ):
+                code = review.main()
+
+            self.assertEqual(code, 0)
+            with open(final_path, encoding="utf-8") as handle:
+                final = json.load(handle)
+            self.assertEqual(final["prs"][0]["verdict"], "PASS")
+            self.assertEqual(final["reviewer_model"], "test/model")
+
+
+    def test_partial_verdicts_survive_to_the_next_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def path(name):
+                return os.path.join(tmp, name)
+
+            pr_path = path("prs.json")
+            gate_path = path("gate.json")
+            handoff_path = path("handoff.json")
+            prompt_path = path("prompt.md")
+            final_path = path("ai.json")
+            partial_path = path("partial.json")
+            bundle_path = path("bundle.json")
+            status_path = path("status.json")
+            log_path = path("model.log")
+            with open(pr_path, "w", encoding="utf-8") as handle:
+                json.dump([
+                    {"number": 1, "title": "one", "url": "u1"},
+                    {"number": 2, "title": "two", "url": "u2"},
+                ], handle)
+            with open(gate_path, "w", encoding="utf-8") as handle:
+                json.dump({
+                    "gate_version": 1,
+                    "prs": [
+                        {
+                            "number": 1, "verdict": "PASS", "head_sha": HEAD,
+                            "reason": "ok", "checks": {"kind": "code"},
+                        },
+                        {
+                            "number": 2, "verdict": "PASS", "head_sha": HEAD,
+                            "reason": "ok", "checks": {"kind": "code"},
+                        },
+                    ],
+                }, handle)
+            with open(handoff_path, "w", encoding="utf-8") as handle:
+                json.dump({"close": False, "summary_md": "summary"}, handle)
+            with open(prompt_path, "w", encoding="utf-8") as handle:
+                handle.write("prompt")
+            with open(log_path, "w", encoding="utf-8") as handle:
+                handle.write("log")
+
+            def fake_bundle(reviewable, gate_map, metadata, handoff):
+                return ({
+                    "bundle_version": 1,
+                    "reviewable_prs": [
+                        {"number": 1, "gate": gate_map[1], "diff": "d1"},
+                        {"number": 2, "gate": gate_map[2], "diff": "d2"},
+                    ],
+                }, {})
+
+            def fake_run(opencode, model, timeout, grace=0):
+                number = 1 if model == "m1" else 2
+                with open(partial_path, "w", encoding="utf-8") as handle:
+                    json.dump(ai(number=number), handle)
+                return (124 if model == "m1" else 0), log_path
+
+            patches = {
+                "PR_LIST_FILE": pr_path,
+                "GATE_REVIEW_FILE": gate_path,
+                "HANDOFF_FILE": handoff_path,
+                "PROMPT_FILE": prompt_path,
+                "AI_REVIEW_FILE": final_path,
+                "AI_REVIEW_PARTIAL_FILE": partial_path,
+                "AI_REVIEW_BUNDLE_FILE": bundle_path,
+                "AI_REVIEW_STATUS_FILE": status_path,
+                "AI_REVIEW_ADVISORY": False,
+            }
+            with mock.patch.multiple(review, **patches), \
+                    mock.patch.object(
+                        review, "build_review_bundle", side_effect=fake_bundle
+                    ), \
+                    mock.patch.object(
+                        review, "run_model", side_effect=fake_run
+                    ), \
+                    mock.patch.object(
+                        review, "model_chain", return_value=["m1", "m2"]
+                    ), \
+                    mock.patch.object(
+                        review, "opencode_bin", return_value="/bin/opencode"
+                    ):
+                code = review.main()
+
+            self.assertEqual(code, 0)
+            with open(final_path, encoding="utf-8") as handle:
+                final = json.load(handle)
+            verdicts = {
+                entry["number"]: entry["verdict"]
+                for entry in final["prs"]
+            }
+            self.assertEqual(verdicts, {1: "PASS", 2: "PASS"})
+            self.assertEqual(final["reviewer_model"], "m2")
+
+
+class AdaptiveBudgetTest(unittest.TestCase):
+    def test_workload_stats_counts_diffs_and_handoff(self):
+        bundle = {
+            "reviewable_prs": [
+                {"diff": "a" * 100},
+                {"diff": "b" * 50},
+                {"diff": ""},
+            ],
+            "handoff": {"summary_md": "c" * 10},
+        }
+        stats = review.workload_stats(bundle)
+        self.assertEqual(stats["pr_count"], 3)
+        self.assertEqual(stats["diff_chars"], 150)
+        self.assertEqual(stats["handoff_chars"], 10)
+        self.assertEqual(stats["total_chars"], 160)
+
+    def test_estimate_model_timeout_scales_with_workload(self):
+        with mock.patch.multiple(
+            review,
+            MODEL_TIMEOUT_MIN_S=180,
+            MODEL_TIMEOUT_MAX_S=1200,
+            BASE_SECONDS=90,
+            SECONDS_PER_DIFF_CHAR=0.008,
+            SECONDS_PER_PR=25,
+        ):
+            small = review.estimate_model_timeout(
+                {"pr_count": 1, "total_chars": 1000}
+            )
+            large = review.estimate_model_timeout(
+                {"pr_count": 10, "total_chars": 200000}
+            )
+        self.assertEqual(small, 180)
+        self.assertEqual(large, 1200)
+
+    def test_estimate_total_deadline_reserves_attempts_and_caps(self):
+        with mock.patch.object(review, "TOTAL_DEADLINE_S", 2400):
+            self.assertEqual(review.estimate_total_deadline(5, 300), 1020)
+            self.assertEqual(review.estimate_total_deadline(5, 1200), 2400)
+
+    def test_extract_valid_entries_ignores_invalid_and_extra_entries(self):
+        gate_map = {
+            1: {"number": 1, "verdict": "PASS", "head_sha": HEAD},
+            2: {"number": 2, "verdict": "PASS", "head_sha": HEAD},
+        }
+        data = {
+            "review_version": 1,
+            "prs": [
+                ai(number=1)["prs"][0],
+                ai(number=True)["prs"][0],
+                ai(number=2, head="b" * 40)["prs"][0],
+                ai(number=3)["prs"][0],
+            ],
+        }
+        accepted = review.extract_valid_entries(
+            data, gate_map, [1, 2]
+        )
+        self.assertEqual(list(accepted), [1])
+        self.assertTrue(all(type(number) is int for number in accepted))
+
+    def test_build_review_bundle_allocates_fair_per_pr_budget(self):
+        budgets = []
+
+        def fake_fetch(number, budget):
+            budgets.append(budget)
+            return "d" * budget, False, ""
+
+        with mock.patch.multiple(
+            review,
+            MAX_DIFF_CHARS=12000,
+            MAX_TOTAL_DIFF_CHARS=30000,
+            MIN_DIFF_CHARS=2000,
+        ), mock.patch.object(
+            review, "fetch_pr_diff", side_effect=fake_fetch
+        ):
+            bundle, holds = review.build_review_bundle(
+                list(range(1, 11)),
+                {n: {"verdict": "PASS", "head_sha": HEAD} for n in range(1, 11)},
+                {},
+                {},
+            )
+        self.assertEqual(holds, {})
+        self.assertEqual(len(bundle["reviewable_prs"]), 10)
+        self.assertEqual(budgets, [3000] * 10)
+        self.assertEqual(
+            sum(len(item["diff"]) for item in bundle["reviewable_prs"]),
+            30000,
+        )
+
+
+class GateSynthesisTest(unittest.TestCase):
+    @staticmethod
+    def entry(number, verdict):
+        return {
+            "number": number,
+            "verdict": verdict,
+            "head_sha": HEAD,
+            "reason": "gate reason",
+            "checks": {"kind": "code", "exts": ["en/foo"]},
+        }
+
+    def test_split_synthesizes_fail_and_keeps_pass_hold(self):
+        gate_map = {
+            1: self.entry(1, "PASS"),
+            2: self.entry(2, "FAIL"),
+            3: self.entry(3, "HOLD"),
+        }
+        failed, reviewable, unknown = review.split_gate_verdicts(
+            [1, 2, 3], gate_map
+        )
+        self.assertEqual(list(failed), [2])
+        self.assertEqual(failed[2]["verdict"], "FAIL")
+        self.assertEqual(failed[2]["gate_verdict"], "FAIL")
+        self.assertIn("final", failed[2]["reason"])
+        self.assertEqual(reviewable, [1, 3])
+        self.assertEqual(unknown, [])
+
+    def test_split_reports_unknown_gate_verdict(self):
+        gate_map = {1: self.entry(1, "BROKEN")}
+        failed, reviewable, unknown = review.split_gate_verdicts([1], gate_map)
+        self.assertEqual(failed, {})
+        self.assertEqual(reviewable, [])
+        self.assertEqual(unknown, [1])
+
+    def test_merge_review_entries_combines_synth_and_model(self):
+        synthesized = {2: review.synthesize_fail(self.entry(2, "FAIL"))}
+        partial = ai(number=1)
+        merged = review.merge_review_entries(synthesized, partial)
+        self.assertEqual([entry["number"] for entry in merged], [1, 2])
+        self.assertEqual(merged[0]["verdict"], "PASS")
+        self.assertEqual(merged[1]["verdict"], "FAIL")
+
+    def test_trim_diff_marks_truncation(self):
+        text, truncated = review.trim_diff("a" * 200, 80)
+        self.assertTrue(truncated)
+        self.assertLessEqual(len(text), 80)
+        self.assertIn("TRUNCATED", text)
+
+    def test_finalize_fallback_holds_reviewable_and_keeps_fail(self):
+        gate_data = {
+            "gate_version": 1,
+            "prs": [
+                self.entry(1, "PASS"),
+                self.entry(2, "FAIL"),
+            ],
+        }
+        synthesized = {2: review.synthesize_fail(self.entry(2, "FAIL"))}
+        with tempfile.TemporaryDirectory() as tmp:
+            final_path = os.path.join(tmp, "ai.json")
+            status_path = os.path.join(tmp, "status.json")
+            with mock.patch.object(review, "AI_REVIEW_FILE", final_path), \
+                    mock.patch.object(
+                        review, "AI_REVIEW_STATUS_FILE", status_path
+                    ), \
+                    mock.patch.object(review, "AI_REVIEW_ADVISORY", True):
+                code = review.finalize_fallback(
+                    "tous les modeles ont echoue",
+                    synthesized,
+                    [1],
+                    gate_data,
+                    [1, 2],
+                    ["model: rc=124"],
+                )
+            self.assertEqual(code, 0)
+            with open(final_path, encoding="utf-8") as handle:
+                final = json.load(handle)
+            verdicts = {
+                entry["number"]: entry["verdict"]
+                for entry in final["prs"]
+            }
+            self.assertEqual(verdicts, {1: "HOLD", 2: "FAIL"})
+            self.assertEqual(final["reviewer_model"], "deterministic-fallback")
+            with open(status_path, encoding="utf-8") as handle:
+                status = json.load(handle)
+            self.assertEqual(status["status"], "unavailable")
+            self.assertEqual(
+                status["reviewer_model"], "deterministic-fallback"
+            )
 
 
 if __name__ == "__main__":

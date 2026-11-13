@@ -8,10 +8,11 @@ couches: le gate FAIL reste definitif, la revue IA peut confirmer/refuser un
 PASS ou debloquer un HOLD avec preuve. Les PRs PASS sont mergees en squash;
 les FAIL/HOLD restent ouvertes.
 
-Si la revue IA est absente, seuls les verdicts du gate sont appliques. Si
-elle est presente mais invalide ou partielle, les PASS du gate concernes
-sont bloques en HOLD; les FAIL/HOLD du gate restent definitifs. L'IA ne fait
-jamais le merge elle-meme.
+Si la revue IA est absente, seuls les verdicts du gate sont appliques, sauf
+si `AI_REVIEW_REQUIRED=1`: l'absence est alors traitee comme une revue
+invalide et les PASS du gate sont bloques en HOLD. Si elle est presente mais
+invalide ou partielle, les PASS du gate concernes sont bloques en HOLD; les
+FAIL/HOLD du gate restent definitifs. L'IA ne fait jamais le merge elle-meme.
 """
 
 import json
@@ -35,6 +36,9 @@ AI_REVIEW_FILE = os.environ.get(
 AI_REVIEW_STATUS_FILE = os.environ.get(
     "AI_REVIEW_STATUS_FILE", "/tmp/keiyoushi_ai_review_status.json"
 )
+AI_REVIEW_REQUIRED = os.environ.get(
+    "AI_REVIEW_REQUIRED", ""
+).strip().lower() in ("1", "true", "yes", "on")
 SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
 
 
@@ -204,7 +208,7 @@ def main() -> None:
 
     gate = policy.load_json(REVIEW_FILE)
     ai = policy.load_json(AI_REVIEW_FILE)
-    ai_present = os.path.exists(AI_REVIEW_FILE)
+    ai_present = os.path.exists(AI_REVIEW_FILE) or AI_REVIEW_REQUIRED
     numbers = [
         pr["number"] for pr in pr_list
         if (
@@ -237,7 +241,17 @@ def main() -> None:
     )
     ai_status = load_ai_status()
     ai_status_text = ai_status_detail(ai_status)
-    if review_source == "ai":
+    if (
+        review_source in ("ai", "mixed")
+        and str(ai_status.get("status") or "") == "unavailable"
+    ):
+        reviewer_label = (
+            "gate deterministe + revue IA indisponible "
+            "(PASS bloques en HOLD)"
+        )
+        if ai_status_text:
+            reviewer_label += f" ({ai_status_text})"
+    elif review_source == "ai":
         reviewer_label = "gate deterministe + revue IA"
         if reviewer_model:
             reviewer_label += f" ({reviewer_model})"

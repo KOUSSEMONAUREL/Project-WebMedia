@@ -387,7 +387,8 @@ jobs:
       - check-upstream
     if: needs.agent-analysis.outputs.handoff_valid == 'true' && needs.agent-analysis.outputs.gate_outcome == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # 45 min de revue + marge pour npm ci et l'installation d'opencode.
+    timeout-minutes: 70
     permissions:
       contents: read
       issues: read
@@ -405,9 +406,22 @@ jobs:
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
       AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
+      AI_REVIEW_PARTIAL_FILE: /tmp/keiyoushi_ai_review_partial.json
+      AI_REVIEW_BUNDLE_FILE: /tmp/keiyoushi_review_bundle.json
       AI_REVIEW_STATUS_FILE: /tmp/keiyoushi_ai_review_status.json
       AI_REVIEW_ADVISORY: "1"
+      AI_REVIEW_COMPACT: "1"
       AI_REVIEW_LOG_DIR: /tmp/keiyoushi-ai-review-logs
+      # Budgets adaptatifs: le runner calcule le temps par modele a partir de
+      # la taille reelle du bundle (diffs tronques + handoff), avec une
+      # prolongation bornee si le modele progresse encore.
+      AI_REVIEW_MODEL_TIMEOUT_MIN_S: "180"
+      AI_REVIEW_MODEL_TIMEOUT_MAX_S: "1200"
+      AI_REVIEW_MODEL_GRACE_S: "180"
+      AI_REVIEW_MODEL_GRACE_IDLE_S: "60"
+      AI_REVIEW_TOTAL_DEADLINE_S: "2400"
+      AI_REVIEW_WALL_BUDGET_S: "2600"
+      AI_REVIEW_DIFF_TIMEOUT_S: "20"
       REVIEW_PROMPT_FILE: ${{ github.workspace }}/.github/prompts/keiyoushi-review.md
       REVIEW_RUNNER: ${{ github.workspace }}/scrapers/webtoons/sync/keiyoushi_ai_review.py
     steps:
@@ -440,7 +454,7 @@ jobs:
           path: /tmp
 
       - name: Revue IA independante (memes modeles que l'agent)
-        timeout-minutes: 20
+        timeout-minutes: 45
         env:
           GH_TOKEN: ${{ github.token }}
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
@@ -453,11 +467,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: keiyoushi-ai-review
-          if-no-files-found: error
-          retention-days: 1
+          if-no-files-found: warn
+          retention-days: 3
           path: |
             /tmp/keiyoushi_ai_review.json
+            /tmp/keiyoushi_ai_review_partial.json
+            /tmp/keiyoushi_review_bundle.json
             /tmp/keiyoushi_ai_review_status.json
+            /tmp/keiyoushi-ai-review-logs
 
   apply:
     name: Appliquer verdicts, merger et verifier
@@ -482,6 +499,7 @@ jobs:
       REVIEW_FILE: /tmp/keiyoushi_review.json
       AI_REVIEW_FILE: /tmp/keiyoushi_ai_review.json
       AI_REVIEW_STATUS_FILE: /tmp/keiyoushi_ai_review_status.json
+      AI_REVIEW_REQUIRED: "1"
       SKIPPED_FILE: /tmp/keiyoushi_skipped.json
     steps:
       - uses: actions/checkout@v7

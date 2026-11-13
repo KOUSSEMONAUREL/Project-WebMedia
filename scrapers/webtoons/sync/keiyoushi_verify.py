@@ -10,9 +10,10 @@ mergee, PR mergee sans PASS, issue restee ouverte alors que tout est
 merge, etc.), il commente l'issue et sort en erreur (exit 1).
 
 Le script n'appelle aucune IA: il verifie les verdicts deja produits par le
-gate et par la revue IA. Si la revue est absente, il retombe sur le gate; si
-elle est presente mais invalide ou partielle, il applique la meme regle que
-le merge (PASS du gate bloques en HOLD).
+gate et par la revue IA. Si la revue est absente, il retombe sur le gate,
+sauf si `AI_REVIEW_REQUIRED=1` (absence = revue invalide, PASS bloques en
+HOLD). Si elle est presente mais invalide ou partielle, il applique la meme
+regle que le merge (PASS du gate bloques en HOLD).
 """
 
 import json
@@ -32,6 +33,12 @@ REVIEW_FILE = os.environ.get("REVIEW_FILE", "/tmp/keiyoushi_review.json")
 AI_REVIEW_FILE = os.environ.get(
     "AI_REVIEW_FILE", "/tmp/keiyoushi_ai_review.json"
 )
+AI_REVIEW_STATUS_FILE = os.environ.get(
+    "AI_REVIEW_STATUS_FILE", "/tmp/keiyoushi_ai_review_status.json"
+)
+AI_REVIEW_REQUIRED = os.environ.get(
+    "AI_REVIEW_REQUIRED", ""
+).strip().lower() in ("1", "true", "yes", "on")
 SKIPPED_FILE = os.environ.get("SKIPPED_FILE", "/tmp/keiyoushi_skipped.json")
 
 
@@ -168,6 +175,10 @@ def main() -> None:
                 )
 
             ai = load_json(AI_REVIEW_FILE)
+            ai_status = load_json(AI_REVIEW_STATUS_FILE)
+            ai_status = ai_status if isinstance(ai_status, dict) else {}
+            status_value = str(ai_status.get("status") or "absent")
+            status_reason = str(ai_status.get("reason") or "").strip()
             numbers = [
                 pr["number"] for pr in pr_list
                 if (
@@ -179,17 +190,30 @@ def main() -> None:
             review_entries, review_source, review_warnings = (
                 policy.effective_review(
                     gate, ai, numbers,
-                    ai_present=os.path.exists(AI_REVIEW_FILE),
+                    ai_present=(
+                        os.path.exists(AI_REVIEW_FILE)
+                        or AI_REVIEW_REQUIRED
+                    ),
                 )
             )
             if review_warnings:
                 print("AI_REVIEW_WARNING: " + "; ".join(review_warnings))
+            detail = (
+                f" [{status_value}: {status_reason[:200]}]"
+                if status_reason else f" [{status_value}]"
+            )
             if review_source in ("ai", "mixed") and isinstance(ai, dict):
                 label = "partielle" if review_source == "mixed" else "active"
                 print(f"AI_REVIEW_{label.upper()}: "
-                      + str(ai.get("reviewer_model") or "inconnu"))
+                      + str(ai.get("reviewer_model") or "inconnu")
+                      + detail)
             elif review_source == "fallback":
-                print("AI_REVIEW_FALLBACK: PASS du gate bloques en HOLD")
+                print(
+                    "AI_REVIEW_FALLBACK: PASS du gate bloques en HOLD"
+                    + detail
+                )
+            else:
+                print("AI_REVIEW_GATE_ONLY: aucun verdict IA applique" + detail)
 
             all_merged = True
             for pr in pr_list:
