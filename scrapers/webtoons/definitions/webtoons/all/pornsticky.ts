@@ -52,11 +52,19 @@ export class PornStickyScraper extends BaseScraper {
       .replace(/ +/g, '-');
     if (!slug) return this.getPopular(page);
 
-    const res = await this.get(this.listUrl(['search', slug], page));
-    const $ = this.$(res.data);
-    const mangas = this.parseCards(res.data);
-    const hasNextPage = $('a.next').length > 0 || ($('.pagination').length === 0 && mangas.length >= 160);
-    return { mangas, hasNextPage };
+    try {
+      const res = await this.get(this.listUrl(['search', slug], page));
+      const $ = this.$(res.data);
+      const mangas = this.parseCards(res.data);
+      const hasNextPage = $('a.next').length > 0 || ($('.pagination').length === 0 && mangas.length >= 160);
+      return { mangas, hasNextPage };
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status === 404 || status === 410) {
+        return { mangas: [], hasNextPage: false };
+      }
+      throw error;
+    }
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
