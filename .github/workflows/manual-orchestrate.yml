@@ -3,9 +3,14 @@ name: Manual Orchestration
 on:
   workflow_dispatch:
 
+concurrency:
+  group: manual-orchestrate
+  cancel-in-progress: false
+
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Trigger Cloudflare Orchestrator

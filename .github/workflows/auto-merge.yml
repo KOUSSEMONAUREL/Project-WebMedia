@@ -24,6 +24,7 @@ jobs:
   check-and-merge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
@@ -55,14 +56,15 @@ jobs:
           PUBLIC_AUTH_URL: http://127.0.0.1:8080
         run: cd ${{ matrix.dir }} && npm run build
 
-      - name: Build check (scrapers)
+      - name: TypeScript check (scrapers)
         if: matrix.dir != 'backend' && matrix.dir != 'frontend'
-        run: cd ${{ matrix.dir }} && npx tsc --noEmit 2>/dev/null || echo "No tsc or check skipped"
+        run: cd ${{ matrix.dir }} && npx tsc --noEmit
 
   merge:
     needs: check-and-merge
     if: github.actor == 'dependabot[bot]' && success()
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write

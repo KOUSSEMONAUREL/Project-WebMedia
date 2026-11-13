@@ -110,8 +110,6 @@ jobs:
           python3 -c "import json; d=json.load(open('/tmp/compare.json')); assert 'files' in d" 2>/dev/null || { echo "Error: invalid compare API response"; cat /tmp/compare.json; exit 1; }
           python3 "$ANALYZER" /tmp/compare.json "$LAST_CHECKED" "$HEAD_SHA"
 
-          persist_supabase "$HEAD_SHA"
-
       - name: Check Cloudflare for new extensions
         if: steps.monitor.outputs.has_changes == 'true'
         env:
@@ -148,6 +146,15 @@ jobs:
           else
             echo "Aucun changement critique ou nouveau. Pas d'issue creee."
           fi
+
+      - name: Persist last checked commit after successful issue handling
+        if: steps.monitor.outputs.has_changes == 'true'
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          HEAD_SHA: ${{ steps.monitor.outputs.head_sha }}
+        run: |
+          echo "$HEAD_SHA" > /tmp/keiyoushi_last_commit
+          python3 "$PERSIST" write "$HEAD_SHA"
 
       - name: Detecter les issues keiyoushi restees ouvertes
         id: openissue

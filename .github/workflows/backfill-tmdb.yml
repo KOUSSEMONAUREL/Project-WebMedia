@@ -8,9 +8,14 @@ on:
         required: false
         default: '500'
 
+concurrency:
+  group: backfill-tmdb
+  cancel-in-progress: false
+
 jobs:
   backfill:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend

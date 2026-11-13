@@ -25,7 +25,7 @@ run_test() {
 }
 
 # Backend tests
-run_test "Backend Routes" npx tsx --test "$ROOT/backend/tests/media.test.ts"
+run_test "Backend Routes" npm --prefix "$ROOT/backend" test -- --run
 
 # Webtoon tests
 run_test "Webtoon Runner" npx tsx --test "$ROOT/scrapers/webtoons/tests/runner.test.ts"
@@ -38,11 +38,8 @@ run_test "Import Worker (Errors)" npx tsx --test "$ROOT/scrapers/import-worker/t
 # Novel-worker tests
 run_test "Novel Worker" npx tsx --test "$ROOT/scrapers/novel-worker/tests/index.test.ts"
 
-# Cheerio-worker tests
-run_test "Cheerio Worker" npx tsx --test "$ROOT/scrapers/cheerio-worker/tests/index.test.ts"
-
-# Playwright-worker tests
-run_test "Playwright Worker" python3 "$ROOT/scrapers/playwright-worker/tests/test_main.py"
+# Scrapling-worker tests
+run_test "Scrapling Worker" python3 "$ROOT/scrapers/scrapling-worker/tests/test_main.py"
 
 echo ""
 echo "═══════════════════════════════════════"

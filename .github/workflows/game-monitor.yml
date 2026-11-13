@@ -22,9 +22,14 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: game-monitor
+  cancel-in-progress: false
+
 jobs:
   check-scrapers:
     name: Verifier les selecteurs des 10 sites
+    timeout-minutes: 15
     outputs:
       broken_sites: ${{ steps.verify.outputs.broken_sites }}
       open_issue: ${{ steps.openissue.outputs.open_issue }}
@@ -51,9 +56,14 @@ jobs:
           python3 "$VERIFY_SCRIPT"
           status=$?
           set -e
-          if [ $status -eq 1 ]; then
-            echo "Sites casse detectes:"
-            python3 -c "import json; r=json.load(open('/tmp/scraper_report.json')); print('\n'.join(r['broken']))"
+          if [ $status -ne 0 ]; then
+            echo "Verification en echec (status=$status)"
+            if [ -s /tmp/scraper_report.json ]; then
+              python3 -c "import json; r=json.load(open('/tmp/scraper_report.json')); print('\n'.join(r['broken']))" || true
+            fi
+            if [ ! -s /tmp/scraper_issue_body.md ]; then
+              printf 'Verification des selecteurs en echec (status=%s). Aucun rapport detaille genere.\n' "$status" > /tmp/scraper_issue_body.md
+            fi
             echo "broken_sites=true" >> "$GITHUB_OUTPUT"
           else
             echo "broken_sites=false" >> "$GITHUB_OUTPUT"
@@ -104,6 +114,7 @@ jobs:
     needs: check-scrapers
     if: needs.check-scrapers.outputs.broken_sites == 'true' || github.event.inputs.force_agent == 'true' || needs.check-scrapers.outputs.open_issue == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     env:
       GEMINI_MODEL: google/gemini-flash-latest
       PROMPT_FILE: ${{ github.workspace }}/.github/prompts/game-monitor-analysis.md

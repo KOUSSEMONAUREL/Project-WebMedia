@@ -9,9 +9,14 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: webtoon-scraper
+  cancel-in-progress: false
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - name: Setup Node

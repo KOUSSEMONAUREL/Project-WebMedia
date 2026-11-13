@@ -9,9 +9,14 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: novel-scraper
+  cancel-in-progress: false
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Setup Node
