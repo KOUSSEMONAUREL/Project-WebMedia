@@ -1,7 +1,7 @@
 import { listScrapers, ScraperInfo } from '../src/runner';
 import { probeOrigin } from './origin_diagnose';
 import type { BaseScraper } from '../engine/base';
-import type { Manga, SearchResult } from '../engine/types';
+import type { Chapter, Manga, Page, SearchResult } from '../engine/types';
 
 const CALL_TIMEOUT_MS = 15_000;
 
@@ -57,6 +57,68 @@ function summarize(stage: StageResult<unknown>): string {
   return 'ok';
 }
 
+function searchQueries(title: string, fallback: string): string[] {
+  const trimmed = title.trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const candidates = [
+    trimmed,
+    words.slice(0, 2).join(' '),
+    words[0] ?? '',
+    fallback,
+  ]
+    .map((value) => value.trim().slice(0, 40))
+    .filter(Boolean);
+  return [...new Set(candidates)];
+}
+
+function isLockedChapter(chapter: Chapter): boolean {
+  return /🔒|locked/i.test(chapter.name ?? '');
+}
+
+type SearchAttempt = {
+  query: string;
+  result: StageResult<SearchResult>;
+  count: number;
+};
+
+type PageAttempt = {
+  chapter: Chapter;
+  result: StageResult<Page[]>;
+  count: number;
+};
+
+async function trySearch(
+  instance: BaseScraper,
+  queries: string[],
+): Promise<{ selected?: SearchAttempt; attempts: SearchAttempt[] }> {
+  const attempts: SearchAttempt[] = [];
+  for (const query of queries) {
+    const result = await attempt(() => instance.getSearch(query, 1));
+    const count = countOf(result.value);
+    attempts.push({ query, result, count });
+    if (count > 0) {
+      return { selected: attempts[attempts.length - 1], attempts };
+    }
+  }
+  return { attempts };
+}
+
+async function tryPages(
+  instance: BaseScraper,
+  chapters: Chapter[],
+): Promise<{ selected?: PageAttempt; attempts: PageAttempt[] }> {
+  const attempts: PageAttempt[] = [];
+  for (const chapter of chapters) {
+    const result = await attempt(() => instance.getPageList(chapter.url));
+    const count = Array.isArray(result.value) ? result.value.length : 0;
+    attempts.push({ chapter, result, count });
+    if (count > 0 || result.unsupported) {
+      return { selected: attempts[attempts.length - 1], attempts };
+    }
+  }
+  return { attempts };
+}
+
 async function main(): Promise<void> {
   const arg = process.argv.slice(2).find((value) => !value.startsWith('-'));
 
@@ -105,23 +167,36 @@ async function main(): Promise<void> {
   const homeCount = homeSupported ? Math.max(popularCount, latestCount) : null;
   const homeManga = firstManga(popular.value) || firstManga(latest.value);
 
-  const query = (homeManga?.title || instance.name || 'manga').slice(0, 40);
-  const search = await attempt(() => instance.getSearch(query, 1));
-  const searchCount = countOf(search.value);
-  const searchManga = firstManga(search.value);
+  const queries = searchQueries(
+    homeManga?.title || instance.name || 'manga',
+    instance.name || 'manga',
+  );
+  const searchRun = await trySearch(instance, queries);
+  const search = searchRun.selected?.result;
+  const searchCount = searchRun.selected?.count ?? 0;
+  const searchQuery = searchRun.selected?.query ?? queries[0];
+  const searchManga = firstManga(search?.value);
   const manga = homeManga || searchManga;
 
   const chapters = manga
     ? await attempt(() => instance.getChapterList(manga.url))
     : { error: 'no manga url', value: [] as Awaited<ReturnType<BaseScraper['getChapterList']>> };
-  const chapterCount = Array.isArray(chapters.value) ? chapters.value.length : 0;
-  const chapter = chapters.value?.find((item) => Boolean(item?.url));
+  const chapterList = Array.isArray(chapters.value) ? chapters.value : [];
+  const chapterCount = chapterList.length;
+  const chapterCandidates = chapterList
+    .filter((item) => Boolean(item?.url))
+    .filter((item) => !isLockedChapter(item))
+    .slice(0, 3);
+  const pageCandidates = chapterCandidates.length
+    ? chapterCandidates
+    : chapterList.filter((item) => Boolean(item?.url)).slice(0, 3);
 
-  const pages = chapter
-    ? await attempt(() => instance.getPageList(chapter.url))
-    : { error: 'no chapter url', value: [] as Awaited<ReturnType<BaseScraper['getPageList']>> };
-  const pageCount = Array.isArray(pages.value) ? pages.value.length : 0;
-  const pagesUnsupported = Boolean(pages.unsupported);
+  const pageRun = await tryPages(instance, pageCandidates);
+  const pageAttempt = pageRun.selected ?? pageRun.attempts[0];
+  const pages = pageAttempt?.result;
+  const chapter = pageAttempt?.chapter;
+  const pageCount = pageAttempt?.count ?? 0;
+  const pagesUnsupported = Boolean(pages?.unsupported);
 
   let status = 'OK';
   let error = '';
@@ -131,20 +206,27 @@ async function main(): Promise<void> {
     error = 'popular and latest returned zero manga';
   } else if (searchCount === 0) {
     status = 'SEARCH_EMPTY';
-    error = `search returned zero manga for ${JSON.stringify(query)}`;
+    error = `search returned zero manga for ${JSON.stringify(searchRun.attempts.map((item) => item.query))}`;
   } else if (chapterCount === 0) {
     status = 'CHAPTERS_EMPTY';
     error = chapters.error || 'chapter list is empty';
   } else if (pageCount === 0 && !pagesUnsupported) {
     status = 'PAGES_EMPTY';
-    error = pages.error || 'page list is empty';
+    error = pages?.error || 'page list is empty';
   } else if (homeCount === null && searchCount > 0 && chapterCount > 0 && (pageCount > 0 || pagesUnsupported)) {
     status = 'OK';
     error = 'popular/latest not implemented; search and content stages pass';
   }
 
-  const networkError = [popular, latest, search, chapters, pages]
-    .map((stage) => stage.error || '')
+  const stages: Array<StageResult<unknown> | undefined> = [
+    popular,
+    latest,
+    chapters,
+    ...searchRun.attempts.map((item) => item.result),
+    ...pageRun.attempts.map((item) => item.result),
+  ];
+  const networkError = stages
+    .map((stage) => stage?.error || '')
     .find((message) => /TIMEOUT|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|Network Error/i.test(message));
 
   const stageStatus = status;
@@ -161,12 +243,12 @@ async function main(): Promise<void> {
       className: info.className,
       filePath: info.filePath,
       baseUrl: instance.baseUrl,
-      query,
+      query: searchQuery,
       popular: { count: popularCount, error: summarize(popular), unsupported: Boolean(popular.unsupported) },
       latest: { count: latestCount, error: summarize(latest), unsupported: Boolean(latest.unsupported) },
-      search: { count: searchCount, error: summarize(search) },
+      search: { count: searchCount, error: summarize(search ?? {}), tried: searchRun.attempts.map((item) => item.query) },
       chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
-      pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, error: summarize(pages) },
+      pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, tried: pageRun.attempts.map((item) => item.chapter.url), error: summarize(pages ?? {}) },
       probe: { verdict: probe.verdict, detail: probe.detail },
       error: error || networkError || probe.detail,
     }));
@@ -180,12 +262,12 @@ async function main(): Promise<void> {
     className: info.className,
     filePath: info.filePath,
     baseUrl: instance.baseUrl,
-    query,
+    query: searchQuery,
     popular: { count: popularCount, error: summarize(popular), unsupported: Boolean(popular.unsupported) },
     latest: { count: latestCount, error: summarize(latest), unsupported: Boolean(latest.unsupported) },
-    search: { count: searchCount, error: summarize(search) },
+    search: { count: searchCount, error: summarize(search ?? {}), tried: searchRun.attempts.map((item) => item.query) },
     chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
-    pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, error: summarize(pages) },
+    pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, tried: pageRun.attempts.map((item) => item.chapter.url), error: summarize(pages ?? {}) },
     probe: null,
     error,
   }));

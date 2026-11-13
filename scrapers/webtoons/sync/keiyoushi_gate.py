@@ -627,7 +627,7 @@ def run_gate_scraper(path):
     result = run(
         [TSX, "tests/gate_scraper.ts", path],
         cwd=TS_DIR,
-        timeout=150,
+        timeout=240,
         env=scrubbed_env(),
     )
     output = (result.stdout or "") + "\n" + (result.stderr or "")
