@@ -8,6 +8,7 @@ import { eq, and, inArray, ne, sql } from 'drizzle-orm';
 import { MediaState } from '../services/resolver';
 import { logger } from '../services/logger';
 import { OrchestratorService } from '../services/orchestrator';
+import { planMediaStateReconcile } from '../services/reconcile-state';
 
 type Bindings = {
     NEON_DATABASE_URL: string;
@@ -652,19 +653,17 @@ internalRoutes.post('/ingest/reconcile', async (c) => {
         const allNeon = await db.select({ id: medias.id, type: medias.type, title: medias.title, slug: medias.slug, activeLinksCount: medias.activeLinksCount })
             .from(medias).where(ne(medias.type, 'book'));
 
-        const { results: d1Entries } = await c.env.DB.prepare('SELECT media_id FROM media_state').all<{ media_id: string }>();
-        const d1Ids = new Set(d1Entries.map(e => e.media_id));
+        const { results: d1Entries } = await c.env.DB.prepare('SELECT media_id, active_links, has_content FROM media_state')
+            .all<{ media_id: string; active_links: number | null; has_content: number | null }>();
 
-        const missing = allNeon.filter((m: any) => !d1Ids.has(m.id));
+        const { missing, updates } = planMediaStateReconcile(allNeon, d1Entries);
 
-        // Recalcule active_links pour toutes les entrées existantes (corrige l'ancien
-        // compteur cumulatif `+= N` qui était volontairement gonflé)
-        const fixStatements = allNeon.map((m: any) =>
+        const fixStatements = updates.map(update =>
             c.env.DB!.prepare(`
                 UPDATE media_state
-                SET active_links = ?, has_content = ?, next_scrape = ?
+                SET active_links = ?, has_content = ?
                 WHERE media_id = ?
-            `).bind(m.activeLinksCount || 0, (m.activeLinksCount || 0) > 0 ? 1 : 0, Date.now() + 10000, m.id)
+            `).bind(update.activeLinks, update.hasContent, update.mediaId)
         );
 
         const statements = missing.map((m: any) =>
