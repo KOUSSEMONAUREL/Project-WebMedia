@@ -13,6 +13,7 @@ export class NakedPicsScraper extends BaseScraper {
   readonly name = 'NakedPics';
   readonly baseUrl = 'https://hotnakedwomen.com';
   readonly lang = 'all';
+  private readonly searchSlugCache = new Map<string, string>();
 
   private listUrl(segments: string[]): string {
     const path = segments.map(segment => encodeURIComponent(segment)).join('/');
@@ -136,10 +137,43 @@ export class NakedPicsScraper extends BaseScraper {
     return this.getList(this.listUrl(['recent']), page);
   }
 
+  private searchSlug(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const trimmed = query.trim();
     if (!trimmed) return this.getPopular(page);
-    return this.getList(this.listUrl(['search', ...trimmed.split(/\s+/)]), page);
+
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    const candidates = [
+      words.join(' '),
+      words.slice(0, 2).join(' '),
+      words[0] ?? '',
+    ]
+      .map(value => this.searchSlug(value))
+      .filter(Boolean);
+    const cached = this.searchSlugCache.get(trimmed);
+    const slugs = cached
+      ? [cached, ...candidates.filter(slug => slug !== cached)]
+      : candidates;
+
+    for (const slug of slugs) {
+      try {
+        const result = await this.getList(this.listUrl(['search', slug]), page);
+        if (result.mangas.length > 0 || page > 1) {
+          this.searchSlugCache.set(trimmed, slug);
+          return result;
+        }
+      } catch {
+        // A long title often has no tag page; try a shorter tag next.
+      }
+    }
+
+    return { mangas: [], hasNextPage: false };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
