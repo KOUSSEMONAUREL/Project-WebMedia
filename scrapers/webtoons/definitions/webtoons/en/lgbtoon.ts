@@ -118,7 +118,17 @@ export class LGBToonScraper extends BaseScraper {
     const $ = this.$(res.data);
 
     const chapters = new Map<string, { name: string; number?: number }>();
-    $("a[href*='/chapter/']").each((_, element) => {
+    const navLinks = $("nav[aria-label^='Chapters for'] a[href*='/chapter/']");
+    const fullSlugLinks = $("a[href*='/chapter/']").filter((_, element) =>
+      /-[0-9a-f]{24}\/chapter\//i.test($(element).attr('href') ?? ''),
+    );
+    const source = navLinks.length
+      ? navLinks
+      : fullSlugLinks.length
+        ? fullSlugLinks
+        : $("a[href*='/chapter/']");
+
+    source.each((_, element) => {
       const link = $(element);
       const href = link.attr('href') ?? '';
       if (!href) return;
@@ -153,8 +163,8 @@ export class LGBToonScraper extends BaseScraper {
 
     const images: string[] = [];
     const seen = new Set<string>();
-    $("img[src*='/storage/']").each((_, element) => {
-      const src = $(element).attr('src') ?? '';
+    $("img[data-src*='/storage/'], img[src*='/storage/']").each((_, element) => {
+      const src = $(element).attr('data-src') ?? $(element).attr('src') ?? '';
       if (!src || seen.has(src)) return;
       seen.add(src);
       images.push(this.absUrl(src));
