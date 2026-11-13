@@ -1,0 +1,56 @@
+name: Keiyoushi PR Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      prs:
+        description: 'PR numbers to gate (comma-separated)'
+        required: true
+        default: '639'
+      upstream_sha:
+        description: 'Upstream SHA used for the baseUrl check'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: keiyoushi-gate-pr
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scrapers/webtoons/package-lock.json
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: cd scrapers/webtoons && npm ci
+
+      - name: Run deterministic gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_SHA: ${{ github.event.inputs.upstream_sha || 'main' }}
+        run: |
+          python3 scrapers/webtoons/sync/keiyoushi_gate.py \
+            --prs "${{ github.event.inputs.prs }}" \
+            --output /tmp/keiyoushi_review.json
+
+      - name: Upload review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keiyoushi-gate-pr
+          path: /tmp/keiyoushi_review.json
