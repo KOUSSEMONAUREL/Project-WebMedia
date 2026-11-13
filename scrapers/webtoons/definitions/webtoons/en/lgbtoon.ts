@@ -170,6 +170,16 @@ export class LGBToonScraper extends BaseScraper {
       images.push(this.absUrl(src));
     });
 
+    const html = String(res.data);
+    for (const match of html.matchAll(
+      /https:\/\/[^"'\\\s]+\/storage\/[^"'\\\s]+?\.(?:webp|jpe?g|png)/gi,
+    )) {
+      const src = match[0];
+      if (seen.has(src)) continue;
+      seen.add(src);
+      images.push(this.absUrl(src));
+    }
+
     return images.map((imageUrl, index) => ({ imageUrl, index }));
   }
 }
