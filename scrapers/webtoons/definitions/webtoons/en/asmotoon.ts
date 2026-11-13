@@ -77,8 +77,6 @@ export class AsmotoonScraper extends BaseScraper {
     const description = $('#series-desc').text().trim() || undefined;
     const thumbnailUrl = $('meta[property="og:image"]').attr('content') || '';
     const genre = $('a[href*="?browse&tag"]').toArray().map(el => $(el).text().trim()).filter(Boolean).join(', ') || undefined;
-    let author: string | undefined;
-    let artist: string | undefined;
     const meta = (label: string): string | undefined => {
       const el = $('span.text-xs').filter((_i, e) => $(e).text().trim() === label).first();
       if (!el.length) return undefined;
@@ -87,18 +85,37 @@ export class AsmotoonScraper extends BaseScraper {
       const val = next.text().trim();
       return val || undefined;
     };
-    author = meta('Author');
-    artist = meta('Artist');
-    let statusText = '';
-    $('div.text-xs').each((_i, el) => {
-      if ($(el).text().trim() === 'Status') {
-        statusText = $(el).parent().next().find('span.text-sm').first().text().trim().toLowerCase();
+
+    let author = meta('Author');
+    let artist = meta('Artist');
+    const byLine = $('p.l2-by').first().text().replace(/\s+/g, ' ').trim();
+    if (byLine) {
+      const clean = byLine.replace(/^By\s+/i, '').trim();
+      const comma = clean.indexOf(',');
+      if (comma >= 0) {
+        author = clean.slice(0, comma).trim() || undefined;
+        artist = clean.slice(comma + 1).trim() || undefined;
+      } else {
+        author = clean || undefined;
+        artist = undefined;
       }
-    });
-    let status: Manga['status'] = 0;
-    if (statusText === 'ongoing') status = 1;
-    else if (statusText === 'completed') status = 2;
-    else if (statusText === 'dropped') status = 3;
+    }
+
+    let statusText =
+      $('p.l2-kicker').first().text().trim().toLowerCase() ||
+      $('div.l2-meta span').first().text().trim().toLowerCase();
+    if (!statusText) {
+      $('div.text-xs').each((_i, el) => {
+        if ($(el).text().trim() === 'Status') {
+          statusText = $(el).parent().next().find('span.text-sm').first().text().trim().toLowerCase();
+        }
+      });
+    }
+    let status: Manga['status'];
+    if (statusText.includes('ongoing')) status = 1;
+    else if (statusText.includes('completed')) status = 0;
+    else if (statusText.includes('dropped') || statusText.includes('cancelled') || statusText.includes('canceled')) status = 2;
+    else if (statusText.includes('paused') || statusText.includes('hiatus')) status = 3;
 
     return {
       title: title || undefined,
