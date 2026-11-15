@@ -72,9 +72,9 @@ export class AquamangaScraper extends BaseScraper {
   private parseListing(html: string): SearchResult {
     const $ = this.$(html);
     const mangas: Manga[] = [];
-    $('article.aqua-archive-card').each((_, element) => {
+    $('article.aqua-manga-card').each((_, element) => {
       const card = $(element);
-      const link = card.find('.aqua-archive-card__title a').first();
+      const link = card.find('.aqua-manga-card__title a').first();
       const href = (link.attr('href') ?? '').trim();
       const title = link.text().trim();
       if (!href || !title) return;
