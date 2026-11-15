@@ -134,6 +134,43 @@ class UpstreamTest(unittest.TestCase):
         self.assertEqual(
             gate.parse_upstream_base_urls(text), ["https://example.com/"])
 
+    def test_fetch_falls_back_to_all_module(self):
+        calls = []
+
+        def fake_run(args, **_kwargs):
+            calls.append(args[-1])
+            if "/src/en/foo/" in args[-1]:
+                return mock.Mock(returncode=22, stdout="")
+            return mock.Mock(
+                returncode=0,
+                stdout='baseUrl = "https://foo.example"\n',
+            )
+
+        with mock.patch.object(gate, "run", side_effect=fake_run):
+            self.assertEqual(
+                gate.fetch_upstream_base_urls("en", "foo", "abc"),
+                ["https://foo.example"],
+            )
+        self.assertIn("/src/en/foo/build.gradle.kts", calls[0])
+        self.assertIn("/src/all/foo/build.gradle.kts", calls[1])
+
+    def test_fetch_prefers_exact_language_module(self):
+        calls = []
+
+        def fake_run(args, **_kwargs):
+            calls.append(args[-1])
+            return mock.Mock(
+                returncode=0,
+                stdout='baseUrl = "https://exact.example"\n',
+            )
+
+        with mock.patch.object(gate, "run", side_effect=fake_run):
+            self.assertEqual(
+                gate.fetch_upstream_base_urls("en", "foo", "abc"),
+                ["https://exact.example"],
+            )
+        self.assertEqual(len(calls), 1)
+
 
 class RegistryTest(unittest.TestCase):
     row = (

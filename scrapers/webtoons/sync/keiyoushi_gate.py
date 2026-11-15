@@ -287,17 +287,28 @@ def is_local_host(value):
 
 
 def fetch_upstream_base_urls(lang, ext, sha):
-    url = (
-        "https://raw.githubusercontent.com/keiyoushi/extensions-source/"
-        f"{sha}/src/{lang}/{ext}/build.gradle.kts"
-    )
-    result = run(
-        ["curl", "-fsSL", "--max-time", "15", "-A", APP_UA, url],
-        timeout=20,
-    )
-    if result.returncode != 0:
-        return []
-    return parse_upstream_base_urls(result.stdout)
+    """BaseUrls upstream, avec repli sur le module `all/` si besoin.
+
+    Certains modules multi-langues vivent sous `all/<ext>` alors que notre
+    port porte une langue precise (`en/mangamulti`). Le module exact reste
+    prioritaire; `all/<ext>` n'est lu que si l'exact est absent ou vide.
+    """
+    languages = [lang] if lang == "all" else [lang, "all"]
+    for candidate_lang in languages:
+        url = (
+            "https://raw.githubusercontent.com/keiyoushi/extensions-source/"
+            f"{sha}/src/{candidate_lang}/{ext}/build.gradle.kts"
+        )
+        result = run(
+            ["curl", "-fsSL", "--max-time", "15", "-A", APP_UA, url],
+            timeout=20,
+        )
+        if result.returncode != 0:
+            continue
+        urls = parse_upstream_base_urls(result.stdout)
+        if urls:
+            return urls
+    return []
 
 
 def fetch_upstream_base_url(lang, ext, sha):
