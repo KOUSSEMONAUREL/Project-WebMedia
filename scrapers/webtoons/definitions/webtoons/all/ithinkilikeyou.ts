@@ -175,7 +175,7 @@ export class IThinkILikeYouScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
     const $ = this.$(String(res.data));
-    return $('img[class*="wp-image-"]')
+    return $('#spliced-comic img[class*="wp-image-"]')
       .toArray()
       .map(element => $(element).attr('src') ?? '')
       .filter(Boolean)
