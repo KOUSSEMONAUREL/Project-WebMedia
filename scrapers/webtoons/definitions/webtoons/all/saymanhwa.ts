@@ -19,7 +19,7 @@ const STATUS_WORDS: Record<string, { ongoing: string[]; completed: string[] }> =
 
 export class SaymanhwaScraper extends BaseScraper {
   readonly name = 'SayManhwa';
-  readonly baseUrl = 'https://saymanhwa.com';
+  readonly baseUrl = 'https://saymanhwa.net';
   readonly lang = 'all';
 
   private get saymanhwaLang(): string {
@@ -44,7 +44,7 @@ export class SaymanhwaScraper extends BaseScraper {
         lang: this.lang,
       };
     });
-    const hasNextPage = $('nav.pagination span + a').length > 0;
+    const hasNextPage = $('nav.pagination > span + a').length > 0;
     return { mangas, hasNextPage };
   }
 
@@ -95,7 +95,7 @@ export class SaymanhwaScraper extends BaseScraper {
 
     const status = this.toStatus($('.series-v72-meta-pair > div:first-child strong').first().text());
     const type = $('.series-v72-meta-pair > div:nth-child(2) strong').first().text();
-    const genres = $('a[href*="/genres/"]').toArray().map(el => $(el).text());
+    const genres = $('.series-v72-genres a').toArray().map(el => $(el).text());
 
     return {
       title: $('h1').first().contents().filter((_, n) => n.type === 'text').text().trim(),
@@ -105,7 +105,7 @@ export class SaymanhwaScraper extends BaseScraper {
       artist,
       status,
       genre: [type, ...genres].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ') || undefined,
-      description: $('.series-seo-context p').first().text().trim() || undefined,
+      description: $('.series-v72-description').first().text().replace(/\s+/g, ' ').trim() || undefined,
       lang: this.lang,
     };
   }
@@ -130,7 +130,7 @@ export class SaymanhwaScraper extends BaseScraper {
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(this.absUrl(chapterUrl));
     const $ = this.$(res.data);
-    return $('.reader-pages img').toArray().map((el, index) => ({
+    return $('.reader-pages > img').toArray().map((el, index) => ({
       index,
       imageUrl: this.absUrl($(el).attr('src') || ''),
     }));
