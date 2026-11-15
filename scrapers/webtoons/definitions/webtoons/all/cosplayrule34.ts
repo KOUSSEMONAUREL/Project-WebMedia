@@ -10,8 +10,10 @@ export class CosplayRule34Scraper extends BaseScraper {
   private readonly searchCache = new Map<string, string>();
 
   private listUrl(page: number, path = ''): string {
-    const base = `${this.baseUrl}${path || '/'}`;
-    return page > 1 ? `${base}?page=${page}` : base;
+    const url = new URL(`${this.baseUrl}${path || '/'}`);
+    url.searchParams.set('device', 'desktop');
+    if (page > 1) url.searchParams.set('page', String(page));
+    return url.toString();
   }
 
   private parseCards($: CheerioAPI): { mangas: Manga[]; total: number } {
@@ -78,9 +80,8 @@ export class CosplayRule34Scraper extends BaseScraper {
       : candidates;
 
     for (const value of queries) {
-      const suffix = page > 1 ? `?page=${page}` : '';
       try {
-        const result = await this.getList(`${this.baseUrl}/search/${encodeURIComponent(value)}${suffix}`);
+        const result = await this.getList(this.listUrl(page, `/search/${encodeURIComponent(value)}`));
         if (result.mangas.length > 0 || page > 1) {
           this.searchCache.set(trimmed, value);
           return result;
