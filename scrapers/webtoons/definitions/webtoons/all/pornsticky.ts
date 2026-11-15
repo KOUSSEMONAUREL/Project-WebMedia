@@ -1,6 +1,8 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Chapter, Manga, Page, SearchResult } from '../../../engine/types';
 
+const PAGE_SIZE = 160;
+
 export class PornStickyScraper extends BaseScraper {
   readonly name = 'PornSticky';
   readonly baseUrl = 'https://pornsticky.com';
@@ -40,7 +42,9 @@ export class PornStickyScraper extends BaseScraper {
     const res = await this.get(this.listUrl(['search', 'porn'], page));
     const $ = this.$(res.data);
     const mangas = this.parseCards(res.data);
-    const hasNextPage = $('a.next').length > 0 || ($('.pagination').length === 0 && mangas.length >= 160);
+    const hasNextPage =
+      $('a.next').length > 0 ||
+      (mangas.length >= PAGE_SIZE && await this.nextPageExists(['search', 'porn'], page + 1));
     return { mangas, hasNextPage };
   }
 
@@ -56,7 +60,9 @@ export class PornStickyScraper extends BaseScraper {
       const res = await this.get(this.listUrl(['search', slug], page));
       const $ = this.$(res.data);
       const mangas = this.parseCards(res.data);
-      const hasNextPage = $('a.next').length > 0 || ($('.pagination').length === 0 && mangas.length >= 160);
+      const hasNextPage =
+        $('a.next').length > 0 ||
+        (mangas.length >= PAGE_SIZE && await this.nextPageExists(['search', slug], page + 1));
       return { mangas, hasNextPage };
     } catch (error) {
       const status = (error as { response?: { status?: number } }).response?.status;
@@ -64,6 +70,17 @@ export class PornStickyScraper extends BaseScraper {
         return { mangas: [], hasNextPage: false };
       }
       throw error;
+    }
+  }
+
+  private async nextPageExists(segments: string[], page: number): Promise<boolean> {
+    try {
+      const res = await this.client.head(this.absUrl(this.listUrl(segments, page)), {
+        validateStatus: () => true,
+      });
+      return res.status >= 200 && res.status < 400;
+    } catch {
+      return false;
     }
   }
 
