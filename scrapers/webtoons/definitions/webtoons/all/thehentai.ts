@@ -12,6 +12,9 @@ export class TheHentaiScraper extends BaseScraper {
 
   private parseCards(html: string): SearchResult {
     const $ = this.$(html);
+    if ($('h3 + #posts_list').length > 0) {
+      return { mangas: [], hasNextPage: false };
+    }
     const mangas: Manga[] = [];
 
     $("#posts_list .gridPosts:has(h3 a[href^='/']):not(:has(a[href*='/category/videos/']))").each((_, element) => {
