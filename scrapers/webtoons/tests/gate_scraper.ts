@@ -87,6 +87,36 @@ type PageAttempt = {
   count: number;
 };
 
+type MangaAttempt = {
+  manga: Manga;
+  source: string;
+  chapters: StageResult<Chapter[]>;
+  chapterList: Chapter[];
+  pageRun: { selected?: PageAttempt; attempts: PageAttempt[] };
+  pageAttempt?: PageAttempt;
+  pageCount: number;
+  pagesUnsupported: boolean;
+};
+
+function collectMangaCandidates(
+  results: Array<[string, SearchResult | undefined]>,
+  limit = 10,
+): Array<{ manga: Manga; source: string }> {
+  const seen = new Set<string>();
+  const candidates: Array<{ manga: Manga; source: string }> = [];
+  for (const [source, result] of results) {
+    for (const manga of result?.mangas ?? []) {
+      if (!manga?.url) continue;
+      const key = manga.url.split('#')[0].replace(/\/+$/, '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push({ manga, source });
+      if (candidates.length >= limit) return candidates;
+    }
+  }
+  return candidates;
+}
+
 async function trySearch(
   instance: BaseScraper,
   queries: string[],
@@ -175,28 +205,67 @@ async function main(): Promise<void> {
   const search = searchRun.selected?.result;
   const searchCount = searchRun.selected?.count ?? 0;
   const searchQuery = searchRun.selected?.query ?? queries[0];
-  const searchManga = firstManga(search?.value);
-  const manga = homeManga || searchManga;
+  const candidates = collectMangaCandidates([
+    ['popular', popular.value],
+    ['latest', latest.value],
+    ['search', search?.value],
+  ]);
 
-  const chapters = manga
-    ? await attempt(() => instance.getChapterList(manga.url))
-    : { error: 'no manga url', value: [] as Awaited<ReturnType<BaseScraper['getChapterList']>> };
-  const chapterList = Array.isArray(chapters.value) ? chapters.value : [];
+  const mangaAttempts: MangaAttempt[] = [];
+  let selectedAttempt: MangaAttempt | undefined;
+
+  for (const candidate of candidates) {
+    const mangaChapters = await attempt(() => instance.getChapterList(candidate.manga.url));
+    const mangaChapterList = Array.isArray(mangaChapters.value) ? mangaChapters.value : [];
+    const chapterCandidates = mangaChapterList
+      .filter((item) => Boolean(item?.url))
+      .filter((item) => !isLockedChapter(item))
+      .slice(0, 3);
+    const pageCandidates = chapterCandidates.length
+      ? chapterCandidates
+      : mangaChapterList.filter((item) => Boolean(item?.url)).slice(0, 3);
+
+    const mangaPageRun = pageCandidates.length
+      ? await tryPages(instance, pageCandidates)
+      : { attempts: [] as PageAttempt[] };
+    const mangaPageAttempt = mangaPageRun.selected ?? mangaPageRun.attempts[0];
+    const mangaPageCount = mangaPageAttempt?.count ?? 0;
+    const mangaPagesUnsupported = Boolean(mangaPageAttempt?.result.unsupported);
+
+    const current: MangaAttempt = {
+      manga: candidate.manga,
+      source: candidate.source,
+      chapters: mangaChapters,
+      chapterList: mangaChapterList,
+      pageRun: mangaPageRun,
+      pageAttempt: mangaPageAttempt,
+      pageCount: mangaPageCount,
+      pagesUnsupported: mangaPagesUnsupported,
+    };
+    mangaAttempts.push(current);
+
+    if (!selectedAttempt && mangaChapterList.length > 0) selectedAttempt = current;
+    if (mangaPageCount > 0 || mangaPagesUnsupported) {
+      selectedAttempt = current;
+      break;
+    }
+  }
+
+  if (!selectedAttempt) selectedAttempt = mangaAttempts[0];
+
+  const manga = selectedAttempt?.manga;
+  const chapters: StageResult<Chapter[]> = selectedAttempt?.chapters ?? {
+    error: 'no manga url',
+    value: [],
+  };
+  const chapterList = selectedAttempt?.chapterList ?? [];
   const chapterCount = chapterList.length;
-  const chapterCandidates = chapterList
-    .filter((item) => Boolean(item?.url))
-    .filter((item) => !isLockedChapter(item))
-    .slice(0, 3);
-  const pageCandidates = chapterCandidates.length
-    ? chapterCandidates
-    : chapterList.filter((item) => Boolean(item?.url)).slice(0, 3);
-
-  const pageRun = await tryPages(instance, pageCandidates);
-  const pageAttempt = pageRun.selected ?? pageRun.attempts[0];
+  const pageRun = selectedAttempt?.pageRun ?? { attempts: [] as PageAttempt[] };
+  const pageAttempt = selectedAttempt?.pageAttempt;
   const pages = pageAttempt?.result;
   const chapter = pageAttempt?.chapter;
-  const pageCount = pageAttempt?.count ?? 0;
-  const pagesUnsupported = Boolean(pages?.unsupported);
+  const pageCount = selectedAttempt?.pageCount ?? 0;
+  const pagesUnsupported = Boolean(selectedAttempt?.pagesUnsupported);
 
   let status = 'OK';
   let error = '';
@@ -249,6 +318,14 @@ async function main(): Promise<void> {
       search: { count: searchCount, error: summarize(search ?? {}), tried: searchRun.attempts.map((item) => item.query) },
       chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
       pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, tried: pageRun.attempts.map((item) => item.chapter.url), error: summarize(pages ?? {}) },
+      mangaAttempts: mangaAttempts.map((item) => ({
+        title: item.manga.title,
+        url: item.manga.url,
+        source: item.source,
+        chapters: item.chapterList.length,
+        pages: item.pageCount,
+        error: summarize(item.chapters),
+      })),
       probe: { verdict: probe.verdict, detail: probe.detail },
       error: error || networkError || probe.detail,
     }));
@@ -268,6 +345,14 @@ async function main(): Promise<void> {
     search: { count: searchCount, error: summarize(search ?? {}), tried: searchRun.attempts.map((item) => item.query) },
     chapters: { count: chapterCount, mangaUrl: manga?.url || null, error: summarize(chapters) },
     pages: { count: pageCount, unsupported: pagesUnsupported, chapterUrl: chapter?.url || null, tried: pageRun.attempts.map((item) => item.chapter.url), error: summarize(pages ?? {}) },
+    mangaAttempts: mangaAttempts.map((item) => ({
+      title: item.manga.title,
+      url: item.manga.url,
+      source: item.source,
+      chapters: item.chapterList.length,
+      pages: item.pageCount,
+      error: summarize(item.chapters),
+    })),
     probe: null,
     error,
   }));
