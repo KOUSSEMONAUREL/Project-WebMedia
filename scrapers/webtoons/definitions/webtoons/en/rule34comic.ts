@@ -47,15 +47,17 @@ export class Rule34ComicScraper extends BaseScraper {
       const title = link.find('.thumb_title').first().text().trim();
       if (!href || !title) return;
 
+      const image = link.find('img').first();
+      const thumbnail = (image.attr('data-original') ?? '').trim() || (image.attr('src') ?? '');
       mangas.push({
         title,
         url: this.absUrl(href),
-        thumbnailUrl: this.absUrl(link.find('img').first().attr('src') ?? ''),
+        thumbnailUrl: this.absUrl(thumbnail),
         lang: this.lang,
       });
     });
 
-    return { mangas, hasNextPage: $('.pagination .item.active ~ .item').length > 0 };
+    return { mangas, hasNextPage: $('.pagination .item.next').length > 0 };
   }
 
   async getPopular(page = 1): Promise<SearchResult> {
