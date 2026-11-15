@@ -235,19 +235,33 @@ def resolve_gradle_base_url(value, text):
     return resolved if resolved.startswith(("http://", "https://")) else None
 
 
-def parse_upstream_base_url(text):
-    match = re.search(r'baseUrl\s*=\s*["\']([^"\']+)["\']', text)
-    if match:
+def parse_upstream_base_urls(text):
+    """Toutes les baseUrl declarees par un module gradle multi-sources."""
+    urls = []
+    for match in re.finditer(
+            r'baseUrl\s*=\s*["\']([^"\']+)["\']', text):
         value = match.group(1)
         if "$" in value:
-            return resolve_gradle_base_url(value, text)
-        return value
-    block = re.search(r"baseUrl\s*\{([^}]*)\}", text, re.S)
-    if block:
-        match = re.search(r'["\'](https?://[^"\']+)["\']', block.group(1))
-        if match:
-            return match.group(1)
-    return None
+            value = resolve_gradle_base_url(value, text)
+        if value:
+            urls.append(value)
+    for block in re.findall(r"baseUrl\s*\{([^}]*)\}", text, re.S):
+        for match in re.finditer(
+                r'["\'](https?://[^"\']+)["\']', block):
+            urls.append(match.group(1))
+    seen = set()
+    unique = []
+    for url in urls:
+        normalized = normalize_base_url(url)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique.append(url)
+    return unique
+
+
+def parse_upstream_base_url(text):
+    urls = parse_upstream_base_urls(text)
+    return urls[0] if urls else None
 
 
 def is_local_host(value):
@@ -272,7 +286,7 @@ def is_local_host(value):
     return address.is_loopback or address.is_private or address.is_link_local
 
 
-def fetch_upstream_base_url(lang, ext, sha):
+def fetch_upstream_base_urls(lang, ext, sha):
     url = (
         "https://raw.githubusercontent.com/keiyoushi/extensions-source/"
         f"{sha}/src/{lang}/{ext}/build.gradle.kts"
@@ -282,8 +296,13 @@ def fetch_upstream_base_url(lang, ext, sha):
         timeout=20,
     )
     if result.returncode != 0:
-        return None
-    return parse_upstream_base_url(result.stdout)
+        return []
+    return parse_upstream_base_urls(result.stdout)
+
+
+def fetch_upstream_base_url(lang, ext, sha):
+    urls = fetch_upstream_base_urls(lang, ext, sha)
+    return urls[0] if urls else None
 
 
 def probe_url(url):
@@ -750,17 +769,22 @@ def process_pr(info, handoff, upstream_sha, live):
                     reasons.append(f"{lang}/{ext}: {reason}")
                 elif verdict == "HOLD":
                     holds.append(f"{lang}/{ext}: {reason}")
-                expected = fetch_upstream_base_url(lang, ext, upstream_sha)
+                expected_urls = fetch_upstream_base_urls(
+                    lang, ext, upstream_sha)
                 actual = result.get("baseUrl", "")
+                expected = expected_urls[0] if expected_urls else None
                 entry["checks"][f"base_url_{lang}_{ext}"] = {
                     "upstream": expected,
+                    "upstream_candidates": expected_urls,
                     "actual": actual,
                 }
                 if expected is None:
                     holds.append(f"{lang}/{ext}: upstream baseUrl unavailable")
-                elif normalize_base_url(expected) != normalize_base_url(actual):
+                elif normalize_base_url(actual) not in {
+                        normalize_base_url(url) for url in expected_urls}:
                     reasons.append(
-                        f"{lang}/{ext}: baseUrl mismatch upstream={expected} ts={actual}"
+                        f"{lang}/{ext}: baseUrl mismatch upstream="
+                        f"{' | '.join(expected_urls)} ts={actual}"
                     )
     except CommandError as exc:
         reasons.append(str(exc))

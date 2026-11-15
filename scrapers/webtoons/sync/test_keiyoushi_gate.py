@@ -105,6 +105,35 @@ class UpstreamTest(unittest.TestCase):
         self.assertEqual(
             gate.parse_upstream_base_url(text), "https://www.niadd.com")
 
+    def test_parse_multi_source_module(self):
+        text = '''
+        source {
+            baseUrl {
+                custom("https://saymanhwa.net")
+            }
+        }
+        source {
+            name = "Say Comics"
+            baseUrl = "https://saycomic.com"
+        }
+        '''
+        self.assertEqual(
+            gate.parse_upstream_base_urls(text),
+            ["https://saycomic.com", "https://saymanhwa.net"],
+        )
+
+    def test_parse_multi_source_dedupes(self):
+        text = '''
+        source {
+            baseUrl = "https://example.com/"
+        }
+        source {
+            baseUrl = "https://www.example.com"
+        }
+        '''
+        self.assertEqual(
+            gate.parse_upstream_base_urls(text), ["https://example.com/"])
+
 
 class RegistryTest(unittest.TestCase):
     row = (
