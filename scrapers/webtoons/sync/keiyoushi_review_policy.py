@@ -28,6 +28,63 @@ def load_json(path):
         return None
 
 
+ENTRY_STATUSES = (
+    "CRITIQUE", "NOUVEAU", "SUPPRIME", "INFORMATIF", "BUILD",
+)
+EXT_CELL_RE = re.compile(r"^[a-z]{2,3}/([A-Za-z0-9][A-Za-z0-9_.-]*)$")
+
+
+def _table_cells(line):
+    stripped = line.strip()
+    if not stripped.startswith("|"):
+        return []
+    return [cell.strip() for cell in stripped.strip("|").split("|")]
+
+
+def _ext_name(cell):
+    value = cell.strip().strip("`[]()")
+    match = EXT_CELL_RE.fullmatch(value)
+    return match.group(1) if match else None
+
+
+def issue_entry_exts(issue_body):
+    """Extensions listees dans le tableau de l'issue, dans l'ordre."""
+    if not isinstance(issue_body, str):
+        return []
+    exts = []
+    for line in issue_body.splitlines():
+        cells = _table_cells(line)
+        if len(cells) < 2:
+            continue
+        status = cells[0].upper()
+        if not any(label in status for label in ENTRY_STATUSES):
+            continue
+        ext = _ext_name(cells[1])
+        if ext and ext not in exts:
+            exts.append(ext)
+    return exts
+
+
+def summary_entry_exts(summary_md):
+    """Extensions citees dans le tableau de synthese du handoff."""
+    if not isinstance(summary_md, str):
+        return []
+    exts = []
+    for line in summary_md.splitlines():
+        for cell in _table_cells(line):
+            ext = _ext_name(cell)
+            if ext and ext not in exts:
+                exts.append(ext)
+    return exts
+
+
+def uncovered_entries(issue_body, summary_md):
+    """Extensions de l'issue absentes de la synthese (donc non traitees)."""
+    issued = issue_entry_exts(issue_body)
+    documented = set(summary_entry_exts(summary_md))
+    return [ext for ext in issued if ext not in documented]
+
+
 def _is_int(value):
     return type(value) is int
 

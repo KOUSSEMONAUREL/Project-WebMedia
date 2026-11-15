@@ -50,6 +50,49 @@ def ai(number: object = 1, verdict="PASS", gate_verdict="PASS", head=HEAD, **ove
     }
 
 
+class EntryCoverageTest(unittest.TestCase):
+    ISSUE = """| Statut | Extension | Details |
+|---|---|---|
+| :red_circle: CRITIQUE | all/foo | casse |
+| :large_green_circle: NOUVEAU | en/bar | nouveau |
+| :information_source: INFORMATIF | all/baz | info |
+| :wrench: BUILD | fr/qux | build |
+"""
+
+    def test_issue_entry_exts_reads_every_status(self):
+        self.assertEqual(
+            policy.issue_entry_exts(self.ISSUE),
+            ["foo", "bar", "baz", "qux"],
+        )
+
+    def test_summary_entry_exts_reads_table_cells_only(self):
+        summary = """| Extension | Statut | Verdict |
+|---|---|---|
+| `all/foo` | CRITIQUE | ADAPT |
+| en/bar | NOUVEAU | BUILD |
+
+Voir https://example.com/all/ignored et definitions/webtoons/all/nope.ts
+"""
+        self.assertEqual(policy.summary_entry_exts(summary), ["foo", "bar"])
+
+    def test_uncovered_entries_returns_missing_exts_in_issue_order(self):
+        summary = "| all/foo | CRITIQUE | ADAPT |\n| fr/qux | BUILD | BUILD |\n"
+        self.assertEqual(
+            policy.uncovered_entries(self.ISSUE, summary),
+            ["bar", "baz"],
+        )
+
+    def test_uncovered_entries_empty_when_all_documented(self):
+        summary = "\n".join(
+            f"| all/{ext} | CRITIQUE | ADAPT |"
+            for ext in ("foo", "bar", "baz", "qux")
+        )
+        self.assertEqual(policy.uncovered_entries(self.ISSUE, summary), [])
+
+    def test_uncovered_entries_without_issue_entries_is_empty(self):
+        self.assertEqual(policy.uncovered_entries("", "| all/foo | OK |"), [])
+
+
 class EffectiveReviewTest(unittest.TestCase):
     def test_no_ai_falls_back_to_gate(self):
         entries, source, errors = policy.effective_review(gate(), None, [1])

@@ -76,6 +76,39 @@ The body also contains a `Compare` link: `https://github.com/keiyoushi/extension
 
 ## Procedure
 
+### Run budget and resume (read this first)
+
+The runner gives you a hard, bounded budget and may start another model after a
+timeout. Work in **bounded passes**, never as one unbounded A-to-Z sweep:
+
+- `KEIYOUSHI_MAX_ENTRIES` (default `10`) is the maximum number of issue entries
+  you may process in this run. Do not start entry 11.
+- Build the work queue from the issue and its latest comment:
+  ```bash
+  gh issue view "$ISSUE_NUMBER"
+  gh issue view "$ISSUE_NUMBER" --comments --json comments \
+    --jq '.comments[-1].body'
+  ```
+  Treat an entry as already handled when the latest comment says its PR is
+  merged, `PASS`, or `HOLD`. Do **not** re-analyze or re-submit it. Only entries
+  listed under `PRs a revoir (FAIL / merge echoue)` are reworked.
+- Order the queue: (1) `FAIL` reworks, (2) uncovered `CRITIQUE`, (3) uncovered
+  `NOUVEAU`, (4) uncovered `SUPPRIME`. Skip `INFORMATIF` / `BUILD` for now.
+- If you cannot prove an entry is handled from the comment, check whether a PR
+  exists for `fix/keiyoushi-<issue>-<ext>` in any state. If it does and it is not
+  a `FAIL`, skip it and record `DEJA_TRAITE` in `summary_md`.
+- **Write the handoff after each completed entry** with `"close": false`. That
+  file is the recovery point if this model dies; the next model will continue
+  from it. Only the final write may set `close: true`.
+- `close: true` is allowed only when **every** issue entry is resolved in this
+  handoff or already merged/PASS/HOLD in the latest comment, and no entry is
+  `FAIL` or unprocessed. A deliberately bounded pass sets `close: false` and
+  lists the remaining entries under `### Reste a traiter`.
+- Run the full `batch_test.ts` at most **once per pass**, at the end. Use the
+  targeted scraper for each entry.
+- Phase 0 is a quick sanity check, not a second project. Spend no more than
+  about 5 minutes on it when the issue queue still has uncovered entries.
+
 ### Phase 0 — Recheck the non-scrapable registry (do this FIRST)
 
 `scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md` lists every source we deliberately do not
@@ -155,7 +188,8 @@ gh issue view <ISSUE_NUMBER>
 
 `ISSUE_NUMBER` is provided in the environment. Parse the table and the Compare link.
 Capture the `<old>` and `<new>` SHAs. Produce a working inventory of every entry and its
-planned verdict before touching anything.
+planned verdict before touching anything. Apply the run budget immediately: inventory the
+queue, not all 41 entries, when the budget only allows 10.
 
 ### Phase 2 — Analyze every CRITIQUE entry (deep dive)
 
@@ -312,14 +346,15 @@ For every change (ADAPT, BUILD, REMOVE), edit the working tree. No git.
      console.log(JSON.stringify({ search: res.mangas?.length }, null, 2));
      "
      ```
-   - Pass 2 (regression): `cd scrapers/webtoons && npx tsx tests/batch_test.ts` and confirm
-     the touched scraper reports `OK` (other pre-existing/unrelated failures are noted but
-     not fixed unless trivially related).
-   - If anything fails: fix, then re-run the full verification cycle. The only exception is
-     a live probe blocked by a CI Cloudflare challenge/IP ban on the exact endpoint; that is
-     a local recheck caveat, not a code failure. Still run `tsc` and the targeted scraper;
-     if the scraper can run, use its output. Only proceed after **two consecutive clean full
-     cycles** (or one clean cycle plus a clearly recorded `LIVE_UNVERIFIED` network caveat).
+   - Pass 2 (regression, once per pass): at the end of the pass, run
+     `cd scrapers/webtoons && npx tsx tests/batch_test.ts` and confirm every touched
+     scraper reports `OK` (other pre-existing/unrelated failures are noted but not fixed
+     unless trivially related). Do not run the full batch after each entry.
+   - If anything fails: fix, then re-run only the failed check plus the targeted scraper.
+     Run the full batch again only if code changed after the last full batch. The only
+     exception is a live probe blocked by a CI Cloudflare challenge/IP ban on the exact
+     endpoint; that is a local recheck caveat, not a code failure. Still run `tsc` and the
+     targeted scraper; if the scraper can run, use its output.
 
 ### Phase 6 — Handoff (your only output)
 
@@ -371,15 +406,18 @@ Rules for the handoff:
   | Extension | Status | Verdict | Justification |
   |---|---|---|---|
   plus the list of PRs opened (if any). Write it as final text ready to post.
-- `close`: `true` when every entry has a final verdict (BUILD/ADAPT merged or change
-  submitted, or NO_IMPACT/IGNORE/KEEP documented). `IGNORE` — proven dead, login-walled
-  or SPA-only — is a resolved verdict: nothing more we can do with that source, so
+- `close`: `true` only when every entry has a final verdict (BUILD/ADAPT merged or change
+  submitted, or NO_IMPACT/IGNORE/KEEP documented), **and** you did not defer entries
+  because of the run budget. `IGNORE` — proven dead, login-walled or SPA-only — is a
+  resolved verdict: nothing more we can do with that source, so it does not block
   `close: true`. A BUILD/ADAPT submitted with only a CI network caveat
-  (`LIVE_UNVERIFIED: CI challenge`) is still submitted: set `close: true` and record the
-  caveat plus `LOCAL_RECHECK: VPNGate`. An `UNKNOWN` source due to an IP block is **not**
-  a resolved verdict: keep the issue open (`close: false`) for the local recheck. `false`
-  also when a BUILD/ADAPT change was attempted but not completed for a code reason: then
-  explain what is missing in `summary_md`.
+  (`LIVE_UNVERIFIED: CI challenge`) is still submitted: it does not block `close: true`;
+  record the caveat plus `LOCAL_RECHECK: VPNGate`. An `UNKNOWN` source due to an IP block
+  is **not** a resolved verdict: keep the issue open (`close: false`) for the local
+  recheck. A bounded pass that leaves entries unprocessed always sets `close: false` and
+  lists them under `### Reste a traiter`. `false` also when a BUILD/ADAPT change was
+  attempted but not completed for a code reason: then explain what is missing in
+  `summary_md`.
 - An `IGNORE` verdict is only *fully* resolved once it is in the durable registry. So each
   `IGNORE` on a NOUVEAU entry must have a matching `REGISTRY_RECHECK` item, otherwise the
   verdict dies with the closed issue and the source can never be revived.

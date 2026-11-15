@@ -180,7 +180,9 @@ jobs:
     runs-on: ubuntu-latest
     # Borne dure: un modele qui part en boucle ne doit pas immobiliser un
     # runner jusqu'au maximum GitHub de 6h (runs du 23 et 24/10). 300 min
-    # couvre 130 min d'agents + 90 min de gate + installation.
+    # couvre 160 min d'agents + 90 min de gate + installation. Chaque agent
+    # est aussi borne par `timeout` dans son wrapper, sinon un step tue par
+    # GitHub laisse son processus opencode orphelin jusqu'a la fin du job.
     timeout-minutes: 300
     outputs:
       issue_number: ${{ steps.issue.outputs.issue_number }}
@@ -200,6 +202,10 @@ jobs:
       HANDOFF_FILE: /tmp/keiyoushi_handoff.json
       PR_LIST_FILE: /tmp/keiyoushi_prs.json
       REVIEW_FILE: /tmp/keiyoushi_review.json
+      # Un run traite une tranche bornee. Le reste reste dans l'issue et sera
+      # traite au run suivant: 41 extensions dans un seul passage font exploser
+      # le budget agent et la revue IA (run 43717948442).
+      KEIYOUSHI_MAX_ENTRIES: "10"
     steps:
       - uses: actions/checkout@v7
 
@@ -253,34 +259,32 @@ jobs:
       - name: Lancer l'agent (primary)
         id: primary
         if: steps.issue.outputs.issue_number != ''
-        timeout-minutes: 30
+        timeout-minutes: 48
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
-          opencode run --model "$PRIMARY_MODEL" --variant max --thinking --auto \
-            --file "$PROMPT_FILE" \
-            -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+          bash "$GITHUB_WORKSPACE/.github/scripts/run_keiyoushi_agent.sh" \
+            "$PRIMARY_MODEL" 2700 "$ISSUE_NUMBER"
 
       - name: Lancer l'agent (fallback 1)
         id: fallback
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure'
-        timeout-minutes: 25
+        timeout-minutes: 28
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           echo "Primary model failed, switching to $FALLBACK_MODEL"
-          opencode run --model "$FALLBACK_MODEL" --variant max --thinking --auto \
-            --file "$PROMPT_FILE" \
-            -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+          bash "$GITHUB_WORKSPACE/.github/scripts/run_keiyoushi_agent.sh" \
+            "$FALLBACK_MODEL" 1500 "$ISSUE_NUMBER"
 
       - name: Lancer l'agent (fallback 2)
         id: fallback2
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure'
-        timeout-minutes: 25
+        timeout-minutes: 28
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -288,37 +292,45 @@ jobs:
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           echo "fallback 1 failed, switching to $GEMINI_MODEL"
-          opencode run --model "$GEMINI_MODEL" --auto \
-            --file "$PROMPT_FILE" \
-            -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+          bash "$GITHUB_WORKSPACE/.github/scripts/run_keiyoushi_agent.sh" \
+            "$GEMINI_MODEL" 1500 "$ISSUE_NUMBER"
 
       - name: Lancer l'agent (fallback 3)
         id: fallback3
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure'
-        timeout-minutes: 25
+        timeout-minutes: 28
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           echo "fallback 2 failed, switching to $FALLBACK3_MODEL"
-          opencode run --model "$FALLBACK3_MODEL" --variant max --thinking --auto \
-            --file "$PROMPT_FILE" \
-            -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+          bash "$GITHUB_WORKSPACE/.github/scripts/run_keiyoushi_agent.sh" \
+            "$FALLBACK3_MODEL" 1500 "$ISSUE_NUMBER"
 
       - name: Lancer l'agent (fallback 4)
         id: fallback4
         if: steps.issue.outputs.issue_number != '' && steps.primary.outcome == 'failure' && steps.fallback.outcome == 'failure' && steps.fallback2.outcome == 'failure' && steps.fallback3.outcome == 'failure'
-        timeout-minutes: 25
+        timeout-minutes: 28
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
         run: |
           echo "fallback 3 failed, switching to $FALLBACK4_MODEL"
-          opencode run --model "$FALLBACK4_MODEL" --variant max --thinking --auto \
-            --file "$PROMPT_FILE" \
-            -- "Analyze issue #$ISSUE_NUMBER following the procedure in the prompt."
+          bash "$GITHUB_WORKSPACE/.github/scripts/run_keiyoushi_agent.sh" \
+            "$FALLBACK4_MODEL" 1500 "$ISSUE_NUMBER"
+
+      - name: Nettoyer les agents restants
+        # Ceinture et bretelles: les steps agent ont leur propre `timeout`,
+        # mais un step tue par GitHub peut laisser opencode orphelin. On nettoie
+        # avant le handoff et le gate pour ne jamais lancer deux agents sur le
+        # meme workspace.
+        if: always() && steps.issue.outputs.issue_number != ''
+        run: |
+          pkill -TERM -f '[o]pencode run --model' 2>/dev/null || true
+          sleep 2
+          pkill -KILL -f '[o]pencode run --model' 2>/dev/null || true
 
       - name: Verifier le handoff produit
         id: handoff-check

@@ -188,6 +188,14 @@ def summary_from_handoff() -> str:
         return ""
 
 
+def issue_body() -> str:
+    result = run_raw(
+        "gh", "issue", "view", str(ISSUE), "--repo", REPO,
+        "--json", "body", "-q", ".body",
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def main() -> None:
     close = False
     try:
@@ -198,6 +206,26 @@ def main() -> None:
         )
     except (OSError, ValueError):
         pass
+
+    summary = summary_from_handoff()
+    coverage_note = ""
+    coverage_deferred: list[str] = []
+    if close:
+        body = issue_body()
+        if not body:
+            close = False
+            coverage_note = (
+                "Impossible de prouver que toutes les entrees de l'issue sont "
+                "couvertes: lecture de l'issue echouee."
+            )
+        else:
+            coverage_deferred = policy.uncovered_entries(body, summary)
+            if coverage_deferred:
+                close = False
+                coverage_note = (
+                    f"close=true refuse: {len(coverage_deferred)} entree(s) "
+                    "de l'issue ne figurent pas dans la synthese du handoff."
+                )
 
     try:
         pr_list = json.load(open(PR_LIST_FILE, encoding="utf-8"))
@@ -352,6 +380,18 @@ def main() -> None:
             )
 
     parts: list[str] = []
+    if coverage_note:
+        parts.append("## Issue maintenue ouverte")
+        parts.append(coverage_note)
+        if coverage_deferred:
+            parts.extend(
+                f"- [ ] all/{ext}" for ext in coverage_deferred[:100]
+            )
+            if len(coverage_deferred) > 100:
+                parts.append(
+                    f"- ... et {len(coverage_deferred) - 100} autre(s)"
+                )
+        parts.append("")
     if merged:
         parts.append("## PRs mergees (squash)")
         parts.extend(merged)
@@ -392,7 +432,7 @@ def main() -> None:
 
     body = "\n".join(parts).strip()
     if body:
-        comment_issue(body + "\n\n" + summary_from_handoff())
+        comment_issue(body + "\n\n" + summary)
 
     # L'issue ne se ferme que si le cycle est complet: toutes les PRs
     # soumises sont mergees ET aucune extension n'a ete ecartee.

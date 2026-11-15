@@ -77,6 +77,12 @@ def load_json(path: str):
         return None
 
 
+def summary_from_handoff(handoff) -> str:
+    if not isinstance(handoff, dict):
+        return ""
+    return str(handoff.get("summary_md", ""))
+
+
 def main() -> None:
     if not ISSUE:
         print("Aucune issue, rien a verifier.")
@@ -115,6 +121,27 @@ def main() -> None:
             "savoir si l'issue doit etre fermee."
         )
     else:
+        if close:
+            issue_view = gh(
+                "issue", "view", ISSUE, "--json", "body", "-q", ".body"
+            )
+            if issue_view.returncode != 0:
+                problems.append(
+                    "close=true mais l'issue est illisible: impossible de "
+                    "prouver que toutes ses entrees sont couvertes."
+                )
+            else:
+                uncovered = policy.uncovered_entries(
+                    issue_view.stdout, summary_from_handoff(handoff)
+                )
+                if uncovered:
+                    problems.append(
+                        f"close=true mais {len(uncovered)} entree(s) de "
+                        "l'issue ne figurent pas dans la synthese du handoff: "
+                        + ", ".join(f"all/{ext}" for ext in uncovered[:20])
+                        + (" ..." if len(uncovered) > 20 else "")
+                    )
+
         pr_list = load_json(PR_LIST_FILE) or []
         if not isinstance(pr_list, list):
             problems.append("PR_LIST_FILE n'est pas une liste JSON.")
