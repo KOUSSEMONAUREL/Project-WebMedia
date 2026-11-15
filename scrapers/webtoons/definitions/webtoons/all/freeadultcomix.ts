@@ -1,3 +1,5 @@
+import type { Cheerio } from 'cheerio';
+import type { Element } from 'domhandler';
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
@@ -72,7 +74,7 @@ export class FreeAdultComixScraper extends BaseScraper {
     const res = await this.get(mangaUrl);
     const $ = this.$(res.data);
     const title = $('.post-conteudo h1').first().text().trim();
-    const thumbnailUrl = $('.dgwt-jg-gallery a').first().attr('href') || '';
+    const thumbnailUrl = this.pageUrls($)[0] ?? '';
     const genre = $('.post-tags a')
       .map((_, el) => $(el).text().trim())
       .get()
@@ -94,18 +96,44 @@ export class FreeAdultComixScraper extends BaseScraper {
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
+    const res = await this.get(mangaUrl);
+    const $ = this.$(res.data);
+    if (this.pageUrls($).length === 0) return [];
     return [{ name: 'Chapter', url: mangaUrl }];
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
     const $ = this.$(res.data);
-    const pages: Page[] = [];
-    $('.dgwt-jg-gallery figure > a[href]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (!href) return;
-      pages.push({ index: pages.length, imageUrl: this.absUrl(href) });
-    });
-    return pages;
+    return this.pageUrls($).map((imageUrl, index) => ({ index, imageUrl }));
+  }
+
+  private pageUrls($: ReturnType<BaseScraper['$']>): string[] {
+    const gallery = $('.dgwt-jg-gallery figure > a[href], .fotos .foto > a[href]')
+      .toArray()
+      .map(el => $(el).attr('href') ?? '')
+      .filter(Boolean)
+      .map(href => this.absUrl(href));
+
+    if (gallery.length > 0) return gallery;
+
+    return $('.post-texto img')
+      .toArray()
+      .map(el => this.originalImageUrl($(el)))
+      .filter(Boolean);
+  }
+
+  private originalImageUrl(image: Cheerio<Element>): string {
+    const srcset = image.attr('srcset') ?? '';
+    const best = srcset
+      .split(',')
+      .map(entry => entry.trim())
+      .filter(Boolean)
+      .map(entry => {
+        const [url, size] = entry.split(/\s+/);
+        return { url: url ?? '', width: Number.parseInt((size ?? '').replace(/w$/, ''), 10) || 0 };
+      })
+      .sort((a, b) => b.width - a.width)[0];
+    return best?.url ? this.absUrl(best.url) : this.absUrl(image.attr('src') ?? '');
   }
 }
