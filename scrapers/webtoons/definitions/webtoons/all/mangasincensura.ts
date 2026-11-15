@@ -45,7 +45,7 @@ const PREMIUM_SLUGS = new Set([
   'necesidades_mama',
 ]);
 
-export class MangasSinCensuraScraper extends BaseScraper {
+export class MangasincensuraScraper extends BaseScraper {
   readonly name = 'MangasSinCensura';
   readonly baseUrl = 'https://mangasincensura.com';
   readonly lang = 'es';
@@ -351,3 +351,5 @@ export class MangasSinCensuraScraper extends BaseScraper {
     }));
   }
 }
+
+export { MangasincensuraScraper as MangasSinCensuraScraper };
