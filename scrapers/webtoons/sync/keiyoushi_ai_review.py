@@ -490,11 +490,7 @@ def build_review_bundle(reviewable, gate_map, metadata, handoff):
 
 
 def build_command(opencode, model, budget_s=0):
-    command = [opencode, "run", "--model", model]
-    if model.startswith("google/"):
-        command.append("--auto")
-    else:
-        command.extend(["--variant", "max", "--thinking", "--auto"])
+    command = [opencode, "run", "--model", model, "--auto"]
     instruction = (
         f"Review only the PASS/HOLD PRs in {AI_REVIEW_BUNDLE_FILE}. "
         f"Write the partial verdict JSON to {AI_REVIEW_PARTIAL_FILE}. "
