@@ -111,7 +111,7 @@ simple. Le moniteur les signalait `OUI (Cloudflare)` ; la sonde le confirme.
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `en/battleinfivesecondsaftermeeting` | `www.deatte5.com` | BLOCKED | `403` + **4 546 o**, `<title>Attention Required! \| Cloudflare</title>`, identique via WARP et sans tunnel | idem |
-| `en/porncomix` | `bestporncomix.com` | BLOCKED | `403` + **5 312 o**, `<title>Just a moment...</title>`, **`cf-mitigated: challenge`** (`cf-ray: a4a6512268095938-IAD`), identique via WARP et sans tunnel | idem |
+| `en/porncomix` | `bestporncomix.com` | RETIRÉ | Revu le **2026-11-15** (issue #642) : `GET /gallery/category/hentai-manga/` → **200**, 123 316 o ; fiche `/gallery/a-516-universal-sex-education/` → **200**, 139 503 o. Ancienne preuve (2026-10-15) : `403` + **5 312 o**, `<title>Just a moment...</title>` | n/a — source rouverte (voir cycle 2026-11-15) |
 
 Sondé le **2026-10-15** (issue #469), en IPv4 (`curl -4`), via WARP puis `--noproxy '*'` :
 même situation que les trois précédentes — défi Cloudflare sur la racine **et** sur
@@ -122,7 +122,7 @@ une propriété du site servi sans JS, pas de notre IP. Verdict `UNKNOWN`, pas `
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
-| `en/toonkotsu` | `toonkotsu.com` | BLOCKED | `/` → `403` + **5 329 o**, `<title>Just a moment...</title>`, identique via WARP et sans tunnel ; `/cdn/v1/browse?sort=popular&order=desc&page=1&limit=5` → même défi (`403`, 5 844 o) | Un `GET` sans navigateur rend un catalogue lisible |
+| `en/toonkotsu` | `toonkotsu.com` | UNKNOWN | Revu le **2026-11-15** (issue #642) : `/` et `/cdn/v1/browse?sort=popular&order=desc&page=1&limit=5` → **200** (23 238 o), mais les fiches restent derrière le défi : `/title/vz5r6i-chainsaw-man` → `403` + **5 809 o** et `/title/hhimlm-solo-leveling` → `403` + **5 812 o**, `<title>Just a moment...</title>` | `LOCAL_RECHECK: VPNGate` — le défi Cloudflare sur les fiches décrit l’IP du runner, pas le site |
 
 #### Pourquoi ces quatre ne sont pas portées maintenant
 
@@ -724,7 +724,8 @@ ne distingue pas un site mort d'une IP de runner bannie.
 
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
-| `en/allporncomic` | `allporncomic.com` | UNKNOWN | `403` + **5 311 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | Un `GET` sans navigateur rend un catalogue lisible |
+| `en/allporncomic` | `allporncomic.com` | RETIRÉ | Revu le **2026-11-15** (issue #642) : catalogue `/series/` → **200**, 228 009 o ; fiches `/series/ben-10e/` → **200**, 610 987 o et `/series/spider-man/` → **200**, 252 816 o. Ancienne preuve (2026-10-18) : `403` + **5 311 o**, challenge Cloudflare | n/a — source rouverte (voir cycle 2026-11-15) |
+| `en/hypercomic` | `play.hypercomic.io` | IGNORE | Revu le **2026-11-15** (issue #642) : `POST /Webtoon/searchlist` rend **18** mangas et les fiches sont lisibles, mais **10** mangas × **3** chapitres non verrouillés renvoient **0** page image (`/Webtoon/episodeview/...` charge le lecteur après authentification). Port #665 non mergeable sans auth | Une page `/Webtoon/episodeview/…` rend des images sans login |
 | `all/manhwadashraw` | `manhwa-raw.com` | UNKNOWN | `403` + **5 202 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
 | `en/batcave` | `batcave.biz` | UNKNOWN | `403` + **5 284 o**, `<title>Just a moment...</title>`, `server: cloudflare` et **`cf-mitigated: challenge`**, identique via WARP et sans tunnel | idem |
 | `en/killsixbilliondemons` | `killsixbilliondemons.com` | BUILD | Le 2026-10-26 (issue #529), `GET /` en HTTP simple rend **200** et **46 428 o** avec le contenu de la série : l'interstitiel LiteSpeed « One moment, please... » n'apparaît plus. Le port `en/killsixbilliondemons.ts` a été validé en direct (popular/search/chapitres/pages) sur l'archive WordPress paginée et `#comic img` | Le port cesse de parser l'archive ou le site repasse derrière un interstitiel |
@@ -816,6 +817,17 @@ fiches en HTTP simple. La ligne est retirée : la source n'est plus non-scrapabl
 - `en/philiascans` : notre port applique la résolution des couvertures relatives (`baseUrl.resolve`) ; le reste du delta concerne le lecteur (DRM, filtres, `getMangaByUrl`). API `philiascans.org/api/manga` -> **403** challenge depuis le runner (`LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate`).
 - `en/templescan` : ajout de `Accept-Encoding` sur les requêtes d'images ; notre `getPageList` ne fait que retourner des URLs. Le domaine reste `403` challenge depuis le runner.
 - `all/deviantart` : ligne `IGNORE` reconfirmée ; les ajouts upstream (`Dto.kt`, `ImageInterceptor.kt`, `Parsing.kt`) ne concernent que la lecture des écarts d'une galerie, `getPopularManga`/`getLatestUpdates` lèvent toujours `UnsupportedOperationException`. Aucun catalogue popular/search à porter.
+
+## Cycle du 2026-11-15 (issue #642) : deux domaines rouverts, `toonkotsu` toujours non lisible sur les fiches
+
+Sondes du **2026-11-15** en IPv4 (`curl -4 -L`), UA navigateur Chrome, sans tunnel.
+
+| Extension | Domaine | Verdict | Preuve |
+|---|---|---|---|
+| `en/porncomix` | `bestporncomix.com` | RETIRÉ | Catalogue `/gallery/category/hentai-manga/` → **200**, 123 316 o ; fiche `/gallery/a-516-universal-sex-education/` → **200**, 139 503 o. La ligne `BLOCKED` du cycle #469 est levée : la source repasse en traitement `NOUVEAU` |
+| `en/allporncomic` | `allporncomic.com` | RETIRÉ | Catalogue `/series/` → **200**, 228 009 o ; fiches `/series/ben-10e/` → **200**, 610 987 o et `/series/spider-man/` → **200**, 252 816 o. La ligne `UNKNOWN` du cycle #486 est levée : la source repasse en traitement `NOUVEAU` |
+| `en/toonkotsu` | `toonkotsu.com` | UNKNOWN (maintenu) | `/` et le catalogue `/cdn/v1/browse` → **200** (23 238 o), mais les fiches `/title/vz5r6i-chainsaw-man` et `/title/hhimlm-solo-leveling` renvoient le défi Cloudflare (`403`, **5 809–5 812 o**, `<title>Just a moment...</title>`). Le défi décrit l’IP du runner : recheck local via VPNGate |
+| `en/hypercomic` | `play.hypercomic.io` | IGNORE | `POST /Webtoon/searchlist` → **200** (18 mangas), fiches lisibles, mais 10 mangas × 3 chapitres non verrouillés → **0** page image ; le lecteur `/Webtoon/episodeview/…` exige une authentification. Le port #665 est fermé sans merge |
 
 ## Maintenance
 
