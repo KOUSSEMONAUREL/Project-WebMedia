@@ -128,7 +128,10 @@ evidence, not the prose.
    Probe legend: `OUI (...)` means HTTP 200 and the site responds;
    `CHALLENGE (...)` is an interstitial; `BLOCK IP` is an IP ban; and
    `NON (HTTP 404/410)` is dead. `OUI (Cloudflare)` is not a challenge and is
-   consistent with a `RETIRÉ` row backed by 200 responses.
+   consistent with a `RETIRÉ` row backed by 200 responses. A root `NON
+   (HTTP 404/410)` probe is not a contradiction when the row documents a
+   POST/API endpoint that returns content; judge that concrete endpoint
+   evidence.
 2. `FAIL` a row whose verdict rests only on `000`, `403`, `429`, `451 code
    1026`, or a Cloudflare challenge. That describes the runner's IP, not the
    site. The correct verdict there is `UNKNOWN` plus `LOCAL_RECHECK:
