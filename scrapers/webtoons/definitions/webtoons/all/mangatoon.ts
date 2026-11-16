@@ -125,7 +125,7 @@ export class MangaToonScraper extends BaseScraper {
     const detail = await this.api<DetailDto>('/api/content/detail', contentId);
     if (!detail) return {};
     const thumbnail = detail.image_url?.replace('http://', 'https://');
-    const status: MangaStatus = detail.is_end ? 0 : 1;
+    const status: MangaStatus = detail.is_end ? 2 : 1;
     return {
       title: detail.title,
       url: this.absUrl(mangaUrl),
