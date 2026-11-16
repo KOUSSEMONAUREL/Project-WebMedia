@@ -248,7 +248,7 @@ export class LazyMonkiScansScraper extends BaseScraper {
     switch (status) {
       case 'ongoing': return 1;
       case 'completed': return 0;
-      case 'hiatus': return 2;
+      case 'cancelled': return 2;
       default: return 3;
     }
   }
