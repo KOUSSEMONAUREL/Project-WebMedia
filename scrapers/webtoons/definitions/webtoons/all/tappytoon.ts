@@ -1,3 +1,4 @@
+import type { AxiosResponse } from 'axios';
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Page, SearchResult } from '../../../engine/types';
 import type { Chapter as EngineChapter } from '../../../engine/types';
@@ -30,8 +31,12 @@ interface TappytoonChapter {
   willAccessibleAt: string;
 }
 
-interface TappytoonURL {
-  url: string;
+interface MediaItem {
+  path: string;
+}
+
+interface MediaResponse {
+  media: MediaItem[];
 }
 
 const genres: Record<string, string> = {
@@ -70,11 +75,21 @@ export class TappytoonScraper extends BaseScraper {
     };
   }
 
+  private async apiGet(url: string, isRetry = false): Promise<AxiosResponse> {
+    const res = await this.get(url, {
+      headers: this.apiHeaders,
+      validateStatus: isRetry ? undefined : () => true,
+    });
+    if (res.status !== 401 || isRetry) return res;
+    this.apiHeaders = {};
+    await this.ensureApiHeaders();
+    return this.apiGet(url, true);
+  }
+
   async getPopular(page = 1): Promise<SearchResult> {
     await this.ensureApiHeaders();
-    const res = await this.get(
+    const res = await this.apiGet(
       `${API_URL}/comics?sort_by=trending&filter=completed&locale=${this.lang}`,
-      { headers: this.apiHeaders },
     );
     return this.parseComics(res);
   }
@@ -82,9 +97,8 @@ export class TappytoonScraper extends BaseScraper {
   async getLatest(page = 1): Promise<SearchResult> {
     await this.ensureApiHeaders();
     const day = DAY_NAMES[new Date().getDay()];
-    const res = await this.get(
+    const res = await this.apiGet(
       `${API_URL}/comics?day_of_week=${day}&locale=${this.lang}`,
-      { headers: this.apiHeaders },
     );
     return this.parseComics(res);
   }
@@ -94,7 +108,7 @@ export class TappytoonScraper extends BaseScraper {
     const url = query ?
       `${API_URL}/comics?locale=${this.lang}&keyword=${encodeURIComponent(query)}` :
       `${API_URL}/comics?locale=${this.lang}`;
-    const res = await this.get(url, { headers: this.apiHeaders });
+    const res = await this.apiGet(url);
     const data: Comic[] = res.data;
     const accessible = data.filter(c => c.isAccessible);
     const mangas: Manga[] = accessible.map(c => ({
@@ -109,8 +123,8 @@ export class TappytoonScraper extends BaseScraper {
     return { mangas, hasNextPage: linkHeader != null };
   }
 
-  private parseComics(res: any): SearchResult {
-    const data: Comic[] = res.data;
+  private parseComics(res: AxiosResponse<Comic[]>): SearchResult {
+    const data = res.data;
     const accessible = data.filter(c => c.isAccessible);
     const mangas: Manga[] = accessible.map(c => ({
       url: `${c.slug}|${c.id}`,
@@ -126,9 +140,8 @@ export class TappytoonScraper extends BaseScraper {
   async getChapterList(mangaUrl: string): Promise<EngineChapter[]> {
     await this.ensureApiHeaders();
     const id = mangaUrl.split('|')[1];
-    const res = await this.get(
+    const res = await this.apiGet(
       `${API_URL}/comics/${id}/chapters?locale=${this.lang}`,
-      { headers: this.apiHeaders },
     );
     const data: TappytoonChapter[] = res.data;
     return data.filter(c => c.isAccessible).reverse().map(c => ({
@@ -141,11 +154,11 @@ export class TappytoonScraper extends BaseScraper {
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     await this.ensureApiHeaders();
-    const res = await this.get(
+    const res = await this.apiGet(
       `${API_URL}/content-delivery/contents?chapterId=${chapterUrl}&variant=high&locale=${this.lang}`,
-      { headers: this.apiHeaders },
     );
-    const data: string[] = res.data;
-    return data.map((url, i) => ({ index: i, imageUrl: url }));
+    const data = res.data as MediaResponse | string[];
+    const urls = Array.isArray(data) ? data : (data.media || []).map(item => item.path);
+    return urls.map((imageUrl, index) => ({ index, imageUrl }));
   }
 }
