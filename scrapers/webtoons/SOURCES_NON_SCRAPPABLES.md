@@ -827,7 +827,7 @@ Sondes du **2026-11-15** en IPv4 (`curl -4 -L`), UA navigateur Chrome, sans tunn
 | `en/porncomix` | `bestporncomix.com` | RETIRÉ | Catalogue `/gallery/category/hentai-manga/` → **200**, 123 316 o ; fiche `/gallery/a-516-universal-sex-education/` → **200**, 139 503 o. La ligne `BLOCKED` du cycle #469 est levée : la source repasse en traitement `NOUVEAU` |
 | `en/allporncomic` | `allporncomic.com` | RETIRÉ | Catalogue `/series/` → **200**, 228 009 o ; fiches `/series/ben-10e/` → **200**, 610 987 o et `/series/spider-man/` → **200**, 252 816 o. La ligne `UNKNOWN` du cycle #486 est levée : la source repasse en traitement `NOUVEAU` |
 | `en/toonkotsu` | `toonkotsu.com` | BLOCKED (maintenu) | `/` et le catalogue `/cdn/v1/browse` → **200** (23 238 o), mais les fiches `/title/vz5r6i-chainsaw-man` et `/title/hhimlm-solo-leveling` renvoient le défi Cloudflare (`403`, **5 809–5 812 o**, `<title>Just a moment...</title>`). Condition de revivification précisée : un `GET` sans navigateur rend une fiche lisible |
-| `en/hypercomic` | `play.hypercomic.io` | IGNORE | `POST /Webtoon/searchlist` → **200** (18 mangas), fiches lisibles, mais 10 mangas × 3 chapitres non verrouillés → **0** page image ; le lecteur `/Webtoon/episodeview/…` exige une authentification. Le port #665 est fermé sans merge | Une page lecteur rend des images sans login |
+| `en/hypercomic` | `play.hypercomic.io` | IGNORE | `POST /Webtoon/searchlist` → **200** (18 mangas), fiches lisibles, mais 10 mangas × 3 chapitres non verrouillés → **0** page image ; le lecteur `/Webtoon/episodeview/…` exige une authentification. Le port #665 est fermé sans merge |
 
 ## Maintenance
 
