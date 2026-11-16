@@ -125,6 +125,10 @@ evidence, not the prose.
 
 1. Use the `baseUrl` and registry evidence recorded in the gate entry and the
    diff. Do not fetch upstream or run probes.
+   Probe legend: `OUI (...)` means HTTP 200 and the site responds;
+   `CHALLENGE (...)` is an interstitial; `BLOCK IP` is an IP ban; and
+   `NON (HTTP 404/410)` is dead. `OUI (Cloudflare)` is not a challenge and is
+   consistent with a `RETIRÉ` row backed by 200 responses.
 2. `FAIL` a row whose verdict rests only on `000`, `403`, `429`, `451 code
    1026`, or a Cloudflare challenge. That describes the runner's IP, not the
    site. The correct verdict there is `UNKNOWN` plus `LOCAL_RECHECK:
