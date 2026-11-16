@@ -252,7 +252,20 @@ def parse_upstream_base_urls(text):
             r'baseUrl\s*=\s*["\']([^"\']+)["\']', text):
         value = match.group(1)
         if "$" in value:
-            value = resolve_gradle_base_url(value, text)
+            resolved = resolve_gradle_base_url(value, text)
+            if resolved:
+                urls.append(resolved)
+                continue
+            variables = re.findall(
+                r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", value)
+            if variables == ["it"]:
+                list_match = re.search(r"listOf\(([^)]*)\)", text)
+                if list_match:
+                    for lang in re.findall(
+                            r'["\']([^"\']+)["\']', list_match.group(1)):
+                        urls.append(
+                            value.replace("${it}", lang).replace("$it", lang))
+            continue
         if value:
             urls.append(value)
     for block in re.findall(r"baseUrl\s*\{([^}]*)\}", text, re.S):
@@ -272,6 +285,21 @@ def parse_upstream_base_urls(text):
 def parse_upstream_base_url(text):
     urls = parse_upstream_base_urls(text)
     return urls[0] if urls else None
+
+
+def base_url_matches(actual, expected_urls):
+    """Accepte la racine commune d'un module gradle multi-langues."""
+    actual_norm = normalize_base_url(actual)
+    if not actual_norm or not expected_urls:
+        return False
+    if actual_norm in {normalize_base_url(url) for url in expected_urls}:
+        return True
+    parsed = urlparse(actual_norm)
+    if parsed.path:
+        return False
+    prefix = actual_norm.rstrip("/") + "/"
+    return all(normalize_base_url(url).startswith(prefix)
+               for url in expected_urls)
 
 
 def is_local_host(value):
@@ -801,8 +829,7 @@ def process_pr(info, handoff, upstream_sha, live):
                 }
                 if expected is None:
                     holds.append(f"{lang}/{ext}: upstream baseUrl unavailable")
-                elif normalize_base_url(actual) not in {
-                        normalize_base_url(url) for url in expected_urls}:
+                elif not base_url_matches(actual, expected_urls):
                     reasons.append(
                         f"{lang}/{ext}: baseUrl mismatch upstream="
                         f"{' | '.join(expected_urls)} ts={actual}"

@@ -194,6 +194,22 @@ class RegistryTest(unittest.TestCase):
         self.assertIn("registry", reason)
         self.assertEqual(len(probes or []), 1)
 
+    def test_multi_language_base_url_template(self):
+        text = (
+            'listOf("en", "fr", "de").forEach {\n'
+            '    source {\n'
+            '        baseUrl = "https://www.tappytoon.com/$it"\n'
+            '    }\n'
+            '}'
+        )
+        urls = gate.parse_upstream_base_urls(text)
+        self.assertIn("https://www.tappytoon.com/en", urls)
+        self.assertIn("https://www.tappytoon.com/fr", urls)
+        self.assertTrue(
+            gate.base_url_matches("https://www.tappytoon.com", urls))
+        self.assertFalse(
+            gate.base_url_matches("https://example.com", urls))
+
     @mock.patch.object(gate, "probe_url", return_value="OUI (Cloudflare)")
     def test_retired_verdict_passes(self, _probe):
         row = (
