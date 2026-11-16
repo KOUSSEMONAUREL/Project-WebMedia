@@ -545,11 +545,10 @@ class ModelChainTest(unittest.TestCase):
         self.assertNotIn("--variant", command)
         self.assertNotIn("--thinking", command)
 
-    def test_other_models_use_max_thinking(self):
+    def test_other_models_avoid_thinking(self):
         command = review.build_command("/bin/opencode", "opencode/model")
-        self.assertIn("--variant", command)
-        self.assertIn("max", command)
-        self.assertIn("--thinking", command)
+        self.assertNotIn("--thinking", command)
+        self.assertNotIn("--variant", command)
         self.assertIn("--auto", command)
 
     def test_command_points_to_bundle_and_partial_file(self):
