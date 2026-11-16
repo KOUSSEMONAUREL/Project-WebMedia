@@ -6,7 +6,7 @@ const PORTUGUESE_SUFFIX = /^\(\s*Portugu[êe]s\s*\)\s*/i;
 
 export class MiauScanScraper extends BaseScraper {
   readonly name = 'Miau Scan';
-  readonly baseUrl = 'https://leemiau.com';
+  readonly baseUrl = 'https://leer.lectovela.com';
   readonly lang: string;
 
   constructor(lang = 'es') {
@@ -94,13 +94,55 @@ export class MiauScanScraper extends BaseScraper {
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(chapterUrl);
-    const $ = this.$(res.data);
+    const html = res.data as string;
+    const $ = this.$(html);
     const pages: Page[] = [];
     $('div#readerarea img').toArray().forEach(el => {
       const imageUrl = this._imgAttr($(el));
       if (imageUrl) pages.push({ index: pages.length, imageUrl });
     });
-    return pages;
+    if (pages.length > 0) return pages;
+
+    const payload = this._readerPayload(html);
+    if (!payload) return pages;
+    const source = (payload.sources as { images?: string[] }[] | undefined)?.[0];
+    return (source?.images || []).map((imageUrl, index) => ({ index, imageUrl: this.absUrl(imageUrl) }));
+  }
+
+  private _readerPayload(html: string): Record<string, unknown> | null {
+    const start = html.indexOf('ts_reader.run(');
+    if (start === -1) return null;
+    const jsonStart = html.indexOf('{', start);
+    if (jsonStart === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = jsonStart; i < html.length; i++) {
+      const char = html[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === '\\') {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+      } else if (char === '"') {
+        inString = true;
+      } else if (char === '{') {
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(html.slice(jsonStart, i + 1)) as Record<string, unknown>;
+          } catch {
+            return null;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private _imgAttr($el: any): string {
