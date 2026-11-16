@@ -1,29 +1,52 @@
+import { createHash } from 'node:crypto';
+import type { Cheerio } from 'cheerio';
+import type { Element } from 'domhandler';
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, Chapter, Page, SearchResult, MangaStatus } from '../../../engine/types';
 
-const ONGOING_STATUS = [
-  '连载', 'on going', 'sedang berlangsung', 'tiếp tục cập nhật',
-  'en proceso', 'atualizando', 'เซเรียล', 'en cours', '連載中',
-];
-
-const COMPLETED_STATUS = [
-  '完结', 'completed', 'tamat', 'đã full', 'terminada',
-  'concluído', 'จบ', 'fin',
-];
-
+const API_URL = 'https://sg.mangatoon.mobi';
+const H5_URL = 'https://h5.mangatoon.mobi';
+const SIGN_KEY = '66c10a61bd916c23f3b33810d3785d17';
+const LIST_PAGE_SIZE = 18;
+const URL_LANG = 'en';
 const POSTER_SUFFIX = /(jpg)-poster(.*)\d+?$/;
+const CONTENT_ID_REGEX = /(?:content_id=|\/detail\/|^\/)(\d+)/;
 
-// Upstream: the page only renders a few episodes; the full list (with paid
-// flags) is embedded as JSON in `data = JSON.parse('...');`
-const EPISODES_LINE_REGEX = /data = JSON\.parse\('(.*)'\);/;
-const JS_ESCAPE_REGEX = /\\(['"])/g;
+interface DataDto<T> {
+  data?: T | null;
+}
+
+interface AuthorDto {
+  name: string;
+}
+
+interface TagDto {
+  name: string;
+}
+
+interface DetailDto {
+  title: string;
+  content_description?: string | null;
+  author?: AuthorDto | null;
+  tags?: TagDto[];
+  is_end: boolean;
+  image_url?: string | null;
+}
 
 interface EpisodeDto {
   id: number;
   title: string;
   weight: number;
-  open_at?: string | null;
-  is_fee?: boolean;
+  open_at: number;
+  is_fee: boolean;
+}
+
+interface PictureDto {
+  url?: string | null;
+}
+
+function parseJson<T>(data: unknown): T {
+  return (typeof data === 'string' ? JSON.parse(data) : data) as T;
 }
 
 export class MangaToonScraper extends BaseScraper {
@@ -31,144 +54,159 @@ export class MangaToonScraper extends BaseScraper {
   readonly baseUrl = 'https://mangatoon.mobi';
   readonly lang = 'all';
 
-  async getPopular(page: number): Promise<SearchResult> {
-    const path = 'hot';
-    const res = await this.get(`${this.baseUrl}/en/genre/${path}?type=1&page=${page - 1}`);
-    const $ = this.$(res.data);
-    const mangas: Manga[] = $('div.genre-content div.items a').map((_: any, el: any) => this.mangaFromElement($(el))).get();
-    const hasNextPage = $('span.next').length > 0;
-    return { mangas, hasNextPage };
+  private get webUrl(): string {
+    return `${this.baseUrl}/${URL_LANG}`;
   }
 
-  async getLatest(page: number): Promise<SearchResult> {
-    return this.getPopular(page);
+  private listUrl(path: string, page: number): string {
+    const params = new URLSearchParams();
+    if (page > 1) params.set('page', String(page - 1));
+    const qs = params.toString();
+    return `${this.webUrl}/genre/${path}${qs ? `?${qs}` : ''}`;
   }
 
-  async getSearch(query: string, page?: number): Promise<SearchResult> {
-    const res = await this.get(`${this.baseUrl}/en/search?word=${encodeURIComponent(query)}`);
-    const $ = this.$(res.data);
-    // Upstream filters items whose resolved link starts with baseUrl
-    // (Jsoup `a[abs:href^=...]`; transcribed since cheerio has no abs:href).
-    const mangas: Manga[] = $('div.comics-result div.recommend-item').map((_: any, el: any) => {
-      const $el = $(el);
-      const href = $el.find('a').first().attr('href') || '';
-      if (!this.absUrl(href).startsWith(this.baseUrl)) return null;
-      return {
-        title: $el.find('div.recommend-comics-title').text(),
-        thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))), lang: this.lang,
-        url: this.absUrl(href),
-      };
-    }).get().filter(Boolean) as Manga[];
-    const hasNextPage = $('span.next').length > 0;
-    return { mangas, hasNextPage };
+  private parseList(html: string): SearchResult {
+    const $ = this.$(html);
+    const mangas: Manga[] = $('div.genre-content div.items a')
+      .toArray()
+      .map(element => {
+        const $el = $(element);
+        return {
+          title: $el.find('div.content-title').text().trim(),
+          thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))),
+          url: this.absUrl($el.attr('href') || ''),
+          lang: this.lang,
+        };
+      })
+      .filter(manga => Boolean(manga.url));
+    return { mangas, hasNextPage: $('span.next').length > 0 };
   }
 
-  async getMangaDetails(mangaUrl: string): Promise<Manga> {
-    const res = await this.get(mangaUrl);
-    const $ = this.$(res.data);
-    const locale = 'en';
-    const manga: Manga = {
-      title: $('h1.detail-title').text() || $('div.detail-title h1').text() || $('h1.entry-title').text() || '',
-      url: mangaUrl,
-      thumbnailUrl: '',
+  async getPopular(page = 1): Promise<SearchResult> {
+    const res = await this.get(this.listUrl('hot', page));
+    return this.parseList(String(res.data));
+  }
+
+  async getLatest(page = 1): Promise<SearchResult> {
+    const res = await this.get(this.listUrl('new', page));
+    const result = this.parseList(String(res.data));
+    return { mangas: result.mangas, hasNextPage: result.mangas.length >= LIST_PAGE_SIZE };
+  }
+
+  async getSearch(query: string, page = 1): Promise<SearchResult> {
+    const url = `${this.webUrl}/search?word=${encodeURIComponent(query)}`;
+    const res = await this.client.get(this.absUrl(url), {
+      validateStatus: status => status === 404 || (status >= 200 && status < 300),
+    });
+    if (res.status === 404) return { mangas: [], hasNextPage: false };
+    if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+    const $ = this.$(String(res.data));
+    const mangas: Manga[] = $('div.comics-result div.recommend-item')
+      .toArray()
+      .map(element => {
+        const $el = $(element);
+        const link = $el.find('a').first();
+        const href = link.attr('href') || '';
+        if (!href.includes('mangatoon')) return null;
+        return {
+          title: $el.find('div.recommend-comics-title').text().trim(),
+          thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))),
+          url: this.absUrl(href),
+          lang: this.lang,
+        } as Manga;
+      })
+      .filter((manga): manga is Manga => manga !== null);
+    return { mangas, hasNextPage: $('span.next').length > 0 };
+  }
+
+  async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
+    const contentId = this.contentId(mangaUrl);
+    if (!contentId) return {};
+    const detail = await this.api<DetailDto>('/api/content/detail', contentId);
+    if (!detail) return {};
+    const thumbnail = detail.image_url?.replace('http://', 'https://');
+    const status: MangaStatus = detail.is_end ? 2 : 1;
+    return {
+      title: detail.title,
+      url: this.absUrl(mangaUrl),
+      thumbnailUrl: thumbnail ?? '',
+      author: detail.author?.name?.trim() || undefined,
+      description: detail.content_description ?? undefined,
+      genre: (detail.tags ?? []).map(tag => tag.name).join(', ') || undefined,
+      status,
       lang: this.lang,
-      author: $('div.detail-author-name span').text().split(': ')[1] || '',
-      description: $('div.detail-description-short p').map((_: any, el: any) => $(el).text()).get().join('\n\n'),
-      genre: $('div.detail-tags-info span').text()
-        .split('/')
-        .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
-        .sort()
-        .join(', '),
-      status: this.toStatus($('div.detail-status').text()) as 0 | 1 | 2 | 3 | undefined,
     };
-    const thumbnail = this.normalPosterUrl(this.imgAttr($('div.detail-img img')));
-    if (!thumbnail.includes('cartoon-big-images')) {
-      manga.thumbnailUrl = thumbnail;
-    }
-    return manga;
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    // Upstream fetches the manga details page: chapters come from the embedded
-    // episodes JSON (with paid flags), not from the rendered anchors.
-    const res = await this.get(mangaUrl);
-    const $ = this.$(res.data);
-    const firstHref = $('a.episode-item-new').first().attr('href') || '';
-    const watchPath = firstHref.substring(0, firstHref.lastIndexOf('/'));
-    if (!watchPath) return [];
-    let episodes: EpisodeDto[] = [];
-    // Upstream takes the FIRST script block containing the episodes JSON.
-    $('script').each((_: any, el: any) => {
-      if (episodes.length > 0) return false;
-      const data = $(el).html() || '';
-      for (const line of data.split('\n')) {
-        const m = EPISODES_LINE_REGEX.exec(line);
-        if (m && m[1]) {
-          try {
-            const parsed = JSON.parse(m[1].replace(JS_ESCAPE_REGEX, '$1')) as EpisodeDto[];
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              episodes = parsed;
-              break;
-            }
-          } catch {
-            // keep scanning other script lines
-          }
-        }
-      }
-    });
-    return episodes
-      .filter(e => !e.is_fee)
-      .map(e => ({
-        name: e.title,
-        chapterNumber: e.weight,
-        dateUpload: this.parseDate(e.open_at || ''),
-        url: `${watchPath}/${e.id}`,
+    const contentId = this.contentId(mangaUrl);
+    if (!contentId) return [];
+    const episodes = await this.api<EpisodeDto[]>('/api/content/episodes', contentId);
+    return (episodes ?? [])
+      .filter(episode => !episode.is_fee)
+      .map(episode => ({
+        name: episode.title,
+        url: this.absUrl(`/${URL_LANG}/watch/${contentId}/${episode.id}`),
+        chapterNumber: episode.weight,
+        dateUpload: episode.open_at * 1000,
       }))
       .reverse();
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const res = await this.get(chapterUrl);
-    const $ = this.$(res.data);
-    const pages = $('div.pictures div img:first-child').map((i: number, el: any) => ({
-      index: i,
-      imageUrl: this.imgAttr($(el)),
-    })).get();
-    if (pages.length === 0) {
-      throw new Error('This chapter is paid and can\'t be read. Use the MangaToon official app to purchase and read it.');
-    }
-    return pages;
+    const episodeId = chapterUrl.split('/').filter(Boolean).pop() ?? '';
+    if (!episodeId) return [];
+    const pictures = await this.api<PictureDto[]>('/api/cartoons/pictures', episodeId);
+    return (pictures ?? [])
+      .map(picture => this.toImageUrl(picture.url))
+      .filter((url): url is string => Boolean(url))
+      .map((imageUrl, index) => ({ index, imageUrl }));
   }
 
-  private mangaFromElement($el: any): Manga {
-    return {
-      title: $el.find('div.content-title').text(),
-      thumbnailUrl: this.normalPosterUrl(this.imgAttr($el.find('img'))),
-      url: this.absUrl($el.attr('href') || ''),
-      lang: this.lang,
-    };
+  private async api<T>(path: string, id: string): Promise<T | null> {
+    const query = new Map<string, string>([
+      ['_', String(Math.floor(Date.now() / 1000))],
+      ['_language', URL_LANG],
+      ['_platform', 'web'],
+      ['_preference', 'girl'],
+      ['_v', '3.07.00'],
+      ['_webp', 'false'],
+      ['id', id],
+    ]);
+    const queryString = [...query.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('&');
+    const sign = createHash('md5').update(path + queryString + SIGN_KEY).digest('hex');
+    const res = await this.client.get(`${API_URL}${path}?sign=${sign}&${queryString}`, {
+      headers: {
+        Accept: 'application/json',
+        Referer: `${H5_URL}/`,
+      },
+    });
+    return parseJson<DataDto<T>>(res.data).data ?? null;
   }
 
-  // Upstream Jsoup: data-src else abs:src. Cheerio has no abs:* attributes,
-  // so resolve to absolute URLs explicitly.
-  private imgAttr($el: any): string {
-    const dataSrc: string | undefined = $el.attr('data-src');
+  private contentId(url: string): string | undefined {
+    return CONTENT_ID_REGEX.exec(url)?.[1];
+  }
+
+  private toImageUrl(url: string | null | undefined): string | undefined {
+    if (!url) return undefined;
+    return url
+      .replace('/encrypted/', '/watermark/')
+      .replace('.webp', '.jpg')
+      .replace('.e.pic.', '-e-pic.')
+      .replace('.c.pic.', '-c-pic.')
+      .replace('http://', 'https://');
+  }
+
+  private imgAttr($el: Cheerio<Element>): string {
+    const dataSrc = $el.attr('data-src');
     return this.absUrl(dataSrc || $el.attr('src') || '');
   }
 
-  private normalPosterUrl(url: string | undefined): string {
+  private normalPosterUrl(url: string): string {
     return url ? url.replace(POSTER_SUFFIX, '$1') : '';
-  }
-
-  private toStatus(status: string): number {
-    const lower = status.toLowerCase();
-    if (ONGOING_STATUS.some(s => lower.includes(s))) return 1;
-    if (COMPLETED_STATUS.some(s => lower.includes(s))) return 2;
-    return 0;
-  }
-
-  private parseDate(dateStr: string): number {
-    if (!dateStr) return 0;
-    return Date.parse(dateStr);
   }
 }
