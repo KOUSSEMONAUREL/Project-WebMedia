@@ -26,7 +26,7 @@ const LANG = 'en';
 
 export class RawkumameScraper extends BaseScraper {
   readonly name = 'RawkumaMe';
-  readonly baseUrl = 'https://rawkuma.me';
+  readonly baseUrl = 'https://mangamachina.com';
   readonly lang = 'all';
 
   async getPopular(page = 1): Promise<SearchResult> {
