@@ -51,6 +51,12 @@ SECRET_RE = (
     re.compile(r"postgres(?:ql)?://[^ \t]+:[^ \t]+@"),
 )
 
+# Firebase Web API keys are public by design and shipped in client code.
+# Only explicitly verified public keys may bypass the secret scanner.
+PUBLIC_FIREBASE_KEYS = {
+    "AIzaSyCf2juYah43MfbuEtGndbh08zzC2tN4m8E",
+}
+
 DANGEROUS_RE = (
     re.compile(r"\bchild_process\b"),
     re.compile(r"\bprocess\.env\b"),
@@ -71,6 +77,7 @@ CHALLENGE_MARKERS = (
 )
 
 VERDICTS = ("IGNORE", "UNKNOWN", "BLOCKED", "BUILD", "ADAPT", "REMOVE", "FIX")
+RETIRED_VERDICTS = ("RETIRE", "RETIRÉ")
 
 
 class CommandError(RuntimeError):
@@ -162,8 +169,11 @@ def removed_lines(diff):
 def scan_added_lines(lines):
     reasons = []
     for line in lines:
+        scanned = line
+        for key in PUBLIC_FIREBASE_KEYS:
+            scanned = scanned.replace(key, "<public-firebase-key>")
         for pattern in SECRET_RE:
-            if pattern.search(line):
+            if pattern.search(scanned):
                 reasons.append(f"secret-like value: {pattern.pattern}")
         for pattern in DANGEROUS_RE:
             if pattern.search(line):
@@ -461,13 +471,13 @@ def evaluate_registry(added, removed):
         verdict = cells[2].strip("` ").upper()
         evidence = cells[3].strip()
         revival = cells[4].strip()
-        if verdict not in VERDICTS and "RETIRE" not in verdict:
+        if verdict not in VERDICTS and verdict not in RETIRED_VERDICTS:
             reasons.append(f"{ext}: unknown verdict {verdict!r}")
         if not evidence or evidence in ("-", "n/a"):
             reasons.append(f"{ext}: missing evidence")
         if not revival:
             reasons.append(f"{ext}: missing revival condition")
-        elif revival.lower() in ("n/a", "-") and "RETIRE" not in verdict:
+        elif revival.lower() in ("n/a", "-") and verdict not in RETIRED_VERDICTS:
             reasons.append(f"{ext}: revival condition is {revival!r}")
         host = domain.split("+")[0].strip().strip("` ")
         if host:

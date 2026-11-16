@@ -427,7 +427,7 @@ jobs:
       # Budgets adaptatifs: le runner calcule le temps par modele a partir de
       # la taille reelle du bundle (diffs tronques + handoff), avec une
       # prolongation bornee si le modele progresse encore.
-      AI_REVIEW_MODEL_TIMEOUT_MIN_S: "180"
+      AI_REVIEW_MODEL_TIMEOUT_MIN_S: "360"
       AI_REVIEW_MODEL_TIMEOUT_MAX_S: "1200"
       AI_REVIEW_MODEL_GRACE_S: "180"
       AI_REVIEW_MODEL_GRACE_IDLE_S: "60"
@@ -472,6 +472,7 @@ jobs:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         run: |
           export PATH="$HOME/.opencode/bin:$PATH"
+          sleep 30
           python3 "$REVIEW_RUNNER"
 
       - name: Archiver la revue IA

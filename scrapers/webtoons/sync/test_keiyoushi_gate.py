@@ -77,6 +77,15 @@ class SecurityTest(unittest.TestCase):
             [],
         )
 
+    def test_public_firebase_key_passes(self):
+        line = "const key = 'AIzaSyCf2juYah43MfbuEtGndbh08zzC2tN4m8E';"
+        self.assertEqual(gate.scan_added_lines([line]), [])
+
+    def test_other_firebase_key_fails(self):
+        line = "const key = 'AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';"
+        reasons = gate.scan_added_lines([line])
+        self.assertTrue(any("secret-like" in reason for reason in reasons))
+
 
 class UpstreamTest(unittest.TestCase):
     def test_parse_assignment(self):
@@ -184,6 +193,16 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(verdict, "PASS")
         self.assertIn("registry", reason)
         self.assertEqual(len(probes or []), 1)
+
+    @mock.patch.object(gate, "probe_url", return_value="OUI (Cloudflare)")
+    def test_retired_verdict_passes(self, _probe):
+        row = (
+            "| `foo` | `foo.example` | RETIRÉ | Revu : catalogue 200 | "
+            "n/a — source rouverte |"
+        )
+        verdict, reason, _ = gate.evaluate_registry([row], [])
+        self.assertEqual(verdict, "PASS")
+        self.assertIn("registry", reason)
 
     @mock.patch.object(gate, "probe_url", return_value="CHALLENGE (Cloudflare)")
     def test_ignore_on_challenge_fails(self, _probe):
