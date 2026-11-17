@@ -12,6 +12,24 @@ type BrowseItem = {
   poster?: string;
   posterSmall?: string;
   posterMedium?: string;
+  largeImage?: string;
+};
+
+type AuthorItem = {
+  name?: string;
+  type?: string;
+};
+
+type NamedItem = {
+  name?: string;
+};
+
+type PosterItem = {
+  id?: string;
+  image?: string;
+  smallImage?: string;
+  mediumImage?: string;
+  largeImage?: string;
 };
 
 export class AtsumaruScraper extends BaseScraper {
@@ -33,6 +51,18 @@ export class AtsumaruScraper extends BaseScraper {
     return `/manga/${id}`;
   }
 
+  private thumbnail(item: BrowseItem): string {
+    return this.mediaUrl(
+      item.largeImage
+      ?? item.posterMedium?.replace('-medium.', '-large.')
+      ?? item.posterMedium
+      ?? item.image
+      ?? item.posterSmall
+      ?? item.poster
+      ?? '',
+    );
+  }
+
   private mapBrowseItems(data: unknown): Manga[] {
     const raw = j(data) as { items?: BrowseItem[]; manga?: BrowseItem[] };
     const list = raw.items ?? raw.manga ?? [];
@@ -41,7 +71,7 @@ export class AtsumaruScraper extends BaseScraper {
       .map(item => ({
         title: item.title ?? '',
         url: this.mangaUrl(item.id),
-        thumbnailUrl: this.mediaUrl(item.image ?? item.posterSmall ?? item.posterMedium ?? item.poster ?? ''),
+        thumbnailUrl: this.thumbnail(item),
         lang: this.lang,
       }));
   }
@@ -49,13 +79,15 @@ export class AtsumaruScraper extends BaseScraper {
   async getPopular(page = 1): Promise<SearchResult> {
     const offset = (page - 1) * BROWSE_LIMIT;
     const res = await this.get(`${this.baseUrl}/api/home2/popular?offset=${offset}&limit=${BROWSE_LIMIT}&types=Manga,Manwha,Manhua,OEL&mediums=Comic&timeframe=daily`);
-    return { mangas: this.mapBrowseItems(j(res.data)), hasNextPage: false };
+    const mangas = this.mapBrowseItems(j(res.data));
+    return { mangas, hasNextPage: mangas.length === BROWSE_LIMIT };
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
     const offset = (page - 1) * BROWSE_LIMIT;
     const res = await this.get(`${this.baseUrl}/api/home2/recentlyUpdated?offset=${offset}&limit=${BROWSE_LIMIT}&types=Manga,Manwha,Manhua,OEL&mediums=Comic`);
-    return { mangas: this.mapBrowseItems(j(res.data)), hasNextPage: false };
+    const mangas = this.mapBrowseItems(j(res.data));
+    return { mangas, hasNextPage: mangas.length === BROWSE_LIMIT };
   }
 
   /**
@@ -70,18 +102,23 @@ export class AtsumaruScraper extends BaseScraper {
       page: String(page),
     });
     const res = await this.get(`${this.baseUrl}/collections/manga/documents/search?${params.toString()}`);
-    const raw = j(res.data) as { hits?: { document?: BrowseItem }[] };
+    const raw = j(res.data) as {
+      found?: number;
+      hits?: { document?: BrowseItem }[];
+      request_params?: { per_page?: number };
+    };
     const mangas = (raw.hits ?? [])
       .map(hit => hit.document)
       .filter((doc): doc is BrowseItem & { id: string } => !!doc && typeof doc.id === 'string' && doc.id.length > 0)
       .map(doc => ({
         title: doc.title ?? '',
         url: this.mangaUrl(doc.id),
-        thumbnailUrl: this.mediaUrl(doc.posterSmall ?? doc.posterMedium ?? doc.poster ?? ''),
+        thumbnailUrl: this.thumbnail(doc),
         lang: this.lang,
       }));
-    const found = raw.hits?.length ?? 0;
-    return { mangas, hasNextPage: page * BROWSE_LIMIT < found };
+    const found = typeof raw.found === 'number' ? raw.found : mangas.length;
+    const perPage = raw.request_params?.per_page ?? BROWSE_LIMIT;
+    return { mangas, hasNextPage: page * perPage < found };
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
@@ -89,24 +126,37 @@ export class AtsumaruScraper extends BaseScraper {
     const res = await this.get(`${this.baseUrl}/api/manga/page?id=${encodeURIComponent(id)}`);
     const raw = j(res.data) as { mangaPage?: Record<string, unknown> };
     const mp = raw.mangaPage ?? {};
-    const description = (mp['description'] ?? mp['summary'] ?? '') as string;
-    // `authors` est une liste d'objets { id, name }, pas une liste de chaines.
-    const authors = Array.isArray(mp['authors'])
-      ? (mp['authors'] as { name?: string }[]).map(a => a?.name ?? '').filter(Boolean)
-      : [];
-    // `poster` est un objet { id, image, ... } ; les variantes scalaires ne servent que de repli.
+    const description = String(mp['synopsis'] ?? mp['description'] ?? mp['summary'] ?? '');
+    // `authors` est une liste d'objets { id, name, type }, pas une liste de chaines.
+    const authors = Array.isArray(mp['authors']) ? (mp['authors'] as AuthorItem[]) : [];
+    const namesFor = (type: string | undefined) => authors
+      .filter(author => (type === undefined ? author.type !== 'Artist' : author.type === type))
+      .map(author => author.name ?? '')
+      .filter(Boolean);
+    // `poster` est un objet { id, image, largeImage, ... } ; les variantes scalaires ne servent que de repli.
     const poster = mp['poster'];
     const posterPath = typeof poster === 'object' && poster !== null
-      ? ((poster as { image?: string; small?: string; medium?: string }).image ?? (poster as { id?: string }).id ?? '')
+      ? ((poster as PosterItem).largeImage ?? (poster as PosterItem).image ?? (poster as PosterItem).mediumImage ?? (poster as PosterItem).smallImage ?? (poster as PosterItem).id ?? '')
       : (typeof poster === 'string' ? poster : (mp['posterMedium'] as string) ?? '');
-    const statusText = (mp['status'] as string | undefined) ?? '';
-    const status: MangaStatus = statusText === 'Completed' ? 0 : statusText === 'Ongoing' ? 1 : 3;
+    const named = (value: unknown) => Array.isArray(value)
+      ? (value as NamedItem[]).map(item => item?.name ?? '').filter(Boolean)
+      : [];
+    const type = typeof mp['type'] === 'string' ? mp['type'].replace(/^Manwha$/, 'Manhwa') : '';
+    const genre = [...new Set([type, ...named(mp['genres']), ...named(mp['tags'])].filter(Boolean))].join(', ');
+    const statusText = String(mp['status'] ?? '').toLowerCase();
+    const status: MangaStatus = statusText === 'completed' ? 0
+      : statusText === 'ongoing' ? 1
+      : statusText === 'canceled' || statusText === 'cancelled' ? 2
+      : statusText === 'hiatus' ? undefined
+      : 3;
     return {
       title: (mp['title'] as string) ?? '',
       url: mangaUrl,
       thumbnailUrl: this.mediaUrl(posterPath),
       description: description.replace(/<[^>]*>/g, '').trim() || undefined,
-      author: authors.length > 0 ? authors.join(', ') : undefined,
+      author: namesFor(undefined).join(', ') || undefined,
+      artist: namesFor('Artist').join(', ') || undefined,
+      genre: genre || undefined,
       status,
       lang: this.lang,
     };
