@@ -519,7 +519,7 @@ class StatusTest(unittest.TestCase):
 
 
 class ModelChainTest(unittest.TestCase):
-    def test_uses_all_agent_slots_and_deduplicates(self):
+    def test_uses_live_agent_slots_and_deduplicates(self):
         env = {
             "PRIMARY_MODEL": "primary",
             "FALLBACK_MODEL": "fallback",
@@ -530,7 +530,7 @@ class ModelChainTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True):
             self.assertEqual(
                 review.model_chain(),
-                ["primary", "fallback", "google/gemini", "last"],
+                ["primary", "fallback", "last"],
             )
 
     def test_explicit_override(self):
@@ -545,17 +545,24 @@ class ModelChainTest(unittest.TestCase):
         self.assertNotIn("--variant", command)
         self.assertNotIn("--thinking", command)
 
-    def test_other_models_avoid_thinking(self):
+    def test_other_models_use_analysis_reasoning_flags(self):
         command = review.build_command("/bin/opencode", "opencode/model")
-        self.assertNotIn("--thinking", command)
-        self.assertNotIn("--variant", command)
+        self.assertIn("--thinking", command)
+        self.assertIn("--variant", command)
+        self.assertIn("max", command)
         self.assertIn("--auto", command)
 
-    def test_command_points_to_bundle_and_partial_file(self):
-        command = review.build_command("/bin/opencode", "opencode/model")
+    def test_command_inlines_bundle_and_forbids_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = os.path.join(tmp, "bundle.json")
+            with open(bundle_path, "w", encoding="utf-8") as handle:
+                handle.write('{"bundle_version":1,"marker":"inline"}')
+            with mock.patch.object(review, "AI_REVIEW_BUNDLE_FILE", bundle_path):
+                command = review.build_command("/bin/opencode", "opencode/model")
         joined = " ".join(command)
-        self.assertIn(review.AI_REVIEW_BUNDLE_FILE, joined)
-        self.assertIn(review.AI_REVIEW_PARTIAL_FILE, joined)
+        self.assertIn('"marker":"inline"', joined)
+        self.assertIn("do not read files", joined)
+        self.assertNotIn(review.AI_REVIEW_PARTIAL_FILE, joined)
         self.assertNotIn(review.AI_REVIEW_FILE, joined)
 
     def test_command_carries_adaptive_time_budget(self):
@@ -877,6 +884,47 @@ class AdaptiveBudgetTest(unittest.TestCase):
         with mock.patch.object(review, "TOTAL_DEADLINE_S", 2400):
             self.assertEqual(review.estimate_total_deadline(5, 300), 1020)
             self.assertEqual(review.estimate_total_deadline(5, 1200), 2400)
+
+    def test_extract_review_payload_accepts_ansi_and_prose(self):
+        payload = ai(number=1)
+        text = (
+            "\x1b[0m> build · model\n"
+            "I reviewed the bundle.\n"
+            "```json\n"
+            f"{json.dumps(payload)}\n"
+            "```\n"
+            "Done.\n"
+        )
+        self.assertEqual(review.extract_review_payload(text), payload)
+
+    def test_extract_review_payload_ignores_bundle_and_invalid_json(self):
+        text = (
+            '{"bundle_version": 1, "reviewable_prs": []}\n'
+            '{"review_version": 1, "prs": []}\n'
+            '{"not": "a review"}\n'
+        )
+        self.assertEqual(
+            review.extract_review_payload(text),
+            {"review_version": 1, "prs": []},
+        )
+
+    def test_recover_partial_from_stdout_when_model_did_not_write_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            partial_path = os.path.join(tmp, "partial.json")
+            log_path = os.path.join(tmp, "model.log")
+            payload = ai(number=1)
+            with open(log_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "\x1b[0m> build · model\n"
+                    f"{json.dumps(payload)}\n"
+                )
+            with mock.patch.object(
+                review, "AI_REVIEW_PARTIAL_FILE", partial_path
+            ):
+                review.recover_partial_from_log(log_path)
+            with open(partial_path, encoding="utf-8") as handle:
+                recovered = json.load(handle)
+        self.assertEqual(recovered, payload)
 
     def test_extract_valid_entries_ignores_invalid_and_extra_entries(self):
         gate_map = {

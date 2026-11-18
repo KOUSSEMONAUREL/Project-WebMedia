@@ -12,10 +12,10 @@ optionnel) et le budget de chaque modele est calcule a partir de la charge
 reelle. Un modele qui progresse encore peut obtenir une prolongation bornee;
 le budget global reste plafonne pour laisser la place aux replis.
 
-Le runner essaie les modeles dans le meme ordre que l'agent d'analyse:
-PRIMARY_MODEL, FALLBACK_MODEL, GEMINI_MODEL, FALLBACK3_MODEL,
-FALLBACK4_MODEL. Un modele n'est considere reussi que si le fichier partiel
-existe et passe la validation stricte de `keiyoushi_review_policy`.
+Le runner essaie les modeles vivants resolus pour l'agent d'analyse:
+PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK3_MODEL, FALLBACK4_MODEL. Un modele
+n'est considere reussi que si une revue partielle valide est produite et passe
+la validation stricte de `keiyoushi_review_policy`.
 
 Si tous les modeles echouent, le runner ecrit une revue de repli valide qui
 bloque les PASS/HOLD en HOLD. Ainsi, une panne de la revue IA ne peut jamais
@@ -24,6 +24,7 @@ provoquer le merge d'un PASS non relu.
 
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -114,7 +115,6 @@ RUN_STARTED = time.monotonic()
 MODEL_SLOTS = (
     "PRIMARY_MODEL",
     "FALLBACK_MODEL",
-    "GEMINI_MODEL",
     "FALLBACK3_MODEL",
     "FALLBACK4_MODEL",
 )
@@ -228,6 +228,57 @@ def write_json_atomic(path, data):
     with open(temporary, "w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2)
     os.replace(temporary, path)
+
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def extract_review_payload(text):
+    """Extrait le dernier objet de revue valide de la sortie d'un modele."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    cleaned = ANSI_RE.sub("", text)
+    decoder = json.JSONDecoder()
+    found = None
+    for match in re.finditer(r"\{", cleaned):
+        try:
+            value, _ = decoder.raw_decode(cleaned[match.start():])
+        except ValueError:
+            continue
+        if (
+            isinstance(value, dict)
+            and value.get("review_version") == 1
+            and isinstance(value.get("prs"), list)
+        ):
+            found = value
+    return found
+
+
+def recover_partial_from_log(log_path):
+    """Utilise la sortie texte du modele quand il n'a pas ecrit le fichier."""
+    existing = load_flexible_json(AI_REVIEW_PARTIAL_FILE)
+    if (
+        isinstance(existing, dict)
+        and existing.get("review_version") == 1
+        and isinstance(existing.get("prs"), list)
+    ):
+        return
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as handle:
+            payload = extract_review_payload(handle.read())
+    except OSError:
+        return
+    if payload is None:
+        return
+    try:
+        write_json_atomic(AI_REVIEW_PARTIAL_FILE, payload)
+        print(
+            "AI_REVIEW_STDOUT_ACCEPTED: verdict JSON recupere depuis la "
+            "sortie du modele",
+            flush=True,
+        )
+    except OSError as exc:
+        print(f"AI_REVIEW_STDOUT_WRITE_FAILED: {exc}", flush=True)
 
 
 def pr_numbers():
@@ -490,22 +541,35 @@ def build_review_bundle(reviewable, gate_map, metadata, handoff):
 
 
 def build_command(opencode, model, budget_s=0):
-    command = [opencode, "run", "--model", model, "--auto"]
+    command = [opencode, "run", "--model", model]
+    if model.startswith("google/"):
+        command.append("--auto")
+    else:
+        command.extend(["--variant", "max", "--thinking", "--auto"])
+    try:
+        with open(
+            AI_REVIEW_BUNDLE_FILE, encoding="utf-8", errors="replace"
+        ) as handle:
+            bundle_text = handle.read()
+    except OSError:
+        bundle_text = "{}"
     instruction = (
-        f"Review only the PASS/HOLD PRs in {AI_REVIEW_BUNDLE_FILE}. "
-        f"Write the partial verdict JSON to {AI_REVIEW_PARTIAL_FILE}. "
-        "Gate FAILs are already synthesized and must not be reviewed or "
-        "rewritten. Follow the reviewer prompt exactly. Do not modify any "
-        "repository file, do not commit, push, merge, comment, or close "
-        "anything. Do not run commands or network probes; use only the "
-        "bundle. Keep every reason compact: two sentences, concrete "
-        "evidence, no diff restatement."
+        "Review only the PASS/HOLD PRs in the bundle at the end of this "
+        "message. The bundle is already included: do not read files, do not "
+        "call tools, and do not run commands or network probes. Gate FAILs "
+        "are already synthesized and must not be reviewed or rewritten. "
+        "Follow the reviewer prompt exactly. Do not modify any repository "
+        "file, do not commit, push, merge, comment, or close anything. "
+        "Return exactly one JSON object as your final answer, with no "
+        "markdown fence and no prose. Keep every reason compact: two "
+        "sentences, concrete evidence, no diff restatement."
     )
     if budget_s > 0:
         instruction += (
             f" You have about {int(budget_s)} seconds of review time; "
-            "write the partial JSON before the budget runs out."
+            "output the JSON before the budget runs out."
         )
+    instruction += "\n\nBUNDLE_JSON:\n" + bundle_text
     command.extend(["--file", PROMPT_FILE, "--", instruction])
     return command
 
@@ -597,6 +661,7 @@ def run_model(opencode, model, timeout, grace=0):
                 stop_process(process)
                 returncode = 124
         terminate_group(process.pid)
+    recover_partial_from_log(log_path)
     elapsed = time.monotonic() - started
     print(
         f"AI_REVIEW_MODEL_DONE: {model} rc={returncode} "

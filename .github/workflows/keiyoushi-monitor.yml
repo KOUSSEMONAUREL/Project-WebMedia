@@ -409,7 +409,6 @@ jobs:
       PYTHONUNBUFFERED: "1"
       ISSUE_NUMBER: ${{ needs.agent-analysis.outputs.issue_number }}
       UPSTREAM_SHA: ${{ needs.check-upstream.outputs.head_sha || 'main' }}
-      GEMINI_MODEL: google/gemini-flash-latest
       PRIMARY_MODEL: ${{ needs.agent-analysis.outputs.primary_model }}
       FALLBACK_MODEL: ${{ needs.agent-analysis.outputs.fallback_model }}
       FALLBACK3_MODEL: ${{ needs.agent-analysis.outputs.fallback3_model }}
@@ -426,8 +425,9 @@ jobs:
       AI_REVIEW_LOG_DIR: /tmp/keiyoushi-ai-review-logs
       # Budgets adaptatifs: le runner calcule le temps par modele a partir de
       # la taille reelle du bundle (diffs tronques + handoff), avec une
-      # prolongation bornee si le modele progresse encore.
-      AI_REVIEW_MODEL_TIMEOUT_MIN_S: "360"
+      # prolongation bornee si le modele progresse encore. Le plancher doit
+      # laisser aux modeles reasoning le temps de produire leur JSON.
+      AI_REVIEW_MODEL_TIMEOUT_MIN_S: "600"
       AI_REVIEW_MODEL_TIMEOUT_MAX_S: "1200"
       AI_REVIEW_MODEL_GRACE_S: "180"
       AI_REVIEW_MODEL_GRACE_IDLE_S: "60"
