@@ -39,7 +39,7 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly searchMangaUrlSelector = 'div.post-title a';
 
   protected readonly mangaDetailsSelectorTitle: string = "div.post-title h3, div.post-title h1, #manga-title > h1";
-  protected readonly mangaDetailsSelectorAuthor = "div.author-content > a, div.manga-authors > a";
+  protected readonly mangaDetailsSelectorAuthor: string = "div.author-content > a, div.manga-authors > a";
   protected readonly mangaDetailsSelectorArtist: string = "div.artist-content > a";
   protected readonly mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:contains(Status) + div";
   protected readonly mangaDetailsSelectorDescription: string = "div.description-summary div.summary__content, div.summary_content div.post-content_item > h5 + div, div.summary_content div.manga-excerpt";
@@ -47,16 +47,16 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly mangaDetailsSelectorGenre: string = "div.genres-content a";
   protected readonly mangaDetailsSelectorTag = "div.tags-content a";
 
-  protected readonly seriesTypeSelector = ".post-content_item:contains(Type) .summary-content";
-  protected readonly altNameSelector = ".post-content_item:contains(Alt) .summary-content";
+  protected readonly seriesTypeSelector: string = ".post-content_item:contains(Type) .summary-content";
+  protected readonly altNameSelector: string = ".post-content_item:contains(Alt) .summary-content";
   protected readonly altName = 'Alternative :';
 
-  protected readonly chapterListSelectorStr = 'li.wp-manga-chapter';
+  protected readonly chapterListSelectorStr: string = 'li.wp-manga-chapter';
   protected readonly chapterDateSelectorStr = 'span.chapter-release-date';
   protected readonly chapterUrlSelector = 'a';
   protected readonly chapterUrlSuffix = '?style=list';
 
-  protected readonly pageListParseSelector = "div.page-break, li.blocks-gallery-item, .reading-content .text-left:not(:has(.blocks-gallery-item)) img";
+  protected readonly pageListParseSelector: string = "div.page-break, li.blocks-gallery-item, .reading-content .text-left:not(:has(.blocks-gallery-item)) img";
 
   protected readonly completedStatusList = [
     'Completed', 'Completo', 'Completado', 'Concluído', 'Concluido',
