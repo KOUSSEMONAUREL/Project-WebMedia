@@ -87,13 +87,17 @@ export class NinkoComicsScraper extends BaseScraper {
         const href = link.attr('href') ?? '';
         if (!href) return undefined;
 
-        const title = link.find('span.min-w-0 > span').first().text().trim() || 'Chapter';
+        // Early access chapters cost coins until their free day, and upstream
+        // hides them by default.
         const locked = link.attr('data-unlock') !== undefined;
+        if (locked) return undefined;
+
+        const title = link.find('span.min-w-0 > span').first().text().trim() || 'Chapter';
         const dateLabel = link.find('[data-percent-label]').attr('title');
         const date = dateLabel ? Date.parse(dateLabel) : Number.NaN;
 
         return {
-          name: locked ? `🔒 ${title}` : title,
+          name: title,
           url: this.absUrl(href),
           dateUpload: Number.isNaN(date) ? undefined : date,
         } as Chapter;
