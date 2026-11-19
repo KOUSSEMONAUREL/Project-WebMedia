@@ -1,5 +1,5 @@
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, MangaStatus, Chapter, Page, SearchResult } from '../../../engine/types';
 
 const API_URL = 'https://jumpg-webapi.tokyo-cdn.com/api';
 const UA =
@@ -131,6 +131,34 @@ function decodeChapter(buf: Buffer): MpChapter {
 function decodePage(buf: Buffer): { imageUrl: string; encryptionKey: string } {
   const m = decodeMessage(buf);
   return { imageUrl: str(m[1]), encryptionKey: str(m[5]) };
+}
+
+const MAGAZINES = new Map<number, string>([
+  [1, 'Weekly Shounen Jump'],
+  [2, 'Jump SQ.'],
+  [3, 'V Jump'],
+  [4, 'Weekly Young Jump'],
+  [5, 'Shounen Jump+'],
+  [8, 'MANGA Plus Creators'],
+  [9, 'Manga Mee'],
+  [12, 'Tonari no Young Jump'],
+  [16, 'Saikyou Jump'],
+  [19, 'Shounen Jump GIGA'],
+  [20, 'Ultra Jump'],
+  [21, 'Dash X Comic'],
+  [23, 'Bessatsu Margaret'],
+  [24, 'Young Jump+'],
+]);
+
+function decodeTitleLabels(buf: Buffer | undefined): number {
+  if (!buf) return 0;
+  return num(decodeMessage(buf)[1]);
+}
+
+function decodeMagazine(buf: Buffer | undefined): string | undefined {
+  if (!buf) return undefined;
+  const id = num(decodeMessage(buf)[1]);
+  return MAGAZINES.get(id);
 }
 
 export class MangaPlusScraper extends BaseScraper {
@@ -292,15 +320,21 @@ export class MangaPlusScraper extends BaseScraper {
     const t = view[1] ? decodeTitle(view[1] as Buffer) : null;
     if (!t) return {};
 
-    const genres = msgList(view[31]).map((g) => str(decodeMessage(g as Buffer)[1])).filter(Boolean);
+    const genres = msgList(view[31]).map((g) => str(decodeMessage(g as Buffer)[1]));
+    const magazine = decodeMagazine(view[39] as Buffer | undefined);
+    const schedule = decodeTitleLabels(view[32] as Buffer | undefined);
+    const hiatus = /on (a )?hiatus|suspendid|suspendu/i.test(str(view[8]));
+    let status: MangaStatus = 1;
+    if (schedule === 8 || schedule === 9) status = 0;
+    else if (schedule === 10 || hiatus) status = 3;
     return {
       title: t.name,
       thumbnailUrl: t.portraitImageUrl,
       author: t.author || undefined,
       artist: t.author || undefined,
       description: str(view[3]) || undefined,
-      genre: genres.join(', ') || undefined,
-      status: 1,
+      genre: [...genres, magazine].filter((g): g is string => Boolean(g)).join(', ') || undefined,
+      status,
     };
   }
 
