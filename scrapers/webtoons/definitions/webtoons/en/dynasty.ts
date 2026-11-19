@@ -96,7 +96,7 @@ export class DynastyScraper extends BaseScraper {
       const distinct = [...new Map(entries.map((e) => [e.url, e])).values()];
       return { mangas: distinct, hasNextPage: true };
     }
-    const res = await this.get(`${this.baseUrl}/${CHAPTERS_DIR}/added.json?page=${page - 1}`);
+    const res = await this.get(`${this.baseUrl}/${CHAPTERS_DIR}/added.json?page=${page}`);
     const data = (typeof res.data === 'string' ? JSON.parse(res.data) : res.data) as BrowseResponse;
     const mangas = this.parseAddedChapters(data).map((e) => ({
       title: e.title,
@@ -104,7 +104,7 @@ export class DynastyScraper extends BaseScraper {
       thumbnailUrl: e.cover ? buildCoverUrl(e.cover, this.baseUrl) : '',
       lang: this.lang,
     } as Manga));
-    const hasNextPage = (data.current_page ?? 0) <= (data.total_pages ?? 0);
+    const hasNextPage = (data.current_page ?? 0) < (data.total_pages ?? 0);
     return { mangas, hasNextPage };
   }
 
