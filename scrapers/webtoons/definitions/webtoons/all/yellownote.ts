@@ -157,21 +157,27 @@ export class YellowNoteScraper extends BaseScraper {
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    let res = await this.get(chapterUrl);
-    // The site can redirect a later page to the set's first page, with ?go=
-    // naming the page that was asked for.
-    let landing = this.responseUrl(res, chapterUrl);
-    const go = landing.searchParams.get('go');
-    if (go) {
-      const target = new URL(go, landing);
-      res = await this.get(target.toString());
-      landing = this.responseUrl(res, target.toString());
-      if (landing.searchParams.get('go')) {
-        throw new Error('Page not available, open it in WebView');
-      }
+    const requested = new URL(this.absUrl(chapterUrl));
+    const parts = requested.pathname.split('/').filter(Boolean);
+    const last = parts[parts.length - 1] ?? '';
+    const requestedPage = /^\d+$/.test(last) ? Number.parseInt(last, 10) : 1;
+    const url = requested.toString().replace(/#.*$/, '');
+
+    let res = await this.get(url);
+    let $ = this.$(String(res.data));
+    const currentPage = () => Number.parseInt($('form[data-page-jump]').attr('data-current') ?? '', 10);
+
+    // The site serves the set's first page until the visitor has its cookies.
+    if (requestedPage > 1 && currentPage() !== requestedPage) {
+      const cookie = this.responseCookies(res);
+      if (!cookie) throw new Error('Page not available, open it in WebView');
+      res = await this.get(url, { headers: { Cookie: cookie } });
+      $ = this.$(String(res.data));
+    }
+    if (requestedPage > 1 && currentPage() !== requestedPage) {
+      throw new Error('Page not available, open it in WebView');
     }
 
-    const $ = this.$(String(res.data));
     const pages: Page[] = [];
     $('div[data-cols-grid] > a > img').each((index: number, el) => {
       const src = $(el).attr('src');
@@ -184,8 +190,13 @@ export class YellowNoteScraper extends BaseScraper {
     return pages;
   }
 
-  private responseUrl(res: { request?: unknown }, fallback: string): URL {
-    const responseUrl = (res.request as { res?: { responseUrl?: string } } | undefined)?.res?.responseUrl;
-    return new URL(responseUrl ?? this.absUrl(fallback));
+  private responseCookies(res: { headers?: unknown }): string {
+    const headers = (res.headers ?? {}) as Record<string, unknown>;
+    const raw = headers['set-cookie'];
+    const values = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    return values
+      .map(value => String(value).split(';', 1)[0])
+      .filter(Boolean)
+      .join('; ');
   }
 }
