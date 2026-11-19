@@ -31,10 +31,10 @@ export class WebtoonsScraper extends BaseScraper {
     });
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
-    $('.webtoon_list li a').each((_: any, el: any) => {
+    $('.webtoon_list li a, .challenge_lst li a').each((_: any, el: any) => {
       mangas.push({
         url: $(el).attr('href') || '',
-        title: $(el).find('.title').first().text().trim(),
+        title: $(el).find('.title, .subj').first().text().trim(),
         thumbnailUrl: $(el).find('img').first().attr('src') || '',
         lang: this.lang,
       });
@@ -49,10 +49,10 @@ export class WebtoonsScraper extends BaseScraper {
     });
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
-    $('.webtoon_list li a').each((_: any, el: any) => {
+    $('.webtoon_list li a, .challenge_lst li a').each((_: any, el: any) => {
       mangas.push({
         url: $(el).attr('href') || '',
-        title: $(el).find('.title').first().text().trim(),
+        title: $(el).find('.title, .subj').first().text().trim(),
         thumbnailUrl: $(el).find('img').first().attr('src') || '',
         lang: this.lang,
       });
@@ -95,10 +95,10 @@ export class WebtoonsScraper extends BaseScraper {
     });
     const $ = this.$(res.data);
     const mangas: Manga[] = [];
-    $('.webtoon_list li a').each((_: any, el: any) => {
+    $('.webtoon_list li a, .challenge_lst li a').each((_: any, el: any) => {
       mangas.push({
         url: $(el).attr('href') || '',
-        title: $(el).find('.title').first().text().trim(),
+        title: $(el).find('.title, .subj').first().text().trim(),
         thumbnailUrl: $(el).find('img').first().attr('src') || '',
         lang: this.lang,
       });
