@@ -12,7 +12,8 @@ interface CreatorDto {
   id: string;
   name: string;
   service: string;
-  updated: string | number;
+  public_id?: string | null;
+  updated?: string | number | null;
   favorited?: number;
 }
 
@@ -24,7 +25,7 @@ interface PostDto {
   id: string;
   service: string;
   user: string;
-  title: string;
+  title?: string | null;
   added?: string | null;
   published?: string | null;
   edited?: string | null;
@@ -62,12 +63,13 @@ export class PawchiveScraper extends BaseScraper {
     };
   }
 
-  private updatedMs(updated: string | number): number {
-    if (typeof updated === 'string') {
-      const ms = Date.parse(updated);
+  private dateMs(value: string | number | null | undefined): number {
+    if (typeof value === 'string') {
+      const ms = Date.parse(value);
       return Number.isNaN(ms) ? 0 : ms;
     }
-    return updated * 1000;
+    if (typeof value === 'number') return value * 1000;
+    return 0;
   }
 
   private paginate(sorted: CreatorDto[], page: number): SearchResult {
@@ -84,14 +86,19 @@ export class PawchiveScraper extends BaseScraper {
 
   async getLatest(page = 1): Promise<SearchResult> {
     const creators = await this.fetchCreators();
-    const sorted = [...creators].sort((a, b) => this.updatedMs(b.updated) - this.updatedMs(a.updated));
+    const sorted = [...creators].sort((a, b) => this.dateMs(b.updated) - this.dateMs(a.updated));
     return this.paginate(sorted, page);
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
     const creators = await this.fetchCreators();
     const q = query.trim().toLowerCase();
-    const filtered = creators.filter((c) => c.name.toLowerCase().includes(q));
+    const filtered = creators.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.public_id ?? '').toLowerCase().includes(q) ||
+        c.id === query.trim(),
+    );
     const sorted = filtered.sort((a, b) => (b.favorited ?? -1) - (a.favorited ?? -1));
     return this.paginate(sorted, page);
   }
@@ -116,7 +123,7 @@ export class PawchiveScraper extends BaseScraper {
       for (const post of page) {
         if (this.imagesOf(post).length === 0) continue;
         const dateStr = post.published ?? post.added ?? post.edited;
-        const title = post.title.trim();
+        const title = (post.title ?? '').trim();
         const name = title || `Post from ${dateStr ? dateStr.split('+')[0].split('Z')[0].replace('T', ' at ') : 'unknown date'}`;
         const chapter: Chapter = { name, url: `/${post.service}/user/${post.user}/post/${post.id}` };
         const ms = this.parsePostDate(dateStr, post.service);
