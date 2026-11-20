@@ -54,6 +54,23 @@ def skipped_changes() -> list[str]:
     return [str(x) for x in raw] if isinstance(raw, list) else []
 
 
+def noop_changes() -> list[dict]:
+    try:
+        with open(SKIPPED_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("noops", [])
+    if not isinstance(raw, list):
+        return []
+    return [
+        item for item in raw
+        if isinstance(item, dict) and str(item.get("ext") or "").strip()
+    ]
+
+
 def load_ai_status() -> dict:
     try:
         with open(AI_REVIEW_STATUS_FILE, encoding="utf-8") as f:
@@ -410,6 +427,14 @@ def main() -> None:
         parts.append("")
 
     all_merged = bool(pr_list) and len(merged) == len(pr_list)
+    noops = noop_changes()
+    if noops:
+        parts.append("## Extensions sans changement de code (no-op declare)")
+        parts.extend(
+            f"- [x] `{item['ext']}` ({item.get('reason') or 'sans reason'})"
+            for item in noops
+        )
+        parts.append("")
     skipped = skipped_changes()
     if skipped:
         parts.append("## Extensions ecartees du cycle (handoff invalide)")
@@ -449,6 +474,7 @@ def main() -> None:
         "held": len(held),
         "unreviewed": len(unreviewed),
         "skipped": len(skipped),
+        "noops": len(noops),
         "review_source": review_source,
         "reviewer_model": reviewer_model,
         "ai_review_status": ai_status.get("status"),
