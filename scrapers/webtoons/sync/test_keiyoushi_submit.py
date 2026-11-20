@@ -137,6 +137,55 @@ class TestSplitAndTitle(unittest.TestCase):
             ks.registry_label([change(type="BUILD", paths=["scrapers/a.ts"])])
 
 
+class TestNoops(unittest.TestCase):
+    def test_noop_is_normalized_and_kept_out_of_changes(self):
+        handoff = {
+            "noops": [{
+                "ext": "all/webtoons",
+                "reason": "NO_IMPACT: notre .ts n'implemente pas les filtres",
+            }]
+        }
+        changes = [change(ext="pawchive", type="ADAPT",
+                          paths=["scrapers/webtoons/definitions/webtoons/all/pawchive.ts"])]
+        noops, problems = ks.normalize_noops(handoff, changes)
+        self.assertEqual(problems, [])
+        self.assertEqual(noops, [{
+            "ext": "webtoons",
+            "reason": "NO_IMPACT: notre .ts n'implemente pas les filtres",
+        }])
+
+    def test_noop_overlapping_a_change_is_rejected(self):
+        handoff = {
+            "noops": [{"ext": "webtoons", "reason": "NO_IMPACT: filtre"}]
+        }
+        changes = [change(ext="webtoons", type="ADAPT",
+                          paths=["scrapers/webtoons/definitions/webtoons/all/webtoons.ts"])]
+        noops, problems = ks.normalize_noops(handoff, changes)
+        self.assertEqual(noops, [])
+        self.assertTrue(any("a la fois" in p for p in problems), problems)
+
+    def test_noop_requires_a_reason(self):
+        noops, problems = ks.normalize_noops(
+            {"noops": [{"ext": "webtoons"}]}, []
+        )
+        self.assertEqual(noops, [])
+        self.assertTrue(any("sans reason" in p for p in problems), problems)
+
+    def test_noops_must_be_a_list(self):
+        noops, problems = ks.normalize_noops({"noops": {}}, [])
+        self.assertEqual(noops, [])
+        self.assertTrue(any("n'est pas une liste" in p for p in problems), problems)
+
+    def test_no_diff_reason_points_to_noops(self):
+        reason = ks.no_diff_reason("webtoons", [change(
+            ext="webtoons", type="ADAPT",
+            paths=["scrapers/webtoons/definitions/webtoons/all/webtoons.ts"],
+        )])
+        self.assertIn("ADAPT", reason)
+        self.assertIn("aucun diff", reason)
+        self.assertIn("noops", reason)
+
+
 class TestMergedResubmit(unittest.TestCase):
     def test_next_free_branch_skips_existing_prs(self):
         def fake_run(*args, check=True):

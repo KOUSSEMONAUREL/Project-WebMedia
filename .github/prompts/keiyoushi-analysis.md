@@ -216,7 +216,9 @@ For each critical extension:
 5. **Verdict per extension**:
    - `ADAPT` : upstream changed something our scraper depends on → implement the fix in our `.ts`.
    - `NO_IMPACT` : purely internal Kotlin work (class renames, function extraction, generic
-     filter DSL rewrite, build config) with endpoints/selectors/parsing untouched → document only.
+     filter DSL rewrite, build config) with endpoints/selectors/parsing untouched, or a
+     changed API/feature that our `.ts` never implemented → document only, never open a PR.
+     A filter rename in upstream is `NO_IMPACT` when our scraper has no filter list to update.
 
 ### What the pipeline actually ingests — read this before judging any source
 
@@ -365,7 +367,7 @@ everything the execution step needs:
 {
   "issue": <issue number>,
   "close": true | false,
-  "summary_md": "<full markdown synthesis: the verdict table PLUS the list of PRs opened>",
+  "summary_md": "<full markdown synthesis: verdict table plus intended changes; never invent PR URLs>",
   "changes": [
     {
       "ext": "<extension id, WITHOUT the lang/prefix: 'mangamoins', never 'fr/mangamoins'>",
@@ -383,6 +385,12 @@ everything the execution step needs:
       "pr_title": "docs(scrapers): record <ext> registry verdict",
       "pr_body": "<evidence: what changed in the row and which revival condition was met or newly established>"
     }
+  ],
+  "noops": [
+    {
+      "ext": "<extension id; must NOT also appear in changes>",
+      "reason": "NO_IMPACT|DEJA_TRAITE: <why no .ts diff is needed>"
+    }
   ]
 }
 ```
@@ -392,6 +400,12 @@ Rules for the handoff:
   the whole pass is a genuine no-op: no scraper change **and** no registry row to add or
   revise. `IGNORE` is not a no-op — an `IGNORE` on a `NOUVEAU` entry is precisely the case
   that needs a `REGISTRY_RECHECK` row, so it is never "empty".
+- Before adding an item to `changes`, prove the working tree differs from `main`:
+  `git status --porcelain -- <paths>` must print at least one path. If it prints nothing,
+  do **not** add the item: a claimed ADAPT/BUILD with no diff is a broken handoff. Put the
+  extension in `noops` with `NO_IMPACT`/`DEJA_TRAITE` and a concrete reason instead.
+- An extension may appear in `changes` or in `noops`, never in both. `noops` is only for
+  entries resolved without a code change, and every entry needs a reason.
 - `REGISTRY_RECHECK` is the ONLY item type allowed to carry
   `scrapers/webtoons/SOURCES_NON_SCRAPPABLES.md` in `paths`. Never put that file on an
   ADAPT/BUILD/REMOVE item. Edit the file locally so the change is stageable, and let the
@@ -405,7 +419,8 @@ Rules for the handoff:
 - `summary_md` is the synthesis comment posted on the issue:
   | Extension | Status | Verdict | Justification |
   |---|---|---|---|
-  plus the list of PRs opened (if any). Write it as final text ready to post.
+  plus the intended changes. Never invent PR numbers, URLs, or branch names: the execution
+  script opens the PRs and posts their real links. Write it as final text ready to post.
 - `close`: `true` only when every entry has a final verdict (BUILD/ADAPT merged or change
   submitted, or NO_IMPACT/IGNORE/KEEP documented), **and** you did not defer entries
   because of the run budget. `IGNORE` — proven dead, login-walled or SPA-only — is a

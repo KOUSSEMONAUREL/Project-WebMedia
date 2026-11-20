@@ -19,8 +19,19 @@ Handoff attendu (chemin: $HANDOFF_FILE):
       "pr_title": "<titre du PR>",
       "pr_body": "<corps du PR (verdict, verification...)>"
     }
+  ],
+  "noops": [
+    {
+      "ext": "<extension>",
+      "reason": "NO_IMPACT|DEJA_TRAITE: <pourquoi aucun diff n'est requis>"
+    }
   ]
 }
+
+`noops` est optionnel. Il documente les extensions deja traitees ou sans
+impact sur notre `.ts`. Une extension listee dans `noops` ne doit jamais
+apparaitre dans `changes`: un `ADAPT`/`BUILD` sans diff est un handoff
+invalide, pas un no-op.
 """
 
 import json
@@ -248,6 +259,72 @@ def validate_group(group: list[dict]) -> list[tuple[str, str]]:
     return reasons
 
 
+def normalize_noops(handoff: dict, changes: list[dict]) -> tuple[list[dict], list[str]]:
+    """Valide et normalise les no-ops declares dans le handoff.
+
+    Un no-op est une extension volontairement non soumise (NO_IMPACT ou
+    DEJA_TRAITE). Il ne doit jamais masquer un changement annonce: une meme
+    extension dans `changes` et `noops` rend le handoff ambigu et doit donc
+    rester une erreur visible.
+    """
+    raw = handoff.get("noops", [])
+    if raw is None:
+        raw = []
+    if not isinstance(raw, list):
+        return [], ["`noops` n'est pas une liste"]
+
+    change_exts = {
+        safe_ext(change.get("ext", ""))
+        for change in changes
+        if isinstance(change, dict)
+    }
+    noops: list[dict] = []
+    problems: list[str] = []
+    seen: set[str] = set()
+
+    for item in raw:
+        if not isinstance(item, dict):
+            problems.append("`noops` contient une entree qui n'est pas un objet")
+            continue
+        raw_ext = str(item.get("ext") or "").strip()
+        ext = safe_ext(raw_ext)
+        reason = str(item.get("reason") or "").strip()
+        if not raw_ext or ext == "change":
+            problems.append("`noops` contient une entree sans extension")
+            continue
+        if ext in seen:
+            problems.append(f"`{ext}` est declaree plusieurs fois dans `noops`")
+            continue
+        if ext in change_exts:
+            problems.append(
+                f"`{ext}` figure a la fois dans `changes` et `noops`: "
+                "un changement soumis ne peut pas etre un no-op"
+            )
+            continue
+        if not reason:
+            problems.append(f"`{ext}` est declaree dans `noops` sans reason")
+            continue
+        seen.add(ext)
+        noops.append({"ext": ext, "reason": reason})
+
+    return noops, problems
+
+
+def no_diff_reason(label: str, group: list[dict]) -> str:
+    """Motif lisible quand un changement annonce ne produit aucun diff."""
+    kinds = sorted({
+        str(change.get("type") or "?")
+        for change in group
+        if isinstance(change, dict)
+    })
+    kind = "/".join(kinds) or "?"
+    return (
+        f"`{label}` (handoff {kind} sans aucun diff vs main; "
+        "declarer NO_IMPACT/DEJA_TRAITE dans `noops` si aucun changement "
+        "n'est requis)"
+    )
+
+
 def run(*args: str, check: bool = True) -> str:
     result = subprocess.run(args, capture_output=True, text=True)
     if check and result.returncode != 0:
@@ -298,6 +375,7 @@ def main() -> None:
         handoff = json.load(f)
 
     changes = handoff.get("changes", [])
+    noops, noop_problems = normalize_noops(handoff, changes)
 
     run("git", "config", "user.name", COMMITTER_NAME)
     run("git", "config", "user.email", COMMITTER_EMAIL)
@@ -309,7 +387,7 @@ def main() -> None:
     # que les PRs deja creees etaient valides. On ecarte le changement
     # fautif et on continue, plutot que d'abandonner les autres.
     groups = split_registry_changes(changes)
-    skipped: list[str] = []
+    skipped: list[str] = list(noop_problems)
     usable: list[list[dict]] = []
     for group in groups:
         exts = [safe_ext(c.get("ext", "")) for c in group]
@@ -411,12 +489,16 @@ def main() -> None:
 
         run("git", "add", "-A", "--", *paths)
         if not has_staged_changes(paths):
-            # Rien de neuf: le contenu annonce est deja identique sur la
-            # branche (PR precedente du meme engine, ou travail deja merge).
-            # On n'ouvre pas de PR vide, on le signale et on continue.
-            print(f"SKIP: {label} rien a committer, le contenu est deja "
-                  f"present sur la branche {branch}")
-            skipped.append(f"`{label}` (rien a committer: contenu deja present)")
+            # Rien de neuf: soit le contenu annonce est deja identique sur
+            # la branche, soit l'agent a annonce un changement sans ecrire
+            # de diff. Les deux cas sont des handoffs invalides et doivent
+            # rester visibles dans verify, avec un motif exact.
+            if not has_changes_vs_main(paths):
+                reason = no_diff_reason(label, group)
+            else:
+                reason = f"`{label}` (rien a committer: contenu deja present)"
+            print(f"SKIP: {label} rien a committer, aucun diff a soumettre")
+            skipped.append(reason)
             run("git", "switch", "main", check=False)
             run("git", "branch", "-D", branch, check=False)
             continue
@@ -451,13 +533,14 @@ def main() -> None:
     # Marqueur de cycle incomplet: merge et verify le lisent pour ne pas
     # fermer l'issue alors que des extensions n'ont pas ete soumises.
     with open(SKIPPED_FILE, "w", encoding="utf-8") as f:
-        json.dump({"skipped": skipped}, f, indent=2)
+        json.dump({"skipped": skipped, "noops": noops}, f, indent=2)
 
     print(json.dumps({
         "ok": not skipped,
         "pr_urls": pr_urls,
         "pr_list_written": PR_LIST_FILE,
         "skipped": skipped,
+        "noops": noops,
     }, indent=2))
 
 

@@ -54,6 +54,30 @@ def skipped_changes() -> list[str]:
     return [str(x) for x in raw] if isinstance(raw, list) else []
 
 
+def noop_changes() -> list[dict]:
+    try:
+        with open(SKIPPED_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("noops", [])
+    if not isinstance(raw, list):
+        return []
+    return [
+        item for item in raw
+        if isinstance(item, dict) and str(item.get("ext") or "").strip()
+    ]
+
+
+def format_noops(noops: list[dict]) -> str:
+    return "; ".join(
+        f"`{item['ext']}` ({item.get('reason') or 'sans reason'})"
+        for item in noops
+    )
+
+
 def gh(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["gh", *args, "--repo", REPO], capture_output=True, text=True
@@ -148,12 +172,15 @@ def main() -> None:
             pr_list = []
 
         skipped = skipped_changes()
+        noops = noop_changes()
         if skipped:
             problems.append(
-                f"{len(skipped)} extension(s) ecartee(s) car le handoff "
-                "listait des fichiers absents du disque: "
+                f"{len(skipped)} changement(s) ecarte(s) par la soumission "
+                "(handoff ou PR incoherent): "
                 + "; ".join(skipped)
             )
+        if noops:
+            print("NOOP_DECLARED: " + format_noops(noops))
 
         changes = handoff.get("changes")
         if not isinstance(changes, list):
@@ -179,10 +206,10 @@ def main() -> None:
             )
 
         if not pr_list:
-            if close:
+            if close and not noops:
                 problems.append(
-                    "close=true dans le handoff mais aucune PR listee: "
-                    "rien n'a ete soumis."
+                    "close=true dans le handoff mais aucune PR listee et "
+                    "aucun no-op declare: rien n'a ete soumis."
                 )
         else:
             gate = load_json(REVIEW_FILE)
