@@ -770,9 +770,9 @@ Sondes du **2026-10-26** en IPv4 (`curl -4 -L`), UA navigateur.
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `fr/toonfr` | `toonfr.com` | UNKNOWN | `403` + **5 433 o**, `<title>Just a moment...</title>` (Cloudflare) | Un `GET` sans navigateur rend le catalogue |
-| `all/mangadotnet` | `mangadot.net` | UNKNOWN | `403` + **5 435 o**, challenge Cloudflare | idem |
+| `all/mangadotnet` | `mangadot.net` | RETIRÉ | Revu le **2026-11-20** (issue #698) : `GET /` → **200**, 287 658 o, page Next.js avec **30+ liens** `/manga/<id>` ; fiche `GET /manga/101` → **200**, 196 061 o, `<title>Blue Lock — MangaDot</title>`. Le challenge Cloudflare est levé : la source redevient candidate `NOUVEAU`/`BUILD` | n/a — source rouverte (voir cycle 2026-11-20) |
 | `en/hentairead` | `hentairead.com` | UNKNOWN | `403` + **5 458 o**, challenge Cloudflare | idem |
-| `en/comichubfree` | `comichubfree.com` | UNKNOWN | `/popular-comic` -> `403` + **5 520 o**, challenge Cloudflare ; gate `HOLD` (`probe: BLOCKED, HTTP 403, corps 5545 o`). Le correctif upstream des selecteurs `Author:` / `Genres:` a ete merge (#553) sans validation live | Un `GET` sans navigateur rend popular/latest/search |
+| `en/comichubfree` | `comichubfree.com` | RETIRÉ | Revu le **2026-11-20** (issue #698) : `GET /popular-comic` → **200**, 127 119 o, **30+ liens** `/comic/<slug>` ; fiche `GET /comic/batman-1940` → **200**, 67 189 o, `<title>Read Batman (1940) Online for Free \| ComicHubFree</title>`. La source redevient candidate `NOUVEAU`/`BUILD` | n/a — source rouverte (voir cycle 2026-11-20) |
 
 `all/nhentaicom` n'est pas dans le tableau ci-dessus : la sonde TLS echoue avant
 toute reponse HTTP (`curl: (35) TLS connect error: ... wrong version number`), donc le
