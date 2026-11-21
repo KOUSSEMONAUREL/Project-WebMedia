@@ -3,7 +3,7 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
 export class TheexiledheavyknightmangaonlineScraper extends BaseScraper {
   readonly name = 'Read The Exiled Heavy Knight Manga Online';
-  readonly baseUrl = 'https://w3.theexiledheavyknight.com';
+  readonly baseUrl = 'https://w4.theexiledheavyknight.com';
   readonly lang = 'en';
 
   private singleManga(): Manga {
@@ -28,11 +28,17 @@ export class TheexiledheavyknightmangaonlineScraper extends BaseScraper {
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
     const res = await this.get(this.baseUrl);
     const $ = this.$(res.data);
+    const description = $('.right-content').find('p')
+      .filter((_, element) => $(element).find('strong').length === 0)
+      .map((_i, element) => $(element).text().trim())
+      .get()
+      .filter(Boolean)
+      .join('\n\n');
     return {
       title: 'The Exiled Heavy Knight',
       url: mangaUrl,
       thumbnailUrl: this.absUrl($('meta[property="og:image"]').first().attr('content') || ''),
-      description: $('meta[property="og:description"]').first().attr('content') || undefined,
+      description: description || undefined,
       lang: this.lang,
     };
   }
