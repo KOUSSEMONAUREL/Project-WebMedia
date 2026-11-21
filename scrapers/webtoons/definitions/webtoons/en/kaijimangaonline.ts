@@ -21,10 +21,10 @@ export class KaijiMangaOnlineScraper extends BaseScraper {
   private static readonly CHAPTER_REGEX = /\/manga\/(.+)-chapter-(\d+)\/?$/;
 
   private static readonly ARC_OFFSETS: Record<string, number> = {
-    kaiji: 0,
-    'tobaku-datenroku-kaiji': -1000,
-    'tobaku-hakairoku-kaiji': -2000,
-    'tobaku-mokushiroku-kaiji': -3000,
+    'tobaku-mokushiroku-kaiji': 0,
+    'tobaku-hakairoku-kaiji': 38,
+    'tobaku-datenroku-kaiji': 172,
+    kaiji: 303,
   };
 
   private static arcTitle(arc: string): string {
@@ -66,15 +66,15 @@ export class KaijiMangaOnlineScraper extends BaseScraper {
       const match = KaijiMangaOnlineScraper.CHAPTER_REGEX.exec(href);
       if (!match) return;
       const [, arc, num] = match;
-      const offset = KaijiMangaOnlineScraper.ARC_OFFSETS[arc] ?? -4000;
       const slug = `${arc}-chapter-${num}`;
       if (seen.has(slug)) return;
       seen.add(slug);
       const number = parseFloat(num);
+      const chapterNumber = number === 0 ? 0 : (KaijiMangaOnlineScraper.ARC_OFFSETS[arc] ?? -1) + number;
       chapters.push({
         name: arc === 'kaiji' ? `Chapter ${num}` : `${KaijiMangaOnlineScraper.arcTitle(arc)} Chapter ${num}`,
         url: new URL(href).pathname,
-        chapterNumber: number === 0 ? -9999 : offset + number,
+        chapterNumber,
       });
     });
     return chapters.sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0));
