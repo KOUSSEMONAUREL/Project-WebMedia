@@ -7,7 +7,7 @@ import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
  *
  * Single-manga site: the catalogue IS the root page. `getPopular` returns the
  * one entry, `getSearch` matches it by title, details come from the `og:`
- * meta tags, and chapters are the `a[href*='beginning-after-the-end-']` links
+ * meta tags, and chapters are the `.kt-svg-icon-list a` links
  * deduplicated by chapter number (a `ch-N` slug wins over a `chapter-N`
  * duplicate because it carries the images).
  *
@@ -61,7 +61,7 @@ export class TheBeginningAfterTheEndMangaOnlineScraper extends BaseScraper {
     const res = await this.get('/');
     const $ = this.$(res.data as string);
     const byNumber = new Map<string, string>();
-    $("a[href*='beginning-after-the-end-']").each((_i, element) => {
+    $('.kt-svg-icon-list a').each((_i, element) => {
       const href = $(element).attr('href') || '';
       const match = CHAPTER_NUMBER_REGEX.exec(href);
       if (!match) return;
