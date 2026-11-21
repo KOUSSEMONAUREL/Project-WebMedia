@@ -35,7 +35,19 @@ export class OnepunchmanonlineScraper extends BaseScraper {
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    return { url: mangaUrl, title: 'One Punch Man', lang: this.lang };
+    const res = await this.get(this.baseUrl);
+    const $ = this.$(res.data);
+    return {
+      url: mangaUrl,
+      title: 'One Punch Man',
+      thumbnailUrl: this.absUrl($('meta[property="og:image"]').first().attr('content') || ''),
+      author: 'ONE',
+      artist: 'Murata Yusuke',
+      description: $('meta[property="og:description"]').first().attr('content') || undefined,
+      genre: 'Action, Comedy, Superhero, Seinen',
+      status: 1,
+      lang: this.lang,
+    };
   }
 
   async getChapterList(_mangaUrl: string): Promise<Chapter[]> {
@@ -49,6 +61,13 @@ export class OnepunchmanonlineScraper extends BaseScraper {
     return chapters;
   }
 
+  private isPageImage(url: string): boolean {
+    if (!url.startsWith('http')) return false;
+    if (url.includes('cropped-')) return false;
+    const hosts = ['blogger.githubusercontent.com', 'bp.blogspot.com', 'images.mangafreak.me', '1punchman.com'];
+    return hosts.some((host) => url.includes(host));
+  }
+
   async getPageList(chapterUrl: string): Promise<Page[]> {
     const res = await this.get(this.absUrl(chapterUrl));
     const $ = this.$(res.data);
@@ -56,7 +75,7 @@ export class OnepunchmanonlineScraper extends BaseScraper {
     $('div.entry-content img, .separator img, p img').each((_, el) => {
       const $el = $(el);
       const u = $el.attr('data-src') || $el.attr('data-lazy-src') || $el.attr('src') || '';
-      if (u.startsWith('http')) urls.push(u);
+      if (u.startsWith('http') && this.isPageImage(u) && !urls.includes(u)) urls.push(u);
     });
     return urls.map((u, i) => ({ index: i, imageUrl: u }));
   }
