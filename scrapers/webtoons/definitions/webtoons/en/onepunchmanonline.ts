@@ -64,7 +64,7 @@ export class OnepunchmanonlineScraper extends BaseScraper {
   private isPageImage(url: string): boolean {
     if (!url.startsWith('http')) return false;
     if (url.includes('cropped-')) return false;
-    const hosts = ['blogger.githubusercontent.com', 'bp.blogspot.com', 'images.mangafreak.me', '1punchman.com'];
+    const hosts = ['blogger.googleusercontent.com', 'bp.blogspot.com', 'images.mangafreak.me', '1punchman.com'];
     return hosts.some((host) => url.includes(host));
   }
 
@@ -72,10 +72,11 @@ export class OnepunchmanonlineScraper extends BaseScraper {
     const res = await this.get(this.absUrl(chapterUrl));
     const $ = this.$(res.data);
     const urls: string[] = [];
-    $('div.entry-content img, .separator img, p img').each((_, el) => {
+    $('.entry-content img, .post-single-content img').each((_, el) => {
       const $el = $(el);
-      const u = $el.attr('data-src') || $el.attr('data-lazy-src') || $el.attr('src') || '';
-      if (u.startsWith('http') && this.isPageImage(u) && !urls.includes(u)) urls.push(u);
+      const srcset = ($el.attr('srcset') || '').split(',')[0]?.trim().split(/\s+/)[0] || '';
+      const u = $el.attr('data-src') || $el.attr('data-lazy-src') || srcset || $el.attr('src') || '';
+      if (this.isPageImage(u) && !urls.includes(u)) urls.push(u);
     });
     return urls.map((u, i) => ({ index: i, imageUrl: u }));
   }
