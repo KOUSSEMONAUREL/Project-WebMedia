@@ -31,13 +31,15 @@ const cosplayList = (cards: string, next = false): string => `<html><body>
 
 test('cosplayrule34: liste, pagination et nettoyage des cartes publicitaires', async () => {
   const s = stubbed(new CosplayRule34Scraper(), {
-    'https://cosplayrule34.com/': cosplayList(
+    'https://cosplayrule34.com/?device=desktop': cosplayList(
       `${cosplayCard('1', 'Candy Ball - Jane Doe', 'https://cosplayrule34.com/a.webp')}
        <div class="grid-item"><ins data-zoneid="1"></ins></div>
        ${cosplayCard('2', 'Ratskeleton', 'https://cosplayrule34.com/b.webp')}`,
       true,
     ),
-    'https://cosplayrule34.com/?page=2': cosplayList(cosplayCard('3', 'Page Two', 'https://cosplayrule34.com/c.webp')),
+    'https://cosplayrule34.com/?device=desktop&page=2': cosplayList(
+      cosplayCard('3', 'Page Two', 'https://cosplayrule34.com/c.webp'),
+    ),
   });
 
   const first = await s.getLatest(1);
@@ -52,8 +54,8 @@ test('cosplayrule34: liste, pagination et nettoyage des cartes publicitaires', a
 
 test('cosplayrule34: la recherche garde les espaces et retombe sur deux mots', async () => {
   const s = stubbed(new CosplayRule34Scraper(), {
-    'https://cosplayrule34.com/search/Candy%20Ball%20Jane%20Doe': cosplayList(''),
-    'https://cosplayrule34.com/search/Candy%20Ball': cosplayList(
+    'https://cosplayrule34.com/search/Candy%20Ball%20Jane%20Doe?device=desktop': cosplayList(''),
+    'https://cosplayrule34.com/search/Candy%20Ball?device=desktop': cosplayList(
       cosplayCard('7', 'Candy Ball', 'https://cosplayrule34.com/candy.webp'),
     ),
   });
@@ -61,8 +63,8 @@ test('cosplayrule34: la recherche garde les espaces et retombe sur deux mots', a
   const result = await s.getSearch('Candy Ball Jane Doe', 1);
   assert.deepStrictEqual(result.mangas.map(m => m.title), ['Candy Ball']);
   assert.deepStrictEqual(callsOf(s), [
-    'https://cosplayrule34.com/search/Candy%20Ball%20Jane%20Doe',
-    'https://cosplayrule34.com/search/Candy%20Ball',
+    'https://cosplayrule34.com/search/Candy%20Ball%20Jane%20Doe?device=desktop',
+    'https://cosplayrule34.com/search/Candy%20Ball?device=desktop',
   ]);
 });
 
