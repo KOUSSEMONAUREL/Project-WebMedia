@@ -5,6 +5,7 @@ import { getNeonDb as getNeonDbSingleton, getTursoClient } from '../db/singleton
 import { medias, episodes, liens } from '../db/turso/schema';
 import { medias as neonMedias } from '../db/neon/schema';
 import { eq, desc, asc, and, or, like, gte, lte, sql, ne, inArray, isNotNull, notLike } from 'drizzle-orm';
+import { memoryGet, memoryPut, runInBackground } from '../lib/cache';
 
 type Bindings = {
     KV: KVNamespace;
@@ -64,7 +65,8 @@ const TREND_GROUPS: TrendGroup[] = [
 // tableau plat. Sans ce bump, un ancien v1 lu par le nouveau code donnerait
 // pool[type] === undefined et une page d'accueil vide pendant tout le TTL.
 const TREND_CACHE_KEY = 'trending:pool:v2';
-const TREND_CACHE_TTL = 900;
+const TREND_CACHE_TTL = 21600;
+const TREND_MEMORY_TTL = 300;
 const TREND_POOL_FACTOR = 8;
 
 // Projection explicite : le carousel ne lit que ces 7 champs sur chaque carte.
@@ -94,6 +96,10 @@ type TrendItem = {
 
 type TrendPool = Record<string, TrendItem[]>;
 
+function isTrendPool(value: unknown): value is TrendPool {
+    return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+}
+
 function shuffleTake<T>(items: T[], size: number): T[] {
     const pool = items.slice();
     for (let i = pool.length - 1; i > 0; i--) {
@@ -114,22 +120,27 @@ function pickTrending(pool: TrendPool): TrendItem[] {
 
 mediaRoutes.get('/trending', async (c) => {
     try {
-        // Le cache KV est une optimisation : un KV indisponible doit dégrader
-        // vers Neon, jamais casser la page d'accueil.
+        // s-maxage=0 : le sous-ensemble est tire a chaque requete, donc la
+        // reponse ne peut pas etre servie par le edge Cloudflare, sinon tous
+        // les visiteurs recevraient la meme selection. max-age=60 laisse le
+        // navigateur reutiliser sa copie et evite de rappeler l'API en boucle.
+        c.header('Cache-Control', 'public, max-age=60, s-maxage=0');
+
+        const memPool = memoryGet<TrendPool>(TREND_CACHE_KEY);
+        if (isTrendPool(memPool)) {
+            const trending = pickTrending(memPool);
+            return c.json({ success: true, data: trending, count: trending.length, source: 'memory' });
+        }
+
         let cached: unknown = null;
         try {
             cached = await c.env.KV.get(TREND_CACHE_KEY, 'json');
         } catch (kvError: any) {
             console.warn(' trending: lecture KV impossible, fallback Neon:', kvError.message);
         }
-        // s-maxage=0 : le sous-ensemble est tire a chaque requete, donc la
-        // reponse ne peut pas etre servie par le edge Cloudflare, sinon tous
-        // les visiteurs recevraient la meme selection. max-age=60 laisse le
-        // navigateur reutiliser sa copie et evite de rappeler l'API en boucle.
-        c.header('Cache-Control', 'public, max-age=60, s-maxage=0');
-        const isPool = cached && typeof cached === 'object' && !Array.isArray(cached) && Object.keys(cached).length > 0;
-        if (isPool) {
-            const trending = pickTrending(cached as TrendPool);
+        if (isTrendPool(cached)) {
+            memoryPut(TREND_CACHE_KEY, cached, TREND_MEMORY_TTL);
+            const trending = pickTrending(cached);
             return c.json({ success: true, data: trending, count: trending.length, source: 'neon-kv' });
         }
 
@@ -155,8 +166,9 @@ mediaRoutes.get('/trending', async (c) => {
             })
         );
 
+        memoryPut(TREND_CACHE_KEY, pool, TREND_MEMORY_TTL);
         try {
-            c.executionCtx.waitUntil(c.env.KV.put(TREND_CACHE_KEY, JSON.stringify(pool), { expirationTtl: TREND_CACHE_TTL }));
+            runInBackground(c, c.env.KV.put(TREND_CACHE_KEY, JSON.stringify(pool), { expirationTtl: TREND_CACHE_TTL }));
         } catch (kvError: any) {
             console.warn(' trending: ecriture KV impossible:', kvError.message);
         }
@@ -171,11 +183,20 @@ mediaRoutes.get('/trending', async (c) => {
 
 // ========== GET /api/media/all (tous les medias pour sitemap) ==========
 mediaRoutes.get('/all', async (c) => {
-    const CACHE_TTL = 43200; // 12h
+    const CACHE_TTL = 86400;
+    const MEMORY_TTL = 3600;
 
     try {
+        c.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+
+        const memCached = memoryGet<any[]>('sitemap:all');
+        if (memCached && Array.isArray(memCached)) {
+            return c.json({ success: true, data: memCached, source: 'memory' });
+        }
+
         const cached = await c.env.KV.get('sitemap:all', 'json');
         if (cached && Array.isArray(cached)) {
+            memoryPut('sitemap:all', cached, MEMORY_TTL);
             return c.json({ success: true, data: cached, source: 'kv' });
         }
 
@@ -185,8 +206,8 @@ mediaRoutes.get('/all', async (c) => {
             .orderBy(desc(medias.rating), desc(medias.createdAt))
             .limit(200);
 
-        c.executionCtx.waitUntil(c.env.KV.put('sitemap:all', JSON.stringify(results), { expirationTtl: CACHE_TTL }));
-        c.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+        memoryPut('sitemap:all', results, MEMORY_TTL);
+        runInBackground(c, c.env.KV.put('sitemap:all', JSON.stringify(results), { expirationTtl: CACHE_TTL }));
         return c.json({ success: true, data: results, source: 'turso' });
     } catch (error: any) {
         console.error('Erreur all media:', error.message);
@@ -519,8 +540,14 @@ const withEdgeCache = <T>(c: any, body: T) => {
 
 mediaRoutes.get('/stats', async (c) => {
     try {
+        const memCached = memoryGet<any>(STATS_KV_KEY);
+        if (memCached && typeof memCached === 'object' && typeof memCached.total === 'number') {
+            return withEdgeCache(c, memCached);
+        }
+
         const cached = await c.env.KV.get(STATS_KV_KEY, 'json');
         if (cached && typeof cached === 'object' && typeof (cached as any).total === 'number') {
+            memoryPut(STATS_KV_KEY, cached, 3600);
             return withEdgeCache(c, cached);
         }
 
@@ -540,7 +567,8 @@ mediaRoutes.get('/stats', async (c) => {
         }
 
         const payload = { success: true, total, byType, types: STATS_TYPES.length, computedAt: new Date().toISOString() };
-        c.executionCtx.waitUntil(c.env.KV.put(STATS_KV_KEY, JSON.stringify(payload), { expirationTtl: STATS_TTL_S }));
+        memoryPut(STATS_KV_KEY, payload, 3600);
+        runInBackground(c, c.env.KV.put(STATS_KV_KEY, JSON.stringify(payload), { expirationTtl: STATS_TTL_S }));
         return withEdgeCache(c, payload);
     } catch (error: any) {
         console.error('Erreur media stats:', error?.message);

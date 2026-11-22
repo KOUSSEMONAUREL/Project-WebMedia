@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { memoryGet, memoryPut } from '../lib/cache';
 
 type Bindings = {
     KV: KVNamespace;
@@ -26,16 +27,21 @@ function decodeEntities(input: string): string {
     return input.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => ENTITIES[m] ?? m);
 }
 
-async function kvGet(c: any, key: string): Promise<string | null> {
+async function kvGet(c: any, key: string, ttl = CACHE_TTL): Promise<string | null> {
+    const mem = memoryGet<string>(key);
+    if (mem) return mem;
     try {
         if (!c.env?.KV) return null;
-        return await c.env.KV.get(key);
+        const value = await c.env.KV.get(key);
+        if (value) memoryPut(key, value, ttl);
+        return value;
     } catch {
         return null;
     }
 }
 
 async function kvPut(c: any, key: string, value: string, ttl: number): Promise<void> {
+    memoryPut(key, value, ttl);
     try {
         if (!c.env?.KV) return;
         await c.env.KV.put(key, value, { expirationTtl: ttl });
@@ -77,7 +83,7 @@ translate.get('/', async (c) => {
     if (hit) return c.json({ success: true, translated: hit, cached: true });
 
     const errors: string[] = [];
-    const gtxDown = await kvGet(c, GTX_COOLDOWN_KEY);
+    const gtxDown = await kvGet(c, GTX_COOLDOWN_KEY, GTX_COOLDOWN_TTL);
 
     if (!gtxDown) {
         try {

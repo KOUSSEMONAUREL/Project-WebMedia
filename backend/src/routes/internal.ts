@@ -86,7 +86,7 @@ const ingestLiensSchema = z.object({
         headers: z.record(z.string(), z.string()).optional(),
         episode_id: z.string().uuid().optional(),
         episodeId: z.string().uuid().optional(),
-    }))
+    })).max(1000)
 });
 
 // [DEBUG TEMP] Log body avant validation pour identifier les 400
@@ -114,6 +114,10 @@ internalRoutes.post('/ingest/liens', async (c, next) => {
         }
         return true;
     });
+
+    if (safeLinks.length === 0) {
+        return c.json({ success: true, count: 0, skipped: links.length });
+    }
 
     let inserted: any[] = [];
     try {

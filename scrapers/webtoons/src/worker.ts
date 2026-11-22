@@ -4,6 +4,10 @@ import { createLog } from './log.js';
 
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+const INGEST_BATCH_SIZE = 500;
+const INGEST_TIMEOUT_MS = 60_000;
+const RUN_BUDGET_MS = 90 * 60 * 1000;
+const MAX_LINKS_PER_RUN = 20_000;
 
 // URLs génériques/polluées (pages de recherche, racines) à ne pas enregistrer
 const BLOCKED_URL_PATTERNS = [
@@ -32,7 +36,7 @@ async function callInternal(endpoint: string, data: unknown) {
   const axios = (await import('axios')).default;
   return axios.post(`${INTERNAL_API_URL}${endpoint}`, data, {
     headers: { 'X-Internal-API-Key': INTERNAL_API_KEY },
-    timeout: 30000,
+    timeout: INGEST_TIMEOUT_MS,
   });
 }
 
@@ -55,6 +59,12 @@ async function withDbRetry<T>(label: string, run: () => Promise<T>): Promise<T> 
   }
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number; sourcesMatched: number }> {
   const { results, sourcesMatched } = await scrapeMedia(media);
   let chaptersSaved = 0;
@@ -63,24 +73,34 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
     if (!result.rootUrl) continue;
 
     if (media.type === 'comic' && result.chapters.length > 0) {
-      for (const chapter of result.chapters) {
-        let playerHost = result.source;
-        try { playerHost = new URL(chapter.url).hostname; } catch { /* relative url */ }
+      const seen = new Set<string>();
+      const links = result.chapters
+        .filter(chapter => {
+          if (seen.has(chapter.url)) return false;
+          seen.add(chapter.url);
+          return true;
+        })
+        .map(chapter => {
+          let playerHost = result.source;
+          try { playerHost = new URL(chapter.url).hostname; } catch { /* relative url */ }
+          return {
+            source_site: result.source,
+            player_host: playerHost,
+            url: chapter.url,
+            qualite: 'comic',
+            langue: 'EN',
+          };
+        });
 
+      for (const batch of chunk(links, INGEST_BATCH_SIZE)) {
         try {
           await callInternal('/ingest/liens', {
             mediaId: result.mediaId,
-            links: [{
-              source_site: result.source,
-              player_host: playerHost,
-              url: chapter.url,
-              qualite: 'comic',
-              langue: 'EN',
-            }],
+            links: batch,
           });
-          chaptersSaved += 1;
+          chaptersSaved += batch.length;
         } catch (err: any) {
-          console.error(`    ✗ Failed to save: ${err.message}`);
+          console.error(`    ✗ Failed to save batch of ${batch.length}: ${err.message}`);
         }
       }
     } else {
@@ -160,7 +180,9 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
       let processed = 0;
       let errors = 0;
+      let linksSaved = 0;
       const maxJobs = 60;
+      const deadline = Date.now() + RUN_BUDGET_MS;
 
       /**
        * Nombre d'essais avant de declarer un media non scrappable. Aligne sur
@@ -172,7 +194,12 @@ if (process.argv[1]?.endsWith('worker.ts')) {
 
       let currentJobId: string | null = null;
       try {
-        while (processed < maxJobs) {
+        while (processed < maxJobs && linksSaved < MAX_LINKS_PER_RUN) {
+          if (Date.now() >= deadline) {
+            log.warn(`Run budget reached (${Math.round(RUN_BUDGET_MS / 60000)} min), stopping queue worker`);
+            break;
+          }
+
           const [job] = await withDbRetry('claim job', () => sb`
             UPDATE scraping_jobs
             SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
@@ -209,6 +236,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
             type: media.type, externalId: media.external_id,
             metadataSource: media.metadata_source, synopsis: media.synopsis,
           });
+          linksSaved += result.chaptersSaved;
 
           if (result.chaptersSaved > 0) {
             await withDbRetry('mark completed', () => sb`UPDATE scraping_jobs SET status = 'completed', updated_at = NOW() WHERE id = ${job.id}`);
@@ -248,6 +276,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
         }
 
         log.summary(processed, errors);
+        log.info(`Links saved: ${linksSaved}`);
         process.exitCode = 0;
       } catch (err: any) {
         const detail = `${err?.code || ''} ${err?.message || err}`.trim();
