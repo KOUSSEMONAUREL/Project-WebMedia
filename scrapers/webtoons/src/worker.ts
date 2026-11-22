@@ -65,6 +65,69 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+interface IngestLink {
+  source_site: string;
+  player_host: string;
+  url: string;
+  qualite: string;
+  langue: string;
+}
+
+function errorDetail(err: any, links: IngestLink[]): string {
+  const status = err?.response?.status;
+  const data = err?.response?.data;
+  let body = '';
+  if (data !== undefined) {
+    try {
+      body = typeof data === 'string' ? data : JSON.stringify(data);
+    } catch {
+      body = String(data);
+    }
+    body = body.slice(0, 500);
+  }
+  let bytes = 0;
+  try {
+    bytes = Buffer.byteLength(JSON.stringify({ links }));
+  } catch {
+    // Taille indicative seulement.
+  }
+  return `batch=${links.length} bytes=${bytes}${status ? ` status=${status}` : ''}${body ? ` body=${body}` : ''}`;
+}
+
+/**
+ * Envoie un lot et scinde en deux sur 413. Un 413 observe sur un lot de 170
+ * alors que des lots de 500 passaient : c'est intermittent (proxy/WARP), donc
+ * la scission est plus sure qu'une reduction globale de la taille des lots.
+ *
+ * La profondeur et la taille minimale bornent le nombre de requetes si le 413
+ * est permanent, pour ne pas transformer un incident proxy en tempete d'appels.
+ */
+const MAX_SPLIT_DEPTH = 6;
+const MIN_SPLIT_SIZE = 10;
+
+async function saveLinkBatch(mediaId: string, links: IngestLink[], depth = 0): Promise<number> {
+  try {
+    await callInternal('/ingest/liens', { mediaId, links });
+    return links.length;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    if (status === 413 && links.length > MIN_SPLIT_SIZE && depth < MAX_SPLIT_DEPTH) {
+      const mid = Math.ceil(links.length / 2);
+      console.warn(
+        `    ↻ Batch of ${links.length} rejected with 413, splitting ${mid} + ${links.length - mid} (depth ${depth + 1})`
+      );
+      const left = await saveLinkBatch(mediaId, links.slice(0, mid), depth + 1);
+      const right = await saveLinkBatch(mediaId, links.slice(mid), depth + 1);
+      return left + right;
+    }
+    console.error(`    ✗ Failed to save ${errorDetail(err, links)}: ${err?.message || err}`);
+    if (links.length === 1) {
+      console.error(`      URL: ${links[0]?.url}`);
+    }
+    return 0;
+  }
+}
+
 export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved: number; sourcesMatched: number }> {
   const { results, sourcesMatched } = await scrapeMedia(media);
   let chaptersSaved = 0;
@@ -74,7 +137,7 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
 
     if (media.type === 'comic' && result.chapters.length > 0) {
       const seen = new Set<string>();
-      const links = result.chapters
+      const links: IngestLink[] = result.chapters
         .filter(chapter => {
           if (seen.has(chapter.url)) return false;
           seen.add(chapter.url);
@@ -93,15 +156,7 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
         });
 
       for (const batch of chunk(links, INGEST_BATCH_SIZE)) {
-        try {
-          await callInternal('/ingest/liens', {
-            mediaId: result.mediaId,
-            links: batch,
-          });
-          chaptersSaved += batch.length;
-        } catch (err: any) {
-          console.error(`    ✗ Failed to save batch of ${batch.length}: ${err.message}`);
-        }
+        chaptersSaved += await saveLinkBatch(result.mediaId, batch);
       }
     } else {
       // Webtoon/manga: un seul rootUrl. On S'EFFACE si aucun chapitre n'a été
@@ -115,21 +170,13 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
       let playerHost = result.source;
       try { playerHost = new URL(result.rootUrl).hostname; } catch { /* relative url */ }
 
-      try {
-        await callInternal('/ingest/liens', {
-          mediaId: result.mediaId,
-          links: [{
-            source_site: result.source,
-            player_host: playerHost,
-            url: result.rootUrl,
-            qualite: 'webtoon',
-            langue: 'EN',
-          }],
-        });
-        chaptersSaved += 1;
-      } catch (err: any) {
-        console.error(`    ✗ Failed to save: ${err.message}`);
-      }
+      chaptersSaved += await saveLinkBatch(result.mediaId, [{
+        source_site: result.source,
+        player_host: playerHost,
+        url: result.rootUrl,
+        qualite: 'webtoon',
+        langue: 'EN',
+      }]);
     }
   }
 
@@ -181,8 +228,14 @@ if (process.argv[1]?.endsWith('worker.ts')) {
       let processed = 0;
       let errors = 0;
       let linksSaved = 0;
+      let deferredRetries = 0;
       const maxJobs = 60;
       const deadline = Date.now() + RUN_BUDGET_MS;
+
+      // Les jobs liberes pour retry restent `pending`. Sans cette exclusion, la
+      // boucle les reclamait immediatement et repayait 30 s de recherche dans le
+      // meme run. Ils seront repris au prochain run planifie.
+      const skippedJobIds = new Set<string>();
 
       /**
        * Nombre d'essais avant de declarer un media non scrappable. Aligne sur
@@ -207,6 +260,7 @@ if (process.argv[1]?.endsWith('worker.ts')) {
               SELECT id FROM scraping_jobs
               WHERE status = 'pending' AND worker_type = 'webtoon'
                 AND media_type IN ('webtoon', 'comic', 'manga')
+                AND id <> ALL(${[...skippedJobIds]}::uuid[])
               ORDER BY priority DESC, created_at ASC
               LIMIT 1
               FOR UPDATE SKIP LOCKED
@@ -214,7 +268,12 @@ if (process.argv[1]?.endsWith('worker.ts')) {
             RETURNING id, media_id, media_type, title, slug, attempts
           `);
 
-          if (!job) break;
+          if (!job) {
+            if (skippedJobIds.size > 0) {
+              log.info(`No more claimable jobs; ${skippedJobIds.size} deferred to next run`);
+            }
+            break;
+          }
           currentJobId = job.id;
 
           const [media] = await withDbRetry('load media', () => neon`
@@ -254,9 +313,11 @@ if (process.argv[1]?.endsWith('worker.ts')) {
               currentJobId = null;
               log.error(`no_match after ${job.attempts} attempts (aucune source)`);
             } else {
-              await withDbRetry('release no_match job', () => sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`);
+              await withDbRetry('release no_match job', () => sb`UPDATE scraping_jobs SET status = 'pending', locked_at = NULL, updated_at = NOW() WHERE id = ${job.id}`);
+              skippedJobIds.add(job.id);
+              deferredRetries++;
               currentJobId = null;
-              log.retry('No source matched', job.attempts, MAX_ATTEMPTS);
+              log.retry('No source matched (retry differe)', job.attempts, MAX_ATTEMPTS);
             }
           } else {
             // Au moins une source a ete trouvee : le titre existe, c'est le scrape
@@ -268,15 +329,18 @@ if (process.argv[1]?.endsWith('worker.ts')) {
               currentJobId = null;
               log.error(`Failed after ${job.attempts} attempts`);
             } else {
-              await withDbRetry('release retry job', () => sb`UPDATE scraping_jobs SET status = 'pending', updated_at = NOW() WHERE id = ${job.id}`);
+              await withDbRetry('release retry job', () => sb`UPDATE scraping_jobs SET status = 'pending', locked_at = NULL, updated_at = NOW() WHERE id = ${job.id}`);
+              skippedJobIds.add(job.id);
+              deferredRetries++;
               currentJobId = null;
-              log.retry('No chapters', job.attempts, MAX_ATTEMPTS);
+              log.retry('No chapters (retry differe)', job.attempts, MAX_ATTEMPTS);
             }
           }
         }
 
         log.summary(processed, errors);
         log.info(`Links saved: ${linksSaved}`);
+        log.info(`Retries deferred to next run: ${deferredRetries}`);
         process.exitCode = 0;
       } catch (err: any) {
         const detail = `${err?.code || ''} ${err?.message || err}`.trim();

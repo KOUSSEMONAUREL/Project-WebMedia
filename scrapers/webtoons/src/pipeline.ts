@@ -39,8 +39,57 @@ export interface ScrapeOutcome {
   sourcesMatched: number;
 }
 
+// Budget de recherche par titre. Les scrapers sont interroges en parallele :
+// sans budget, le titre attend le plus lent, et plusieurs sources mortes
+// imposent 30 s a chaque titre. Les requetes non terminees continuent en
+// arriere-plan mais ne bloquent plus le worker.
+const SEARCH_BUDGET_MS = 15_000;
+
 // Cache interne des scrapers
 let _scrapers: { name: string; scraper: BaseScraper }[] | null = null;
+
+type ScraperEntry = { name: string; scraper: BaseScraper };
+type ScraperMatch = { name: string; scraper: BaseScraper; url?: string };
+
+/**
+ * Interroge un groupe de scrapers en parallele, mais ne depasse pas le budget.
+ * Les resultats arrives apres le budget sont ignores (le tableau `matches`
+ * retourne ensuite est une copie, donc pas de mutation pendant le scraping).
+ */
+async function searchScrapers(
+  entries: ScraperEntry[],
+  title: string,
+  matches: ScraperMatch[],
+  budgetMs: number
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  const tasks = entries.map(async ({ name, scraper }) => {
+    try {
+      const search = await scraper.getSearch(title, 1);
+      const found = search.mangas.find(m => isSameTitle(title, m.title));
+      if (found && !matches.some(m => m.name === name)) {
+        matches.push({ name, scraper, url: found.url });
+      }
+    } catch (err) {
+      console.error(
+        `Search failed for scraper ${name} with title "${title}": ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  });
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.allSettled(tasks).then(() => undefined),
+      new Promise<void>(resolve => {
+        timer = setTimeout(resolve, budgetMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function loadScrapers(): Promise<{ name: string; scraper: BaseScraper }[]> {
   if (_scrapers) return _scrapers;
@@ -64,54 +113,25 @@ async function loadScrapers(): Promise<{ name: string; scraper: BaseScraper }[]>
  * Trouve tous les scrapers dont le baseUrl ou le nom matche le media.
  * D'abord par metadataSource, puis par recherche du titre.
  */
-export async function findMatchingScrapers(media: MediaTarget): Promise<{ name: string; scraper: BaseScraper; url?: string }[]> {
+export async function findMatchingScrapers(media: MediaTarget): Promise<ScraperMatch[]> {
   const all = await loadScrapers();
-  const matches: { name: string; scraper: BaseScraper; url?: string }[] = [];
+  const matches: ScraperMatch[] = [];
 
-  // 1. Si metadataSource est renseigné, chercher un scraper dont le nom correspond
+  // 1. Si metadataSource est renseigné, chercher un scraper dont le nom correspond.
+  //    On garde le budget : une source metadata morte ne doit pas ajouter 30 s.
   if (media.metadataSource) {
     const sourceLower = media.metadataSource.toLowerCase();
     const candidates = all.filter(
       ({ name, scraper }) => name.toLowerCase().includes(sourceLower) || scraper.baseUrl.toLowerCase().includes(sourceLower)
     );
-    const metaResults = await Promise.allSettled(
-      candidates.map(async ({ name, scraper }) => {
-        const search = await scraper.getSearch(media.title, 1);
-        const found = search.mangas.find(m => isSameTitle(media.title, m.title));
-        if (found) return { name, scraper, url: found.url };
-        return null;
-      })
-    );
-    for (const r of metaResults) {
-      if (r.status === 'fulfilled' && r.value) matches.push(r.value);
-      else if (r.status === 'rejected')
-        console.error(`Search failed: ${r.reason instanceof Error ? r.reason.message : r.reason}`);
-    }
+    await searchScrapers(candidates, media.title, matches, SEARCH_BUDGET_MS);
   }
 
-  // 2. Chercher par titre dans TOUS les scrapers en parallele
-  type SearchOutcome = { name: string; error: string } | undefined;
-  const searchOutcomes = (await Promise.allSettled(
-    all.map(async ({ name, scraper }): Promise<SearchOutcome> => {
-      try {
-        const search = await scraper.getSearch(media.title, 1);
-        const found = search.mangas.find(m => isSameTitle(media.title, m.title));
-        if (found && !matches.some(m => m.name === name)) {
-          matches.push({ name, scraper, url: found.url });
-        }
-      } catch (err) {
-        return { name, error: err instanceof Error ? err.message : String(err) };
-      }
-    })
-  )) as PromiseSettledResult<SearchOutcome>[];
+  // 2. Chercher par titre dans tous les scrapers. Chaque groupe est borne par
+  //    le meme budget : une source morte ne bloque plus le titre.
+  await searchScrapers(all, media.title, matches, SEARCH_BUDGET_MS);
 
-  for (const outcome of searchOutcomes) {
-    if (outcome.status === 'fulfilled' && outcome.value) {
-      console.error(`Search failed for scraper ${outcome.value.name} with title "${media.title}": ${outcome.value.error}`);
-    }
-  }
-
-  return matches;
+  return [...matches];
 }
 
 /**
