@@ -770,9 +770,9 @@ Sondes du **2026-10-26** en IPv4 (`curl -4 -L`), UA navigateur.
 | Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
 |---|---|---|---|---|
 | `fr/toonfr` | `toonfr.com` | UNKNOWN | `403` + **5 433 o**, `<title>Just a moment...</title>` (Cloudflare) | Un `GET` sans navigateur rend le catalogue |
-| `all/mangadotnet` | `mangadot.net` | UNKNOWN | `403` + **5 435 o**, challenge Cloudflare | idem |
+| `all/mangadotnet` | `mangadot.net` | **candidat BUILD** (revival 2026-11-23) | Sondé le **2026-11-23** (curl -4, UA Chrome) : `/` → **200**, 295 662 o, **96** liens `/manga/<id>` (ex. `/manga/913`) ; fiche `/manga/913` → **200**, 393 698 o, **67** liens de chapitres, `<title>The Shepherd Wizard Manhwa – Read Online \| MangaDot</title>` ; aucun challenge Cloudflare. Rejugé `UNKNOWN` → `NOUVEAU` | n/a — à construire dans un prochain cycle, ne pas construire ce passage |
 | `en/hentairead` | `hentairead.com` | UNKNOWN | `403` + **5 458 o**, challenge Cloudflare | idem |
-| `en/comichubfree` | `comichubfree.com` | UNKNOWN | `/popular-comic` -> `403` + **5 520 o**, challenge Cloudflare ; gate `HOLD` (`probe: BLOCKED, HTTP 403, corps 5545 o`). Le correctif upstream des selecteurs `Author:` / `Genres:` a ete merge (#553) sans validation live | Un `GET` sans navigateur rend popular/latest/search |
+| `en/comichubfree` | `comichubfree.com` | **candidat BUILD** (revival 2026-11-23) | Sondé le **2026-11-23** (curl -4, UA Chrome) : `/popular-comic` → **200**, 127 114 o, **40** liens `/comic/<slug>` ; fiche `/comic/invincible` → **200**, 68 719 o, `div.episode-list` présent et liens `/invincible/issue-<n>` ; aucun challenge dans le corps. Rejugé `UNKNOWN` → `NOUVEAU` | n/a — à construire dans un prochain cycle, ne pas construire ce passage |
 
 `all/nhentaicom` n'est pas dans le tableau ci-dessus : la sonde TLS echoue avant
 toute reponse HTTP (`curl: (35) TLS connect error: ... wrong version number`), donc le
