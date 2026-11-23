@@ -37,6 +37,46 @@ jobs:
           echo "Public IP: $(curl -s https://ifconfig.me)"
       - name: Install dependencies
         run: cd scrapers/webtoons && npm ci
+      - name: Configure WARP egress
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          for var in SUPABASE_DATABASE_URL NEON_DATABASE_URL; do
+            url="${!var}"
+            host="$(node -e 'console.log(new URL(process.argv[1]).hostname)' "$url")"
+            echo "Excluding $host from WARP for direct database access"
+            sudo warp-cli --accept-tos tunnel host add "$host" || true
+            while read -r ip; do
+              [ -n "$ip" ] && sudo warp-cli --accept-tos tunnel ip add "$ip" || true
+            done < <(getent ahostsv4 "$host" | awk '{print $1}' | sort -u)
+          done
+
+          sudo warp-cli --accept-tos disconnect || true
+          sleep 2
+          sudo warp-cli --accept-tos connect || true
+          sleep 5
+
+          egress_ok=0
+          for attempt in 1 2 3; do
+            if curl -fsS --max-time 10 -o /dev/null https://www.google.com/generate_204 \
+              && curl -fsS --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -q '^warp=on$'; then
+              egress_ok=1
+              break
+            fi
+            echo "WARP egress check failed (attempt $attempt/3), reconnecting"
+            sudo warp-cli --accept-tos disconnect || true
+            sleep 2
+            sudo warp-cli --accept-tos connect || true
+            sleep 5
+          done
+
+          if [ "$egress_ok" -ne 1 ]; then
+            echo "WARP egress is not usable; aborting before claiming jobs"
+            exit 1
+          fi
+
+          curl -fsS --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep '^warp=on$'
       - name: Fetch stale webtoons from queue
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

@@ -1,6 +1,7 @@
 import { scrapeMedia, MediaTarget } from './pipeline';
 import type { BaseScraper } from '../engine/base';
 import { createLog } from './log.js';
+import { isIngestableUrl } from './url';
 
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
@@ -133,11 +134,19 @@ export async function processMedia(media: MediaTarget): Promise<{ chaptersSaved:
   let chaptersSaved = 0;
 
   for (const result of results) {
-    if (!result.rootUrl) continue;
+    if (!isIngestableUrl(result.rootUrl)) {
+      console.warn(`    Skip invalid rootUrl (${result.source}): ${JSON.stringify(result.rootUrl)}`);
+      continue;
+    }
 
     if (media.type === 'comic' && result.chapters.length > 0) {
+      const chapters = result.chapters.filter(chapter => isIngestableUrl(chapter.url));
+      if (chapters.length !== result.chapters.length) {
+        console.warn(`    Skip ${result.chapters.length - chapters.length} invalid chapter URL(s) (${result.source})`);
+      }
+
       const seen = new Set<string>();
-      const links: IngestLink[] = result.chapters
+      const links: IngestLink[] = chapters
         .filter(chapter => {
           if (seen.has(chapter.url)) return false;
           seen.add(chapter.url);
@@ -215,12 +224,22 @@ if (process.argv[1]?.endsWith('worker.ts')) {
         prepare: false,
         max: 2,
         idle_timeout: 20,
-        max_lifetime: 300,
+        max_lifetime: 0,
         connect_timeout: 10,
         keep_alive: 30,
       };
       const sb = postgres(supabaseUrl, dbOptions);
       const neon = postgres(neonUrl, dbOptions);
+
+      try {
+        await withDbRetry('preflight supabase', () => sb`SELECT 1`);
+        await withDbRetry('preflight neon', () => neon`SELECT 1`);
+      } catch (err: any) {
+        console.error(`Database preflight failed: ${err?.code || err?.message || err}`);
+        await sb.end().catch(() => {});
+        await neon.end().catch(() => {});
+        process.exit(1);
+      }
 
       const log = createLog('Webtoon Scraper', 'queue');
       log.header();

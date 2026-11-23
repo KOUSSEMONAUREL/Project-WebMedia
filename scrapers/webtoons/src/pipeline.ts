@@ -1,6 +1,7 @@
 import { getScraper, getScraperForUrl } from './runner';
 import { BaseScraper } from '../engine/base';
 import { isSameTitle } from './title-match';
+import { resolveHttpUrl } from './url';
 
 /**
  * Cible de scraping : un media existant dans Neon
@@ -147,29 +148,38 @@ export async function scrapeMedia(media: MediaTarget): Promise<ScrapeOutcome> {
   for (const { name, scraper, url } of matches) {
     if (!url) continue;
     try {
+      const rootUrl = resolveHttpUrl(url, scraper.baseUrl);
+      if (!rootUrl) {
+        console.warn(`Skip invalid root URL (${name}): ${JSON.stringify(url)}`);
+        continue;
+      }
+
       const chapters = await scraper.getChapterList(url);
-      const unique = chapters.filter(c => {
-        if (seenUrls.has(c.url)) return false;
-        seenUrls.add(c.url);
-        return true;
-      });
+      const unique = chapters
+        .map(chapter => ({ chapter, url: resolveHttpUrl(chapter.url, scraper.baseUrl) }))
+        .filter(item => item.url)
+        .filter(item => {
+          if (seenUrls.has(item.url)) return false;
+          seenUrls.add(item.url);
+          return true;
+        });
 
       // Optionnel : pages pour le premier chapitre
       let pages: { url: string; index: number }[] | undefined;
       if (unique.length > 0) {
         try {
-          const pageList = await scraper.getPageList(unique[0].url);
+          const pageList = await scraper.getPageList(unique[0].chapter.url);
           pages = pageList.map(p => ({ url: p.imageUrl, index: p.index }));
         } catch (err) {
-          console.error(`Failed to get page list for ${unique[0]?.url}: ${err instanceof Error ? err.message : err}`);
+          console.error(`Failed to get page list for ${unique[0]?.chapter.url}: ${err instanceof Error ? err.message : err}`);
         }
       }
 
       results.push({
         mediaId: media.id,
         source: name,
-        rootUrl: url,
-        chapters: unique,
+        rootUrl,
+        chapters: unique.map(item => ({ ...item.chapter, url: item.url })),
         pages,
       });
     } catch (err) {
