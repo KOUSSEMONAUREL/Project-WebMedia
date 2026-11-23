@@ -113,14 +113,9 @@ export class AnimeSamaScraper extends BaseScraper {
         allChapters.push(...chapters);
     }
     const chapterId = (url: string): number => Number(new URL(url, this.baseUrl).searchParams.get('id') ?? 0);
-    const seen = new Set<string>();
-    const unique = allChapters.filter(ch => {
-        if (seen.has(ch.name)) return false;
-        seen.add(ch.name);
-        return true;
-    });
-    unique.sort((a, b) => chapterId(a.url) - chapterId(b.url));
-    return unique.reverse();
+    return allChapters
+        .sort((a, b) => chapterId(a.url) - chapterId(b.url))
+        .reverse();
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
