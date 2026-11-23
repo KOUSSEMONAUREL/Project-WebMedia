@@ -25,23 +25,23 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.7.23",
-    "@hono/node-server": "^2.1.8",
+    "@better-auth/drizzle-adapter": "^1.7.27",
+    "@hono/node-server": "^2.1.11",
     "@hono/zod-validator": "^0.9.1",
     "@libsql/client": "^0.18.0",
-    "@supabase/supabase-js": "^2.119.0",
+    "@supabase/supabase-js": "^2.119.2",
     "axios": "^1.21.1",
-    "better-auth": "^1.7.23",
+    "better-auth": "^1.7.27",
     "dotenv": "^18.0.10",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.18",
-    "mongodb": "^7.9.0",
-    "nodemailer": "^10.5.0",
+    "hono": "^4.13.19",
+    "mongodb": "^7.9.1",
+    "nodemailer": "^10.6.1",
     "postgres": "^4.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261113.1",
+    "@cloudflare/workers-types": "^5.20261120.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
@@ -51,8 +51,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
-    "vitest": "^5.1.0",
-    "wrangler": "^4.161.0"
+    "vitest": "^5.1.1",
+    "wrangler": "^4.165.0"
   },
   "overrides": {
     "esbuild": "0.28.2",
