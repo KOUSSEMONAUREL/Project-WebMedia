@@ -32,11 +32,11 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly useLoadMoreRequest: LoadMoreStrategy = 'AutoDetect';
   protected readonly useNewChapterEndpoint: boolean = false;
 
-  protected readonly popularMangaSelectorStr = "div.page-item-detail:not(:has(a[href*='bilibilicomics.com'])) , .manga__item";
-  protected readonly popularMangaUrlSelector = 'div.post-title a';
+  protected readonly popularMangaSelectorStr: string = "div.page-item-detail:not(:has(a[href*='bilibilicomics.com'])) , .manga__item";
+  protected readonly popularMangaUrlSelector: string = 'div.post-title a';
   protected readonly popularMangaUrlSelectorImg = 'img';
   protected readonly searchMangaSelectorStr: string = "div.c-tabs-item__content , .manga__item";
-  protected readonly searchMangaUrlSelector = 'div.post-title a';
+  protected readonly searchMangaUrlSelector: string = 'div.post-title a';
 
   protected readonly mangaDetailsSelectorTitle: string = "div.post-title h3, div.post-title h1, #manga-title > h1";
   protected readonly mangaDetailsSelectorAuthor: string = "div.author-content > a, div.manga-authors > a";
@@ -52,7 +52,7 @@ export abstract class MadaraScraper extends BaseScraper {
   protected readonly altName = 'Alternative :';
 
   protected readonly chapterListSelectorStr: string = 'li.wp-manga-chapter';
-  protected readonly chapterDateSelectorStr = 'span.chapter-release-date';
+  protected readonly chapterDateSelectorStr: string = 'span.chapter-release-date';
   protected readonly chapterUrlSelector = 'a';
   protected readonly chapterUrlSuffix = '?style=list';
 
