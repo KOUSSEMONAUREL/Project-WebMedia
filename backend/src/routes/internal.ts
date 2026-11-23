@@ -89,17 +89,7 @@ const ingestLiensSchema = z.object({
     })).max(1000)
 });
 
-// [DEBUG TEMP] Log body avant validation pour identifier les 400
-internalRoutes.post('/ingest/liens', async (c, next) => {
-    // Cloner la requête pour lire le body SANS le consommer
-    const cloned = c.req.raw.clone();
-    let parsed: any;
-    try { parsed = await cloned.json(); } catch { parsed = null; }
-    if (!parsed || !parsed.links || !Array.isArray(parsed.links)) {
-        console.warn('[DEBUG /ingest/liens] Body invalide reçu:', JSON.stringify(parsed)?.slice(0, 500));
-    }
-    await next();
-}, zValidator('json', ingestLiensSchema as any), async (c) => {
+internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any), async (c) => {
     const data = c.req.valid('json') as z.infer<typeof ingestLiensSchema>;
     const { mediaId, episodeId, links } = data;
 
