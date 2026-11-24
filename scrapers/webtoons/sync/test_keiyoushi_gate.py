@@ -292,6 +292,35 @@ class RegistryTest(unittest.TestCase):
         self.assertNotIn("not documented", reason)
         self.assertEqual(probe.call_count, 1)
 
+    upstream_row = (
+        "| `fr/foo` | `foo.example` | IGNORE | Supprimée upstream | "
+        "Le domaine ressert un catalogue lisible |"
+    )
+
+    @mock.patch.object(gate, "upstream_module_exists", return_value=False)
+    @mock.patch.object(gate, "probe_url", return_value="ERREUR: curl 6")
+    def test_upstream_removed_accepts_inconclusive_probe(self, _probe, _up):
+        verdict, reason, probes = gate.evaluate_registry(
+            [self.upstream_row], [], upstream_sha="14e2239")
+        self.assertEqual(verdict, "PASS")
+        self.assertIn("upstream absent", " ".join(probes or []))
+        _up.assert_called_once()
+        self.assertEqual(_up.call_args.args[:2], ("fr", "foo"))
+
+    @mock.patch.object(gate, "upstream_module_exists", return_value=True)
+    @mock.patch.object(gate, "probe_url", return_value="ERREUR: curl 6")
+    def test_inconclusive_probe_fails_when_upstream_exists(self, _probe, _up):
+        verdict, reason, _ = gate.evaluate_registry(
+            [self.upstream_row], [], upstream_sha="14e2239")
+        self.assertEqual(verdict, "FAIL")
+        self.assertIn("probe inconclusive", reason)
+
+    @mock.patch.object(gate, "probe_url", return_value="TIMEOUT")
+    def test_inconclusive_probe_fails_without_upstream_sha(self, _probe):
+        verdict, reason, _ = gate.evaluate_registry([self.upstream_row], [])
+        self.assertEqual(verdict, "FAIL")
+        self.assertIn("probe inconclusive", reason)
+
     @mock.patch.object(gate, "probe_url", return_value="ERREUR: curl 7")
     def test_local_registry_row_skips_probe(self, probe):
         row = (
@@ -303,6 +332,50 @@ class RegistryTest(unittest.TestCase):
         self.assertIn("registry", reason)
         self.assertIn("local", " ".join(probes or []))
         probe.assert_not_called()
+
+
+class UpstreamModuleTest(unittest.TestCase):
+    def test_404_means_absent(self):
+        result = mock.Mock(returncode=0, stdout="404")
+        with mock.patch.object(gate, "run", return_value=result):
+            self.assertFalse(
+                gate.upstream_module_exists("fr", "foo", "14e2239"))
+
+    def test_200_means_present(self):
+        result = mock.Mock(returncode=0, stdout="200")
+        with mock.patch.object(gate, "run", return_value=result):
+            self.assertTrue(
+                gate.upstream_module_exists("fr", "foo", "14e2239"))
+
+    def test_other_code_is_unknown(self):
+        result = mock.Mock(returncode=0, stdout="500")
+        with mock.patch.object(gate, "run", return_value=result):
+            self.assertIsNone(
+                gate.upstream_module_exists("fr", "foo", "14e2239"))
+
+    def test_timeout_is_unknown(self):
+        with mock.patch.object(
+                gate, "run", side_effect=gate.CommandError("timeout")):
+            self.assertIsNone(
+                gate.upstream_module_exists("fr", "foo", "14e2239"))
+
+    def test_invalid_components_are_unknown(self):
+        self.assertIsNone(gate.upstream_module_exists("../fr", "foo", "abc"))
+
+
+class DeletionOnlyTest(unittest.TestCase):
+    def test_all_removed(self):
+        self.assertTrue(gate.is_deletion_only([("removed", "a.ts")]))
+
+    def test_mixed_is_false(self):
+        self.assertFalse(gate.is_deletion_only([
+            ("removed", "a.ts"), ("modified", "b.ts")]))
+
+    def test_added_is_false(self):
+        self.assertFalse(gate.is_deletion_only([("added", "a.ts")]))
+
+    def test_empty_is_false(self):
+        self.assertFalse(gate.is_deletion_only([]))
 
 
 class LiveTest(unittest.TestCase):
