@@ -3,11 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Le plan Workers Paid autorise jusqu'a 300 s de CPU par requete. Les gros lots
-# d'ingestion webtoons peuvent depasser le defaut (30 s) sur les runs charges.
-[limits]
-cpu_ms = 300000
-
 # Variables d'environnement
 [vars]
 ENVIRONMENT = "production"
