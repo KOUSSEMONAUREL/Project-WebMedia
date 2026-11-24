@@ -204,12 +204,26 @@ def group_paths(group: list[dict]) -> list[str]:
     return seen
 
 
+def path_in_head(path: str) -> bool:
+    """Vrai si `path` existe dans HEAD (donc supprimable par un REMOVE).
+
+    Un REMOVE supprime le fichier dans l'arbre de travail: `os.path.exists`
+    est alors faux par construction. On verifie donc HEAD, ce qui distingue
+    une suppression volontaire d'un chemin inexistant (typo).
+    """
+    result = subprocess.run(
+        ["git", "cat-file", "-e", f"HEAD:{path}"],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0
+
+
 def validate_group(group: list[dict]) -> list[tuple[str, str]]:
     """Rend les motifs de rejet d'un groupe indivisible.
 
     Le registre est un artefact de decision durable, pas du code : il doit
-    voyager seul. La fonction est pure (elle touche le disque uniquement via
-    `os.path.exists`) pour rester testable sans handoff ni branche.
+    voyager seul. La fonction touche le disque via `os.path.exists` et HEAD
+    via `path_in_head` pour rester testable sans handoff ni branche.
     """
     exts = [safe_ext(c.get("ext", "")) for c in group]
     reasons: list[tuple[str, str]] = []
@@ -223,8 +237,25 @@ def validate_group(group: list[dict]) -> list[tuple[str, str]]:
         paths = change.get("paths") or []
         missing = [p for p in paths if not os.path.exists(p)]
         if missing:
-            reasons.append((ext, f"fichiers absents du disque: "
-                                 f"{', '.join(missing)}"))
+            if kind == "REMOVE":
+                untracked = [p for p in missing if not path_in_head(p)]
+                if untracked:
+                    reasons.append((
+                        ext,
+                        "fichiers absents du disque et absents de HEAD: "
+                        f"{', '.join(untracked)}",
+                    ))
+            else:
+                reasons.append((ext, f"fichiers absents du disque: "
+                                     f"{', '.join(missing)}"))
+        if kind == "REMOVE":
+            still_present = [p for p in paths if os.path.exists(p)]
+            if still_present:
+                reasons.append((
+                    ext,
+                    "REMOVE mais fichier(s) toujours present(s): "
+                    f"{', '.join(still_present)}",
+                ))
         if not paths:
             reasons.append((ext, "aucun fichier liste"))
         # Regle symetrique du prompt : REGISTRY_RECHECK est le seul type

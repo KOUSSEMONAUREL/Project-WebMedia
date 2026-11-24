@@ -354,6 +354,41 @@ def fetch_upstream_base_url(lang, ext, sha):
     return urls[0] if urls else None
 
 
+def upstream_module_exists(lang, ext, sha):
+    """True/False si le module upstream existe au SHA, None si indetermine.
+
+    Un 404 sur le `build.gradle.kts` au commit courant prouve que l'extension
+    a ete retiree upstream: cette preuve ne depend ni du DNS ni de la
+    reachabilite du site, contrairement a `probe_url`. On l'utilise pour
+    accepter un verdict IGNORE dont le domaine ne repond plus depuis le
+    runner, sans transformer tout echec DNS transitoire en site mort.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", str(lang)):
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", str(ext)):
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", str(sha)):
+        return None
+    url = (
+        "https://raw.githubusercontent.com/keiyoushi/extensions-source/"
+        f"{sha}/src/{lang}/{ext}/build.gradle.kts"
+    )
+    try:
+        result = run(
+            ["curl", "-sS", "-o", os.devnull, "-w", "%{http_code}",
+             "--max-time", "15", "-A", APP_UA, url],
+            timeout=20,
+        )
+    except CommandError:
+        return None
+    code = (result.stdout or "").strip()
+    if code == "200":
+        return True
+    if code == "404":
+        return False
+    return None
+
+
 def probe_url(url):
     if not url:
         return "ERREUR: url vide"
@@ -484,7 +519,7 @@ def parse_ported_rows(lines):
     return ports
 
 
-def evaluate_registry(added, removed):
+def evaluate_registry(added, removed, upstream_sha=None):
     added_rows = parse_registry_rows(added)
     removed_rows = parse_registry_rows(removed)
     if not added_rows and not removed_rows:
@@ -520,7 +555,16 @@ def evaluate_registry(added, removed):
             if verdict in ("BLOCKED", "UNKNOWN") and probe.startswith("OUI"):
                 reasons.append(f"{ext}: {verdict} but site responds ({probe})")
             if probe.startswith("TIMEOUT") or probe.startswith("ERREUR"):
-                reasons.append(f"{ext}: probe inconclusive ({probe})")
+                upstream_removed = False
+                if upstream_sha and "/" in ext:
+                    lang, module = ext.split("/", 1)
+                    if upstream_module_exists(lang, module, upstream_sha) is False:
+                        upstream_removed = True
+                        probes.append(
+                            f"{ext}: upstream absent at "
+                            f"{str(upstream_sha)[:12]}")
+                if not upstream_removed:
+                    reasons.append(f"{ext}: probe inconclusive ({probe})")
     for cells in removed_rows:
         ext = cells[0].strip("` ")
         domain = cells[1].strip("` ")
@@ -622,6 +666,18 @@ def pr_diff(number):
     if result.returncode != 0:
         return None, result.stderr.strip() or "gh pr diff failed"
     return result.stdout, ""
+
+
+def is_deletion_only(files):
+    """Vrai si la PR ne supprime que des fichiers (cas REMOVE).
+
+    Une suppression ne peut pas etre testee live: le `.ts` n'existe plus.
+    On la traite comme une revue manuelle au lieu de lancer la sonde sur un
+    chemin absent, qui produirait un FAIL trompeur.
+    """
+    return bool(files) and all(
+        status == "removed" for status, _ in files
+    )
 
 
 def discover_prs(issue):
@@ -730,6 +786,7 @@ def process_pr(info, handoff, upstream_sha, live):
         entry["reason"] = error or "no files returned"
         return entry
     paths = [path for _, path in files]
+    deletion_only = is_deletion_only(files)
     matched = find_matched_changes(paths, handoff)
     kind, scope_reasons = evaluate_scope(files, matched)
     reasons.extend(scope_reasons)
@@ -743,6 +800,7 @@ def process_pr(info, handoff, upstream_sha, live):
 
     entry["checks"]["paths"] = paths
     entry["checks"]["kind"] = kind
+    entry["checks"]["deletion_only"] = deletion_only
     entry["checks"]["scope_ok"] = not scope_reasons
     entry["checks"]["security_ok"] = not security
 
@@ -769,7 +827,8 @@ def process_pr(info, handoff, upstream_sha, live):
 
         if not reasons and kind == "registry":
             verdict, reason, probes = evaluate_registry(
-                added_lines(diff), removed_lines(diff))
+                added_lines(diff), removed_lines(diff),
+                upstream_sha=upstream_sha)
             entry["checks"]["registry_probes"] = probes
             if verdict == "FAIL":
                 reasons.append(reason)
@@ -795,14 +854,24 @@ def process_pr(info, handoff, upstream_sha, live):
         entry["checks"]["exts"] = [f"{lang}/{ext}" for lang, ext, _ in exts]
         if not reasons and kind == "code" and not exts:
             holds.append("no scraper ext found in diff")
-        if not reasons and kind == "code" and not live:
+        if not reasons and kind == "code" and deletion_only:
+            matched_types = {
+                change.get("type") for change in matched
+                if isinstance(change, dict)
+            }
+            entry["checks"]["removal_ok"] = matched_types == {"REMOVE"}
+            holds.append("scraper removal requires manual review")
+        if (not reasons and kind == "code"
+                and not deletion_only and not live):
             entry["checks"]["live_skipped"] = True
             holds.append("live checks skipped")
 
-        if not reasons and kind == "code" and live:
+        if (not reasons and kind == "code"
+                and live and not deletion_only):
             if not ensure_probe_script():
                 reasons.append("gate probe script missing from origin/main")
-        if not reasons and kind == "code" and live:
+        if (not reasons and kind == "code"
+                and live and not deletion_only):
             for lang, ext, path in exts:
                 result = run_gate_scraper(path)
                 entry["checks"][f"live_{lang}_{ext}"] = {

@@ -85,6 +85,27 @@ class TestValidateGroup(unittest.TestCase):
         reasons = ks.validate_group(group)
         self.assertTrue(any("absents du disque" in r for _, r in reasons), reasons)
 
+    def test_remove_deleted_tracked_file_is_valid(self):
+        # Un REMOVE supprime le .ts dans l'arbre de travail: le chemin est
+        # absent du disque mais reste present dans HEAD. C'est le cas normal,
+        # pas une typo, et il doit passer la validation.
+        group = [change(type="REMOVE", paths=["does/not/exist.ts"])]
+        with mock.patch.object(ks, "path_in_head", return_value=True):
+            self.assertEqual(ks.validate_group(group), [])
+
+    def test_remove_missing_untracked_file_is_rejected(self):
+        group = [change(type="REMOVE", paths=["does/not/exist.ts"])]
+        with mock.patch.object(ks, "path_in_head", return_value=False):
+            reasons = ks.validate_group(group)
+        self.assertTrue(any("absents de HEAD" in r for _, r in reasons), reasons)
+
+    def test_remove_still_present_file_is_rejected(self):
+        # Un REMOVE qui ne supprime rien produirait une PR vide: on le dit
+        # avant de creer la branche.
+        group = [change(type="REMOVE", paths=["README.md"])]
+        reasons = ks.validate_group(group)
+        self.assertTrue(any("toujours present" in r for _, r in reasons), reasons)
+
     def test_empty_paths_is_rejected(self):
         # Sans chemin, le commit n'aurait rien a porter: la PR serait vide.
         group = [change(paths=[])]
