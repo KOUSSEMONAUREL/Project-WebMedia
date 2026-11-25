@@ -60,7 +60,7 @@ function parseChapterDate(value: string): number | undefined {
 
 export class AquamangaScraper extends BaseScraper {
   readonly name = 'Aqua Manga';
-  readonly baseUrl = 'https://aquareader.org';
+  readonly baseUrl = 'https://aquamanga.io';
   readonly lang = 'en';
 
   private listingUrl(page: number, params: Record<string, string>): string {
