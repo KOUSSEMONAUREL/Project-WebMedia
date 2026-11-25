@@ -832,6 +832,16 @@ Sondes du **2026-11-15** en IPv4 (`curl -4 -L`), UA navigateur Chrome, sans tunn
 | `en/toonkotsu` | `toonkotsu.com` | UNKNOWN (maintenu) | `/` et le catalogue `/cdn/v1/browse` → **200** (23 238 o), mais les fiches `/title/vz5r6i-chainsaw-man` et `/title/hhimlm-solo-leveling` renvoient le défi Cloudflare (`403`, **5 809–5 812 o**, `<title>Just a moment...</title>`). Le défi décrit l’IP du runner : recheck local via VPNGate |
 | `en/hypercomic` | `play.hypercomic.io` | IGNORE | `POST /Webtoon/searchlist` → **200** (18 mangas), fiches lisibles, mais 10 mangas × 3 chapitres non verrouillés → **0** page image ; le lecteur `/Webtoon/episodeview/…` exige une authentification. Le port #665 est fermé sans merge |
 
+## Cycle du 2026-11-25 (issue #721) : `en/hotcomics` bloqué par un challenge Cloudflare
+
+Sondé le **2026-11-25** en IPv4 (`curl -4`), UA navigateur Chrome, avec le cookie
+anti-403 de l'upstream `hc_vfs=Y`. Les deux endpoints dont un port aurait besoin sont
+`getPopularManga` → `/en` et `getLatestUpdates` → `/en/new`.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/hotcomics` | `hotcomics.io` | UNKNOWN | `GET /en` → **403**, **5 547 o**, `<title>Just a moment...</title>` ; `GET /en/new` → **403**, **5 581 o** ; en-têtes `cf-mitigated: challenge` et `server: cloudflare` sur les deux. Le cookie `hc_vfs=Y` de l'upstream ne change rien. `LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend le catalogue `/en` ou `/en/new` |
+
 ## Maintenance
 
 Ce registre est **modifié uniquement par les agents, et uniquement via PR** — jamais en
