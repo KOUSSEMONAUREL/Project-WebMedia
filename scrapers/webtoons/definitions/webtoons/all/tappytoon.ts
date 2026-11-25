@@ -14,9 +14,15 @@ interface Comic {
   isHiatus: boolean;
   isAccessible: boolean;
   isCompleted: boolean;
-  ageRating: { name: string };
+  ageRating: { name: string; canUserRead: boolean };
   genres: { name: string }[];
   authors: { name: string }[];
+}
+
+interface BookState {
+  entities: {
+    comics?: Record<string, { id: number; slug: string }>;
+  };
 }
 
 interface TappytoonChapter {
@@ -61,7 +67,7 @@ export class TappytoonScraper extends BaseScraper {
 
   private async ensureApiHeaders(): Promise<void> {
     if (this.apiHeaders['Authorization']) return;
-    const res = await this.get(`${this.baseUrl}/${this.lang}`);
+    const res = await this.get(`${this.baseUrl}/comics/discover`);
     const $ = this.$(res.data);
     const nextData = $('#__NEXT_DATA__').html();
     if (!nextData) throw new Error('Could not find __NEXT_DATA__');
@@ -111,14 +117,7 @@ export class TappytoonScraper extends BaseScraper {
     const res = await this.apiGet(url);
     const data: Comic[] = res.data;
     const accessible = data.filter(c => c.isAccessible);
-    const mangas: Manga[] = accessible.map(c => ({
-      url: `${c.slug}|${c.id}`,
-      title: c.title,
-      thumbnailUrl: c.posterThumbnailUrl,
-      lang: this.lang,
-      author: c.authors.map(a => a.name).join(', '),
-      description: c.longDescription,
-    }));
+    const mangas: Manga[] = accessible.map(c => this.toManga(c));
     const linkHeader = res.headers['link'];
     return { mangas, hasNextPage: linkHeader != null };
   }
@@ -126,20 +125,43 @@ export class TappytoonScraper extends BaseScraper {
   private parseComics(res: AxiosResponse<Comic[]>): SearchResult {
     const data = res.data;
     const accessible = data.filter(c => c.isAccessible);
-    const mangas: Manga[] = accessible.map(c => ({
-      url: `${c.slug}|${c.id}`,
+    const mangas: Manga[] = accessible.map(c => this.toManga(c));
+    return { mangas, hasNextPage: false };
+  }
+
+  private toManga(c: Comic): Manga {
+    return {
+      url: `${this.baseUrl}/${this.lang}/book/${c.slug}`,
       title: c.title,
       thumbnailUrl: c.posterThumbnailUrl,
       lang: this.lang,
       author: c.authors.map(a => a.name).join(', '),
       description: c.longDescription,
-    }));
-    return { mangas, hasNextPage: false };
+    };
+  }
+
+  private async resolveComicId(mangaUrl: string): Promise<string> {
+    const legacyId = mangaUrl.split('|')[1];
+    if (legacyId) return legacyId;
+
+    const url = this.absUrl(mangaUrl);
+    const res = await this.get(url);
+    const $ = this.$(String(res.data));
+    const nextData = $('#__NEXT_DATA__').html();
+    if (!nextData) throw new Error('Could not find __NEXT_DATA__');
+    const parsed = JSON.parse(nextData) as { props?: { initialState?: BookState } };
+    const comics = parsed.props?.initialState?.entities?.comics;
+    if (!comics) throw new Error('Could not find comic entities');
+    const slug = new URL(url).pathname.split('/').filter(Boolean).pop();
+    if (!slug) throw new Error('Could not find comic slug');
+    const comic = Object.values(comics).find(entry => entry.slug === slug);
+    if (!comic) throw new Error(`Could not find comic for slug ${slug}`);
+    return String(comic.id);
   }
 
   async getChapterList(mangaUrl: string): Promise<EngineChapter[]> {
     await this.ensureApiHeaders();
-    const id = mangaUrl.split('|')[1];
+    const id = await this.resolveComicId(mangaUrl);
     const res = await this.apiGet(
       `${API_URL}/comics/${id}/chapters?locale=${this.lang}`,
     );
