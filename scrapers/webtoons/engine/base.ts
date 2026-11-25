@@ -3,9 +3,13 @@
 // Cycle de vie : get(url) → html → parse → Model (Manga/Chapter/Page)
 // ============================================================
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import * as cheerio from 'cheerio';
 import type { Manga, Chapter, Page, SearchResult } from './types';
+
+/** Contexte d'annulation propage par `pipeline.ts` pour couper les requetes hors budget. */
+export const requestAbortStorage = new AsyncLocalStorage<AbortSignal>();
 
 export abstract class BaseScraper {
   abstract readonly name: string;
@@ -72,12 +76,14 @@ export abstract class BaseScraper {
       Referer: this.baseUrl + '/',
       ...config?.headers,
     };
-    return this.client.get(url, { ...config, headers });
+    const signal = config?.signal ?? requestAbortStorage.getStore();
+    return this.client.get(url, { ...config, headers, signal });
   }
 
   protected async post(pathOrUrl: string, data: unknown, config?: AxiosRequestConfig) {
     const url = this.absUrl(pathOrUrl);
-    return this.client.post(url, data, config);
+    const signal = config?.signal ?? requestAbortStorage.getStore();
+    return this.client.post(url, data, { ...config, signal });
   }
 
   /**

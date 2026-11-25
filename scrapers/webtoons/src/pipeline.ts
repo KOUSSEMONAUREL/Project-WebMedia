@@ -1,5 +1,5 @@
 import { getScraper, getScraperForUrl } from './runner';
-import { BaseScraper } from '../engine/base';
+import { BaseScraper, requestAbortStorage } from '../engine/base';
 import { isSameTitle } from './title-match';
 import { resolveHttpUrl } from './url';
 
@@ -65,26 +65,34 @@ async function searchScrapers(
 ): Promise<void> {
   if (entries.length === 0) return;
 
-  const tasks = entries.map(async ({ name, scraper }) => {
-    try {
-      const search = await scraper.getSearch(title, 1);
-      const found = search.mangas.find(m => isSameTitle(title, m.title));
-      if (found && !matches.some(m => m.name === name)) {
-        matches.push({ name, scraper, url: found.url });
+  const controller = new AbortController();
+  const tasks = entries.map(({ name, scraper }) =>
+    requestAbortStorage.run(controller.signal, async () => {
+      try {
+        const search = await scraper.getSearch(title, 1);
+        if (controller.signal.aborted) return;
+        const found = search.mangas.find(m => isSameTitle(title, m.title));
+        if (found && !matches.some(m => m.name === name)) {
+          matches.push({ name, scraper, url: found.url });
+        }
+      } catch (err: any) {
+        if (controller.signal.aborted || err?.code === 'ERR_CANCELED') return;
+        console.error(
+          `Search failed for scraper ${name} with title "${title}": ${err instanceof Error ? err.message : String(err)}`
+        );
       }
-    } catch (err) {
-      console.error(
-        `Search failed for scraper ${name} with title "${title}": ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  });
+    })
+  );
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
       Promise.allSettled(tasks).then(() => undefined),
       new Promise<void>(resolve => {
-        timer = setTimeout(resolve, budgetMs);
+        timer = setTimeout(() => {
+          controller.abort();
+          resolve();
+        }, budgetMs);
       }),
     ]);
   } finally {

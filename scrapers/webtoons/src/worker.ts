@@ -43,8 +43,9 @@ async function callInternal(endpoint: string, data: unknown) {
 
 const DB_RETRYABLE = new Set([
   'CONNECTION_CLOSED', 'CONNECTION_DESTROYED', 'CONNECTION_ENDED',
-  'CONNECT_TIMEOUT', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', '57P01', '08006',
+  'CONNECT_TIMEOUT', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'EAI_AGAIN', '57P01', '08006',
 ]);
+const DB_MAX_RETRIES = 5;
 
 async function withDbRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
@@ -52,9 +53,9 @@ async function withDbRetry<T>(label: string, run: () => Promise<T>): Promise<T> 
       return await run();
     } catch (err: any) {
       const code = String(err?.code || err?.errno || '');
-      if (attempt >= 3 || !DB_RETRYABLE.has(code)) throw err;
-      const delay = 250 * 2 ** (attempt - 1);
-      console.warn(`  DB ${label}: ${code}, retry ${attempt}/3 in ${delay}ms`);
+      if (attempt >= DB_MAX_RETRIES || !DB_RETRYABLE.has(code)) throw err;
+      const delay = 1000 * 2 ** (attempt - 1);
+      console.warn(`  DB ${label}: ${code}, retry ${attempt}/${DB_MAX_RETRIES - 1} in ${delay}ms`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -223,9 +224,9 @@ if (process.argv[1]?.endsWith('worker.ts')) {
       const dbOptions = {
         prepare: false,
         max: 2,
-        idle_timeout: 20,
+        idle_timeout: 0,
         max_lifetime: 0,
-        connect_timeout: 10,
+        connect_timeout: 20,
         keep_alive: 30,
       };
       const sb = postgres(supabaseUrl, dbOptions);
