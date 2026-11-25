@@ -79,7 +79,7 @@ const ingestLiensSchema = z.object({
     links: z.array(z.object({
         source_site: z.string(),
         player_host: z.string().optional(),
-        url: z.union([z.string().url(), z.string().startsWith('magnet:'), z.string().min(1)]),
+        url: z.string().min(1),
         qualite: z.string().optional(),
         langue: z.string().optional(),
         sous_titres: z.boolean().optional().default(false),
@@ -97,13 +97,17 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
     // les scrapers autorisés peuvent poster. Tous les liens sont acceptés.
     // MAIS on ignore les URLs génériques (recherche, racine, catégories) qui
     // polluent la base (fitgirl updates-list, hentairead searchadvance, beq racine...).
+    let genericSkipped = 0;
     const safeLinks = links.filter((link: any) => {
         if (!link?.url || isGenericUrl(link.url)) {
-            console.warn(`[IngestWorker] Lien générique ignoré: ${link?.url}`);
+            genericSkipped++;
             return false;
         }
         return true;
     });
+    if (genericSkipped > 0) {
+        console.warn(`[IngestWorker] ${genericSkipped}/${links.length} lien(s) générique(s) ignoré(s)`);
+    }
 
     if (safeLinks.length === 0) {
         return c.json({ success: true, count: 0, skipped: links.length });
@@ -117,6 +121,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
 
         // Insert upsert : un lien déjà présent (idx_liens_media_url) est ignoré,
         // pas d'erreur ni de retry nécessaire.
+        const scrapedAt = new Date();
         inserted = await db.insert(liens).values(
             safeLinks.map(link => ({
                 sourceSite: link.source_site,
@@ -128,9 +133,19 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                 headers: link.headers || null,
                 mediaId,
                 episodeId: link.episode_id || link.episodeId || null,
-                scrapedAt: new Date()
+                scrapedAt
             }))
-        ).onConflictDoNothing().returning();
+        ).onConflictDoNothing().returning({
+            id: liens.id,
+            mediaId: liens.mediaId,
+            episodeId: liens.episodeId,
+            sourceSite: liens.sourceSite,
+            playerHost: liens.playerHost,
+            url: liens.url,
+            quality: liens.quality,
+            language: liens.language,
+            hasSubtitles: liens.hasSubtitles
+        });
 
         // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément).
         // Seuls les liens dont l'URL est absolue sont comptés : les chemins
@@ -147,6 +162,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
         }
 
         if (c.env?.DB) {
+            const now = Date.now();
             await c.env.DB.prepare(`
                 UPDATE media_state 
                 SET active_links = ?,
@@ -154,7 +170,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                     last_scraped = ?,
                     next_scrape = ?
                 WHERE media_id = ?
-            `).bind(realCount, realCount > 0 ? 1 : 0, Date.now(), Date.now() + (24 * 3600 * 1000), mediaId).run();
+            `).bind(realCount, realCount > 0 ? 1 : 0, now, now + (24 * 3600 * 1000), mediaId).run();
         }
 
         // Update activeLinksCount in Neon (recalcul scopé au media_id, auto-réparateur)
@@ -172,26 +188,24 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
         if (tursoUrl && tursoToken && inserted.length > 0) {
             try {
                 const turso = createClient({ url: tursoUrl, authToken: tursoToken });
-                const connStr = getVar(c, 'NEON_DATABASE_URL');
-                const hyperdrive = c.env?.HYPERDRIVE;
-                const neonDb = getNeonDb(connStr, hyperdrive) as any;
-                const [mediaRow] = await neonDb.select().from(medias).where(eq(medias.id, mediaId));
-                const mediaExists = await turso.execute('SELECT id FROM medias WHERE id = ?', [mediaId]);
+                const [mediaRow] = await db.select().from(medias).where(eq(medias.id, mediaId));
+                const syncedAt = new Date().toISOString();
                 // Le compteur doit etre mis a jour meme si le media existe deja:
                 // Turso est la base de LECTURE du site, et l'insertion n'a lieu
                 // qu'au premier passage. Sans cet UPDATE, active_links_count
                 // restait a 0 pour tout media deja connu, alors que la page
                 // affichait bien des liens.
+                const mediaExists = await turso.execute('SELECT id FROM medias WHERE id = ?', [mediaId]);
                 if (mediaRow) {
                     await turso.execute({
                         sql: 'UPDATE medias SET active_links_count = ?, updated_at = ? WHERE id = ?',
-                        args: [realCount, new Date().toISOString(), mediaRow.id]
+                        args: [realCount, syncedAt, mediaRow.id]
                     });
                 }
                 if (mediaRow && mediaExists.rows.length === 0) {
                     await turso.execute({
                         sql: 'INSERT OR REPLACE INTO medias (id, external_id, type, title, original_title, slug, synopsis, year, poster_url, backdrop_url, rating, vote_count, status, tmdb_id, imdb_id, anilist_id, mal_id, kitsu_id, igdb_id, anidb_id, metadata_source, metadata_fresh_at, links_last_scraped_at, active_links_count, created_at, updated_at, author, episode_count, genres, trailer_url, duration, tagline, studios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                        args: [mediaRow.id, mediaRow.externalId, mediaRow.type, mediaRow.title, mediaRow.originalTitle, mediaRow.slug?.slice(0, 100), mediaRow.synopsis, mediaRow.year, mediaRow.posterUrl, mediaRow.backdropUrl, mediaRow.rating?.toString(), mediaRow.voteCount, mediaRow.status, mediaRow.tmdbId, mediaRow.imdbId, mediaRow.anilistId, mediaRow.malId, mediaRow.kitsuId, mediaRow.igdbId, mediaRow.anidbId, mediaRow.metadataSource, mediaRow.metadataFreshAt?.toISOString() || null, mediaRow.linksLastScrapedAt?.toISOString() || null, mediaRow.activeLinksCount, mediaRow.createdAt?.toISOString() || null, new Date().toISOString(), mediaRow.author, mediaRow.episodeCount, mediaRow.genres, mediaRow.trailerUrl, null, mediaRow.tagline, mediaRow.studios]
+                        args: [mediaRow.id, mediaRow.externalId, mediaRow.type, mediaRow.title, mediaRow.originalTitle, mediaRow.slug?.slice(0, 100), mediaRow.synopsis, mediaRow.year, mediaRow.posterUrl, mediaRow.backdropUrl, mediaRow.rating?.toString(), mediaRow.voteCount, mediaRow.status, mediaRow.tmdbId, mediaRow.imdbId, mediaRow.anilistId, mediaRow.malId, mediaRow.kitsuId, mediaRow.igdbId, mediaRow.anidbId, mediaRow.metadataSource, mediaRow.metadataFreshAt?.toISOString() || null, mediaRow.linksLastScrapedAt?.toISOString() || null, mediaRow.activeLinksCount, mediaRow.createdAt?.toISOString() || null, syncedAt, mediaRow.author, mediaRow.episodeCount, mediaRow.genres, mediaRow.trailerUrl, null, mediaRow.tagline, mediaRow.studios]
                     });
                 }
                 const BATCH = 50;
@@ -199,7 +213,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                     const chunk = inserted.slice(i, i + BATCH);
                     const stmts = chunk.map((l: any) => ({
                         sql: 'INSERT OR REPLACE INTO liens (id, media_id, episode_id, source_site, player_host, url, quality, language, has_subtitles, is_active, fail_count, last_verified, scraped_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                        args: [l.id, l.mediaId, l.episodeId, l.sourceSite, l.playerHost, l.url, l.quality, l.language, l.hasSubtitles ? 1 : 0, true, 0, new Date().toISOString(), new Date().toISOString()]
+                        args: [l.id, l.mediaId, l.episodeId, l.sourceSite, l.playerHost, l.url, l.quality, l.language, l.hasSubtitles ? 1 : 0, true, 0, syncedAt, syncedAt]
                     }));
                     await turso.batch(stmts, 'deferred');
                 }

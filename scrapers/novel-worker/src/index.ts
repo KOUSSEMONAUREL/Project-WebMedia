@@ -28,8 +28,32 @@ const MAX_JOBS = 30;
  */
 const MAX_ATTEMPTS = 3;
 
-const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', { prepare: false });
+const supabaseClient = postgres(process.env.SUPABASE_DATABASE_URL || '', {
+  prepare: false,
+  connect_timeout: 20,
+  keep_alive: 30,
+});
 const sb = drizzle(supabaseClient);
+
+const DB_RETRYABLE = new Set([
+  'CONNECTION_CLOSED', 'CONNECTION_DESTROYED', 'CONNECTION_ENDED',
+  'CONNECT_TIMEOUT', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'EAI_AGAIN', '57P01', '08006',
+]);
+const DB_MAX_RETRIES = 4;
+
+async function withDbRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (err: any) {
+      const code = String(err?.code || err?.errno || '');
+      if (attempt >= DB_MAX_RETRIES || !DB_RETRYABLE.has(code)) throw err;
+      const delay = 1000 * 2 ** (attempt - 1);
+      console.warn(`  DB ${label}: ${code}, retry ${attempt}/${DB_MAX_RETRIES - 1} in ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 const URL_TRANSFORMS: { match: RegExp; replace: string }[] = [
   { match: /^https:\/\/novelfrance\.fr\/api\/novels\/(.+)$/, replace: 'https://novelfrance.fr/novel/$1' },
@@ -177,19 +201,19 @@ async function processJob(job: any, log: ReturnType<typeof createLog>): Promise<
     // attempts=0, le media repartait pour 3 essais a l'infini.
     if (urls.length === 0) {
       if (job.attempts >= MAX_ATTEMPTS) {
-        await sb.update(scrapingJobs)
+        await withDbRetry('mark no_match', () => sb.update(scrapingJobs)
           .set({
             status: 'no_match',
             lastError: 'No novel source carries this title',
             updatedAt: new Date(),
           })
-          .where(eq(scrapingJobs.id, job.id));
+          .where(eq(scrapingJobs.id, job.id)));
         log.warn(`no_match apres ${job.attempts} tentatives (aucune source)`);
         return;
       }
-      await sb.update(scrapingJobs)
+      await withDbRetry('release no_match', () => sb.update(scrapingJobs)
         .set({ status: 'pending', updatedAt: new Date() })
-        .where(eq(scrapingJobs.id, job.id));
+        .where(eq(scrapingJobs.id, job.id)));
       log.retry(`Aucune source pour "${job.title}"`, job.attempts, MAX_ATTEMPTS);
       return;
     }
@@ -201,9 +225,9 @@ async function processJob(job: any, log: ReturnType<typeof createLog>): Promise<
 
     await sendToIngest(job.media_id, urls);
 
-    await sb.update(scrapingJobs)
+    await withDbRetry('mark completed', () => sb.update(scrapingJobs)
       .set({ status: 'completed', updatedAt: new Date() })
-      .where(eq(scrapingJobs.id, job.id));
+      .where(eq(scrapingJobs.id, job.id)));
 
   } catch (error: any) {
     try {
@@ -218,7 +242,7 @@ async function processJob(job: any, log: ReturnType<typeof createLog>): Promise<
 }
 
 async function claimJob(): Promise<any> {
-  const [job] = await supabaseClient`
+  const [job] = await withDbRetry('claim job', () => supabaseClient`
     UPDATE scraping_jobs
     SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
     WHERE id = (
@@ -229,7 +253,7 @@ async function claimJob(): Promise<any> {
       FOR UPDATE SKIP LOCKED
     )
     RETURNING id, media_id, media_type, title, slug, attempts
-  `;
+  `);
   return job || null;
 }
 
