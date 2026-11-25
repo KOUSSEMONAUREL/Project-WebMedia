@@ -5,7 +5,7 @@ import { isIngestableUrl } from './url';
 
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://localhost:8787/api/internal';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
-const INGEST_BATCH_SIZE = 500;
+const INGEST_BATCH_SIZE = 1000;
 const INGEST_TIMEOUT_MS = 60_000;
 const RUN_BUDGET_MS = 90 * 60 * 1000;
 const MAX_LINKS_PER_RUN = 20_000;

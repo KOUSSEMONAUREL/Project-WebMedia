@@ -55,14 +55,12 @@ export class OrchestratorService {
     private supabase: any;
     private neon: any;
     private kv: any;
-    private mongoUri?: string;
 
     constructor(env: any) {
         this.db = env.DB;
         this.supabase = getSupabaseHttpClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
         this.neon = getNeonDb(env.NEON_DATABASE_URL, env.HYPERDRIVE);
         this.kv = env.KV;
-        this.mongoUri = env.MONGODB_URI || process.env.MONGODB_URI;
     }
 
     async resolveStaleMedia() {
@@ -76,7 +74,7 @@ export class OrchestratorService {
         }
 
         console.log("🚀 Starting Global Orchestration Cycle (Batch Mode)...");
-        await logger.info('Orchestrator', 'Démarrage du cycle d\'orchestration', {}, this.mongoUri);
+        await logger.info('Orchestrator', 'Démarrage du cycle d\'orchestration', {});
         const now = Date.now();
 
         // 1. UNE seule query D1 : récupère les médias à rafraîchir (LIMIT 100)
@@ -297,7 +295,7 @@ export class OrchestratorService {
         // 7. UN SEUL batch D1 pour UPDATE les next_scrape
         await runScrapeUpdates(jobStatements);
 
-        await logger.audit('Orchestrator', `Cycle terminé: ${insertValues.length} jobs créés sur ${staleMedia.length} médias analysés`, { processed: insertValues.length, deferred: deferStatements.length }, this.mongoUri);
+        await logger.audit('Orchestrator', `Cycle terminé: ${insertValues.length} jobs créés sur ${staleMedia.length} médias analysés`, { processed: insertValues.length, deferred: deferStatements.length });
         return { processed: insertValues.length };
     }
 }

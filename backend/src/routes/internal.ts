@@ -14,7 +14,6 @@ type Bindings = {
     NEON_DATABASE_URL: string;
     HYPERDRIVE: Hyperdrive;
     INTERNAL_API_KEY: string;
-    MONGODB_URI: string;
     TMDB_API_KEY: string;
     DB: D1Database;
     TURSO_DATABASE_URL?: string;
@@ -54,10 +53,6 @@ function isGenericUrl(url: string): boolean {
         return BLOCKED_URL_PATTERNS.some(p => p.test(url));
     }
 }
-
-const mongoUri = (c: any) => {
-    try { return getVar(c, 'MONGODB_URI'); } catch { return ''; }
-};
 
 // Middleware de sécurité
 internalRoutes.use('*', async (c, next) => {
@@ -147,6 +142,11 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
             hasSubtitles: liens.hasSubtitles
         });
 
+        // Si aucun nouveau lien, pas besoin de mettre à jour les compteurs ni Turso.
+        if (inserted.length === 0) {
+            return c.json({ success: true, count: 0 });
+        }
+
         // Recalcul du vrai nombre de liens (COUNT réel sur Neon, pas un incrément).
         // Seuls les liens dont l'URL est absolue sont comptés : les chemins
         // relatifs et fragments sont des hrefs cassés une fois rendus.
@@ -223,7 +223,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
             }
         }
 
-        await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length }, mongoUri(c));
+        await logger.audit('IngestWorker', `Ingestion réussie: ${inserted.length} liens`, { mediaId, count: inserted.length });
         return c.json({ success: true, count: inserted.length });
     } catch (error: any) {
         // Compensation: si D1 a échoué après Neon, nettoyer les lignes insérées
@@ -235,10 +235,10 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
                 const insertedIds = inserted.map((r: any) => r.id).filter(Boolean);
                 if (insertedIds.length > 0) {
                     await db.delete(liens).where(inArray(liens.id, insertedIds));
-                    await logger.warn('IngestWorker', 'Rollback effectué après erreur D1', { mediaId, deletedCount: insertedIds.length }, mongoUri(c));
+                    await logger.warn('IngestWorker', 'Rollback effectué après erreur D1', { mediaId, deletedCount: insertedIds.length });
                 }
             } catch (rollbackError: any) {
-                await logger.error('IngestWorker', `Rollback échoué: ${rollbackError.message}`, { mediaId }, mongoUri(c));
+                await logger.error('IngestWorker', `Rollback échoué: ${rollbackError.message}`, { mediaId });
                 console.error('Rollback échoué:', rollbackError);
             }
         }
@@ -247,7 +247,7 @@ internalRoutes.post('/ingest/liens', zValidator('json', ingestLiensSchema as any
             causeCode: (error as any)?.cause?.code ?? null,
             causeMessage: (error as any)?.cause?.message ?? null,
         };
-        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId, ...causeInfo }, mongoUri(c));
+        await logger.error('IngestWorker', `Erreur Ingestion: ${error.message}`, { mediaId, ...causeInfo });
         console.error('Ingestion Error:', error.message, causeInfo);
         return c.json({ success: false, error: 'Erreur insertion' }, 500);
     }
@@ -456,10 +456,10 @@ internalRoutes.post('/ingest/media/create', zValidator('json', createMediaSchema
       }
     }
 
-    await logger.audit('CreateMedia', `Media created: ${input.title}`, { mediaId, type: input.type }, mongoUri(c));
+    await logger.audit('CreateMedia', `Media created: ${input.title}`, { mediaId, type: input.type });
     return c.json({ success: true, mediaId });
   } catch (error: any) {
-    await logger.error('CreateMedia', `Erreur creation media: ${error.message}`, { title: input.title }, mongoUri(c));
+    await logger.error('CreateMedia', `Erreur creation media: ${error.message}`, { title: input.title });
     console.error('CreateMedia Error:', error.message);
     return c.json({ success: false, error: `Erreur creation: ${error.message}` }, 500);
   }
@@ -507,10 +507,10 @@ internalRoutes.post('/ingest/mapping', zValidator('json', mappingSchema as any),
         });
         await c.env.DB.batch(statements);
         
-        await logger.info('IngestWorker', `Mapping mis à jour: ${validMappings.length} entrées`, {}, mongoUri(c));
+        await logger.info('IngestWorker', `Mapping mis à jour: ${validMappings.length} entrées`, {});
         return c.json({ success: true, count: validMappings.length });
     } catch (e: any) {
-        await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {}, mongoUri(c));
+        await logger.error('IngestWorker', `Erreur Mapping: ${e.message}`, {});
         console.error("D1 Mapping Ingest Error:", e.message);
         return c.json({ error: e.message }, 500);
     }
@@ -641,10 +641,10 @@ internalRoutes.post('/orchestrate', async (c) => {
     try {
         const orchestrator = new OrchestratorService(c.env);
         const result = await orchestrator.resolveStaleMedia();
-        await logger.audit('Orchestrator', 'Trigger manuel via endpoint', result, mongoUri(c));
+        await logger.audit('Orchestrator', 'Trigger manuel via endpoint', result);
         return c.json({ success: true, ...result });
     } catch (error: any) {
-        await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {}, mongoUri(c));
+        await logger.error('Orchestrator', `Erreur trigger manuel: ${error.message}`, {});
         return c.json({ success: false, error: error.message }, 500);
     }
 });
@@ -658,8 +658,11 @@ internalRoutes.post('/ingest/reconcile', async (c) => {
         const hyperdrive = c.env?.HYPERDRIVE;
         const db = getNeonDb(connStr, hyperdrive) as any;
 
+        const limit  = Math.min(parseInt(c.req.query('limit')  || '2000', 10), 5000);
+        const offset = parseInt(c.req.query('offset') || '0',    10);
+
         const allNeon = await db.select({ id: medias.id, type: medias.type, title: medias.title, slug: medias.slug, activeLinksCount: medias.activeLinksCount })
-            .from(medias).where(ne(medias.type, 'book'));
+            .from(medias).where(ne(medias.type, 'book')).limit(limit).offset(offset);
 
         const { results: d1Entries } = await c.env.DB.prepare('SELECT media_id, active_links, has_content FROM media_state')
             .all<{ media_id: string; active_links: number | null; has_content: number | null }>();
@@ -690,7 +693,7 @@ internalRoutes.post('/ingest/reconcile', async (c) => {
         }
 
         console.log(`Reconcile D1: ${reconciled} statement(s) appliquée(s) (${missing.length} media manquants ajoutés, compteurs corrigés pour ${fixStatements.length})`);
-        return c.json({ success: true, reconciled, found: missing.length, updated: fixStatements.length });
+        return c.json({ success: true, reconciled, found: missing.length, updated: fixStatements.length, offset, limit, hasMore: allNeon.length === limit });
     } catch (error: any) {
         console.error('Reconcile Error:', error.message);
         return c.json({ success: false, error: error.message }, 500);
