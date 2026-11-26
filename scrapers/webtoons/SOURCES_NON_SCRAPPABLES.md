@@ -842,6 +842,15 @@ anti-403 de l'upstream `hc_vfs=Y`. Les deux endpoints dont un port aurait besoin
 |---|---|---|---|---|
 | `en/hotcomics` | `hotcomics.io` | UNKNOWN | `GET /en` → **403**, **5 547 o**, `<title>Just a moment...</title>` ; `GET /en/new` → **403**, **5 581 o** ; en-têtes `cf-mitigated: challenge` et `server: cloudflare` sur les deux. Le cookie `hc_vfs=Y` de l'upstream ne change rien. `LIVE_UNVERIFIED: CI challenge`, `LOCAL_RECHECK: VPNGate` | Un `GET` sans navigateur rend le catalogue `/en` ou `/en/new` |
 
+## Cycle du 2026-11-26 (issue #726) : `en/dorotoons` bloqué par un `human check`, `en/manganelo` sur un hôte mort
+
+Sondé le **2026-11-26** en IPv4 (`curl -4`), UA navigateur Chrome, sans tunnel.
+
+| Extension | Domaine upstream | Verdict | Preuve | Condition de revivification |
+|---|---|---|---|---|
+| `en/dorotoons` | `dorotoons.com` | BLOCKED | `GET /` et `GET /browse?sort=popular` → **302** vers `/__human?next=...`, corps vide, `server: cloudflare` ; `/__human?next=%2Fbrowse%3Fsort%3Dpopular` → **200**, **37 258 o**, `<title>Checking your browser — Doro Toons</title>`, formulaire `#hcForm` et challenge SHA-256 `solve("...", 17, ...)`. Le port de la PR #727 résolvait ce proof-of-work pour franchir le contrôle : PR **fermée sans merge**, aucun `.ts` commité. Gate local : timeout 15 s sur `/__human` (28,9 s mesurées) | Le site sert `/browse` et `/series/<slug>` sans proof-of-work ni `human check`, donc sans contournement anti-bot |
+| `en/manganelo` | `www.saiyanmanga.com` (redirige vers `www3.saiyanmanga.com`) | IGNORE | `GET https://www.saiyanmanga.com/` → **301** vers `https://www3.saiyanmanga.com/` ; `www3.saiyanmanga.com` → **NXDOMAIN** (aucun enregistrement A). L'ancien domaine `manganelo.com` répond **403** Cloudflare. La source upstream pointe désormais sur un hôte qui n'existe pas | `www3.saiyanmanga.com` résout et sert un catalogue lisible, ou l'upstream repointe vers un domaine vivant |
+
 ## Maintenance
 
 Ce registre est **modifié uniquement par les agents, et uniquement via PR** — jamais en
