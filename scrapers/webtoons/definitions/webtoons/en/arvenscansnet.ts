@@ -1,7 +1,26 @@
 import { BaseScraper } from '../../../engine/base';
 import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
 
-const API_URL = 'https://api.arvenscans.net';
+const API_URL = 'https://api.arventoons.com';
+
+function escapeMarkdown(text: string): string {
+  return text
+    .replace(/^[ \t]+/gm, '')
+    .replace(/[\\*_\[\]<]/g, (match) => `\\${match}`)
+    .replace(/^(?:>|#{1,6}(?=\s|$)|[-+](?=\s|$)|~{3}|[-=:|~][-=:|~ \t]*$)|(?<=^\d{1,9})[.)](?=\s|$)/gm, (match) => `\\${match}`)
+    .replace(/`(?=[^`]*`)/g, '\\`');
+}
+
+function formatDescription(description: string | null | undefined, altTitles: string[]): string | undefined {
+  const sections: string[] = [];
+  const text = description?.trim();
+  if (text) sections.push(escapeMarkdown(text));
+  const titles = [...new Set(altTitles.map((title) => title.trim()).filter(Boolean))];
+  if (titles.length > 0) {
+    sections.push(`**Also known as:**\n${titles.map((title) => `- ${escapeMarkdown(title)}`).join('\n')}`);
+  }
+  return sections.length > 0 ? sections.join('\n\n') : undefined;
+}
 
 interface MetaDto {
   current_page: number;
@@ -59,26 +78,19 @@ function parseJson<T>(value: unknown): T {
 
 export class ArvenScansNetScraper extends BaseScraper {
   readonly name = 'ArvenScans';
-  readonly baseUrl = 'https://arvenscans.net';
+  readonly baseUrl = 'https://arventoons.com';
   readonly lang = 'en';
 
   private toManga(work: WorkDto, detailsGenres?: GenreDto[]): Manga {
     const genres = (detailsGenres ?? work.genres ?? []).map((g) => g.name_en);
     const allGenres = [...genres, ...(work.tags ?? [])].filter((g, i, arr) => g && arr.indexOf(g) === i);
-    const altNames = (work.alt_titles ?? []).filter((t) => t.trim().length > 0);
-    const parts: string[] = [];
-    if (work.description) parts.push(work.description.replace(/\[/g, '\\[').replace(/\]/g, '\\]'));
-    if (altNames.length > 0) {
-      if (parts.length > 0) parts.push('');
-      parts.push(`Alternative titles: ${altNames.join(' · ')}`);
-    }
     const status = work.status?.toLowerCase();
     return {
       title: work.title,
       url: `/series/${work.slug}`,
       thumbnailUrl: work.cover_url ? `${API_URL}${work.cover_url}` : '',
       author: work.author?.trim() || undefined,
-      description: parts.join('\n').trim() || undefined,
+      description: formatDescription(work.description, work.alt_titles ?? []),
       genre: allGenres.length > 0 ? allGenres.join(', ') : undefined,
       status: status === 'ongoing' ? 1 : status === 'completed' ? 0 : status === 'hiatus' ? 3 : undefined,
       lang: this.lang,
