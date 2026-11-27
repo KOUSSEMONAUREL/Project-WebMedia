@@ -26,8 +26,11 @@ export class Hentai3Scraper extends BaseScraper {
     $('a[href*=/d/]').each((_, el) => {
       const $el = $(el);
       const title = $el.find('div.title').first().text();
-      const url = $el.attr('abs:href') || '';
-      const thumbnailUrl = $el.find('img:not([class])').first().attr('abs:src') || '';
+      const href = $el.attr('href') ?? '';
+      const url = href ? this.absUrl(href) : '';
+      const img = $el.find('img').first();
+      const src = img.attr('data-src') || img.attr('src') || '';
+      const thumbnailUrl = src ? this.absUrl(src) : '';
       mangas.push({ url: url.replace(this.baseUrl, ''), title, thumbnailUrl, lang: this.lang });
     });
     const hasNextPage = $('a[rel=next]').length > 0;
@@ -55,7 +58,10 @@ export class Hentai3Scraper extends BaseScraper {
     if (groups) descParts.push(`Groups: ${capitalizeEach(groups)}\n`);
     const languages = $('a[href*=/language/]').map((_, el) => $(el).text()).get().join(', ');
     if (languages) descParts.push(`Languages: ${capitalizeEach(languages)}\n`);
-    descParts.push($('div.tag-container:contains(pages:)').text() + '\n');
+    const pages = $('div.tag-container').filter((_, el) => /pages:/i.test($(el).text())).first().text();
+    descParts.push(pages + '\n');
+    const cover = $('img').first();
+    const coverSrc = cover.attr('data-src') || cover.attr('src') || '';
 
     return {
       title: $('h1 > span').text() || $('h1').text(),
@@ -63,16 +69,17 @@ export class Hentai3Scraper extends BaseScraper {
       artist: artists || authors || undefined,
       genre: genre || undefined,
       description: descParts.join('').trim() || undefined,
-      thumbnailUrl: $('img[src*=thumbnail].w-96').first().attr('abs:src') || '',
-      status: 1,
+      thumbnailUrl: coverSrc ? this.absUrl(coverSrc) : '',
+      status: 0,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
     const response = await this.get(mangaUrl);
     const $ = this.$(response.data);
-    const dateStr = $('time').text();
-    const dateUpload = dateStr ? new Date(dateStr).getTime() : undefined;
+    const dateStr = $('time').attr('datetime');
+    const parsed = dateStr ? new Date(dateStr).getTime() : NaN;
+    const dateUpload = Number.isNaN(parsed) ? undefined : parsed;
     return [{ name: 'Chapter', url: mangaUrl, dateUpload }];
   }
 
@@ -80,9 +87,11 @@ export class Hentai3Scraper extends BaseScraper {
     const response = await this.get(chapterUrl);
     const $ = this.$(response.data);
     const pages: Page[] = [];
-    $('img:not([class], [src*=thumb], [src*=cover])').each((i, el) => {
-      const imageUrl = ($(el).attr('abs:src') || '').replace(/t(?=\.)/, '');
-      pages.push({ index: i, imageUrl });
+    $('img[data-src]').each((_, el) => {
+      const src = $(el).attr('data-src') ?? '';
+      if (!src || /thumb|cover/.test(src)) return;
+      const imageUrl = this.absUrl(src).replace(/t(?=\.)/, '');
+      pages.push({ index: pages.length, imageUrl });
     });
     return pages;
   }
