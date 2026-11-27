@@ -38,7 +38,26 @@ interface ChapterList {
   meta?: { total_pages?: number };
 }
 
-const API = 'https://api.luxmanga.org';
+const API = 'https://api.luxmanhwa.com';
+
+function escapeMarkdown(text: string): string {
+  return text
+    .replace(/^[ \t]+/gm, '')
+    .replace(/[\\*_\[\]<]/g, (match) => `\\${match}`)
+    .replace(/^(?:>|#{1,6}(?=\s|$)|[-+](?=\s|$)|~{3}|[-=:|~][-=:|~ \t]*$)|(?<=^\d{1,9})[.)](?=\s|$)/gm, (match) => `\\${match}`)
+    .replace(/`(?=[^`]*`)/g, '\\`');
+}
+
+function formatDescription(description: string | null | undefined, altTitles: string[]): string | undefined {
+  const sections: string[] = [];
+  const text = description?.trim();
+  if (text) sections.push(escapeMarkdown(text));
+  const titles = [...new Set(altTitles.map((title) => title.trim()).filter(Boolean))];
+  if (titles.length > 0) {
+    sections.push(`**Also known as:**\n${titles.map((title) => `- ${escapeMarkdown(title)}`).join('\n')}`);
+  }
+  return sections.length > 0 ? sections.join('\n\n') : undefined;
+}
 
 function parseStatus(status: string | null | undefined): MangaStatus {
   switch (status) {
@@ -51,7 +70,7 @@ function parseStatus(status: string | null | undefined): MangaStatus {
 
 export class LuxMangaScraper extends BaseScraper {
   readonly name = 'LuxManga';
-  readonly baseUrl = 'https://luxmanga.org';
+  readonly baseUrl = 'https://luxmanhwa.com';
   readonly lang = 'en';
 
   async getPopular(page = 1): Promise<SearchResult> {
@@ -95,18 +114,13 @@ export class LuxMangaScraper extends BaseScraper {
     const genres = genreRes ? (genreRes.data as GenreList).data ?? [] : [];
     const altTitles = (metadata.alternative_titles ?? [])
       .filter(t => t.toLowerCase() !== work.title.toLowerCase());
-    let description = work.description ?? '';
-    if (altTitles.length > 0) {
-      if (description) description += '\n\n';
-      description += '**Also known as:**\n' + altTitles.map(t => `- ${t}`).join('\n');
-    }
     return {
       title: work.title,
       thumbnailUrl: this.coverUrl(work.cover_url),
       author: work.author?.replace(/ \/ /g, ', ') || undefined,
       status: parseStatus(work.status),
       genre: [...genres.map(g => g.name_en), ...(metadata.tags ?? [])].join(', ') || undefined,
-      description: description || undefined,
+      description: formatDescription(work.description, altTitles),
       lang: this.lang,
     };
   }
