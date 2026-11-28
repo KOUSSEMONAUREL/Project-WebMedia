@@ -1,132 +1,116 @@
+import type { CheerioAPI } from 'cheerio';
 import { BaseScraper } from '../../../engine/base';
-import type { Manga, Chapter, Page, SearchResult } from '../../../engine/types';
+import type { Manga, Chapter, Page, SearchResult, MangaStatus } from '../../../engine/types';
 
 export class MangagoScraper extends BaseScraper {
   readonly name = 'Mangago';
-  readonly baseUrl = 'https://www.mangago.net';
+  readonly baseUrl = 'https://www.mangago.me';
   readonly lang = 'en';
 
-  // Chapter reader mirror; "/chapter/..." paths 404 on the main domain.
-  // The main domain randomly alternates between two chapter URL formats
-  // with unrelated ids, while the mirror consistently serves
-  // "/chapter/<mangaId>/<chapterId>/".
-  private readonly readerDomain = 'www.mangago.zone';
-
-  // Base domain (without www) used for URL matching
-  private readonly domain = 'mangago.me';
-
-  private mangaPath(url: string): string {
-    try {
-      return new URL(url).pathname;
-    } catch {
-      return url;
-    }
+  private imageFromElement($: CheerioAPI, el: ReturnType<CheerioAPI>): string {
+    const dataSrc = (el.attr('data-src') || '').trim();
+    if (dataSrc) return this.absUrl(dataSrc);
+    const src = (el.attr('src') || '').trim();
+    return src ? this.absUrl(src) : '';
   }
 
-  private readerUrl(path: string): string {
-    return `https://${this.readerDomain}${path}`;
-  }
-
-  private chapterUrl(chapterUrl: string): string {
-    if (chapterUrl.startsWith('http://') || chapterUrl.startsWith('https://')) {
-      return chapterUrl;
-    }
-    if (chapterUrl.startsWith('/chapter/')) {
-      return `https://${this.readerDomain}${chapterUrl}`;
-    }
-    return this.absUrl(chapterUrl);
-  }
-
-  private async fetchWithFallback(primaryUrl: string, fallbackUrl: string): Promise<string> {
-    try {
-      const res = await this.get(primaryUrl);
-      return res.data as string;
-    } catch {
-      const res = await this.get(fallbackUrl);
-      return res.data as string;
-    }
-  }
-
-  private selectChapterRows($: any) {
-    return $("table#chapter_table > tbody > tr, table.uk-table > tbody > tr").toArray();
+  private parseListing(html: string): SearchResult {
+    const $ = this.$(html);
+    const mangas: Manga[] = $('.updatesli, .pic_list > li').toArray()
+      .map(el => {
+        const $el = $(el);
+        const link = $el.find('.thm-effect').first();
+        const title = (link.attr('title') || '').trim();
+        const href = link.attr('href') || '';
+        if (!title || !href) return null;
+        return {
+          title,
+          url: this.absUrl(href),
+          thumbnailUrl: this.imageFromElement($, link.find('img').first()),
+          lang: this.lang,
+        };
+      })
+      .filter((m): m is Manga => m !== null);
+    return { mangas, hasNextPage: $('.current + li > a').length > 0 };
   }
 
   async getPopular(page = 1): Promise<SearchResult> {
     const res = await this.get(`${this.baseUrl}/genre/all/${page}/?f=1&o=1&sortby=view&e=`);
-    const $ = this.$(res.data);
-    const mangas: Manga[] = [];
-    $("a").each((_, el) => {
-      const $el = $(el);
-      mangas.push({
-        title: $el.text().trim(),
-        url: this.absUrl($el.attr("href") || ""),
-        thumbnailUrl: this.absUrl($el.find("img").attr("src") || ""),
-        lang: this.lang,
-      });
-    });
-    return { mangas, hasNextPage: false };
+    return this.parseListing(res.data);
   }
 
   async getLatest(page = 1): Promise<SearchResult> {
-    return { mangas: [], hasNextPage: false };
+    const res = await this.get(`${this.baseUrl}/list/latest/all/${page}/`);
+    return this.parseListing(res.data);
   }
 
   async getSearch(query: string, page = 1): Promise<SearchResult> {
-    return { mangas: [], hasNextPage: false };
+    const q = query.trim();
+    if (!q) return this.getPopular(page);
+    const res = await this.get(`${this.baseUrl}/r/l_search?name=${encodeURIComponent(q)}&page=${page}`);
+    return this.parseListing(res.data);
+  }
+
+  private statusOf(text: string): MangaStatus {
+    const value = text.toLowerCase();
+    if (value.includes('ongoing')) return 1;
+    if (value.includes('completed')) return 0;
+    return 3;
   }
 
   async getMangaDetails(mangaUrl: string): Promise<Partial<Manga>> {
-    const path = this.mangaPath(mangaUrl);
-    const html = await this.fetchWithFallback(this.readerUrl(path), mangaUrl);
-    const $ = this.$(html);
+    const res = await this.get(this.absUrl(mangaUrl));
+    const $ = this.$(res.data);
+    let author: string | undefined;
+    let genre: string | undefined;
+    let status: MangaStatus;
+    $('.manga_info li, .manga_right tr').each((_, el) => {
+      const $el = $(el);
+      const label = $el.find('b, label').first().text().trim().toLowerCase();
+      if (label.startsWith('author')) {
+        author = $el.find('a').toArray().map(a => $(a).text().trim()).filter(Boolean).join(', ') || undefined;
+      } else if (label.startsWith('genre')) {
+        genre = $el.find('a').toArray().map(a => $(a).text().trim()).filter(Boolean).join(', ') || undefined;
+      } else if (label.startsWith('status')) {
+        status = this.statusOf($el.find('span').first().text());
+      }
+    });
     return {
-      title: $("h1").text() || $("title").text() || "",
-      url: mangaUrl,
-      thumbnailUrl: this.absUrl($("img").first()?.attr("src") || ""),
-      description: $("meta[name=description]").attr("content") || $(".description, .summary, .entry-content").first()?.text()?.trim() || undefined,
-      author: $(".author, .artist").text() || undefined,
+      title: $('.w-title h1').first().text().trim() || $('title').text().trim(),
+      url: this.absUrl(mangaUrl),
+      thumbnailUrl: this.imageFromElement($, $('#information img').first()),
+      description: $('.manga_summary').first().text().trim() || undefined,
+      author,
+      genre,
+      status,
       lang: this.lang,
     };
   }
 
   async getChapterList(mangaUrl: string): Promise<Chapter[]> {
-    const path = this.mangaPath(mangaUrl);
-    const html = await this.fetchWithFallback(this.readerUrl(path), mangaUrl);
-    const $ = this.$(html);
-    return this.selectChapterRows($).map((row: any) => {
-      const link = $(row).find("a.chico");
-      const rawUrl = link.attr("href") || "";
-      let url: string;
-      try {
-        const httpUrl = new URL(rawUrl, this.baseUrl);
-        if (httpUrl.pathname.startsWith('/chapter/')) {
-          // Reader links rotate between mirror hosts but keep a
-          // stable path. Store only the path so rotated links don't
-          // register as new chapters (resetting read state).
-          url = httpUrl.pathname;
-        } else if (httpUrl.host.endsWith(this.domain)) {
-          url = httpUrl.pathname + httpUrl.search;
-        } else {
-          url = httpUrl.href;
-        }
-      } catch {
-        url = this.absUrl(rawUrl);
-      }
-      return {
-        name: link.text().trim(),
-        url,
-        chapterNumber: -1,
-      };
-    }).filter((ch: any) => ch.url && ch.name);
+    const res = await this.get(this.absUrl(mangaUrl));
+    const $ = this.$(res.data);
+    return $(':is(table#raws_table, table#chapter_table) > tbody > tr, table.uk-table > tbody > tr').toArray()
+      .map(row => {
+        const link = $(row).find('a.chico').first();
+        const href = link.attr('href') || '';
+        const name = link.text().trim();
+        if (!href || !name) return null;
+        const absolute = new URL(href, this.baseUrl);
+        return {
+          name,
+          url: absolute.host.endsWith('mangago.me') ? absolute.pathname + absolute.search : absolute.href,
+        };
+      })
+      .filter((ch): ch is Chapter => ch !== null);
   }
 
   async getPageList(chapterUrl: string): Promise<Page[]> {
-    const url = this.chapterUrl(chapterUrl);
-    const res = await this.get(url);
+    const res = await this.get(this.absUrl(chapterUrl));
     const $ = this.$(res.data);
-    return $("img").toArray().map((el, i) => ({
-      index: i,
-      imageUrl: this.absUrl($(el).attr("src") || ""),
-    }));
+    return $('img').toArray()
+      .map(el => this.imageFromElement($, $(el)))
+      .filter(url => url && !url.includes('mangapicgallery.com/images/'))
+      .map((imageUrl, index) => ({ index, imageUrl }));
   }
 }
